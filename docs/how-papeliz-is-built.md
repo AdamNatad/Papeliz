@@ -37,10 +37,18 @@ One pnpm workspace ties them together (`package.json`, `pnpm-workspace.yaml`).
 
 Tests sit beside the code they test (`*.test.ts`, Vitest).
 
-## One domain
+## One domain, two static Workers
 
-`pnpm deploy:assemble` builds all three and puts them in one folder, `deploy/`: the website at the
-root, the app in `app/` and the help site in `help/`. That folder is what a static host serves.
+Papeliz is served from papeliz.com by Cloudflare Workers static assets: files only, with no code
+running on a server.
+
+- `pnpm deploy:assemble` builds all three and puts them in one folder, `deploy/`: the website at
+  the root, the app in `app/` and the help site in `help/`. The `papeliz-site` Worker
+  (`site/main/wrangler.jsonc`) serves it on papeliz.com.
+- The webapp builds into `app/web/dist/app/`, and its own `papeliz-app` Worker
+  (`app/web/wrangler.jsonc`) serves it on the routes `papeliz.com/app` and `papeliz.com/app/*`,
+  so the app can be deployed on its own. After the build, `webapp:build` writes that Worker's
+  response headers (`build_tools/webapp/papeliz-webapp-worker-headers.mjs`).
 
 ## Run it
 

@@ -1,6 +1,25 @@
-# Papeliz
+<p align="center">
+  <a href="https://papeliz.com">
+    <img src="branding/social-banner/papeliz-social-banner-2400x1260.png" alt="Papeliz: Making Notes Simple." width="100%" />
+  </a>
+</p>
 
-**Making Notes Simple.**
+<h1 align="center">Papeliz</h1>
+
+<p align="center"><strong>Making Notes Simple.</strong></p>
+
+<p align="center">
+  <a href="https://papeliz.com"><strong>Website</strong></a> ·
+  <a href="https://papeliz.com/app/"><strong>Open the app</strong></a> ·
+  <a href="https://papeliz.com/help/"><strong>Help</strong></a> ·
+  <a href="CHANGELOG.md"><strong>Changelog</strong></a>
+</p>
+
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-0064D4.svg" alt="License: MIT" /></a>
+  <a href="https://papeliz.com"><img src="https://img.shields.io/badge/website-papeliz.com-0064D4.svg" alt="Website: papeliz.com" /></a>
+  <a href="https://papeliz.com/app/"><img src="https://img.shields.io/badge/app-live-5B70FF.svg" alt="App: live" /></a>
+</p>
 
 Papeliz is a free, open-source, cross-platform Markdown editor and AI-powered note-taking app for
 building your personal knowledge base. Create, edit, organize, and connect your notes and ideas in
@@ -8,35 +27,48 @@ MD Code and MD View, with a built-in AI assistant that runs on your own API key 
 no Papeliz server in between. Available on the web, Windows, macOS, Linux, Android, iOS, and
 HarmonyOS.
 
-[![License: MIT](https://img.shields.io/badge/license-MIT-0064D4.svg)](LICENSE)
-![Status: early development](https://img.shields.io/badge/status-early%20development-5B70FF.svg)
-
-> **Status:** Papeliz is in early development. The first build is in progress, and the checklist
-> under [Roadmap](#roadmap) shows what works today. Nothing here is ready for daily use yet.
-
-<!-- A screenshot goes here once the first build runs. -->
+**Try it now at [papeliz.com/app](https://papeliz.com/app/)** — open a folder of notes, or start
+with the sample vault. Nothing to install, no sign-up.
 
 ## Why Papeliz
 
 - **Your files stay yours.** Notes are plain `.md` files in a folder on your disk. No proprietary
   format, no lock-in. Existing Markdown folders open as they are.
-- **Use it anywhere, no account.** Papeliz runs on the web, Windows, macOS, Linux, Android, iOS
-  and HarmonyOS. Open a folder of notes and start writing.
+- **Use it anywhere, no account.** Open a folder of notes and start writing.
 - **Your key, your provider.** The assistant talks straight from your device to the AI provider
   you choose. Papeliz has no server, so it never sees your key or your notes.
-- **An assistant that edits, with you in charge.** It rewrites a selection, proposes changes as a
-  diff you accept or reject, and suggests links and tags across your notes. Nothing changes until
-  you say so.
+- **An assistant that works with you.** It answers questions about your notes, plans changes, and
+  proposes edits as diffs you accept or reject. Nothing changes until you say so.
 - **Free and open source.** MIT licensed.
 
-## What it looks like
+## What you can do
 
-- **Files on the left, the note in the middle, the assistant on the right.**
-- **One switch, two views:** **MD Code** shows the raw Markdown with syntax colors and line
-  numbers; **MD View** shows the rendered note.
-- **Inline edits:** select text and ask for Shorter, Rewrite, Fix grammar or Translate; the change
-  appears in place as a diff.
+**Write and organize**
+
+- **MD Code and MD View behind one switch:** raw Markdown with syntax colors and line numbers, or
+  the rendered note you can still type in.
+- **Linked notes:** wikilinks (`[[note]]`), backlinks, an outline and full-text search.
+- **A file list you can make your own:** colors and icons for any note or folder.
 - **Focus mode** (`Ctrl+Shift+F`): only your note and a floating prompt box.
+
+**Work with the AI assistant**
+
+- **Ask, Plan or Write:** look things up, get a plan you can save or carry out, or let it propose
+  changes.
+- **It asks before guessing:** up to four questions on one card; pick an answer or write your own,
+  then Next.
+- **Steer it while it answers,** or queue your next message, and choose how much effort it spends.
+- **Add files and pictures** to the chat.
+- **Edits stay in your hands:** proposals arrive as diffs, inline edits change a selection in
+  place, and deleted notes go to the vault's `.trash/` folder. Your saved chats are never touched.
+- **Usage and cost:** tokens and cost for each model you use.
+
+**Edit safely, anywhere**
+
+- **The same note open in two tabs or apps:** changes are combined line by line when you save; if
+  both changed the same lines, Papeliz asks what to keep.
+- **Nothing lost:** unsaved typing is kept in the browser until the note is saved, so a closed tab
+  or a failed save can be recovered.
 
 ## Bring your own AI provider
 
@@ -61,22 +93,25 @@ and Meta.
 
 ### Other providers
 
-| Kind | Examples |
+| Kind | Providers |
 | --- | --- |
 | Hosted | OpenAI, OpenRouter, Groq, Together, Fireworks, Google Gemini (OpenAI-compatible endpoint) |
-| Local | Ollama, LM Studio |
+| On your computer | Ollama, LM Studio (allow `https://papeliz.com` in their browser settings) |
 | Anything else | Custom base URL for any OpenAI-compatible API |
+
+Every hosted provider listed accepts calls straight from a web page. Providers whose servers refuse
+them, such as Ollama Cloud and OpenCode, aren't offered in the web app.
 
 Your key is stored only on your device and is sent only to the provider you picked. Using a
 provider is subject to that provider's own terms and pricing.
 
 ## Privacy and security
 
-- **No Papeliz server.** Papeliz runs on your device. There is no backend, no account, no
-  analytics on your notes.
+- **No Papeliz server.** papeliz.com is served as static files, with no code running on a server:
+  no backend, no account, no analytics on your notes.
 - **Notes stay on your device.** Papeliz reads and writes the folder you open (on the web, through
-  the File System Access API). It never writes inside a vault's hidden folders, and deleted notes go to the vault's
-  `.trash/` folder.
+  the File System Access API). It never writes inside a vault's hidden folders, and deleted notes
+  go to the vault's `.trash/` folder.
 - **You choose what the assistant sees.** Each message shows which notes are shared with your
   provider, and nothing is sent until you send it.
 - **Safe rendering.** Notes are sanitized before display, and the app ships a strict
@@ -97,9 +132,10 @@ provider is subject to that provider's own terms and pricing.
 - [x] MD Code with autosave, and MD View, behind one switch
 - [x] Wikilinks (`[[note]]`), backlinks, outline and full-text search
 - [x] Bring-your-own-key settings: Muse Spark preset first, then any OpenAI-compatible provider
-- [x] Assistant chat that cites your notes as links
+- [x] Assistant chat in Ask, Plan and Write modes, citing your notes as links
 - [x] Proposed edits as diffs; inline edits on a selection
 - [x] Link and tag suggestions across notes
+- [x] The same note in several tabs or apps, merged safely
 - [x] Focus mode
 - [x] Web, Windows, macOS, Linux, Android, iOS and HarmonyOS
 
@@ -118,6 +154,20 @@ provider is subject to that provider's own terms and pricing.
 - [ ] Math, diagrams and code highlighting in MD View
 - [ ] Firefox and Safari on the web
 
+## Run it locally
+
+You need [Node.js](https://nodejs.org) 24 LTS and [pnpm](https://pnpm.io) (the version in
+`package.json`, `packageManager`; `corepack enable` sets it up).
+
+```bash
+pnpm install
+pnpm webapp:dev
+```
+
+The app opens at `http://127.0.0.1:14201`. The `webapp:*`, `site:*` and `help:*` scripts build,
+test, lint and type-check each piece, and `pnpm deploy:assemble` builds everything for hosting.
+How the pieces fit together: [docs/how-papeliz-is-built.md](docs/how-papeliz-is-built.md).
+
 ## Built with
 
 Papeliz stands on these open-source projects:
@@ -133,17 +183,14 @@ Papeliz stands on these open-source projects:
 | [MiniSearch](https://lucaong.github.io/minisearch/) | Full-text search | MIT |
 | [zustand](https://zustand.docs.pmnd.rs) | App state | MIT |
 | [Lucide](https://lucide.dev) | Icons | ISC |
-| [Next.js](https://nextjs.org) | The website (static export) | MIT |
+| [Next.js](https://nextjs.org) | The website and help site (static export) | MIT |
 | [Figtree](https://fonts.google.com/specimen/Figtree) via [Fontsource](https://fontsource.org) | Typeface | OFL-1.1 |
 
-## Run it locally
-
-The app arrives in `app/web/` with the first build; this section gets its exact commands then.
-You will need [Node.js](https://nodejs.org) 24 LTS and [pnpm](https://pnpm.io) 12.
+Hosted on [Cloudflare Workers](https://workers.cloudflare.com) static assets.
 
 ## Contributing
 
-Issues and pull requests are welcome once the first build lands. Please:
+Issues and pull requests are welcome. Please:
 
 - keep notes as plain Markdown — no format that only Papeliz can read;
 - never add a server that sees users' keys or notes;
@@ -151,4 +198,5 @@ Issues and pull requests are welcome once the first build lands. Please:
 
 ## License
 
-[MIT](LICENSE) © 2026 Natad Corporation
+Made by [Adam Natad](https://papeliz.com/adam-natad/). [MIT](LICENSE) © 2026
+[Natad Corporation](https://natad.ai/).
