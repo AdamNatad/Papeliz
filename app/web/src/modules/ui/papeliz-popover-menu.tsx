@@ -2,6 +2,7 @@ import { Check, type LucideIcon } from 'lucide-react'
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { joinPapelizClassNames } from './papeliz-class-names'
+import { subscribeToPapelizWindowWidthChange } from './papeliz-window-width-change'
 
 export interface PapelizPopoverMenuItem {
   menuItemKey: string
@@ -65,11 +66,11 @@ export function PapelizPopoverMenu({ menuLabel, menuPosition, menuItems, onMenuC
     }
     const closeOnWindowChange = () => onMenuCloseRef.current()
     document.addEventListener('pointerdown', closeOnOutsidePointer, true)
-    window.addEventListener('resize', closeOnWindowChange)
+    const stopWatchingWindowWidth = subscribeToPapelizWindowWidthChange(closeOnWindowChange)
     window.addEventListener('blur', closeOnWindowChange)
     return () => {
       document.removeEventListener('pointerdown', closeOnOutsidePointer, true)
-      window.removeEventListener('resize', closeOnWindowChange)
+      stopWatchingWindowWidth()
       window.removeEventListener('blur', closeOnWindowChange)
       // Give focus back unless something else (a rename field, say) has already taken it.
       if (focusedBeforeMenu?.isConnected && (document.activeElement === null || document.activeElement === document.body)) {

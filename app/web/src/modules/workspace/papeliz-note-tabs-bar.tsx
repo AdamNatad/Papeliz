@@ -1,4 +1,4 @@
-import { Lock, LockOpen, Plus, X } from 'lucide-react'
+import { Eye, Lock, LockOpen, Plus, X } from 'lucide-react'
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { getVaultEntryName, getVaultEntryParentFolderRelativePath, getVaultNoteTitle } from '../vault/papeliz-vault-relative-paths'
@@ -82,6 +82,9 @@ function getNoteTabDragShiftX(noteTabIndex: number, noteTabDrag: PapelizNoteTabD
 export function PapelizNoteTabsBar() {
   const openNoteTabRelativePaths = usePapelizWorkspaceStore((workspaceState) => workspaceState.openNoteTabRelativePaths)
   const activeVaultNoteRelativePath = usePapelizWorkspaceStore((workspaceState) => workspaceState.activeVaultNoteRelativePath)
+  // An AI Assistant proposal shown whole has a read-only tab of its own, after the notes' tabs.
+  const assistantProposalPreview = usePapelizWorkspaceStore((workspaceState) => workspaceState.assistantProposalPreview)
+  const closeAssistantProposalPreview = usePapelizWorkspaceStore((workspaceState) => workspaceState.closeAssistantProposalPreview)
   const loadedVaultNotesByRelativePath = usePapelizWorkspaceStore((workspaceState) => workspaceState.loadedVaultNotesByRelativePath)
   const lockedVaultEntryRelativePaths = usePapelizWorkspaceStore((workspaceState) => workspaceState.lockedVaultEntryRelativePaths)
   const isWholeVaultEditingLocked = usePapelizWorkspaceStore((workspaceState) => workspaceState.isWholeVaultEditingLocked)
@@ -100,17 +103,17 @@ export function PapelizNoteTabsBar() {
       return
     }
     if (vaultNoteEditingLock.vaultNoteEditingLockKind === 'hidden-folder') {
-      showWorkspaceNotice('info', 'Notes in hidden folders open read-only. Papeliz never changes them.')
+      showWorkspaceNotice('info', 'This note is read-only (Hidden Folder).')
       return
     }
     if (vaultNoteEditingLock.vaultNoteEditingLockKind === 'whole-vault') {
-      showWorkspaceNotice('info', 'All notes are locked. Unlock them in Accessibility.')
+      showWorkspaceNotice('info', 'All notes are locked (Unlock In Accessibility).')
       return
     }
     const lockingVaultEntryRelativePath = vaultNoteEditingLock.lockingVaultEntryRelativePath
     setVaultEntryEditingLocked(lockingVaultEntryRelativePath, false)
     if (lockingVaultEntryRelativePath !== vaultNoteRelativePath) {
-      showWorkspaceNotice('info', `Unlocked the folder “${getVaultEntryName(lockingVaultEntryRelativePath)}”.`)
+      showWorkspaceNotice('info', `Unlocked “${getVaultEntryName(lockingVaultEntryRelativePath)}”.`)
     }
   }
   const openVaultNote = usePapelizWorkspaceStore((workspaceState) => workspaceState.openVaultNote)
@@ -324,7 +327,7 @@ export function PapelizNoteTabsBar() {
       >
         <div className={isNoteTabsStacked ? 'flex flex-wrap gap-x-0.5 gap-y-1 [&>*]:h-[34px]' : 'flex h-[34px] flex-none items-stretch gap-0.5'}>
           {openNoteTabRelativePaths.map((vaultNoteRelativePath, vaultNoteTabIndex) => {
-            const isActiveTab = vaultNoteRelativePath === activeVaultNoteRelativePath
+            const isActiveTab = vaultNoteRelativePath === activeVaultNoteRelativePath && assistantProposalPreview === null
             const isDraggedTab = noteTabDrag?.draggedVaultNoteRelativePath === vaultNoteRelativePath
             const vaultNoteTabTitle = vaultNoteTabTitles[vaultNoteTabIndex] ?? vaultNoteRelativePath
             const vaultNoteEditingLock = findVaultNoteEditingLock(isWholeVaultEditingLocked, lockedVaultEntryRelativePaths, vaultNoteRelativePath)
@@ -440,6 +443,27 @@ export function PapelizNoteTabsBar() {
               </div>
             )
           })}
+          {assistantProposalPreview !== null && (
+            <div
+              className="papeliz-tab-enter relative flex w-[188px] flex-none items-center rounded-t-lg bg-papeliz-surface text-[13px] text-papeliz-ink shadow-[inset_0_2px_0_var(--color-papeliz-blue),1px_0_0_var(--color-papeliz-line),-1px_0_0_var(--color-papeliz-line)]"
+              title={`${assistantProposalPreview.previewedVaultNoteRelativePath}, as the AI Assistant proposes it (read-only)`}
+            >
+              <Eye className="ml-2 size-3.5 flex-none text-papeliz-blue" aria-hidden="true" />
+              <span aria-current="page" className="min-w-0 flex-1 truncate pr-1 pl-1.5 font-medium">
+                {getVaultNoteTitle(assistantProposalPreview.previewedVaultNoteRelativePath)}
+                <span className="font-normal text-papeliz-ink-subtle"> · proposed</span>
+              </span>
+              <button
+                type="button"
+                aria-label="Close the proposal preview"
+                title="Close the proposal preview"
+                onClick={closeAssistantProposalPreview}
+                className="mr-2 grid size-5 flex-none place-items-center rounded-md text-papeliz-ink-subtle transition-colors hover:bg-papeliz-press hover:text-papeliz-ink"
+              >
+                <X className="size-3.5" aria-hidden="true" />
+              </button>
+            </div>
+          )}
           {/* Stacked, New note sits right after the last tab, on its row. */}
           {isNoteTabsStacked && <span className="flex items-center">{newNoteTabButton}</span>}
         </div>

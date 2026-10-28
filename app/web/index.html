@@ -6,12 +6,85 @@
     <!-- The same description as the website (site/main/lib/papeliz-site-config.ts). -->
     <meta name="description" content="Papeliz is a free, open-source, cross-platform Markdown editor and AI-powered note-taking app for building your personal knowledge base. Create, edit, organize, and connect your notes and ideas with a built-in AI assistant that runs on your own API key. Available on the web, Windows, macOS, Linux, Android, iOS, and HarmonyOS." />
     <meta name="theme-color" content="#0064d4" />
+    <meta name="author" content="Adam Natad" />
+    <!-- Link previews and search: the website's banner and the same cards as its pages
+         (site/main/lib/papeliz-site-seo.ts), for papeliz.com/app/. -->
+    <link rel="canonical" href="https://papeliz.com/app/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Papeliz" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:url" content="https://papeliz.com/app/" />
+    <meta property="og:title" content="Papeliz - Making Notes Simple" />
+    <meta property="og:description" content="Papeliz is a free, open-source, cross-platform Markdown editor and AI-powered note-taking app for building your personal knowledge base. Create, edit, organize, and connect your notes and ideas with a built-in AI assistant that runs on your own API key. Available on the web, Windows, macOS, Linux, Android, iOS, and HarmonyOS." />
+    <meta property="og:image" content="https://papeliz.com/papeliz-social-banner-1200x630.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:alt" content="Papeliz: Making Notes Simple." />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Papeliz - Making Notes Simple" />
+    <meta name="twitter:description" content="Papeliz is a free, open-source, cross-platform Markdown editor and AI-powered note-taking app for building your personal knowledge base. Create, edit, organize, and connect your notes and ideas with a built-in AI assistant that runs on your own API key. Available on the web, Windows, macOS, Linux, Android, iOS, and HarmonyOS." />
+    <meta name="twitter:image" content="https://papeliz.com/papeliz-social-banner-1200x630.png" />
+    <meta name="twitter:image:alt" content="Papeliz: Making Notes Simple." />
+    <!-- Structured data: the web app, published by Natad Corporation and made by Adam Natad, with the
+         same @ids as the website's (site/main/lib/papeliz-site-jsonld.ts). A data block, never run,
+         so the Content-Security-Policy doesn't apply to it. -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebApplication",
+            "@id": "https://papeliz.com/app/#webapp",
+            "name": "Papeliz",
+            "url": "https://papeliz.com/app/",
+            "description": "Papeliz is a free, open-source, cross-platform Markdown editor and AI-powered note-taking app for building your personal knowledge base. Create, edit, organize, and connect your notes and ideas with a built-in AI assistant that runs on your own API key. Available on the web, Windows, macOS, Linux, Android, iOS, and HarmonyOS.",
+            "applicationCategory": "UtilitiesApplication",
+            "operatingSystem": "Web browser",
+            "isAccessibleForFree": true,
+            "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+            "license": "https://opensource.org/license/mit",
+            "image": "https://papeliz.com/papeliz-social-banner-1200x630.png",
+            "inLanguage": "en",
+            "isPartOf": { "@id": "https://papeliz.com/#website" },
+            "author": { "@id": "https://papeliz.com/adam-natad/#person" },
+            "creator": { "@id": "https://papeliz.com/adam-natad/#person" },
+            "publisher": { "@id": "https://natad.ai/#organization" },
+            "copyrightHolder": { "@id": "https://natad.ai/#organization" },
+            "copyrightYear": 2026
+          },
+          {
+            "@type": "WebSite",
+            "@id": "https://papeliz.com/#website",
+            "url": "https://papeliz.com/",
+            "name": "Papeliz",
+            "publisher": { "@id": "https://natad.ai/#organization" }
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://natad.ai/#organization",
+            "name": "Natad Corporation",
+            "url": "https://natad.ai/",
+            "logo": "https://papeliz.com/images/adam-natad/natad-corporation-icon.png",
+            "founder": { "@id": "https://papeliz.com/adam-natad/#person" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://papeliz.com/adam-natad/#person",
+            "name": "Adam Natad",
+            "alternateName": "Jose Adam Climaco Natad",
+            "url": "https://papeliz.com/adam-natad/",
+            "worksFor": { "@id": "https://natad.ai/#organization" }
+          }
+        ]
+      }
+    </script>
     <!-- The theme shared with the website, set before the first paint (a same-origin file, so the
          Content-Security-Policy's script-src 'self' allows it). -->
     <script src="/papeliz-theme-boot.js"></script>
     <link rel="icon" type="image/svg+xml" href="/papeliz-favicon.svg" />
     <link rel="apple-touch-icon" href="/papeliz-apple-touch-icon.png" />
-    <title>Papeliz</title>
+    <title>Papeliz - Making Notes Simple</title>
   </head>
   <body>
     <div id="papeliz-webapp-root"></div>

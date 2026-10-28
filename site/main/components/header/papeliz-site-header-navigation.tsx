@@ -13,10 +13,12 @@ type PapelizSiteHeaderIndicatorPlacement = {
 }
 
 // The underline is this share of its label's width, centered under it.
-const papelizSiteHeaderIndicatorLabelShare = 0.6
+export const papelizSiteHeaderIndicatorLabelShare = 0.6
 // The underline's top sits this many pixels above the current link's bottom edge, just under the
 // label, rather than down at the bottom of the header bar.
-const papelizSiteHeaderIndicatorRiseAboveLinkBottom = 6
+export const papelizSiteHeaderIndicatorRiseAboveLinkBottom = 6
+// How long the underline takes to slide or grow: the duration-500 in its class below.
+export const papelizSiteHeaderIndicatorSlideMilliseconds = 500
 
 // A header link's look: the page links here, and Community at the header's right.
 export function createPapelizSiteHeaderLinkClassName(papelizSiteHeaderLinkIsCurrent: boolean) {
@@ -25,11 +27,21 @@ export function createPapelizSiteHeaderLinkClassName(papelizSiteHeaderLinkIsCurr
   }`
 }
 
+// The white underline's look, here and in the phone row. It slides on an ease-out curve, and
+// moves without motion when the reader asks for reduced motion.
+export function createPapelizSiteHeaderIndicatorClassName(papelizSiteHeaderIndicatorSlides: boolean, papelizSiteHeaderIndicatorIsShown: boolean) {
+  return `pointer-events-none absolute left-0 h-0.5 origin-center rounded-full bg-white shadow-[0_0_12px_rgb(255_255_255/0.45)] ${
+    papelizSiteHeaderIndicatorSlides
+      ? 'transition-[transform,width,opacity] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none'
+      : 'transition-none'
+  } ${papelizSiteHeaderIndicatorIsShown ? 'opacity-100' : 'opacity-0'}`
+}
+
 // The header's page links, with a white underline under the current page. The underline is placed
 // within the whole header bar (marked data-papeliz-site-header-bar), so it also reaches Community at
 // the right. Moving to another page, the underline slides there; on first load, or coming from a
 // page with no link in the header (home), it grows in place; a resize or a font arriving moves it
-// without motion. Phones rely on the footer's links for now.
+// without motion, once any slide or growth under way has finished. Phones get the same links in a row under the bar (the phone row).
 export function PapelizSiteHeaderNavigation() {
   const papelizSiteCurrentPathname = usePathname()
   const papelizSiteHeaderNavigationRef = useRef<HTMLElement>(null)
@@ -49,8 +61,26 @@ export function PapelizSiteHeaderNavigation() {
     if (!papelizSiteHeaderNavigationElement || !papelizSiteHeaderBarElement) return
     let papelizSiteHeaderMeasureFrame = 0
     let papelizSiteHeaderRevealFrame = 0
+    let papelizSiteHeaderIndicatorMotionTimer = 0
+    // A resize or a font arriving while the underline slides or grows waits for the motion to end, so
+    // it cannot cut it short; the underline is then placed again without motion.
+    let papelizSiteHeaderIndicatorMotionIsRunning = false
+    let papelizSiteHeaderIndicatorPlacesAfterMotion = false
     let papelizSiteHeaderNavigationIsDisposed = false
 
+    const holdPapelizSiteHeaderIndicatorMotion = () => {
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+      papelizSiteHeaderIndicatorMotionIsRunning = true
+      window.clearTimeout(papelizSiteHeaderIndicatorMotionTimer)
+      papelizSiteHeaderIndicatorMotionTimer = window.setTimeout(() => {
+        papelizSiteHeaderIndicatorMotionIsRunning = false
+        if (!papelizSiteHeaderIndicatorPlacesAfterMotion) return
+        papelizSiteHeaderIndicatorPlacesAfterMotion = false
+        placePapelizSiteHeaderIndicatorWithoutMotion()
+      }, papelizSiteHeaderIndicatorSlideMilliseconds)
+    }
+
+    // Returns whether the underline slides from its last place.
     const placePapelizSiteHeaderIndicator = (papelizSiteHeaderIndicatorMaySlide: boolean) => {
       const papelizSiteCurrentLinkLabel = papelizSiteHeaderBarElement.querySelector<HTMLElement>(
         '[aria-current="page"] [data-papeliz-site-header-link-label]',
@@ -68,7 +98,7 @@ export function PapelizSiteHeaderNavigation() {
           ...papelizSiteHeaderIndicatorCurrentPlacement,
           papelizSiteHeaderIndicatorIsShown: false,
         }))
-        return
+        return false
       }
       const papelizSiteCurrentLinkLabelRect = papelizSiteCurrentLinkLabel.getBoundingClientRect()
       const papelizSiteHeaderIndicatorWidth = papelizSiteCurrentLinkLabelRect.width * papelizSiteHeaderIndicatorLabelShare
@@ -93,6 +123,7 @@ export function PapelizSiteHeaderNavigation() {
         papelizSiteHeaderRevealFrame = requestAnimationFrame(() => {
           papelizSiteHeaderRevealFrame = requestAnimationFrame(() => {
             if (papelizSiteHeaderNavigationIsDisposed) return
+            holdPapelizSiteHeaderIndicatorMotion()
             setPapelizSiteHeaderIndicatorSlides(true)
             setPapelizSiteHeaderIndicatorPlacement((papelizSiteHeaderIndicatorCurrentPlacement) => ({
               ...papelizSiteHeaderIndicatorCurrentPlacement,
@@ -102,9 +133,14 @@ export function PapelizSiteHeaderNavigation() {
         })
       }
       papelizSiteHeaderIndicatorWasShownRef.current = true
+      return papelizSiteHeaderIndicatorSlidesHere
     }
 
-    const placePapelizSiteHeaderIndicatorWithoutMotion = () => {
+    function placePapelizSiteHeaderIndicatorWithoutMotion() {
+      if (papelizSiteHeaderIndicatorMotionIsRunning) {
+        papelizSiteHeaderIndicatorPlacesAfterMotion = true
+        return
+      }
       cancelAnimationFrame(papelizSiteHeaderMeasureFrame)
       papelizSiteHeaderMeasureFrame = requestAnimationFrame(() => {
         if (papelizSiteHeaderNavigationIsDisposed) return
@@ -116,7 +152,7 @@ export function PapelizSiteHeaderNavigation() {
     }
 
     // A new page: slide if the underline is already showing, otherwise grow in place.
-    placePapelizSiteHeaderIndicator(true)
+    if (placePapelizSiteHeaderIndicator(true)) holdPapelizSiteHeaderIndicatorMotion()
 
     // A ResizeObserver reports once as soon as it starts watching; that report is skipped so it does
     // not cut short the slide that has just begun.
@@ -135,6 +171,7 @@ export function PapelizSiteHeaderNavigation() {
       papelizSiteHeaderNavigationIsDisposed = true
       cancelAnimationFrame(papelizSiteHeaderMeasureFrame)
       cancelAnimationFrame(papelizSiteHeaderRevealFrame)
+      window.clearTimeout(papelizSiteHeaderIndicatorMotionTimer)
       papelizSiteHeaderResizeObserver.disconnect()
       document.fonts.removeEventListener('loadingdone', placePapelizSiteHeaderIndicatorWithoutMotion)
     }
@@ -164,9 +201,10 @@ export function PapelizSiteHeaderNavigation() {
       })}
       <span
         aria-hidden="true"
-        className={`pointer-events-none absolute left-0 h-0.5 origin-center rounded-full bg-white shadow-[0_0_12px_rgb(255_255_255/0.45)] ${
-          papelizSiteHeaderIndicatorSlides ? 'transition-[transform,width,opacity] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]' : 'transition-none'
-        } ${papelizSiteHeaderIndicatorPlacement.papelizSiteHeaderIndicatorIsShown ? 'opacity-100' : 'opacity-0'}`}
+        className={createPapelizSiteHeaderIndicatorClassName(
+          papelizSiteHeaderIndicatorSlides,
+          papelizSiteHeaderIndicatorPlacement.papelizSiteHeaderIndicatorIsShown,
+        )}
         style={{
           top: papelizSiteHeaderIndicatorPlacement.papelizSiteHeaderIndicatorTop,
           width: papelizSiteHeaderIndicatorPlacement.papelizSiteHeaderIndicatorWidth,

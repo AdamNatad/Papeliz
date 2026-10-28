@@ -5,6 +5,7 @@ import {
   putPapelizBrowserDatabaseRecord,
   readAllPapelizBrowserDatabaseRecords,
 } from '../browser-database/papeliz-browser-database'
+import { describePapelizVaultError } from './papeliz-vault-adapter'
 
 // One row of `papelizVaultFolderHandles`: a folder the user opened, so the welcome screen can offer
 // it again. The browser keeps the handle; permission is asked again when the folder is reopened.
@@ -91,14 +92,14 @@ export async function deleteRememberedVaultFolderFromDisk(rememberedVaultFolder:
   if (typeof papelizVaultFolderHandle.remove !== 'function') {
     return {
       vaultFolderDeleteOutcome: 'failed',
-      vaultFolderDeleteFailureMessage: `This browser can’t delete folders. Delete “${papelizVaultDisplayName}” from your disk yourself.`,
+      vaultFolderDeleteFailureMessage: `Couldn’t delete “${papelizVaultDisplayName}” (Browser Can’t Delete)`,
     }
   }
   try {
     if ((await ensureVaultFolderPermission(papelizVaultFolderHandle)) !== 'granted') {
       return {
         vaultFolderDeleteOutcome: 'failed',
-        vaultFolderDeleteFailureMessage: `Papeliz needs permission to change “${papelizVaultDisplayName}” to delete it. Nothing was deleted.`,
+        vaultFolderDeleteFailureMessage: `Couldn’t delete “${papelizVaultDisplayName}” (No Permission)`,
       }
     }
     await papelizVaultFolderHandle.remove({ recursive: true })
@@ -107,9 +108,7 @@ export async function deleteRememberedVaultFolderFromDisk(rememberedVaultFolder:
     if (!(vaultFolderDeleteError instanceof DOMException && vaultFolderDeleteError.name === 'NotFoundError')) {
       return {
         vaultFolderDeleteOutcome: 'failed',
-        vaultFolderDeleteFailureMessage: `“${papelizVaultDisplayName}” couldn’t be deleted${
-          vaultFolderDeleteError instanceof Error && vaultFolderDeleteError.message.length > 0 ? `: ${vaultFolderDeleteError.message}` : '.'
-        } A file in it may be open in another app.`,
+        vaultFolderDeleteFailureMessage: `Couldn’t delete “${papelizVaultDisplayName}” (${describePapelizVaultError(vaultFolderDeleteError)})`,
       }
     }
   }

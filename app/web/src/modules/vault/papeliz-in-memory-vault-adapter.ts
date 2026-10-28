@@ -24,6 +24,8 @@ export class PapelizInMemoryVaultAdapter implements PapelizVaultAdapter {
   readonly papelizVaultKind = 'sample-vault-in-memory' as const
   private readonly vaultNoteTextsByRelativePath = new Map<string, string>()
   private readonly vaultFolderRelativePaths = new Set<string>()
+  // Files that aren't notes, such as pictures added to a chat. They are kept but not listed.
+  private readonly vaultAttachmentFileBlobsByRelativePath = new Map<string, Blob>()
   // Papeliz's own files for the vault (what a folder keeps in `.papeliz/`), by file name.
   private readonly papelizVaultSettingsFileTextsByName = new Map<string, string>()
 
@@ -62,7 +64,7 @@ export class PapelizInMemoryVaultAdapter implements PapelizVaultAdapter {
 
   async readVaultNoteText(vaultNoteRelativePath: string): Promise<string> {
     const vaultNoteText = this.vaultNoteTextsByRelativePath.get(vaultNoteRelativePath)
-    if (vaultNoteText === undefined) throw new PapelizVaultOperationError('The note is no longer in the vault.')
+    if (vaultNoteText === undefined) throw new PapelizVaultOperationError('Not In Vault')
     return vaultNoteText
   }
 
@@ -77,6 +79,19 @@ export class PapelizInMemoryVaultAdapter implements PapelizVaultAdapter {
     this.assertNameIsFree(vaultNoteRelativePath)
     this.vaultNoteTextsByRelativePath.set(vaultNoteRelativePath, vaultNoteText)
     this.addMissingParentFolders(vaultNoteRelativePath)
+  }
+
+  async createVaultAttachmentFile(vaultAttachmentFileRelativePath: string, vaultAttachmentFileBlob: Blob): Promise<void> {
+    this.assertWritableByPapeliz(vaultAttachmentFileRelativePath)
+    this.assertNameIsFree(vaultAttachmentFileRelativePath)
+    if (this.vaultAttachmentFileBlobsByRelativePath.has(vaultAttachmentFileRelativePath)) throw new PapelizVaultOperationError('Name Taken')
+    this.vaultAttachmentFileBlobsByRelativePath.set(vaultAttachmentFileRelativePath, vaultAttachmentFileBlob)
+    this.addMissingParentFolders(vaultAttachmentFileRelativePath)
+  }
+
+  // A file written with `createVaultAttachmentFile`, or null.
+  readVaultAttachmentFile(vaultAttachmentFileRelativePath: string): Blob | null {
+    return this.vaultAttachmentFileBlobsByRelativePath.get(vaultAttachmentFileRelativePath) ?? null
   }
 
   async createVaultFolder(vaultFolderRelativePath: string): Promise<void> {
@@ -98,7 +113,7 @@ export class PapelizInMemoryVaultAdapter implements PapelizVaultAdapter {
     this.assertWritableByPapeliz(fromVaultEntryRelativePath)
     this.assertWritableByPapeliz(toVaultEntryRelativePath)
     if (isVaultRelativePathInsideFolder(toVaultEntryRelativePath, fromVaultEntryRelativePath)) {
-      throw new PapelizVaultOperationError('A folder can’t be copied into itself.')
+      throw new PapelizVaultOperationError('Into Itself')
     }
     this.assertNameIsFree(toVaultEntryRelativePath)
     const vaultNoteText = this.vaultNoteTextsByRelativePath.get(fromVaultEntryRelativePath)
@@ -108,7 +123,7 @@ export class PapelizInMemoryVaultAdapter implements PapelizVaultAdapter {
       return
     }
     if (!this.vaultFolderRelativePaths.has(fromVaultEntryRelativePath)) {
-      throw new PapelizVaultOperationError('That note or folder is no longer in the vault.')
+      throw new PapelizVaultOperationError('Not In Vault')
     }
     for (const vaultFolderRelativePath of [...this.vaultFolderRelativePaths]) {
       if (isVaultRelativePathInsideFolder(vaultFolderRelativePath, fromVaultEntryRelativePath)) {
@@ -150,7 +165,7 @@ export class PapelizInMemoryVaultAdapter implements PapelizVaultAdapter {
       return
     }
     if (!this.vaultFolderRelativePaths.has(fromVaultEntryRelativePath)) {
-      throw new PapelizVaultOperationError('That note or folder is no longer in the vault.')
+      throw new PapelizVaultOperationError('Not In Vault')
     }
     for (const vaultFolderRelativePath of [...this.vaultFolderRelativePaths]) {
       if (isVaultRelativePathInsideFolder(vaultFolderRelativePath, fromVaultEntryRelativePath)) {
@@ -193,19 +208,19 @@ export class PapelizInMemoryVaultAdapter implements PapelizVaultAdapter {
 
   private assertNameIsFree(vaultEntryRelativePath: string): void {
     if (this.hasVaultEntryIgnoringCase(vaultEntryRelativePath)) {
-      throw new PapelizVaultOperationError(`“${getVaultEntryName(vaultEntryRelativePath)}” already exists here.`)
+      throw new PapelizVaultOperationError('Name Taken')
     }
   }
 
   private assertPapelizVaultSettingsFileName(papelizVaultSettingsFileName: string): void {
     if (!isPapelizVaultSettingsFileName(papelizVaultSettingsFileName)) {
-      throw new PapelizVaultOperationError(`“${papelizVaultSettingsFileName}” is not a Papeliz settings file.`)
+      throw new PapelizVaultOperationError('Unknown Settings File')
     }
   }
 
   private assertWritableByPapeliz(vaultEntryRelativePath: string): void {
     if (!isVaultRelativePathWritableByPapeliz(vaultEntryRelativePath) || splitVaultRelativePath(vaultEntryRelativePath).length === 0) {
-      throw new PapelizVaultOperationError('Papeliz doesn’t change hidden folders such as .git.')
+      throw new PapelizVaultOperationError('Hidden Folder')
     }
   }
 }

@@ -63,7 +63,7 @@ const papelizChatSessionTokenUsageFrontmatterKeys = {
   isChatSessionContextTokenCountEstimated: 'chat-session-context-tokens-estimated',
   chatSessionModelTokenUsageTallies: 'chat-session-tokens-by-model',
 } as const
-const papelizChatSessionModelTokenUsageLinePattern = /^(.*) · (\d+) in · (\d+) out · (\d+) requests?( · estimated)?$/
+const papelizChatSessionModelTokenUsageLinePattern = /^(.*) · (\d+) in · (\d+) out · (\d+) requests?( · estimated)?(?: · provider cost \$(\d+(?:\.\d+)?) over (\d+))?$/
 
 export type PapelizChatSessionMessageRole = 'user' | 'assistant'
 
@@ -117,6 +117,9 @@ function formatChatSessionModelTokenUsageLine(modelTokenUsageTally: PapelizAssis
     `${modelTokenUsageTally.assistantOutputTokenCount} out`,
     `${modelTokenUsageTally.assistantRequestCount} ${modelTokenUsageTally.assistantRequestCount === 1 ? 'request' : 'requests'}`,
     ...(modelTokenUsageTally.isAssistantTokenCountEstimated ? ['estimated'] : []),
+    ...((modelTokenUsageTally.assistantProviderReportedCostRequestCount ?? 0) > 0
+      ? [`provider cost $${Number((modelTokenUsageTally.assistantProviderReportedCostUsd ?? 0).toFixed(8))} over ${modelTokenUsageTally.assistantProviderReportedCostRequestCount}`]
+      : []),
   ].join(' · ')
   return `  - ${JSON.stringify(modelTokenUsageText)}`
 }
@@ -138,6 +141,9 @@ function parseChatSessionModelTokenUsageLine(modelTokenUsageLineValue: string): 
     assistantOutputTokenCount: Number(modelTokenUsageMatch[3]),
     assistantRequestCount: Number(modelTokenUsageMatch[4]),
     isAssistantTokenCountEstimated: modelTokenUsageMatch[5] !== undefined,
+    ...(modelTokenUsageMatch[6] !== undefined && modelTokenUsageMatch[7] !== undefined
+      ? { assistantProviderReportedCostUsd: Number(modelTokenUsageMatch[6]), assistantProviderReportedCostRequestCount: Number(modelTokenUsageMatch[7]) }
+      : {}),
   }
 }
 
@@ -180,6 +186,18 @@ function parseChatSessionTokenUsageFrontmatter(
   // Totals with no per-model lines (written by hand, say) are put down to the chat's model.
   if (chatSessionModelTokenUsageTallies.length === 0 && chatSessionTokenUsageTally.assistantRequestCount > 0) {
     chatSessionModelTokenUsageTallies.push({ ...chatSessionTokenUsageTally, providerModelName: frontmatterValues.get('model') || papelizUnknownProviderModelName })
+  }
+  // The provider's own cost is kept per model only; the chat's is their sum.
+  const providerReportedCostRequestCount = chatSessionModelTokenUsageTallies.reduce(
+    (requestCount, modelTokenUsageTally) => requestCount + (modelTokenUsageTally.assistantProviderReportedCostRequestCount ?? 0),
+    0,
+  )
+  if (providerReportedCostRequestCount > 0) {
+    chatSessionTokenUsageTally.assistantProviderReportedCostRequestCount = providerReportedCostRequestCount
+    chatSessionTokenUsageTally.assistantProviderReportedCostUsd = chatSessionModelTokenUsageTallies.reduce(
+      (reportedCostUsd, modelTokenUsageTally) => reportedCostUsd + (modelTokenUsageTally.assistantProviderReportedCostUsd ?? 0),
+      0,
+    )
   }
   return {
     chatSessionTokenUsageTally,

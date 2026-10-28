@@ -121,6 +121,9 @@ class PapelizWorkspaceEyePreviewerVaultAdapter implements PapelizVaultAdapter {
   createVaultFolder(vaultFolderRelativePath: string) {
     return this.inMemoryVaultAdapter.createVaultFolder(vaultFolderRelativePath)
   }
+  createVaultAttachmentFile(vaultAttachmentFileRelativePath: string, vaultAttachmentFileBlob: Blob) {
+    return this.inMemoryVaultAdapter.createVaultAttachmentFile(vaultAttachmentFileRelativePath, vaultAttachmentFileBlob)
+  }
   renameVaultEntry(fromVaultEntryRelativePath: string, toVaultEntryRelativePath: string) {
     return this.inMemoryVaultAdapter.renameVaultEntry(fromVaultEntryRelativePath, toVaultEntryRelativePath)
   }
@@ -158,7 +161,7 @@ let isSwitchingEyePreviewerState = false
 let stopWatchingEyePreviewerVault: (() => void) | null = null
 
 function showPreviewOnlyNotice(previewOnlyMessage: string): void {
-  usePapelizWorkspaceStore.getState().showWorkspaceNotice('info', `${previewOnlyMessage} Choose Live in the eye menu to leave the preview.`)
+  usePapelizWorkspaceStore.getState().showWorkspaceNotice('info', previewOnlyMessage)
 }
 
 // Keeps the previews to themselves: the provider settings and the assistant's send, stop and save
@@ -176,11 +179,11 @@ function setAsideOutsideStateOnce(): void {
     stopAssistant: conversationState.stopAssistant,
   }
   usePapelizAssistantProviderSettingsStore.setState({
-    saveAssistantProviderSettings: async () => showPreviewOnlyNotice('This is a preview, so provider settings aren’t saved.'),
-    forgetAssistantProviderSettings: async () => showPreviewOnlyNotice('This is a preview, so provider settings aren’t changed.'),
+    saveAssistantProviderSettings: async () => showPreviewOnlyNotice('Settings not saved (Preview Only).'),
+    forgetAssistantProviderSettings: async () => showPreviewOnlyNotice('Settings not changed (Preview Only).'),
   })
   usePapelizAssistantConversationStore.setState({
-    sendAssistantMessage: async () => showPreviewOnlyNotice('This is a preview, so nothing is sent to a provider.'),
+    sendAssistantMessage: async () => showPreviewOnlyNotice('Nothing sent (Preview Only).'),
     // Stop ends the made-up answer where it is.
     stopAssistant: () =>
       usePapelizAssistantConversationStore.setState((conversationState) => ({
@@ -315,6 +318,7 @@ function previewProposals(): PapelizAssistantProposal[] {
       ],
       newVaultNoteText: gardenPlanText.replace('Water early in the morning.', 'Water early in the morning, deeply, twice a week.'),
       originalVaultNoteText: gardenPlanText,
+      trashedVaultEntryRelativePaths: [],
       proposalStatus: 'pending',
       proposalProblem: null,
     },
@@ -326,6 +330,7 @@ function previewProposals(): PapelizAssistantProposal[] {
       vaultNoteTextEdits: [],
       newVaultNoteText: '# Watering\n\n- Tomatoes: deeply, twice a week\n- Beans and peas: when the top of the soil is dry\n\nFrom the [[Garden plan]].\n',
       originalVaultNoteText: '',
+      trashedVaultEntryRelativePaths: [],
       proposalStatus: 'pending',
       proposalProblem: null,
     },
@@ -476,12 +481,12 @@ function describeStartScreenEyePreview(
     case 'start-open-vault-permission-refused':
       return {
         ...liveLikeStartScreenEyePreview,
-        previewStartScreenNotice: { previewNoticeKind: 'error', previewNoticeMessage: 'Papeliz needs permission to read and save the notes in this folder.' },
+        previewStartScreenNotice: { previewNoticeKind: 'error', previewNoticeMessage: 'Couldn’t open the folder (No Permission)' },
       }
     case 'start-open-vault-folder-gone':
       return {
         ...liveLikeStartScreenEyePreview,
-        previewStartScreenNotice: { previewNoticeKind: 'error', previewNoticeMessage: 'The folder is no longer available. It may have been moved or deleted.' },
+        previewStartScreenNotice: { previewNoticeKind: 'error', previewNoticeMessage: 'Couldn’t open “Field Notes” (Folder Not Found)' },
       }
     case 'start-recent-vaults-empty':
       return { ...liveLikeStartScreenEyePreview, previewRememberedVaultFolders: [] }
@@ -508,7 +513,7 @@ function describeStartScreenEyePreview(
       return {
         ...hiddenListStartScreenEyePreview,
         previewRememberedVaultFolders: [...createPreviewRecentVaultFolders('few'), ...createPreviewHiddenVaultFolders(papelizEyePreviewerHiddenVaultNames.slice(1))],
-        previewStartScreenNotice: { previewNoticeKind: 'info', previewNoticeMessage: `“${papelizEyePreviewerHiddenVaultNames[0]}” was deleted.` },
+        previewStartScreenNotice: { previewNoticeKind: 'info', previewNoticeMessage: `Deleted “${papelizEyePreviewerHiddenVaultNames[0]}”.` },
       }
     case 'start-hidden-vaults-delete-partly-failed':
       return {
@@ -516,7 +521,7 @@ function describeStartScreenEyePreview(
         previewRememberedVaultFolders: [...createPreviewRecentVaultFolders('few'), ...createPreviewHiddenVaultFolders(papelizEyePreviewerHiddenVaultNames.slice(2))],
         previewStartScreenNotice: {
           previewNoticeKind: 'error',
-          previewNoticeMessage: '1 vault stays in the Hidden list: it could not be deleted right now. Try again in a moment.',
+          previewNoticeMessage: `Couldn’t delete 1 of ${papelizEyePreviewerHiddenVaultNames.length} vaults (Still Hidden)`,
         },
       }
   }
@@ -613,7 +618,7 @@ async function holdVaultEyePreviewerState(workspaceEyePreviewerState: PapelizVau
       break
     case 'note-save-failed':
       // The words the vault uses when another program holds the file.
-      updateActivePreviewNote((loadedVaultNote) => ({ ...loadedVaultNote, noteSaveState: 'save-failed', noteSaveErrorMessage: 'The file is locked by another program.' }))
+      updateActivePreviewNote((loadedVaultNote) => ({ ...loadedVaultNote, noteSaveState: 'save-failed', noteSaveErrorMessage: 'File In Use' }))
       break
     case 'note-locked':
       usePapelizWorkspaceStore.setState({ lockedVaultEntryRelativePaths: [papelizEyePreviewerActiveNoteRelativePath] })
@@ -637,10 +642,10 @@ async function holdVaultEyePreviewerState(workspaceEyePreviewerState: PapelizVau
       break
     case 'toast-info':
       // The words the file list uses after Move to Trash.
-      workspaceState.showWorkspaceNotice('info', 'Moved “Inbox.md” to .trash/Inbox.md')
+      workspaceState.showWorkspaceNotice('info', 'Moved “Inbox” to the trash.')
       break
     case 'toast-error':
-      workspaceState.showWorkspaceNotice('error', 'The chat could not be saved to the vault. The disk is full.')
+      workspaceState.showWorkspaceNotice('error', 'Couldn’t save the chat (Disk Full)')
       break
     case 'toast-error-try-again':
       workspaceState.showWorkspaceNotice('error', describePapelizFolderAccessOffReason('chooser-unavailable'), {

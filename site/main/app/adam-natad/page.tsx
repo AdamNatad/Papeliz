@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { papelizSiteName } from '@/lib/papeliz-site-config'
-import { serializePapelizSiteJsonLd } from '@/lib/papeliz-site-jsonld'
+import { papelizSiteAuthorJsonLdId, papelizSiteOrganizationJsonLdId, papelizSiteWebsiteJsonLdId, serializePapelizSiteJsonLd } from '@/lib/papeliz-site-jsonld'
 import { createPapelizSitePageMetadata, papelizSiteAbsoluteUrl } from '@/lib/papeliz-site-seo'
 import { PapelizSiteAdamNatadProfile, type AdamNatadProfileConfig } from './papeliz-site-adam-natad-profile'
 
@@ -85,6 +85,8 @@ export const metadata: Metadata = {
 function createPapelizSiteAdamNatadProfileJsonLd() {
   const papelizSiteAdamNatadPageUrl = papelizSiteAbsoluteUrl(papelizSiteAdamNatadPagePath)
   const papelizSiteHomeUrl = papelizSiteAbsoluteUrl('/')
+  const papelizSiteAdamNatadPersonId = papelizSiteAuthorJsonLdId()
+  const papelizSiteWebsiteId = papelizSiteWebsiteJsonLdId()
   const papelizSiteAdamNatadImageUrls = [
     papelizSiteAbsoluteUrl(papelizSiteAdamNatadProfileConfig.images.adam1),
     papelizSiteAbsoluteUrl(papelizSiteAdamNatadProfileConfig.images.adam2),
@@ -95,15 +97,17 @@ function createPapelizSiteAdamNatadProfileJsonLd() {
     ...(papelizSiteAdamNatadPageUrl ? { '@id': `${papelizSiteAdamNatadPageUrl}#profile`, url: papelizSiteAdamNatadPageUrl } : {}),
     name: 'Adam Natad',
     description: papelizSiteAdamNatadProfileDescription,
+    // The same Person (and @id) every page's structured data names.
     mainEntity: {
       '@type': 'Person',
+      ...(papelizSiteAdamNatadPersonId ? { '@id': papelizSiteAdamNatadPersonId } : {}),
       name: 'Adam Natad',
       alternateName: 'Jose Adam Climaco Natad',
       jobTitle: 'Software Developer, Creator of Papeliz, and Founder and CEO of Natad Corporation',
       ...(papelizSiteAdamNatadPageUrl ? { url: papelizSiteAdamNatadPageUrl } : {}),
       ...(papelizSiteAdamNatadImageUrls.length > 0 ? { image: papelizSiteAdamNatadImageUrls } : {}),
       worksFor: [
-        { '@type': 'Organization', name: 'Natad Corporation', url: 'https://natad.ai/' },
+        { '@type': 'Organization', '@id': papelizSiteOrganizationJsonLdId, name: 'Natad Corporation', url: 'https://natad.ai/' },
         { '@type': 'Organization', name: 'NatadTech Solutions OPC', url: 'https://natadtech.com/' },
       ],
       sameAs: [
@@ -120,7 +124,7 @@ function createPapelizSiteAdamNatadProfileJsonLd() {
     isPartOf: {
       '@type': 'WebSite',
       name: papelizSiteName,
-      ...(papelizSiteHomeUrl ? { '@id': `${papelizSiteHomeUrl}#website`, url: papelizSiteHomeUrl } : {}),
+      ...(papelizSiteWebsiteId && papelizSiteHomeUrl ? { '@id': papelizSiteWebsiteId, url: papelizSiteHomeUrl } : {}),
     },
   }
 }

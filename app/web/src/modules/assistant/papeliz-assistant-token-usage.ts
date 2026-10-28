@@ -4,7 +4,8 @@ import type { PapelizChatCompletionTokenUsage } from './papeliz-openai-compatibl
 // are estimated where it gave none (papeliz-openai-compatible-client.ts). Chat sessions keep theirs
 // in their note's frontmatter (papeliz-assistant-chat-session-files.ts), inline edits in the vault's
 // `.papeliz/` folder (papeliz-assistant-inline-edit-usage-file.ts), and the Usage tab adds them up.
-// Cost is never worked out: prices differ by provider and change.
+// Where a provider says what a request cost (OpenRouter does), that is kept too; Usage works out
+// the rest from a price list (papeliz-assistant-model-prices.ts).
 
 export interface PapelizAssistantTokenUsageTally {
   assistantInputTokenCount: number
@@ -12,6 +13,10 @@ export interface PapelizAssistantTokenUsageTally {
   assistantRequestCount: number
   // True when any figure in the tally is estimated, so it is shown with "about".
   isAssistantTokenCountEstimated: boolean
+  // What the provider itself said the requests cost, in US dollars, and for how many requests it
+  // said so. Left out while it said nothing.
+  assistantProviderReportedCostUsd?: number
+  assistantProviderReportedCostRequestCount?: number
 }
 
 export interface PapelizAssistantModelTokenUsageTally extends PapelizAssistantTokenUsageTally {
@@ -32,11 +37,19 @@ export function addPapelizAssistantTokenUsageTallies(
   firstTokenUsageTally: PapelizAssistantTokenUsageTally,
   secondTokenUsageTally: PapelizAssistantTokenUsageTally,
 ): PapelizAssistantTokenUsageTally {
+  const providerReportedCostRequestCount =
+    (firstTokenUsageTally.assistantProviderReportedCostRequestCount ?? 0) + (secondTokenUsageTally.assistantProviderReportedCostRequestCount ?? 0)
   return {
     assistantInputTokenCount: firstTokenUsageTally.assistantInputTokenCount + secondTokenUsageTally.assistantInputTokenCount,
     assistantOutputTokenCount: firstTokenUsageTally.assistantOutputTokenCount + secondTokenUsageTally.assistantOutputTokenCount,
     assistantRequestCount: firstTokenUsageTally.assistantRequestCount + secondTokenUsageTally.assistantRequestCount,
     isAssistantTokenCountEstimated: firstTokenUsageTally.isAssistantTokenCountEstimated || secondTokenUsageTally.isAssistantTokenCountEstimated,
+    ...(providerReportedCostRequestCount > 0
+      ? {
+          assistantProviderReportedCostUsd: (firstTokenUsageTally.assistantProviderReportedCostUsd ?? 0) + (secondTokenUsageTally.assistantProviderReportedCostUsd ?? 0),
+          assistantProviderReportedCostRequestCount: providerReportedCostRequestCount,
+        }
+      : {}),
   }
 }
 
@@ -44,13 +57,19 @@ export function sumPapelizAssistantTokenUsageTallies(tokenUsageTallies: readonly
   return tokenUsageTallies.reduce(addPapelizAssistantTokenUsageTallies, papelizEmptyAssistantTokenUsageTally)
 }
 
-// One request's figures as a tally.
-export function tallyPapelizChatCompletionTokenUsage(completionTokenUsage: PapelizChatCompletionTokenUsage): PapelizAssistantTokenUsageTally {
+// One request's figures as a tally, with its cost when the provider said it.
+export function tallyPapelizChatCompletionTokenUsage(
+  completionTokenUsage: PapelizChatCompletionTokenUsage,
+  completionProviderReportedCostUsd: number | null = null,
+): PapelizAssistantTokenUsageTally {
   return {
     assistantInputTokenCount: completionTokenUsage.completionInputTokenCount,
     assistantOutputTokenCount: completionTokenUsage.completionOutputTokenCount,
     assistantRequestCount: 1,
     isAssistantTokenCountEstimated: completionTokenUsage.isCompletionTokenUsageEstimated,
+    ...(completionProviderReportedCostUsd === null
+      ? {}
+      : { assistantProviderReportedCostUsd: completionProviderReportedCostUsd, assistantProviderReportedCostRequestCount: 1 }),
   }
 }
 
@@ -108,8 +127,9 @@ export function addPapelizChatCompletionToChatSessionTokenUsage(
   chatSessionTokenUsage: PapelizChatSessionTokenUsage,
   providerModelName: string,
   completionTokenUsage: PapelizChatCompletionTokenUsage,
+  completionProviderReportedCostUsd: number | null = null,
 ): PapelizChatSessionTokenUsage {
-  const completionTokenUsageTally = tallyPapelizChatCompletionTokenUsage(completionTokenUsage)
+  const completionTokenUsageTally = tallyPapelizChatCompletionTokenUsage(completionTokenUsage, completionProviderReportedCostUsd)
   return {
     chatSessionTokenUsageTally: addPapelizAssistantTokenUsageTallies(chatSessionTokenUsage.chatSessionTokenUsageTally, completionTokenUsageTally),
     chatSessionModelTokenUsageTallies: addPapelizAssistantModelTokenUsageTally(

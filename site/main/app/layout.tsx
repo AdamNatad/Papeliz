@@ -4,7 +4,15 @@ import type { ReactNode } from 'react'
 import './globals.css'
 import { PapelizSiteFooter } from '@/components/footer/papeliz-site-footer'
 import { PapelizSiteHeader } from '@/components/header/papeliz-site-header'
-import { papelizSiteAuthorName, papelizSiteCanonicalOrigin, papelizSiteDescription, papelizSiteName } from '@/lib/papeliz-site-config'
+import {
+  papelizSiteAuthorName,
+  papelizSiteAuthorPagePath,
+  papelizSiteCanonicalOrigin,
+  papelizSiteCopyrightHolder,
+  papelizSiteDescription,
+  papelizSiteName,
+} from '@/lib/papeliz-site-config'
+import { createPapelizSiteJsonLdGraph, serializePapelizSiteJsonLd } from '@/lib/papeliz-site-jsonld'
 import { createPapelizSiteSocialCardMetadata } from '@/lib/papeliz-site-seo'
 import { papelizSiteLightBrowserBarColor, papelizSiteThemeBootScript } from '@/lib/papeliz-site-theme'
 
@@ -41,8 +49,9 @@ export const metadata: Metadata = {
   },
   description: papelizSiteDescription,
   applicationName: papelizSiteName,
-  authors: [{ name: papelizSiteAuthorName }],
+  authors: [{ name: papelizSiteAuthorName, url: papelizSiteAuthorPagePath }],
   creator: papelizSiteAuthorName,
+  publisher: papelizSiteCopyrightHolder,
   icons: { icon: '/favicon.svg', apple: '/apple-touch-icon.png' },
   ...createPapelizSiteSocialCardMetadata({
     papelizSiteSocialCardTitle: papelizSiteHomeTitle,
@@ -74,6 +83,8 @@ export default function PapelizSiteRootLayout({ children }: { children: ReactNod
           {children}
         </main>
         <PapelizSiteFooter />
+        {/* The website, Natad Corporation and Adam Natad, on every page (lib/papeliz-site-jsonld.ts). */}
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializePapelizSiteJsonLd(createPapelizSiteJsonLdGraph()) }} />
       </body>
     </html>
   )

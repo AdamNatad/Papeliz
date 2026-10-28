@@ -197,7 +197,7 @@ export function PapelizNoteArea({ noteEditorSessionCache }: PapelizNoteAreaProps
                 vaultNoteRelativePath.toLowerCase() === `${linkedVaultEntryRelativePath.toLowerCase()}.md`,
             )
       if (linkedVaultNoteRelativePath === undefined) {
-        showWorkspaceNotice('error', `“${linkHref}” isn’t a note in this vault.`)
+        showWorkspaceNotice('error', `Couldn’t open “${linkHref.replace(/\.md$/i, '')}” (Note Not Found)`)
         return
       }
       void openVaultNote(linkedVaultNoteRelativePath)

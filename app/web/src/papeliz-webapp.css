@@ -74,6 +74,20 @@
   --color-papeliz-chosen-tab-other-ink: #3d4249;
   --color-papeliz-chosen-row-ground: #dce9fd;
   --color-papeliz-chosen-row-ink: #0057ba;
+  /* A toast that reports an error: red, so it reads apart from an ordinary notice. */
+  --color-papeliz-error-notice-ground: #fdecea;
+  --color-papeliz-error-notice-line: #e0544b;
+  --color-papeliz-error-notice-ink: #8f1f19;
+  --color-papeliz-error-notice-icon: #d93b30;
+  /* A note's or folder's color in the file list, picked in Color and Icon. */
+  --color-papeliz-look-red: #d93b30;
+  --color-papeliz-look-orange: #e2640d;
+  --color-papeliz-look-yellow: #b88700;
+  --color-papeliz-look-green: #218358;
+  --color-papeliz-look-blue: #0064d4;
+  --color-papeliz-look-purple: #7c3fc0;
+  --color-papeliz-look-pink: #c7307f;
+  --color-papeliz-look-gray: #6b6f76;
 
   --shadow-papeliz-card: 0 1px 2px rgb(17 17 18 / 0.04), 0 6px 20px rgb(17 17 18 / 0.06);
   --shadow-papeliz-pop: 0 2px 6px rgb(17 17 18 / 0.06), 0 18px 48px rgb(17 17 18 / 0.14);
@@ -141,6 +155,18 @@
   --color-papeliz-chosen-tab-other-ink: #c9cdd3;
   --color-papeliz-chosen-row-ground: #1f3a63;
   --color-papeliz-chosen-row-ink: #8cbcff;
+  --color-papeliz-error-notice-ground: #3a1715;
+  --color-papeliz-error-notice-line: #c2463d;
+  --color-papeliz-error-notice-ink: #ffc1b8;
+  --color-papeliz-error-notice-icon: #ff7d6e;
+  --color-papeliz-look-red: #ff7d6e;
+  --color-papeliz-look-orange: #ff9a52;
+  --color-papeliz-look-yellow: #f5c542;
+  --color-papeliz-look-green: #4cc38a;
+  --color-papeliz-look-blue: #5b9dff;
+  --color-papeliz-look-purple: #b48cf0;
+  --color-papeliz-look-pink: #f17cbd;
+  --color-papeliz-look-gray: #a2a8b2;
   --shadow-papeliz-card: 0 1px 2px rgb(0 0 0 / 0.4), 0 6px 20px rgb(0 0 0 / 0.3);
   --shadow-papeliz-pop: 0 2px 6px rgb(0 0 0 / 0.4), 0 18px 48px rgb(0 0 0 / 0.55);
 }
@@ -204,6 +230,18 @@
     --color-papeliz-chosen-tab-other-ink: #c9cdd3;
     --color-papeliz-chosen-row-ground: #1f3a63;
     --color-papeliz-chosen-row-ink: #8cbcff;
+    --color-papeliz-error-notice-ground: #3a1715;
+    --color-papeliz-error-notice-line: #c2463d;
+    --color-papeliz-error-notice-ink: #ffc1b8;
+    --color-papeliz-error-notice-icon: #ff7d6e;
+    --color-papeliz-look-red: #ff7d6e;
+    --color-papeliz-look-orange: #ff9a52;
+    --color-papeliz-look-yellow: #f5c542;
+    --color-papeliz-look-green: #4cc38a;
+    --color-papeliz-look-blue: #5b9dff;
+    --color-papeliz-look-purple: #b48cf0;
+    --color-papeliz-look-pink: #f17cbd;
+    --color-papeliz-look-gray: #a2a8b2;
     --shadow-papeliz-card: 0 1px 2px rgb(0 0 0 / 0.4), 0 6px 20px rgb(0 0 0 / 0.3);
     --shadow-papeliz-pop: 0 2px 6px rgb(0 0 0 / 0.4), 0 18px 48px rgb(0 0 0 / 0.55);
   }
@@ -780,6 +818,13 @@
   white-space: nowrap;
   color: var(--color-papeliz-ink-muted);
   transition: color 160ms ease;
+}
+
+/* On a touch screen the choices are taller, so a finger hits the one it means. */
+@media (pointer: coarse) {
+  .papeliz-sliding-choice {
+    height: 40px;
+  }
 }
 
 .papeliz-sliding-choice[data-papeliz-sliding-choice-chosen='true'] {

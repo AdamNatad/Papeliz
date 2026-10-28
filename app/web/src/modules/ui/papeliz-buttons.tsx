@@ -1,7 +1,7 @@
 import type { ComponentProps } from 'react'
 import { joinPapelizClassNames } from './papeliz-class-names'
 
-type PapelizPillButtonVariant = 'primary' | 'red-primary' | 'gray' | 'line' | 'on-topbar' | 'danger'
+type PapelizPillButtonVariant = 'primary' | 'red-primary' | 'gray' | 'line' | 'on-topbar' | 'on-error-notice' | 'danger'
 type PapelizPillButtonSize = 'small' | 'medium' | 'large'
 
 const papelizPillButtonVariantClassNames: Record<PapelizPillButtonVariant, string> = {
@@ -11,6 +11,9 @@ const papelizPillButtonVariantClassNames: Record<PapelizPillButtonVariant, strin
   'on-topbar': 'bg-white text-papeliz-gradient-start hover:bg-white/90 focus-visible:outline-white',
   gray: 'bg-papeliz-hover text-papeliz-ink hover:bg-papeliz-press',
   line: 'border border-papeliz-line-strong text-papeliz-ink hover:bg-papeliz-hover',
+  // A button in a red error toast, such as Try again.
+  'on-error-notice':
+    'border border-papeliz-error-notice-line font-semibold text-papeliz-error-notice-ink hover:bg-papeliz-error-notice-line/15 focus-visible:outline-papeliz-error-notice-line',
   // For an action that erases something for good.
   danger: 'bg-papeliz-diff-removed text-papeliz-diff-removed-ink hover:brightness-[.95]',
 }
@@ -56,19 +59,21 @@ const papelizIconButtonSizeClassNames: Record<PapelizIconButtonSize, string> = {
   medium: 'size-[34px]',
 }
 
-type PapelizIconButtonTone = 'surface' | 'topbar'
+type PapelizIconButtonTone = 'surface' | 'topbar' | 'error-notice'
 
 const papelizIconButtonToneClassNames: Record<PapelizIconButtonTone, string> = {
   surface:
     'text-papeliz-ink-muted hover:bg-papeliz-hover hover:text-papeliz-ink aria-pressed:bg-papeliz-blue-soft aria-pressed:text-papeliz-blue aria-expanded:bg-papeliz-hover',
   topbar:
     'text-white/90 hover:bg-white/15 hover:text-white aria-pressed:bg-white/20 aria-pressed:text-white aria-expanded:bg-white/15 focus-visible:outline-white',
+  'error-notice': 'text-papeliz-error-notice-ink/75 hover:bg-papeliz-error-notice-line/15 hover:text-papeliz-error-notice-ink',
 }
 
 interface PapelizIconButtonProps extends ComponentProps<'button'> {
   iconButtonLabel: string
   iconButtonSize?: PapelizIconButtonSize
-  // `topbar` is for the blue bar: white icons, translucent white hover.
+  // `topbar` is for the blue bar: white icons, translucent white hover. `error-notice` is for a red
+  // error toast.
   iconButtonTone?: PapelizIconButtonTone
 }
 

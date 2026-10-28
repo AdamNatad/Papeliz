@@ -1,14 +1,16 @@
-// Cloudflare Workers static assets for the website's export. Nothing is deployed until Adam says
-// so. No route yet: the domain is still open. The site, the help site and the webapp are
-// assembled into one folder (`pnpm deploy:assemble`, `deploy/`); point assets.directory at that
-// folder before the first deploy.
+// Cloudflare Workers static assets for papeliz.com: files only, no Worker code. It serves the
+// assembled folder (`pnpm deploy:assemble`, `deploy/`): the website at /, the help site at /help/
+// and a copy of the webapp at /app/. The webapp's own Worker (app/web/wrangler.jsonc) answers
+// papeliz.com/app on a route, which runs before this domain's Worker, so the webapp can be
+// deployed on its own.
 {
   "name": "papeliz-site",
   "compatibility_date": "2026-10-20",
   "workers_dev": false,
   "preview_urls": false,
+  "routes": [{ "pattern": "papeliz.com", "custom_domain": true }],
   "assets": {
-    "directory": "./out",
+    "directory": "../../deploy",
     "html_handling": "auto-trailing-slash",
     "not_found_handling": "404-page"
   }

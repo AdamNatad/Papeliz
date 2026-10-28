@@ -53,7 +53,10 @@ const papelizSitePrivacyPoints = [
 export default function PapelizSiteHomePage() {
   return (
     <>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializePapelizSiteJsonLd(createPapelizSiteSoftwareJsonLd()) }} />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: serializePapelizSiteJsonLd({ '@context': 'https://schema.org', ...createPapelizSiteSoftwareJsonLd() }) }}
+      />
       <section className="relative overflow-hidden">
         {/* The badge sits as close under the header and over the title as on Adam's other site (Adam, 2026-10-28):
             62 px from the header on phones and 76 px from 640 px up, then 16 px to the title. */}
@@ -78,13 +81,13 @@ export default function PapelizSiteHomePage() {
             iOS and HarmonyOS.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
-            <PapelizSiteAppButton />
             <Link
               href="/features/"
               className="inline-flex h-12 items-center rounded-full bg-papeliz-hover px-6 text-[15px] font-medium transition-colors hover:bg-papeliz-press"
             >
               See how it works
             </Link>
+            <PapelizSiteAppButton />
           </div>
           <p className="mt-4 text-sm text-papeliz-ink-subtle">In development · free and open source</p>
           <div className="mt-14 w-full">

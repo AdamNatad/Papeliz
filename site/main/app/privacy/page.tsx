@@ -2,7 +2,7 @@ import { PapelizLegalDocument, PapelizLegalDocumentSection } from '@/components/
 import { createPapelizSitePageMetadata } from '@/lib/papeliz-site-seo'
 
 export const metadata = createPapelizSitePageMetadata({
-  papelizSitePageTitle: 'Privacy',
+  papelizSitePageTitle: 'Privacy Policy',
   papelizSitePageDescription: 'How Papeliz handles your notes and your API key: it has no server, so it never sees either.',
   papelizSitePagePath: '/privacy/',
 })
@@ -10,13 +10,9 @@ export const metadata = createPapelizSitePageMetadata({
 export default function PapelizSitePrivacyPage() {
   return (
     <PapelizLegalDocument
-      papelizLegalDocumentHeading="Papeliz never sees your notes or your key"
-      papelizLegalDocumentLead={
-        <p>
-          Papeliz is a static web app with no server of its own. This page explains where your data
-          goes. It is a draft and will be finalized before launch.
-        </p>
-      }
+      papelizLegalDocumentPath="/privacy/"
+      papelizLegalDocumentTitle="Privacy Policy"
+      papelizLegalDocumentSummary="Papeliz never sees your notes or your key: it is a static web app with no server of its own. This page explains where your data goes. It is a draft and will be finalized before launch."
     >
       <PapelizLegalDocumentSection papelizLegalSectionTitle="Your notes">
         <p>

@@ -38,14 +38,15 @@ export function detectPapelizFolderAccessSupport(): PapelizFolderAccessSupport {
   return { isFolderAccessOn: true, folderAccessOffReason: null }
 }
 
-// The badge's and the toast's words: why opening a folder is off, and what still works.
+// The toast's, the tooltip's and the empty Recent Vaults list's words: why opening a folder is off,
+// with where it works in the brackets.
 export function describePapelizFolderAccessOffReason(folderAccessOffReason: PapelizFolderAccessOffReason): string {
   switch (folderAccessOffReason) {
     case 'unsupported':
-      return 'Opening a folder needs a Chromium-based browser (Chrome, Edge, Brave or another Chromium browser) on a computer. Try Sample works here.'
+      return 'Couldn’t open folders (Use Chrome, Edge Or Brave)'
     case 'writes-blocked':
-      return 'This browser can’t save notes into your folders, so opening a folder is off here. Try Sample still works, or open Papeliz in Chrome, Edge or Brave.'
+      return 'Couldn’t save into folders (Use Chrome, Edge Or Brave)'
     case 'chooser-unavailable':
-      return 'This browser won’t open a folder window here, so opening a folder is off. Try Sample still works, or open Papeliz in its own tab in Chrome, Edge or Brave.'
+      return 'Couldn’t open the folder window (Use Its Own Tab)'
   }
 }

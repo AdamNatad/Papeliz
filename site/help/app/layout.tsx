@@ -3,6 +3,14 @@ import localFont from 'next/font/local'
 import type { ReactNode } from 'react'
 import './globals.css'
 import { PapelizHelpShell } from '@/components/papeliz-help-shell'
+import {
+  createPapelizHelpJsonLdGraph,
+  createPapelizHelpPageMetadata,
+  papelizHelpCanonicalOrigin,
+  papelizHelpDescription,
+  papelizHelpHomePath,
+  serializePapelizHelpJsonLd,
+} from '@/lib/papeliz-help-seo'
 import { papelizHelpLightBrowserBarColor, papelizHelpThemeBootScript } from '@/lib/papeliz-help-theme'
 
 // The app's fonts, from the @fontsource files, loaded through next/font: the pages preload them,
@@ -27,12 +35,18 @@ const papelizHelpJetBrainsMonoFont = localFont({
   adjustFontFallback: false,
 })
 
+// The help home's metadata; each guide replaces the title, canonical link and cards.
 export const metadata: Metadata = {
+  metadataBase: new URL(papelizHelpCanonicalOrigin),
   title: {
     default: 'Papeliz Help',
     template: '%s - Papeliz Help',
   },
-  description: 'Guides for Papeliz, the free, open-source, cross-platform Markdown editor and AI-powered note-taking app for building your personal knowledge base.',
+  ...createPapelizHelpPageMetadata('Papeliz Help', papelizHelpDescription, papelizHelpHomePath),
+  applicationName: 'Papeliz',
+  authors: [{ name: 'Adam Natad', url: '/adam-natad/' }],
+  creator: 'Adam Natad',
+  publisher: 'Natad Corporation',
   // Metadata URLs don't get the /help base path that pages and next/link do, so it's written out.
   icons: { icon: '/help/favicon.svg', apple: '/help/apple-touch-icon.png' },
 }
@@ -50,6 +64,8 @@ export default function PapelizHelpRootLayout({ children }: { children: ReactNod
       </head>
       <body className="font-sans">
         <PapelizHelpShell>{children}</PapelizHelpShell>
+        {/* The help site, the website, Natad Corporation and Adam Natad, on every page (lib/papeliz-help-seo.ts). */}
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializePapelizHelpJsonLd(createPapelizHelpJsonLdGraph()) }} />
       </body>
     </html>
   )

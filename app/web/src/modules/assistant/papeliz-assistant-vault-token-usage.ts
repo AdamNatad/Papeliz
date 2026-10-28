@@ -81,6 +81,8 @@ export interface PapelizAssistantVaultTokenUsageSummary {
   // Chats and inline edits together, biggest use first.
   vaultModelTokenUsageTallies: PapelizAssistantModelTokenUsageTally[]
   inlineEditsTokenUsageTally: PapelizAssistantTokenUsageTally
+  // The inline edits' use, split by model, so their cost can be worked out.
+  inlineEditModelTokenUsageTallies: PapelizAssistantModelTokenUsageTally[]
   // The chats that made requests, still newest first.
   assistantUsageViewSessionRowsWithTokenUsage: PapelizAssistantUsageViewSessionRow[]
   // Chats saved before token use was kept, which the figures can't include.
@@ -107,6 +109,7 @@ export function summarizePapelizAssistantVaultTokenUsage(
       inlineEditModelTokenUsageTallies,
     ]),
     inlineEditsTokenUsageTally,
+    inlineEditModelTokenUsageTallies: [...inlineEditModelTokenUsageTallies],
     assistantUsageViewSessionRowsWithTokenUsage,
     chatSessionWithoutTokenUsageCount: assistantUsageViewSessionRows.length - assistantUsageViewSessionRowsWithTokenUsage.length,
   }

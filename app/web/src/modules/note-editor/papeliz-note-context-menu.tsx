@@ -32,6 +32,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type 
 import { createPortal } from 'react-dom'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { PapelizColorPicker } from '../ui/papeliz-color-picker'
+import { subscribeToPapelizWindowWidthChange } from '../ui/papeliz-window-width-change'
 import { describePapelizKeyBindingShortcut, usePapelizKeyBindingsStore, type PapelizKeyBindingActionId } from '../workspace/papeliz-key-bindings-store'
 import {
   changePapelizNoteCalloutCard,
@@ -293,15 +294,16 @@ export function PapelizNoteContextMenu({
     const noteContextMenuElement = noteContextMenuRef.current
     if (noteContextMenuElement === null) return
     const noteContextMenuRect = noteContextMenuElement.getBoundingClientRect()
-    // Opens below and right of the pointer; flips up or left when it would leave the window.
+    // Opens below and right of the pointer. It flips left when it would leave the window's right
+    // side, and near the bottom it slides up only as far as it must to fit, never scrolling.
     const menuLeft =
       menuAnchorLeft + noteContextMenuRect.width + papelizNoteContextMenuViewportMargin > window.innerWidth
         ? Math.max(papelizNoteContextMenuViewportMargin, menuAnchorLeft - noteContextMenuRect.width)
         : menuAnchorLeft
-    const menuTop =
-      menuAnchorTop + noteContextMenuRect.height + papelizNoteContextMenuViewportMargin > window.innerHeight
-        ? Math.max(papelizNoteContextMenuViewportMargin, menuAnchorTop - noteContextMenuRect.height)
-        : menuAnchorTop
+    const menuTop = Math.max(
+      papelizNoteContextMenuViewportMargin,
+      Math.min(menuAnchorTop, window.innerHeight - noteContextMenuRect.height - papelizNoteContextMenuViewportMargin),
+    )
     setClampedMenuPosition({ menuLeft, menuTop })
     noteContextMenuElement.focus({ preventScroll: true })
   }, [menuAnchorLeft, menuAnchorTop])
@@ -311,14 +313,18 @@ export function PapelizNoteContextMenu({
       if (!noteContextMenuRef.current?.contains(pointerEvent.target as Node)) onNoteContextMenuCloseRef.current()
     }
     const closeOnWindowChange = () => onNoteContextMenuCloseRef.current()
+    // The note scrolling closes the menu; the menu scrolling itself (on a short screen) does not.
+    const closeOnScrollOutside = (scrollEvent: Event) => {
+      if (!noteContextMenuRef.current?.contains(scrollEvent.target as Node)) onNoteContextMenuCloseRef.current()
+    }
     document.addEventListener('pointerdown', closeOnOutsidePointer, true)
-    document.addEventListener('scroll', closeOnWindowChange, true)
-    window.addEventListener('resize', closeOnWindowChange)
+    document.addEventListener('scroll', closeOnScrollOutside, true)
+    const stopWatchingWindowWidth = subscribeToPapelizWindowWidthChange(closeOnWindowChange)
     window.addEventListener('blur', closeOnWindowChange)
     return () => {
       document.removeEventListener('pointerdown', closeOnOutsidePointer, true)
-      document.removeEventListener('scroll', closeOnWindowChange, true)
-      window.removeEventListener('resize', closeOnWindowChange)
+      document.removeEventListener('scroll', closeOnScrollOutside, true)
+      stopWatchingWindowWidth()
       window.removeEventListener('blur', closeOnWindowChange)
     }
   }, [])
@@ -336,7 +342,7 @@ export function PapelizNoteContextMenu({
     try {
       await navigator.clipboard.writeText(selectedText)
     } catch {
-      onNoteContextMenuProblem(`The browser did not allow ${shouldRemoveSelectedText ? 'cutting' : 'copying'} from this menu. Use Ctrl+${shouldRemoveSelectedText ? 'X' : 'C'}.`)
+      onNoteContextMenuProblem(shouldRemoveSelectedText ? 'Couldn’t cut (Use Ctrl+X)' : 'Couldn’t copy (Use Ctrl+C)')
       return
     }
     if (shouldRemoveSelectedText) {
@@ -351,7 +357,7 @@ export function PapelizNoteContextMenu({
       const clipboardText = await navigator.clipboard.readText()
       noteEditorView.dispatch(noteEditorView.state.replaceSelection(clipboardText), { userEvent: 'input.paste', scrollIntoView: true })
     } catch {
-      onNoteContextMenuProblem('The browser did not allow reading the clipboard from this menu. Use Ctrl+V.')
+      onNoteContextMenuProblem('Couldn’t paste (Use Ctrl+V)')
     }
   }
 

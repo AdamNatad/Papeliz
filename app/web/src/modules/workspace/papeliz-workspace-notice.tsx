@@ -14,7 +14,8 @@ interface PapelizWorkspaceNoticeProps {
 }
 
 // A short message at the top right, just under the topbar ("Moved “Inbox.md” to .trash/Inbox.md"),
-// in the workspace and on the start screen, with a button such as Try again when there is one.
+// in the workspace and on the start screen, with a button such as Try again when there is one. An
+// error's toast is red.
 export function PapelizWorkspaceNotice({ dockedAssistantPanelWidth = null }: PapelizWorkspaceNoticeProps) {
   const workspaceNotice = usePapelizWorkspaceStore((workspaceState) => workspaceState.workspaceNotice)
   const dismissWorkspaceNotice = usePapelizWorkspaceStore((workspaceState) => workspaceState.dismissWorkspaceNotice)
@@ -39,19 +40,21 @@ export function PapelizWorkspaceNotice({ dockedAssistantPanelWidth = null }: Pap
           key={workspaceNotice.workspaceNoticeId}
           role={workspaceNotice.workspaceNoticeKind === 'error' ? 'alert' : 'status'}
           className={joinPapelizClassNames(
-            'papeliz-notice-enter-from-right pointer-events-auto flex w-max max-w-[min(420px,calc(100vw-32px))] items-center gap-2.5 rounded-[12px] border bg-papeliz-surface py-1.5 pr-1.5 pl-3.5 text-[13px] leading-snug shadow-papeliz-pop',
-            workspaceNotice.workspaceNoticeKind === 'error' ? 'border-papeliz-diff-removed text-papeliz-diff-removed-ink' : 'border-papeliz-line text-papeliz-ink',
+            'papeliz-notice-enter-from-right pointer-events-auto flex w-max max-w-[min(420px,calc(100vw-32px))] items-center gap-2.5 rounded-[12px] border py-1.5 pr-1.5 pl-3.5 text-[13px] leading-snug shadow-papeliz-pop',
+            workspaceNotice.workspaceNoticeKind === 'error'
+              ? 'border-papeliz-error-notice-line bg-papeliz-error-notice-ground font-medium text-papeliz-error-notice-ink'
+              : 'border-papeliz-line bg-papeliz-surface text-papeliz-ink',
           )}
         >
           {workspaceNotice.workspaceNoticeKind === 'error' ? (
-            <CircleAlert className="size-4 flex-none" aria-hidden="true" />
+            <CircleAlert className="size-4 flex-none text-papeliz-error-notice-icon" aria-hidden="true" />
           ) : (
             <Info className="size-4 flex-none text-papeliz-blue" aria-hidden="true" />
           )}
           <span className="min-w-0">{workspaceNotice.workspaceNoticeMessage}</span>
           {workspaceNotice.workspaceNoticeAction !== null && (
             <PapelizPillButton
-              pillButtonVariant="line"
+              pillButtonVariant={workspaceNotice.workspaceNoticeKind === 'error' ? 'on-error-notice' : 'line'}
               pillButtonSize="small"
               onClick={() => {
                 workspaceNotice.workspaceNoticeAction?.onWorkspaceNoticeAction()
@@ -61,7 +64,12 @@ export function PapelizWorkspaceNotice({ dockedAssistantPanelWidth = null }: Pap
               {workspaceNotice.workspaceNoticeAction.workspaceNoticeActionLabel}
             </PapelizPillButton>
           )}
-          <PapelizIconButton iconButtonLabel="Dismiss" iconButtonSize="small" onClick={dismissWorkspaceNotice}>
+          <PapelizIconButton
+            iconButtonLabel="Dismiss"
+            iconButtonSize="small"
+            iconButtonTone={workspaceNotice.workspaceNoticeKind === 'error' ? 'error-notice' : 'surface'}
+            onClick={dismissWorkspaceNotice}
+          >
             <X className="size-[14px]" aria-hidden="true" />
           </PapelizIconButton>
         </div>

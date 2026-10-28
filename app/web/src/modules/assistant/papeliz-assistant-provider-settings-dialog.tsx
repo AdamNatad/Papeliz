@@ -1,8 +1,9 @@
-import { CircleCheck, CircleAlert, ExternalLink, Eye, EyeOff, KeyRound, LoaderCircle, RefreshCw, X } from 'lucide-react'
+import { ChevronRight, CircleAlert, CircleCheck, ExternalLink, Eye, EyeOff, KeyRound, LoaderCircle, RefreshCw, X } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
 import { PapelizIconButton, PapelizPillButton } from '../ui/papeliz-buttons'
 import { PapelizListboxSelect, type PapelizListboxSelectOption } from '../ui/papeliz-listbox-select'
-import { findPapelizAssistantProviderPreset, papelizAssistantProviderPresets, papelizCustomAssistantProviderId } from './papeliz-assistant-provider-presets'
+import { findPapelizAssistantModelPrice, papelizAssistantBuiltInModelPricesCheckedOn, usePapelizAssistantModelPricesStore } from './papeliz-assistant-model-prices'
+import { findPapelizAssistantProviderPreset, listPapelizOfferedAssistantProviderPresets, papelizCustomAssistantProviderId } from './papeliz-assistant-provider-presets'
 import {
   createDefaultPapelizAssistantProviderSettings,
   usePapelizAssistantProviderSettingsStore,
@@ -58,6 +59,10 @@ export function PapelizAssistantProviderSettingsDialog({ onProviderSettingsDialo
   // Null until Load models has answered for the current base URL and key.
   const [loadedProviderModelNames, setLoadedProviderModelNames] = useState<string[] | null>(null)
   const [providerCheckState, setProviderCheckState] = useState<PapelizProviderCheckState>({ providerCheckKind: 'idle' })
+  const userModelPrices = usePapelizAssistantModelPricesStore((modelPricesState) => modelPricesState.userModelPrices)
+  const setUserModelPrice = usePapelizAssistantModelPricesStore((modelPricesState) => modelPricesState.setUserModelPrice)
+  // Advanced: the chosen model's price as typed, per model name; empty boxes mean Papeliz's price.
+  const [typedModelPricesByModelName, setTypedModelPricesByModelName] = useState<Record<string, { typedInputPriceText: string; typedOutputPriceText: string }>>({})
   const providerPreset = findPapelizAssistantProviderPreset(editedProviderSettings.papelizAssistantProviderId)
   const savedProviderSettings = providerSettingsByProviderId[editedProviderSettings.papelizAssistantProviderId]
   const isSavedProvider = savedProviderSettings !== undefined
@@ -115,7 +120,7 @@ export function PapelizAssistantProviderSettingsDialog({ onProviderSettingsDialo
   const pickableModelNames = [...new Set([...(savedProviderModelName.length > 0 ? [savedProviderModelName] : []), ...(loadedProviderModelNames ?? [])])]
   const isChosenModelPickable = pickableModelNames.includes(editedProviderSettings.providerModelName)
 
-  const providerListboxOptions: PapelizListboxSelectOption[] = papelizAssistantProviderPresets.map((assistantProviderPreset) => ({
+  const providerListboxOptions: PapelizListboxSelectOption[] = listPapelizOfferedAssistantProviderPresets(editedProviderSettings.papelizAssistantProviderId).map((assistantProviderPreset) => ({
     listboxOptionValue: assistantProviderPreset.papelizAssistantProviderId,
     listboxOptionLabel: assistantProviderPreset.providerPresetDisplayName,
     listboxOptionNote: providerSettingsByProviderId[assistantProviderPreset.papelizAssistantProviderId] !== undefined ? 'saved' : undefined,
@@ -125,6 +130,34 @@ export function PapelizAssistantProviderSettingsDialog({ onProviderSettingsDialo
     listboxOptionLabel: pickableModelName,
     listboxOptionNote: loadedProviderModelNames === null && pickableModelName === savedProviderModelName ? 'saved' : undefined,
   }))
+
+  const chosenModelName = editedProviderSettings.providerModelName.trim()
+  const savedUserModelPrice = userModelPrices[chosenModelName.toLowerCase()]
+  const papelizModelPrice = findPapelizAssistantModelPrice(chosenModelName, {})
+  const typedModelPrice = typedModelPricesByModelName[chosenModelName] ?? {
+    typedInputPriceText: savedUserModelPrice === undefined ? '' : String(savedUserModelPrice.inputUsdPerMillionTokens),
+    typedOutputPriceText: savedUserModelPrice === undefined ? '' : String(savedUserModelPrice.outputUsdPerMillionTokens),
+  }
+  const readTypedPrice = (typedPriceText: string) => {
+    const typedPrice = Number(typedPriceText.trim().replace(/^\$/, ''))
+    return typedPriceText.trim().length > 0 && Number.isFinite(typedPrice) && typedPrice >= 0 ? typedPrice : null
+  }
+  // Both boxes filled: that price is saved for the model. Both empty: Papeliz's price applies again.
+  const saveTypedModelPrices = () => {
+    for (const [typedModelName, typedPrice] of Object.entries(typedModelPricesByModelName)) {
+      const typedInputPrice = readTypedPrice(typedPrice.typedInputPriceText)
+      const typedOutputPrice = readTypedPrice(typedPrice.typedOutputPriceText)
+      if (typedInputPrice !== null && typedOutputPrice !== null) {
+        setUserModelPrice(typedModelName, { inputUsdPerMillionTokens: typedInputPrice, outputUsdPerMillionTokens: typedOutputPrice })
+      } else if (typedPrice.typedInputPriceText.trim().length === 0 && typedPrice.typedOutputPriceText.trim().length === 0) {
+        setUserModelPrice(typedModelName, null)
+      }
+    }
+  }
+  const isTypedModelPriceHalfFilled =
+    (readTypedPrice(typedModelPrice.typedInputPriceText) === null) !== (readTypedPrice(typedModelPrice.typedOutputPriceText) === null) ||
+    (typedModelPrice.typedInputPriceText.trim().length > 0 && readTypedPrice(typedModelPrice.typedInputPriceText) === null) ||
+    (typedModelPrice.typedOutputPriceText.trim().length > 0 && readTypedPrice(typedModelPrice.typedOutputPriceText) === null)
 
   const loadProviderModelNames = () =>
     void runProviderCheck('Loading models…', async () => {
@@ -160,6 +193,7 @@ export function PapelizAssistantProviderSettingsDialog({ onProviderSettingsDialo
         className="p-6"
         onSubmit={(submitEvent) => {
           submitEvent.preventDefault()
+          saveTypedModelPrices()
           void saveAssistantProviderSettings(editedProviderSettings, true).then(onProviderSettingsDialogClose)
         }}
       >
@@ -307,6 +341,45 @@ export function PapelizAssistantProviderSettingsDialog({ onProviderSettingsDialo
           <p className={papelizProviderFieldHelpClassName}>Load the models this provider serves with your key, then pick one. Only listed models can be saved.</p>
         )}
 
+        {/* Advanced: the model's price for Usage's Cost, only when Papeliz's own price is wrong or missing. */}
+        <details className="group/advanced mt-4 rounded-2xl border border-papeliz-line px-4 py-2.5" open={savedUserModelPrice !== undefined || undefined}>
+          <summary className="flex cursor-pointer list-none items-center gap-1.5 text-[13px] font-semibold select-none [&::-webkit-details-marker]:hidden">
+            <ChevronRight className="size-3.5 transition-transform group-open/advanced:rotate-90" aria-hidden="true" />
+            Advanced settings
+          </summary>
+          <p className="mt-2.5 text-[13px] font-medium">Price per million tokens{chosenModelName.length > 0 && <span className="font-normal text-papeliz-ink-muted"> · {chosenModelName}</span>}</p>
+          <div className="mt-1.5 flex gap-2">
+            {(
+              [
+                ['Input', 'typedInputPriceText', papelizModelPrice?.modelPrice.inputUsdPerMillionTokens],
+                ['Output', 'typedOutputPriceText', papelizModelPrice?.modelPrice.outputUsdPerMillionTokens],
+              ] as const
+            ).map(([priceBoxLabel, typedPriceField, papelizPrice]) => (
+              <label key={typedPriceField} className="flex min-w-0 flex-1 flex-col gap-1 text-[12px] font-medium text-papeliz-ink-muted">
+                {priceBoxLabel} (US $)
+                <input
+                  inputMode="decimal"
+                  disabled={chosenModelName.length === 0}
+                  placeholder={papelizPrice === undefined ? 'No price' : `${papelizPrice} (Papeliz)`}
+                  value={typedModelPrice[typedPriceField]}
+                  onChange={(changeEvent) =>
+                    setTypedModelPricesByModelName((currentTypedPrices) => ({
+                      ...currentTypedPrices,
+                      [chosenModelName]: { ...typedModelPrice, [typedPriceField]: changeEvent.target.value },
+                    }))
+                  }
+                  className={`${papelizProviderFieldClassName} text-sm tabular-nums`}
+                />
+              </label>
+            ))}
+          </div>
+          <p className={papelizProviderFieldHelpClassName}>
+            {isTypedModelPriceHalfFilled
+              ? 'Fill in both prices, as numbers, or leave both empty.'
+              : `Leave both empty to use Papeliz’s price${papelizModelPrice === null ? ' (none for this model yet)' : ''}, from the provider’s own price page (checked ${papelizAssistantBuiltInModelPricesCheckedOn}). A provider that reports each request’s cost itself, like OpenRouter, is taken at its word.`}
+          </p>
+        </details>
+
         <div className="mt-4 rounded-2xl bg-papeliz-surface-soft px-4 py-3 text-[13px] text-papeliz-ink-muted">
           <b className="font-semibold text-papeliz-ink">Where your key goes.</b> It is saved only in this browser (IndexedDB) and sent only to{' '}
           <span className="font-mono text-papeliz-ink">{describeProviderHost(editedProviderSettings.providerBaseUrl)}</span>, with each request you make.
@@ -365,7 +438,7 @@ export function PapelizAssistantProviderSettingsDialog({ onProviderSettingsDialo
             <PapelizPillButton
               type="submit"
               pillButtonVariant="primary"
-              disabled={isModelListRequired && !isChosenModelPickable}
+              disabled={(isModelListRequired && !isChosenModelPickable) || isTypedModelPriceHalfFilled}
               title={isModelListRequired && !isChosenModelPickable ? 'Load models and pick one first' : undefined}
             >
               Save and use

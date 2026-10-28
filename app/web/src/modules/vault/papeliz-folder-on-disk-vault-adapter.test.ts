@@ -37,8 +37,8 @@ describe('a folder on disk', () => {
     expect((await readPapelizFakeVaultFolder(fakeVaultRootHandle))['.papeliz/file-list-order.json']).toBe('{"fileListOrder":{}}')
     const listedPaths = (await folderVaultAdapter.listVaultTreeEntries()).map((vaultTreeEntry) => vaultTreeEntry.vaultEntryRelativePath)
     expect(listedPaths.some((listedPath) => listedPath.startsWith('.papeliz'))).toBe(false)
-    await expect(folderVaultAdapter.writePapelizVaultSettingsFile('../Inbox.md', 'x')).rejects.toThrow('not a Papeliz settings file')
-    await expect(folderVaultAdapter.readPapelizVaultSettingsFile('.other-app/app.json')).rejects.toThrow('not a Papeliz settings file')
+    await expect(folderVaultAdapter.writePapelizVaultSettingsFile('../Inbox.md', 'x')).rejects.toThrow('Unknown Settings File')
+    await expect(folderVaultAdapter.readPapelizVaultSettingsFile('.other-app/app.json')).rejects.toThrow('Unknown Settings File')
   })
 
   it('reads a note and saves it in place', async () => {
@@ -60,8 +60,8 @@ describe('a folder on disk', () => {
     const { folderVaultAdapter } = await createTestFolderVault()
     await folderVaultAdapter.createVaultNote('Ideas/New idea.md', '')
     await folderVaultAdapter.createVaultFolder('Ideas/Later')
-    await expect(folderVaultAdapter.createVaultNote('inbox.md', '')).rejects.toThrow(/already exists/)
-    await expect(folderVaultAdapter.createVaultFolder('ideas')).rejects.toThrow(/already exists/)
+    await expect(folderVaultAdapter.createVaultNote('inbox.md', '')).rejects.toThrow('Name Taken')
+    await expect(folderVaultAdapter.createVaultFolder('ideas')).rejects.toThrow('Name Taken')
     const listedPaths = (await folderVaultAdapter.listVaultTreeEntries()).map((vaultTreeEntry) => vaultTreeEntry.vaultEntryRelativePath)
     expect(listedPaths).toContain('Ideas/New idea.md')
     expect(listedPaths).toContain('Ideas/Later')
@@ -87,8 +87,8 @@ describe('a folder on disk', () => {
 
   it('refuses to rename onto a name that is taken', async () => {
     const { folderVaultAdapter } = await createTestFolderVault()
-    await expect(folderVaultAdapter.renameVaultEntry('Ideas/Deep/Notes.md', 'Ideas/OFFLINE-FIRST APPS.md')).rejects.toThrow(/already exists/)
-    await expect(folderVaultAdapter.renameVaultEntry('Ideas', 'Inbox.md')).rejects.toThrow(/already exists/)
+    await expect(folderVaultAdapter.renameVaultEntry('Ideas/Deep/Notes.md', 'Ideas/OFFLINE-FIRST APPS.md')).rejects.toThrow('Name Taken')
+    await expect(folderVaultAdapter.renameVaultEntry('Ideas', 'Inbox.md')).rejects.toThrow('Name Taken')
     expect(await folderVaultAdapter.readVaultNoteText('Ideas/Deep/Notes.md')).toBe('# Notes')
   })
 
@@ -109,10 +109,10 @@ describe('a folder on disk', () => {
 
   it('never writes inside .other-app or any other hidden folder', async () => {
     const { fakeVaultRootHandle, folderVaultAdapter } = await createTestFolderVault()
-    await expect(folderVaultAdapter.writeVaultNoteText('.other-app/app.md', 'x')).rejects.toThrow(/hidden folders/)
-    await expect(folderVaultAdapter.createVaultNote('.git/notes.md', 'x')).rejects.toThrow(/hidden folders/)
-    await expect(folderVaultAdapter.renameVaultEntry('Inbox.md', '.other-app/Inbox.md')).rejects.toThrow(/hidden folders/)
-    await expect(folderVaultAdapter.moveVaultEntryToTrash('.other-app')).rejects.toThrow(/hidden folders/)
+    await expect(folderVaultAdapter.writeVaultNoteText('.other-app/app.md', 'x')).rejects.toThrow('Hidden Folder')
+    await expect(folderVaultAdapter.createVaultNote('.git/notes.md', 'x')).rejects.toThrow('Hidden Folder')
+    await expect(folderVaultAdapter.renameVaultEntry('Inbox.md', '.other-app/Inbox.md')).rejects.toThrow('Hidden Folder')
+    await expect(folderVaultAdapter.moveVaultEntryToTrash('.other-app')).rejects.toThrow('Hidden Folder')
     const vaultFolderContents = await readPapelizFakeVaultFolder(fakeVaultRootHandle)
     expect(vaultFolderContents['.other-app/app.json']).toBe('{"theme":"light"}')
     expect(Object.keys(vaultFolderContents).filter((vaultRelativePath) => vaultRelativePath.startsWith('.other-app'))).toEqual([

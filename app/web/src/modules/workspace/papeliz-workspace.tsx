@@ -2,9 +2,12 @@ import { useEffect, useState } from 'react'
 import { movePapelizEarlierChatSessionsIntoChatSessionsFolder } from '../assistant/papeliz-assistant-chat-session-folder-move'
 import { usePapelizAssistantConversationStore } from '../assistant/papeliz-assistant-conversation-store'
 import { PapelizAssistantPanel } from '../assistant/papeliz-assistant-panel'
+import { PapelizAssistantProposalPreview } from '../assistant/papeliz-assistant-proposal-preview'
+import { usePapelizAssistantModelPricesStore } from '../assistant/papeliz-assistant-model-prices'
 import { usePapelizAssistantPanelUiStore } from '../assistant/papeliz-assistant-panel-ui-store'
 import { PapelizAssistantProviderSettingsDialog } from '../assistant/papeliz-assistant-provider-settings-dialog'
 import { usePapelizAssistantProviderSettingsStore } from '../assistant/papeliz-assistant-provider-settings-store'
+import { usePapelizAssistantRunOptionsStore } from '../assistant/papeliz-assistant-run-options-store'
 import { PapelizFocusModeAssistant } from '../assistant/papeliz-focus-mode-assistant'
 import { createPapelizNoteEditorSessionCache } from '../note-editor/papeliz-note-editor'
 import { PapelizConfirmDialog } from '../ui/papeliz-confirm-dialog'
@@ -47,6 +50,7 @@ export function PapelizWorkspace() {
   const isExplorerPanelOpen = usePapelizWorkspaceStore((workspaceState) => workspaceState.isExplorerPanelOpen)
   const isAssistantPanelOpen = usePapelizWorkspaceStore((workspaceState) => workspaceState.isAssistantPanelOpen)
   const isFocusModeOn = usePapelizWorkspaceStore((workspaceState) => workspaceState.isFocusModeOn)
+  const isAssistantProposalPreviewShown = usePapelizWorkspaceStore((workspaceState) => workspaceState.assistantProposalPreview !== null)
   const openVault = usePapelizWorkspaceStore((workspaceState) => workspaceState.openVault)
   const isVaultCloseConfirmationShown = usePapelizWorkspaceStore((workspaceState) => workspaceState.isVaultCloseConfirmationShown)
   const setVaultCloseConfirmationShown = usePapelizWorkspaceStore((workspaceState) => workspaceState.setVaultCloseConfirmationShown)
@@ -93,6 +97,8 @@ export function PapelizWorkspace() {
     void usePapelizNoteTabsLayoutStore.getState().loadNoteTabsLayout()
     void usePapelizFileListThisNoteStore.getState().loadFileListThisNoteSection()
     void usePapelizKeyBindingsStore.getState().loadKeyBindings()
+    void usePapelizAssistantRunOptionsStore.getState().loadAssistantRunOptions()
+    void usePapelizAssistantModelPricesStore.getState().loadUserModelPrices()
   }, [])
 
   useEffect(() => {
@@ -162,7 +168,11 @@ export function PapelizWorkspace() {
 
         <main className="relative flex min-w-0 flex-1 flex-col">
           <PapelizNoteTabsBar />
-          <PapelizNoteArea noteEditorSessionCache={noteEditorSessionCache} />
+          {/* An AI Assistant proposal's preview stands in for the note, which stays as it was. */}
+          {isAssistantProposalPreviewShown && <PapelizAssistantProposalPreview />}
+          <div className={isAssistantProposalPreviewShown ? 'hidden' : 'contents'}>
+            <PapelizNoteArea noteEditorSessionCache={noteEditorSessionCache} />
+          </div>
           {isFocusModeOn && <PapelizFocusModeAssistant />}
         </main>
 

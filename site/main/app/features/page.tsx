@@ -44,7 +44,7 @@ export default function PapelizSiteFeaturesPage() {
 
         <div className="space-y-16">
           {papelizSiteFeatureGroups.map((papelizSiteFeatureGroup) => (
-            <section key={papelizSiteFeatureGroup.papelizSiteFeatureGroupAnchor} id={papelizSiteFeatureGroup.papelizSiteFeatureGroupAnchor} className="scroll-mt-24">
+            <section key={papelizSiteFeatureGroup.papelizSiteFeatureGroupAnchor} id={papelizSiteFeatureGroup.papelizSiteFeatureGroupAnchor} className="scroll-mt-35 md:scroll-mt-24">
               <div className="flex items-center gap-3">
                 <span className="grid size-10 place-items-center rounded-full bg-papeliz-blue-soft text-papeliz-blue">
                   <papelizSiteFeatureGroup.papelizSiteFeatureGroupIcon className="size-5" aria-hidden="true" />
@@ -63,7 +63,7 @@ export default function PapelizSiteFeaturesPage() {
             </section>
           ))}
 
-          <section id="after-launch" className="scroll-mt-24 rounded-3xl bg-papeliz-surface-soft p-6 sm:p-8">
+          <section id="after-launch" className="scroll-mt-35 md:scroll-mt-24 rounded-3xl bg-papeliz-surface-soft p-6 sm:p-8">
             <h2 className="text-2xl font-semibold tracking-tight">After launch</h2>
             <p className="mt-3 max-w-2xl text-[17px] leading-relaxed text-papeliz-ink-muted">
               Planned for later and not scheduled yet. The <Link href="/roadmap/" className="font-medium text-papeliz-blue hover:underline">roadmap</Link> shows the order.

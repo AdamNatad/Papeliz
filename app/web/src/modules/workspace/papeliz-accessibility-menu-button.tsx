@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom'
 import { PapelizIconButton } from '../ui/papeliz-buttons'
 import { PapelizSlidingChoiceGroup } from '../ui/papeliz-sliding-choice-group'
 import { usePapelizThemeStore, type PapelizThemePreference } from '../ui/papeliz-theme'
+import { subscribeToPapelizWindowWidthChange } from '../ui/papeliz-window-width-change'
 import { PapelizKeyBindingsDialog } from './papeliz-key-bindings-dialog'
 import { usePapelizKeyBindingShortcutLabel } from './papeliz-key-bindings-store'
 import {
@@ -41,7 +42,7 @@ const papelizNoteTabsLayoutChoices: ReadonlyArray<{ noteTabsLayout: PapelizNoteT
 ]
 
 const papelizAccessibilityMenuRowClassName =
-  'flex w-full items-center gap-2.5 rounded-xl border border-papeliz-line px-3 py-2 text-left text-[13px] font-medium transition-colors hover:bg-papeliz-hover focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-papeliz-blue disabled:pointer-events-none disabled:opacity-45'
+  'flex w-full items-center gap-2.5 rounded-xl border border-papeliz-line px-3 py-2 text-left text-[13px] font-medium transition-colors pointer-coarse:min-h-11 hover:bg-papeliz-hover focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-papeliz-blue disabled:pointer-events-none disabled:opacity-45'
 
 interface PapelizAccessibilityMenuButtonProps {
   // The workspace adds the note's text (font, size, width), the tabs' layout, Lock All Notes, Key
@@ -92,11 +93,13 @@ export function PapelizAccessibilityMenuButton({ isNoteDisplaySettingsShown }: P
     }
     document.addEventListener('pointerdown', closeOnOutsidePointer, true)
     document.addEventListener('keydown', closeOnEscape)
-    window.addEventListener('resize', closeAccessibilityMenu)
+    // Only a change in width closes it: on a phone the height changes whenever the address bar
+    // hides or the keyboard opens, and the menu would close under the user's finger.
+    const stopWatchingWindowWidth = subscribeToPapelizWindowWidthChange(closeAccessibilityMenu)
     return () => {
       document.removeEventListener('pointerdown', closeOnOutsidePointer, true)
       document.removeEventListener('keydown', closeOnEscape)
-      window.removeEventListener('resize', closeAccessibilityMenu)
+      stopWatchingWindowWidth()
     }
   }, [accessibilityMenuAnchor])
 
@@ -130,8 +133,13 @@ export function PapelizAccessibilityMenuButton({ isNoteDisplaySettingsShown }: P
             ref={accessibilityMenuPanelRef}
             role="dialog"
             aria-label="Accessibility"
-            className="papeliz-pop-enter fixed z-50 w-[288px] max-w-[calc(100vw-16px)] rounded-2xl border border-papeliz-line bg-papeliz-surface p-3.5 text-papeliz-ink shadow-papeliz-pop"
-            style={{ right: Math.max(8, accessibilityMenuAnchor.anchorRight), top: accessibilityMenuAnchor.anchorTop }}
+            // On a short screen (a phone, or one turned sideways) the panel scrolls inside itself.
+            className="papeliz-pop-enter fixed z-50 w-[288px] max-w-[calc(100vw-16px)] overflow-y-auto overscroll-contain rounded-2xl border border-papeliz-line bg-papeliz-surface p-3.5 text-papeliz-ink shadow-papeliz-pop [scrollbar-width:thin] pointer-coarse:w-[320px]"
+            style={{
+              right: Math.max(8, accessibilityMenuAnchor.anchorRight),
+              top: accessibilityMenuAnchor.anchorTop,
+              maxHeight: `calc(100dvh - ${accessibilityMenuAnchor.anchorTop + 8}px)`,
+            }}
           >
             <p className="text-[13px] font-semibold">Accessibility</p>
 
@@ -174,7 +182,7 @@ export function PapelizAccessibilityMenuButton({ isNoteDisplaySettingsShown }: P
                     iconButtonSize="small"
                     disabled={noteFontSize <= papelizNoteFontSizeLimits.minimumNoteFontSize}
                     onClick={() => changeNoteTypography({ noteFontSize: usePapelizNoteTypographyStore.getState().noteFontSize - 1 })}
-                    className="disabled:opacity-40"
+                    className="disabled:opacity-40 pointer-coarse:size-10"
                   >
                     <Minus className="size-4" aria-hidden="true" />
                   </PapelizIconButton>
@@ -193,7 +201,7 @@ export function PapelizAccessibilityMenuButton({ isNoteDisplaySettingsShown }: P
                     iconButtonSize="small"
                     disabled={noteFontSize >= papelizNoteFontSizeLimits.maximumNoteFontSize}
                     onClick={() => changeNoteTypography({ noteFontSize: usePapelizNoteTypographyStore.getState().noteFontSize + 1 })}
-                    className="disabled:opacity-40"
+                    className="disabled:opacity-40 pointer-coarse:size-10"
                   >
                     <Plus className="size-4" aria-hidden="true" />
                   </PapelizIconButton>
@@ -285,7 +293,8 @@ export function PapelizAccessibilityMenuButton({ isNoteDisplaySettingsShown }: P
                 >
                   <Maximize2 className="size-4 flex-none text-papeliz-ink-muted" aria-hidden="true" />
                   <span className="flex-1">Focus mode</span>
-                  <kbd className="font-sans text-[11.5px] text-papeliz-ink-subtle">{focusModeShortcutLabel}</kbd>
+                  {/* A touch screen has no keys to press. */}
+                  <kbd className="font-sans text-[11.5px] text-papeliz-ink-subtle pointer-coarse:hidden">{focusModeShortcutLabel}</kbd>
                 </button>
               </>
             )}

@@ -3,9 +3,15 @@ import { useDeferredValue, useMemo, useState } from 'react'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { PapelizPopoverMenu, type PapelizPopoverMenuPosition } from '../ui/papeliz-popover-menu'
 import { getVaultEntryName } from '../vault/papeliz-vault-relative-paths'
+import { PapelizNoteSaveConflictDialog } from './papeliz-note-save-conflict-dialog'
 import { papelizNoteZoomPercentChoices, papelizNoteZoomPercentLimits, usePapelizNoteTypographyStore } from './papeliz-note-typography-store'
 import type { PapelizVaultNoteEditingLock } from './papeliz-vault-entry-locks'
-import { usePapelizActiveVaultNoteEditingLock, usePapelizWorkspaceStore, type PapelizNoteSaveState } from './papeliz-workspace-store'
+import {
+  usePapelizActiveVaultNoteEditingLock,
+  usePapelizWorkspaceStore,
+  type PapelizNoteSaveState,
+  type PapelizVaultNoteSaveConflict,
+} from './papeliz-workspace-store'
 
 const papelizWordSegmenter = typeof Intl.Segmenter === 'function' ? new Intl.Segmenter(undefined, { granularity: 'word' }) : null
 const papelizFrontmatterBlockPattern = /^---\r?\n[\s\S]*?\r?\n(---|\.\.\.)\s*(\r?\n|$)/
@@ -20,10 +26,11 @@ export function countVaultNoteWords(vaultNoteText: string): number {
   return vaultNoteWordCount
 }
 
-function describeNoteSaveState(noteSaveState: PapelizNoteSaveState, isFolderOnDisk: boolean): string {
+function describeNoteSaveState(noteSaveState: PapelizNoteSaveState, isFolderOnDisk: boolean, isVaultNoteDeletedElsewhere: boolean): string {
   if (noteSaveState === 'saving') return 'Saving…'
   if (noteSaveState === 'unsaved') return 'Unsaved changes'
   if (noteSaveState === 'save-failed') return 'Not saved'
+  if (noteSaveState === 'save-conflict') return isVaultNoteDeletedElsewhere ? 'Moved or deleted elsewhere' : 'Changed elsewhere too'
   return isFolderOnDisk ? 'Saved to disk' : 'Saved in this tab'
 }
 
@@ -107,6 +114,11 @@ export function PapelizStatusBar() {
   const noteViewMode = usePapelizWorkspaceStore((workspaceState) => workspaceState.noteViewMode)
   const activeVaultNoteEditingLock = usePapelizActiveVaultNoteEditingLock()
   const saveVaultNoteNow = usePapelizWorkspaceStore((workspaceState) => workspaceState.saveVaultNoteNow)
+  const activeVaultNoteSaveConflict = usePapelizWorkspaceStore((workspaceState) =>
+    activeLoadedVaultNote === undefined ? undefined : workspaceState.vaultNoteSaveConflictsByLoadedNoteSessionId[activeLoadedVaultNote.loadedNoteSessionId],
+  )
+  // The clash dialog opens by itself for each new clash; Later hides that one until Settle.
+  const [dismissedVaultNoteSaveConflict, setDismissedVaultNoteSaveConflict] = useState<PapelizVaultNoteSaveConflict | null>(null)
 
   const deferredVaultNoteText = useDeferredValue(activeLoadedVaultNote?.draftVaultNoteText ?? '')
   const vaultNoteWordCount = useMemo(() => countVaultNoteWords(deferredVaultNoteText), [deferredVaultNoteText])
@@ -136,13 +148,36 @@ export function PapelizStatusBar() {
                   activeLoadedVaultNote.noteSaveState === 'saved' && 'bg-white/85',
                   activeLoadedVaultNote.noteSaveState === 'unsaved' && 'bg-white/40',
                   activeLoadedVaultNote.noteSaveState === 'saving' && 'papeliz-saving-dot bg-white',
-                  activeLoadedVaultNote.noteSaveState === 'save-failed' && 'bg-red-300',
+                  (activeLoadedVaultNote.noteSaveState === 'save-failed' || activeLoadedVaultNote.noteSaveState === 'save-conflict') && 'bg-red-300',
                 )}
               />
               <span className={activeLoadedVaultNote.noteSaveState === 'save-failed' ? 'font-medium text-white' : undefined}>
-                {describeNoteSaveState(activeLoadedVaultNote.noteSaveState, isFolderOnDisk)}
+                {describeNoteSaveState(
+                  activeLoadedVaultNote.noteSaveState,
+                  isFolderOnDisk,
+                  activeVaultNoteSaveConflict?.vaultNoteSaveConflictKind === 'deleted-elsewhere',
+                )}
               </span>
             </span>
+            {activeLoadedVaultNote.noteSaveState === 'save-conflict' && activeVaultNoteSaveConflict !== undefined && (
+              <>
+                <button
+                  type="button"
+                  className="font-semibold text-white underline-offset-2 hover:underline focus-visible:outline-white"
+                  onClick={() => setDismissedVaultNoteSaveConflict(null)}
+                >
+                  Settle
+                </button>
+                {dismissedVaultNoteSaveConflict !== activeVaultNoteSaveConflict && (
+                  <PapelizNoteSaveConflictDialog
+                    key={activeLoadedVaultNote.loadedNoteSessionId}
+                    loadedNoteSessionId={activeLoadedVaultNote.loadedNoteSessionId}
+                    vaultNoteSaveConflict={activeVaultNoteSaveConflict}
+                    onSaveConflictDialogClose={() => setDismissedVaultNoteSaveConflict(activeVaultNoteSaveConflict)}
+                  />
+                )}
+              </>
+            )}
             {activeLoadedVaultNote.noteSaveState === 'save-failed' && (
               <>
                 <span role="alert" className="max-w-[40vw] truncate text-white" title={activeLoadedVaultNote.noteSaveErrorMessage ?? undefined}>

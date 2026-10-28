@@ -5,7 +5,7 @@ import { papelizSiteGitHubRepositoryUrl } from '@/lib/papeliz-site-config'
 import { createPapelizSitePageMetadata } from '@/lib/papeliz-site-seo'
 
 export const metadata = createPapelizSitePageMetadata({
-  papelizSitePageTitle: 'MIT License',
+  papelizSitePageTitle: 'License Overview',
   papelizSitePageDescription: 'Papeliz is open source under the MIT License.',
   papelizSitePagePath: '/license/',
 })
@@ -21,15 +21,11 @@ const papelizRepositoryLicenseParagraphs = readFileSync(path.join(process.cwd(),
 export default function PapelizSiteLicensePage() {
   return (
     <PapelizLegalDocument
-      papelizLegalDocumentHeading="MIT License"
-      papelizLegalDocumentLead={
-        <p>
-          Papeliz is open source. You may use, copy, change, merge, publish, distribute, sublicense and
-          sell it, as long as the copyright notice and this permission notice stay with it.
-        </p>
-      }
+      papelizLegalDocumentPath="/license/"
+      papelizLegalDocumentTitle="License Overview"
+      papelizLegalDocumentSummary="Papeliz is open source under the MIT License. You may use, copy, change, merge, publish, distribute, sublicense and sell it, as long as the copyright notice and this permission notice stay with it."
     >
-      <PapelizLegalDocumentSection papelizLegalSectionTitle="The license text">
+      <PapelizLegalDocumentSection papelizLegalSectionTitle="MIT License">
         <div className="space-y-4 rounded-3xl border border-papeliz-line bg-papeliz-surface-soft p-5 font-mono text-[13px] leading-relaxed text-papeliz-ink sm:p-6">
           {papelizRepositoryLicenseParagraphs.map((papelizRepositoryLicenseParagraph) => (
             <p key={papelizRepositoryLicenseParagraph}>{papelizRepositoryLicenseParagraph}</p>

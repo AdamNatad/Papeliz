@@ -37,10 +37,11 @@ function papelizContentSecurityPolicyPlugin(): Plugin {
 
 // The launcher passes --host 127.0.0.1 --port 14201 --strictPort; the same values are the defaults
 // here, so a plain `pnpm dev` inside app/web/ behaves the same way. The built app is served at /app/
-// under the website, so a build points its files there; the dev server stays
-// at the root.
+// under the website, so a build points its files there and lands in dist/app/: dist/ is what the
+// webapp's own Worker serves (wrangler.jsonc), at the same paths. The dev server stays at the root.
 export default defineConfig(({ command }) => ({
   base: command === 'build' ? '/app/' : '/',
+  build: { outDir: 'dist/app' },
   plugins: [react(), tailwindcss(), papelizContentSecurityPolicyPlugin()],
   server: {
     host: '127.0.0.1',

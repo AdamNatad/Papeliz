@@ -1,0 +1,19 @@
+// Cloudflare Workers static assets for the webapp: files only, no Worker code. It answers
+// papeliz.com/app and everything under it; the website's Worker (site/main/wrangler.jsonc) has the
+// rest of papeliz.com, and a route runs before that domain's own Worker. The build puts the app in
+// dist/app/, so its paths match what it is asked for (pnpm run webapp:build).
+{
+  "name": "papeliz-app",
+  "compatibility_date": "2026-10-20",
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [
+    { "pattern": "papeliz.com/app", "zone_name": "papeliz.com" },
+    { "pattern": "papeliz.com/app/*", "zone_name": "papeliz.com" }
+  ],
+  "assets": {
+    "directory": "./dist",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "none"
+  }
+}

@@ -26,6 +26,10 @@ export const papelizNoteTabsLayoutSettingName = 'papelizNoteTabsLayout'
 export const papelizKeyBindingsSettingName = 'papelizKeyBindings'
 // This note under the file list: folded or not, and Outline or Backlinks (papeliz-file-list-this-note-store.ts).
 export const papelizFileListThisNoteSectionSettingName = 'papelizFileListThisNoteSection'
+// The AI Assistant's mode (Ask, Plan, Write) and effort (papeliz-assistant-run-options-store.ts).
+export const papelizAssistantRunOptionsSettingName = 'papelizAssistantRunOptions'
+// Prices per model that the user typed over Papeliz's own (papeliz-assistant-model-prices.ts).
+export const papelizAssistantModelPricesSettingName = 'papelizAssistantModelPrices'
 
 const papelizUserSettingReadTimeoutMilliseconds = 400
 

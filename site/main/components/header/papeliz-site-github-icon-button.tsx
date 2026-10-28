@@ -2,10 +2,11 @@ import { PapelizSiteGitHubMark } from '@/components/logo/papeliz-site-channel-ma
 import { papelizSiteGitHubRepositoryUrl } from '@/lib/papeliz-site-config'
 
 const papelizSiteGitHubIconButtonClassName =
-  'grid size-[34px] flex-none place-items-center rounded-full text-white/90 transition-[background-color,color,transform] duration-150 ease-out hover:bg-white/15 hover:text-white'
+  'grid size-[34px] flex-none place-items-center rounded-full text-white/90 transition-[background-color,color,transform] duration-150 ease-out hover:bg-white/15 hover:text-white max-[365px]:hidden'
 
 // The header's GitHub button, with the Accessibility button's size and hover. Until the repository
-// exists it stays in place but is not a link, and its tooltip says so.
+// exists it stays in place but is not a link, and its tooltip says so. Phones narrower than 366 px
+// leave it out so the bar fits; the footer and the Community page still link to GitHub.
 export function PapelizSiteGitHubIconButton() {
   if (!papelizSiteGitHubRepositoryUrl) {
     return (

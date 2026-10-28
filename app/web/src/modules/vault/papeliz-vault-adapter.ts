@@ -27,6 +27,9 @@ export interface PapelizVaultAdapter {
   // Fails when something already has that name.
   createVaultNote(vaultNoteRelativePath: string, vaultNoteText: string): Promise<void>
   createVaultFolder(vaultFolderRelativePath: string): Promise<void>
+  // A file that isn't a note (a picture added to an AI Assistant chat), written whole. Its folder
+  // must be there already, and its name free.
+  createVaultAttachmentFile(vaultAttachmentFileRelativePath: string, vaultAttachmentFileBlob: Blob): Promise<void>
   // Renames or moves a note or a whole folder. Fails when the target name is taken.
   renameVaultEntry(fromVaultEntryRelativePath: string, toVaultEntryRelativePath: string): Promise<void>
   // Copies a note, or a folder with everything in it, to a new path. Fails when the target name is
@@ -46,15 +49,21 @@ export class PapelizVaultOperationError extends Error {
   override readonly name = 'PapelizVaultOperationError'
 }
 
+// The note or folder isn't there (any more): moved, renamed or trashed by another tab or app.
+export function isPapelizVaultEntryMissingError(vaultError: unknown): boolean {
+  if (vaultError instanceof PapelizVaultOperationError) return vaultError.message === 'Not In Vault'
+  return vaultError instanceof DOMException && vaultError.name === 'NotFoundError'
+}
+
 export function describePapelizVaultError(vaultError: unknown): string {
   if (vaultError instanceof PapelizVaultOperationError) return vaultError.message
   if (vaultError instanceof DOMException) {
-    if (vaultError.name === 'NotAllowedError') return 'Papeliz no longer has permission to this folder.'
-    if (vaultError.name === 'NotFoundError') return 'The file is no longer in the folder.'
-    if (vaultError.name === 'NoModificationAllowedError') return 'The file is locked by another program.'
-    if (vaultError.name === 'QuotaExceededError') return 'The disk is full.'
-    return vaultError.message || vaultError.name
+    if (vaultError.name === 'NotAllowedError') return 'No Permission'
+    if (vaultError.name === 'NotFoundError') return 'File Not Found'
+    if (vaultError.name === 'NoModificationAllowedError') return 'File In Use'
+    if (vaultError.name === 'QuotaExceededError') return 'Disk Full'
   }
-  if (vaultError instanceof Error) return vaultError.message
-  return 'Something went wrong.'
+  // The browser's own words stay out of the toast; they go to the console for debugging.
+  console.warn('Papeliz vault error:', vaultError)
+  return 'Unknown Error'
 }

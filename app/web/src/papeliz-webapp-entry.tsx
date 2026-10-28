@@ -7,6 +7,7 @@ import '@fontsource/jetbrains-mono/700.css'
 import './papeliz-webapp.css'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { showPapelizConsoleWarning } from './modules/ui/papeliz-console-warning'
 import { applyPapelizThemePreference, followPapelizThemePreferenceFromOtherTabs, loadPapelizThemePreference, usePapelizThemeStore } from './modules/ui/papeliz-theme'
 import { PapelizWebapp } from './papeliz-webapp'
 
@@ -33,4 +34,5 @@ async function startPapelizWebapp() {
   )
 }
 
+showPapelizConsoleWarning()
 void startPapelizWebapp()

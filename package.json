@@ -17,7 +17,7 @@
     "help:lint": "pnpm --filter @papeliz/help-site lint",
     "help:verify": "pnpm --filter @papeliz/help-site verify",
     "webapp:dev": "pnpm --filter @papeliz/webapp dev",
-    "webapp:build": "pnpm --filter @papeliz/webapp build",
+    "webapp:build": "pnpm --filter @papeliz/webapp build && node build_tools/webapp/papeliz-webapp-worker-headers.mjs",
     "webapp:typecheck": "pnpm --filter @papeliz/webapp typecheck",
     "webapp:test": "pnpm --filter @papeliz/webapp test",
     "webapp:lint": "pnpm --filter @papeliz/webapp lint",

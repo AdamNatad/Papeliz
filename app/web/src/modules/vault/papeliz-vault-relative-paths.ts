@@ -91,16 +91,16 @@ export function isVaultRelativePathWritableByPapeliz(vaultEntryRelativePath: str
 // Characters that Windows, macOS or Linux refuse in a file name, plus the "/" that separates folders.
 const papelizVaultEntryNameForbiddenCharacters = /[\\/:*?"<>|]/
 
-// Returns a short message explaining what is wrong with a note or folder name, or null when it is fine.
+// Returns what is wrong with a note or folder name as a short Title Case tag ("Name Too Long", for an
+// error toast's brackets), or null when it is fine.
 export function describeVaultEntryNameProblem(vaultEntryName: string): string | null {
   const trimmedVaultEntryName = vaultEntryName.trim()
-  if (trimmedVaultEntryName.length === 0) return 'Type a name.'
-  if (trimmedVaultEntryName.startsWith('.')) return 'A name can’t start with a dot.'
-  if (papelizVaultEntryNameForbiddenCharacters.test(trimmedVaultEntryName)) {
-    return 'A name can’t contain \\ / : * ? " < > |'
-  }
-  if (trimmedVaultEntryName.endsWith('.')) return 'A name can’t end with a dot.'
-  if (trimmedVaultEntryName.length > 200) return 'That name is too long.'
+  if (trimmedVaultEntryName.length === 0) return 'Name Empty'
+  if (trimmedVaultEntryName.startsWith('.')) return 'Starts With A Dot'
+  // One of \ / : * ? " < > |
+  if (papelizVaultEntryNameForbiddenCharacters.test(trimmedVaultEntryName)) return 'Has A Blocked Character'
+  if (trimmedVaultEntryName.endsWith('.')) return 'Ends With A Dot'
+  if (trimmedVaultEntryName.length > 200) return 'Name Too Long'
   return null
 }
 

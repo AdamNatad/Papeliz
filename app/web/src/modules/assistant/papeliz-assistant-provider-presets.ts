@@ -1,7 +1,11 @@
 // The providers offered in settings. Each speaks the OpenAI Chat Completions format; a preset only
 // fills in the base URL and suggests models, and the user can change both. The first one is
 // preselected. "Browser access confirmed" means a call straight from a browser page was checked
-// to be allowed; the others are expected to work but are not checked yet.
+// to be allowed: on 2026-10-29 each hosted provider was asked, as Chrome asks, whether papeliz.com
+// may send Authorization and Content-Type to its chat and model list. Meta, OpenAI, OpenRouter,
+// Groq, Together, Fireworks and Google Gemini allow it. Ollama Cloud refuses it (405, no
+// permission header) and OpenCode Zen and Go refuse it for chat (404), so a web page can't reach
+// them; an app outside the browser could.
 
 export interface PapelizAssistantProviderPreset {
   papelizAssistantProviderId: string
@@ -45,7 +49,7 @@ export const papelizAssistantProviderPresets: readonly PapelizAssistantProviderP
     suggestedProviderModelNames: [],
     isProviderApiKeyRequired: true,
     providerApiKeyHelpUrl: 'https://openrouter.ai/keys',
-    isBrowserAccessConfirmed: false,
+    isBrowserAccessConfirmed: true,
   },
   {
     papelizAssistantProviderId: 'groq',
@@ -55,7 +59,7 @@ export const papelizAssistantProviderPresets: readonly PapelizAssistantProviderP
     suggestedProviderModelNames: [],
     isProviderApiKeyRequired: true,
     providerApiKeyHelpUrl: 'https://console.groq.com/keys',
-    isBrowserAccessConfirmed: false,
+    isBrowserAccessConfirmed: true,
   },
   {
     papelizAssistantProviderId: 'together',
@@ -65,7 +69,7 @@ export const papelizAssistantProviderPresets: readonly PapelizAssistantProviderP
     suggestedProviderModelNames: [],
     isProviderApiKeyRequired: true,
     providerApiKeyHelpUrl: 'https://api.together.ai/settings/api-keys',
-    isBrowserAccessConfirmed: false,
+    isBrowserAccessConfirmed: true,
   },
   {
     papelizAssistantProviderId: 'fireworks',
@@ -75,7 +79,7 @@ export const papelizAssistantProviderPresets: readonly PapelizAssistantProviderP
     suggestedProviderModelNames: [],
     isProviderApiKeyRequired: true,
     providerApiKeyHelpUrl: 'https://fireworks.ai/account/api-keys',
-    isBrowserAccessConfirmed: false,
+    isBrowserAccessConfirmed: true,
   },
   {
     papelizAssistantProviderId: 'google-gemini',
@@ -85,7 +89,7 @@ export const papelizAssistantProviderPresets: readonly PapelizAssistantProviderP
     suggestedProviderModelNames: [],
     isProviderApiKeyRequired: true,
     providerApiKeyHelpUrl: 'https://aistudio.google.com/apikey',
-    isBrowserAccessConfirmed: false,
+    isBrowserAccessConfirmed: true,
   },
   {
     papelizAssistantProviderId: 'ollama-cloud',
@@ -150,6 +154,25 @@ export const papelizAssistantProviderPresets: readonly PapelizAssistantProviderP
 ]
 
 export const papelizDefaultAssistantProviderId = papelizAssistantProviderPresets[0]?.papelizAssistantProviderId ?? papelizCustomAssistantProviderId
+
+// Providers whose servers refuse calls from a web page (checked 2026-10-29, above). Settings hides
+// them until they allow it; a desktop app, outside the browser, could offer them.
+export const papelizBrowserBlockedAssistantProviderIds: readonly string[] = ['ollama-cloud', 'opencode-zen', 'opencode-go']
+
+// The providers settings offers: Muse Spark on Meta first, then every provider a web page can reach,
+// those on this computer and Custom (Adam, 2026-10-29: "remove ollama cloud for now", then
+// "Openrouter works or whatever works on the provider put it in"). A hidden one stays defined, so
+// settings saved for it still open, and it stays listed while it is the one chosen.
+export const papelizOfferedAssistantProviderIds: readonly string[] = papelizAssistantProviderPresets
+  .map((providerPreset) => providerPreset.papelizAssistantProviderId)
+  .filter((papelizAssistantProviderId) => !papelizBrowserBlockedAssistantProviderIds.includes(papelizAssistantProviderId))
+
+export function listPapelizOfferedAssistantProviderPresets(chosenAssistantProviderId: string): readonly PapelizAssistantProviderPreset[] {
+  return papelizAssistantProviderPresets.filter(
+    (providerPreset) =>
+      papelizOfferedAssistantProviderIds.includes(providerPreset.papelizAssistantProviderId) || providerPreset.papelizAssistantProviderId === chosenAssistantProviderId,
+  )
+}
 
 export function findPapelizAssistantProviderPreset(papelizAssistantProviderId: string): PapelizAssistantProviderPreset {
   return (

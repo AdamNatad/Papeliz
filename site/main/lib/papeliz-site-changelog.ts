@@ -5,8 +5,25 @@ export type PapelizSiteChangelogEntry = {
   papelizSiteChangelogChanges: string[]
 }
 
-// Newest first. Papeliz has no public release yet; these record what has been built so far.
+// Newest first, the same list as the repository's CHANGELOG.md.
 export const papelizSiteChangelogEntries: PapelizSiteChangelogEntry[] = [
+  {
+    papelizSiteChangelogDate: '2026-10-29',
+    papelizSiteChangelogMilestone: '0.2',
+    papelizSiteChangelogTitle: 'Papeliz is live, and the assistant grows up',
+    papelizSiteChangelogChanges: [
+      'Papeliz is live at papeliz.com, with the app at papeliz.com/app and help at papeliz.com/help.',
+      'The AI assistant works in three modes: Ask, Plan and Write.',
+      'It can ask you up to four questions on one card, and you answer with a pick or your own words.',
+      'Steer the assistant while it answers, or queue your next message; choose how much effort it spends.',
+      'Add files and pictures to the chat.',
+      'The assistant can move notes and folders to the vault’s .trash, and never touches your saved chats.',
+      'Usage shows tokens and cost for each model.',
+      'The same note open in two tabs or apps: changes are combined on save, and a clash asks what to keep.',
+      'Unsaved typing is kept in the browser, so a closed tab doesn’t lose it.',
+      'Color and icon for any note or folder in the file list.',
+    ],
+  },
   {
     papelizSiteChangelogDate: '2026-10-28',
     papelizSiteChangelogMilestone: '0.2',

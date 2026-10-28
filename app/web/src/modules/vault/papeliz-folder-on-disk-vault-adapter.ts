@@ -97,6 +97,15 @@ export class PapelizFolderOnDiskVaultAdapter implements PapelizVaultAdapter {
     await writeVaultFileContents(vaultNoteFileHandle, vaultNoteText)
   }
 
+  async createVaultAttachmentFile(vaultAttachmentFileRelativePath: string, vaultAttachmentFileBlob: Blob): Promise<void> {
+    assertVaultPathWritableByPapeliz(vaultAttachmentFileRelativePath)
+    const vaultAttachmentFileName = getVaultEntryName(vaultAttachmentFileRelativePath)
+    const vaultParentFolderHandle = await this.getVaultFolderHandle(getVaultEntryParentFolderRelativePath(vaultAttachmentFileRelativePath))
+    await assertVaultEntryNameIsFree(vaultParentFolderHandle, vaultAttachmentFileName)
+    const vaultAttachmentFileHandle = await vaultParentFolderHandle.getFileHandle(vaultAttachmentFileName, { create: true })
+    await writeVaultFileContents(vaultAttachmentFileHandle, vaultAttachmentFileBlob)
+  }
+
   async createVaultFolder(vaultFolderRelativePath: string): Promise<void> {
     assertVaultPathWritableByPapeliz(vaultFolderRelativePath)
     const vaultFolderName = getVaultEntryName(vaultFolderRelativePath)
@@ -133,7 +142,7 @@ export class PapelizFolderOnDiskVaultAdapter implements PapelizVaultAdapter {
     assertVaultPathWritableByPapeliz(fromVaultEntryRelativePath)
     assertVaultPathWritableByPapeliz(toVaultEntryRelativePath)
     if (isVaultRelativePathInsideFolder(toVaultEntryRelativePath, fromVaultEntryRelativePath)) {
-      throw new PapelizVaultOperationError('A folder can’t be copied into itself.')
+      throw new PapelizVaultOperationError('Into Itself')
     }
     const fromVaultParentFolderHandle = await this.getVaultFolderHandle(getVaultEntryParentFolderRelativePath(fromVaultEntryRelativePath))
     const toVaultParentFolderHandle = await this.getVaultFolderHandle(getVaultEntryParentFolderRelativePath(toVaultEntryRelativePath))
@@ -173,13 +182,13 @@ export class PapelizFolderOnDiskVaultAdapter implements PapelizVaultAdapter {
 
 function assertPapelizVaultSettingsFileName(papelizVaultSettingsFileName: string): void {
   if (!isPapelizVaultSettingsFileName(papelizVaultSettingsFileName)) {
-    throw new PapelizVaultOperationError(`“${papelizVaultSettingsFileName}” is not a Papeliz settings file.`)
+    throw new PapelizVaultOperationError('Unknown Settings File')
   }
 }
 
 function assertVaultPathWritableByPapeliz(vaultEntryRelativePath: string): void {
   if (!isVaultRelativePathWritableByPapeliz(vaultEntryRelativePath)) {
-    throw new PapelizVaultOperationError('Papeliz doesn’t change hidden folders such as .git.')
+    throw new PapelizVaultOperationError('Hidden Folder')
   }
 }
 
@@ -200,7 +209,7 @@ async function assertVaultEntryNameIsFree(vaultFolderHandle: FileSystemDirectory
   const lowerCaseVaultEntryName = vaultEntryName.toLowerCase()
   for await (const existingVaultEntryName of vaultFolderHandle.keys()) {
     if (existingVaultEntryName.toLowerCase() === lowerCaseVaultEntryName) {
-      throw new PapelizVaultOperationError(`“${vaultEntryName}” already exists here.`)
+      throw new PapelizVaultOperationError('Name Taken')
     }
   }
 }
@@ -209,7 +218,7 @@ async function findVaultEntryHandle(vaultFolderHandle: FileSystemDirectoryHandle
   for await (const [existingVaultEntryName, existingVaultEntryHandle] of vaultFolderHandle.entries()) {
     if (existingVaultEntryName === vaultEntryName) return asPapelizVaultEntryHandle(existingVaultEntryHandle)
   }
-  throw new PapelizVaultOperationError(`“${vaultEntryName}” is no longer in the folder.`)
+  throw new PapelizVaultOperationError('File Not Found')
 }
 
 async function copyVaultEntryHandle(

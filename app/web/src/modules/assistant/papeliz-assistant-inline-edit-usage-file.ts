@@ -29,6 +29,10 @@ function readStoredTokenCount(storedTokenCount: unknown): number {
   return typeof storedTokenCount === 'number' && Number.isFinite(storedTokenCount) && storedTokenCount >= 0 ? Math.round(storedTokenCount) : 0
 }
 
+function readStoredCostUsd(storedCostUsd: unknown): number {
+  return typeof storedCostUsd === 'number' && Number.isFinite(storedCostUsd) && storedCostUsd >= 0 ? storedCostUsd : 0
+}
+
 // Reads the file; anything it cannot read as usage counts as none.
 export function parsePapelizAssistantInlineEditUsageFile(inlineEditUsageFileText: string | null): PapelizAssistantModelTokenUsageTally[] {
   if (inlineEditUsageFileText === null) return []
@@ -52,6 +56,12 @@ export function parsePapelizAssistantInlineEditUsageFile(inlineEditUsageFileText
         assistantOutputTokenCount: readStoredTokenCount(storedTallyFields['assistantOutputTokenCount']),
         assistantRequestCount: readStoredTokenCount(storedTallyFields['assistantRequestCount']),
         isAssistantTokenCountEstimated: storedTallyFields['isAssistantTokenCountEstimated'] === true,
+        ...(readStoredTokenCount(storedTallyFields['assistantProviderReportedCostRequestCount']) > 0
+          ? {
+              assistantProviderReportedCostUsd: readStoredCostUsd(storedTallyFields['assistantProviderReportedCostUsd']),
+              assistantProviderReportedCostRequestCount: readStoredTokenCount(storedTallyFields['assistantProviderReportedCostRequestCount']),
+            }
+          : {}),
       },
     )
   }
@@ -68,6 +78,7 @@ export function recordPapelizInlineEditTokenUsageInVault(
   papelizVaultAdapter: PapelizVaultAdapter,
   providerModelName: string,
   completionTokenUsage: PapelizChatCompletionTokenUsage,
+  completionProviderReportedCostUsd: number | null = null,
 ): Promise<void> {
   const inlineEditUsageFileWrite = inlineEditUsageFileWriteQueue.then(async () => {
     // A file that cannot be read is left alone rather than replaced by this one edit.
@@ -75,7 +86,7 @@ export function recordPapelizInlineEditTokenUsageInVault(
     const inlineEditModelTokenUsageTallies = addPapelizAssistantModelTokenUsageTally(
       parsePapelizAssistantInlineEditUsageFile(inlineEditUsageFileText),
       providerModelName,
-      tallyPapelizChatCompletionTokenUsage(completionTokenUsage),
+      tallyPapelizChatCompletionTokenUsage(completionTokenUsage, completionProviderReportedCostUsd),
     )
     await papelizVaultAdapter.writePapelizVaultSettingsFile(papelizAssistantInlineEditUsageFileName, formatPapelizAssistantInlineEditUsageFile(inlineEditModelTokenUsageTallies))
     usePapelizAssistantInlineEditUsageFileWriteStore.setState((writeState) => ({ inlineEditUsageFileWriteCount: writeState.inlineEditUsageFileWriteCount + 1 }))

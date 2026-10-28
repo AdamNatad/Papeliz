@@ -2,11 +2,13 @@
 // live here: only app data such as the folders the user opened.
 
 const papelizBrowserDatabaseName = 'papeliz-browser-database'
-const papelizBrowserDatabaseVersion = 3
+const papelizBrowserDatabaseVersion = 4
 
 export const papelizVaultFolderHandlesStoreName = 'papelizVaultFolderHandles'
 export const papelizUserSettingsStoreName = 'papelizUserSettings'
 export const papelizAssistantProviderKeysStoreName = 'papelizAssistantProviderKeys'
+// Recovery copies of unsaved typing (papeliz-note-recovery-drafts.ts).
+export const papelizNoteRecoveryDraftsStoreName = 'papelizNoteRecoveryDrafts'
 
 let papelizBrowserDatabasePromise: Promise<IDBDatabase> | null = null
 
@@ -21,7 +23,8 @@ function openPapelizBrowserDatabase(): Promise<IDBDatabase> {
       const papelizBrowserDatabase = databaseOpenRequest.result
       // Each version only adds what is missing and never wipes what is already stored.
       // Version 1: the folders the user opened. Version 2: the user's settings (the theme).
-      // Version 3: each assistant provider's base URL, model and API key.
+      // Version 3: each assistant provider's base URL, model and API key. Version 4: recovery copies
+      // of unsaved typing.
       if (!papelizBrowserDatabase.objectStoreNames.contains(papelizVaultFolderHandlesStoreName)) {
         papelizBrowserDatabase.createObjectStore(papelizVaultFolderHandlesStoreName, { keyPath: 'papelizVaultId' })
       }
@@ -30,6 +33,9 @@ function openPapelizBrowserDatabase(): Promise<IDBDatabase> {
       }
       if (!papelizBrowserDatabase.objectStoreNames.contains(papelizAssistantProviderKeysStoreName)) {
         papelizBrowserDatabase.createObjectStore(papelizAssistantProviderKeysStoreName, { keyPath: 'papelizAssistantProviderId' })
+      }
+      if (!papelizBrowserDatabase.objectStoreNames.contains(papelizNoteRecoveryDraftsStoreName)) {
+        papelizBrowserDatabase.createObjectStore(papelizNoteRecoveryDraftsStoreName, { keyPath: 'noteRecoveryDraftKey' })
       }
     }
     databaseOpenRequest.onsuccess = () => resolveDatabase(databaseOpenRequest.result)

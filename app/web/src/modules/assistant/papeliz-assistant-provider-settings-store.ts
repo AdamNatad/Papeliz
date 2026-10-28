@@ -84,6 +84,9 @@ export const usePapelizAssistantProviderSettingsStore = create<PapelizAssistantP
   },
 }))
 
+// The setup problem while no provider has been chosen at all.
+export const papelizAssistantProviderNotChosenProblem = 'Add your provider and API key to start.'
+
 // The provider the assistant should use now, or a plain reason why it can't run yet.
 export function getActivePapelizAssistantProviderConnection():
   | { providerConnectionOutcome: 'ready'; providerConnection: PapelizAssistantProviderConnection; providerDisplayName: string }
@@ -91,7 +94,7 @@ export function getActivePapelizAssistantProviderConnection():
   const settingsState = usePapelizAssistantProviderSettingsStore.getState()
   const providerPreset = findPapelizAssistantProviderPreset(settingsState.activeAssistantProviderId)
   const providerSettings = settingsState.providerSettingsByProviderId[settingsState.activeAssistantProviderId]
-  if (providerSettings === undefined) return { providerConnectionOutcome: 'not-set-up', providerSetupProblem: 'Add your provider and API key to start.' }
+  if (providerSettings === undefined) return { providerConnectionOutcome: 'not-set-up', providerSetupProblem: papelizAssistantProviderNotChosenProblem }
   if (providerSettings.providerBaseUrl.length === 0) return { providerConnectionOutcome: 'not-set-up', providerSetupProblem: 'Set the provider’s base URL.' }
   if (providerSettings.providerModelName.length === 0) return { providerConnectionOutcome: 'not-set-up', providerSetupProblem: 'Choose a model.' }
   if (providerPreset.isProviderApiKeyRequired && providerSettings.providerApiKey.length === 0) {

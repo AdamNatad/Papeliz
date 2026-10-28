@@ -10,10 +10,12 @@ import {
   Ellipsis,
   FilePlus,
   FileText,
+  Folder,
   FolderPlus,
   GripVertical,
   Lock,
   LockOpen,
+  Palette,
   PanelLeftClose,
   Pencil,
   Search,
@@ -36,6 +38,8 @@ import {
 import { getPapelizVaultSearchClient } from './papeliz-vault-knowledge-store'
 import { listVaultFolderEntryNamesInOrder, sortVaultFolderEntries, type PapelizVaultEntryOrder, type PapelizVaultEntryPlacement } from './papeliz-vault-entry-order'
 import { PapelizWorkspaceEyePreviewerSlot } from './papeliz-workspace-eye-previewer-slot'
+import { PapelizVaultEntryLookPanel } from './papeliz-vault-entry-look-panel'
+import { describePapelizVaultEntryLookColor, papelizVaultEntryLookIcons } from './papeliz-vault-entry-looks'
 import { usePapelizWorkspaceStore } from './papeliz-workspace-store'
 
 interface PapelizFileExplorerTreeNode {
@@ -88,6 +92,8 @@ const papelizVaultEntryDragDataType = 'application/x-papeliz-vault-entry'
 const papelizFolderAutoExpandDelayMilliseconds = 700
 // How long a folder's rows take to slide open or shut.
 const papelizFolderChildrenSlideMilliseconds = 280
+// How long the open note's highlight glides to a newly opened note (as in papeliz-webapp.css).
+const papelizActiveNoteHighlightGlideMilliseconds = 320
 
 // Where a dragged entry would land, and how the list shows it: a line before or after a row, a
 // folder lit up, or (no row) the whole list for the top of the vault.
@@ -134,6 +140,8 @@ export function PapelizFileExplorer({ fileListFootSection }: PapelizFileExplorer
 
   const [noteNameFilterText, setNoteNameFilterText] = useState('')
   const [fileExplorerMenuState, setFileExplorerMenuState] = useState<PapelizFileExplorerMenuState | null>(null)
+  // Color and Icon, opened from a row's menu where the menu was.
+  const [vaultEntryLookPanelState, setVaultEntryLookPanelState] = useState<PapelizFileExplorerMenuState | null>(null)
   const [vaultEntryAwaitingTrash, setVaultEntryAwaitingTrash] = useState<PapelizVaultTreeEntry | null>(null)
   // A note or folder being dragged, and the folder it would land in ('' is the top of the vault).
   const [draggedVaultEntry, setDraggedVaultEntry] = useState<PapelizVaultTreeEntry | null>(null)
@@ -151,6 +159,8 @@ export function PapelizFileExplorer({ fileListFootSection }: PapelizFileExplorer
   const fileExplorerNotesNavRef = useRef<HTMLElement>(null)
   const activeNoteHighlightRef = useRef<HTMLSpanElement>(null)
   const highlightedVaultNoteRelativePathRef = useRef<string | null>(null)
+  // When the pill's glide to the note opened last ends (`performance.now()` time).
+  const activeNoteHighlightGlideEndsAtRef = useRef(0)
 
   useEffect(() => () => clearTimeout(folderAutoExpandRef.current?.autoExpandTimer), [])
 
@@ -207,18 +217,35 @@ export function PapelizFileExplorer({ fileListFootSection }: PapelizFileExplorer
         return
       }
       const activeNoteRowRelativePath = activeNoteRowButton.dataset.papelizVaultEntryPath ?? null
-      if (activeNoteHighlightElement.dataset.papelizActiveNoteHighlightShown === 'true') {
-        activeNoteHighlightElement.dataset.papelizActiveNoteHighlightGliding =
-          highlightedVaultNoteRelativePathRef.current === activeNoteRowRelativePath ? 'false' : 'true'
-      }
-      highlightedVaultNoteRelativePathRef.current = activeNoteRowRelativePath
+      const isSameNoteHighlighted = highlightedVaultNoteRelativePathRef.current === activeNoteRowRelativePath
       const notesNavRect = notesNavElement.getBoundingClientRect()
       const activeNoteRowRect = activeNoteRowElement.getBoundingClientRect()
       const highlightLeft = activeNoteRowRect.left - notesNavRect.left + notesNavElement.scrollLeft
       const highlightTop = activeNoteRowRect.top - notesNavRect.top + notesNavElement.scrollTop
-      activeNoteHighlightElement.style.transform = `translate(${highlightLeft}px, ${highlightTop}px)`
-      activeNoteHighlightElement.style.width = `${activeNoteRowRect.width}px`
-      activeNoteHighlightElement.style.height = `${activeNoteRowRect.height}px`
+      const highlightTransform = `translate(${highlightLeft}px, ${highlightTop}px)`
+      const highlightWidth = `${activeNoteRowRect.width}px`
+      const highlightHeight = `${activeNoteRowRect.height}px`
+      // Nothing moved (an observer firing again just after a note opened): leave the pill as it is,
+      // so a glide on its way isn't cut short.
+      if (
+        isSameNoteHighlighted &&
+        activeNoteHighlightElement.style.transform === highlightTransform &&
+        activeNoteHighlightElement.style.width === highlightWidth &&
+        activeNoteHighlightElement.style.height === highlightHeight
+      ) {
+        return
+      }
+      if (activeNoteHighlightElement.dataset.papelizActiveNoteHighlightShown === 'true') {
+        // A new note glides; the same note's row moving follows at once, unless its glide is still on
+        // its way, which then carries on to the row's new place.
+        const isGlideUnderway = performance.now() < activeNoteHighlightGlideEndsAtRef.current
+        activeNoteHighlightElement.dataset.papelizActiveNoteHighlightGliding = isSameNoteHighlighted && !isGlideUnderway ? 'false' : 'true'
+        if (!isSameNoteHighlighted) activeNoteHighlightGlideEndsAtRef.current = performance.now() + papelizActiveNoteHighlightGlideMilliseconds
+      }
+      highlightedVaultNoteRelativePathRef.current = activeNoteRowRelativePath
+      activeNoteHighlightElement.style.transform = highlightTransform
+      activeNoteHighlightElement.style.width = highlightWidth
+      activeNoteHighlightElement.style.height = highlightHeight
       if (activeNoteHighlightElement.dataset.papelizActiveNoteHighlightShown !== 'true') {
         activeNoteHighlightElement.dataset.papelizActiveNoteHighlightShown = 'true'
         // The first place is set without gliding; reading the size makes the browser take it as the
@@ -287,6 +314,13 @@ export function PapelizFileExplorer({ fileListFootSection }: PapelizFileExplorer
       menuItemLabel: 'Rename',
       MenuItemIcon: Pencil,
       onMenuItemSelect: () => startRenamingVaultEntry(menuVaultEntry.vaultEntryRelativePath),
+    })
+    vaultEntryMenuItems.push({
+      menuItemKey: 'color-and-icon',
+      menuItemLabel: 'Color and Icon',
+      MenuItemIcon: Palette,
+      onMenuItemSelect: () =>
+        setVaultEntryLookPanelState({ menuVaultEntry, menuPosition: fileExplorerMenuState?.menuPosition ?? { menuAnchorLeft: 16, menuAnchorTop: 120 } }),
     })
     // A locked note can be read but not changed; a locked folder locks every note in it.
     const isMenuVaultEntryLocked = lockedVaultEntryRelativePaths.includes(menuVaultEntry.vaultEntryRelativePath)
@@ -577,6 +611,16 @@ export function PapelizFileExplorer({ fileListFootSection }: PapelizFileExplorer
         />
       )}
 
+      {vaultEntryLookPanelState !== null && (
+        <PapelizVaultEntryLookPanel
+          vaultEntryRelativePath={vaultEntryLookPanelState.menuVaultEntry.vaultEntryRelativePath}
+          vaultEntryKind={vaultEntryLookPanelState.menuVaultEntry.vaultEntryKind}
+          vaultEntryDisplayName={getVaultEntryDisplayName(vaultEntryLookPanelState.menuVaultEntry.vaultEntryRelativePath, vaultEntryLookPanelState.menuVaultEntry.vaultEntryKind)}
+          lookPanelPosition={vaultEntryLookPanelState.menuPosition}
+          onLookPanelClose={() => setVaultEntryLookPanelState(null)}
+        />
+      )}
+
       {vaultEntryAwaitingTrash !== null && (
         <PapelizConfirmDialog
           confirmDialogTitle="Move to trash?"
@@ -711,6 +755,7 @@ function PapelizFileExplorerRow({
   const vaultTreeEntry: PapelizVaultTreeEntry = { vaultEntryRelativePath, vaultEntryKind }
   const isDraggedRow = fileExplorerRowActions.draggedVaultEntryRelativePath === vaultEntryRelativePath
   const isVaultEntryLocked = usePapelizWorkspaceStore((workspaceState) => workspaceState.lockedVaultEntryRelativePaths.includes(vaultEntryRelativePath))
+  const vaultEntryLook = usePapelizWorkspaceStore((workspaceState) => workspaceState.vaultEntryLooks[vaultEntryRelativePath])
   const rowDropIndicatorKind =
     fileExplorerRowActions.vaultEntryDropTarget?.dropIndicatorVaultEntryRelativePath === vaultEntryRelativePath
       ? fileExplorerRowActions.vaultEntryDropTarget.dropIndicatorKind
@@ -788,7 +833,11 @@ function PapelizFileExplorerRow({
     }
   }
 
-  const VaultEntryIcon = vaultEntryKind === 'folder' ? ChevronRight : FileText
+  // A folder shows its arrow, then its icon; a note its icon. Both take the color and icon picked in
+  // Color and Icon (papeliz-vault-entry-looks.ts), the color on the name too.
+  const VaultEntryLookIcon =
+    vaultEntryLook?.lookIconName !== undefined ? papelizVaultEntryLookIcons[vaultEntryLook.lookIconName] : vaultEntryKind === 'folder' ? Folder : FileText
+  const vaultEntryLookColorStyle = vaultEntryLook?.lookColor === undefined ? undefined : { color: describePapelizVaultEntryLookColor(vaultEntryLook.lookColor) }
 
   return (
     <li>
@@ -877,15 +926,24 @@ function PapelizFileExplorerRow({
             className="flex h-full min-w-0 flex-1 items-center gap-2 rounded-full pr-1 text-left focus-visible:outline-offset-[-2px]"
             style={rowIndentStyle}
           >
-            <VaultEntryIcon
-              className={joinPapelizClassNames(
-                'size-[15px] flex-none transition-transform duration-200 ease-[var(--ease-papeliz-out)]',
-                isActiveNote ? 'text-papeliz-chosen-row-ink' : 'text-papeliz-ink-subtle',
-                vaultEntryKind === 'folder' && isExpandedFolder && 'rotate-90',
-              )}
+            {vaultEntryKind === 'folder' && (
+              <ChevronRight
+                className={joinPapelizClassNames(
+                  '-mr-1 size-[13px] flex-none text-papeliz-ink-subtle transition-transform duration-200 ease-[var(--ease-papeliz-out)]',
+                  isExpandedFolder && 'rotate-90',
+                )}
+                aria-hidden="true"
+              />
+            )}
+            <VaultEntryLookIcon
+              className={joinPapelizClassNames('size-[15px] flex-none', isActiveNote ? 'text-papeliz-chosen-row-ink' : 'text-papeliz-ink-subtle')}
+              style={vaultEntryLookColorStyle}
               aria-hidden="true"
             />
-            <span className="truncate">{vaultEntryDisplayName}</span>
+            {/* The open note's name keeps the highlight's ink, so it reads on the blue; its icon keeps the color. */}
+            <span className="truncate" style={isActiveNote ? undefined : vaultEntryLookColorStyle}>
+              {vaultEntryDisplayName}
+            </span>
             {isVaultEntryLocked && (
               <Lock
                 className="size-3 flex-none text-papeliz-ink-subtle"
@@ -1005,7 +1063,7 @@ function PapelizFileExplorerRenameField({ vaultEntryRelativePath, vaultEntryKind
         setRenameProblemMessage(vaultEntryRenameResult.vaultEntryRenameProblem)
         return
       }
-      showWorkspaceNotice('error', `Not renamed: ${vaultEntryRenameResult.vaultEntryRenameProblem}`)
+      showWorkspaceNotice('error', `Couldn’t rename “${getVaultNoteTitle(vaultEntryRelativePath)}” (${vaultEntryRenameResult.vaultEntryRenameProblem})`)
     }
     stopRenamingVaultEntry()
     if (renameTrigger === 'blur' || vaultEntryRenameResult.vaultEntryRenameOutcome === 'refused') return

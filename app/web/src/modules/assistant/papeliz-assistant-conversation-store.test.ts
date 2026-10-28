@@ -5,6 +5,7 @@ import { usePapelizWorkspaceStore } from '../workspace/papeliz-workspace-store'
 import { parsePapelizChatSessionFile } from './papeliz-assistant-chat-session-files'
 import { usePapelizAssistantConversationStore } from './papeliz-assistant-conversation-store'
 import { usePapelizAssistantProviderSettingsStore } from './papeliz-assistant-provider-settings-store'
+import { usePapelizAssistantRunOptionsStore } from './papeliz-assistant-run-options-store'
 
 // A fake provider that answers in a fixed order: search, read, propose an edit, then reply. Each
 // answer counts 1000 more input tokens than the one before, and 20 output tokens.
@@ -73,6 +74,8 @@ describe('the assistant conversation', () => {
     await waitUntil(() => Object.keys(usePapelizWorkspaceStore.getState().vaultTreeEntries).length > 0)
     await new Promise((resolveWait) => setTimeout(resolveWait, 50))
 
+    // Only Write proposes changes.
+    usePapelizAssistantRunOptionsStore.setState({ assistantMode: 'write' })
     await usePapelizAssistantConversationStore.getState().sendAssistantMessage('Improve my garden plan')
 
     const conversationState = usePapelizAssistantConversationStore.getState()

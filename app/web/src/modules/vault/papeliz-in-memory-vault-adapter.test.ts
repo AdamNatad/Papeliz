@@ -25,8 +25,8 @@ describe('the in-memory vault', () => {
 
   it('refuses a name that is already taken, ignoring case', async () => {
     const testVault = createTestVault()
-    await expect(testVault.createVaultNote('inbox.md', '')).rejects.toThrow(/already exists/)
-    await expect(testVault.renameVaultEntry('Guides/Callouts.md', 'INBOX.md')).rejects.toThrow(/already exists/)
+    await expect(testVault.createVaultNote('inbox.md', '')).rejects.toThrow('Name Taken')
+    await expect(testVault.renameVaultEntry('Guides/Callouts.md', 'INBOX.md')).rejects.toThrow('Name Taken')
   })
 
   it('allows a rename that only changes case', async () => {

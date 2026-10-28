@@ -25,8 +25,9 @@ export interface PapelizOpenVault {
 
 export type PapelizOpenVaultResult =
   | { openVaultOutcome: 'opened'; papelizOpenVault: PapelizOpenVault }
-  // The folder window was closed, or a folder was picked and the browser refused to let Papeliz
-  // save there: browsers report both the same way.
+  // The folder window was closed, or a folder was picked and the browser didn't let Papeliz edit it:
+  // its "edit files" question was turned down, it refuses without asking, or it won't share that
+  // system folder. Browsers report these the same way.
   | { openVaultOutcome: 'cancelled' }
   | { openVaultOutcome: 'failed'; openVaultFailureMessage: string }
   // The folder window failed to open from the user's own click: opening a folder is off for this
@@ -57,9 +58,9 @@ export async function pickAndOpenPapelizVaultFolder(): Promise<PapelizOpenVaultR
     }
     if (folderPickerError instanceof DOMException && folderPickerError.name === 'SecurityError') return { openVaultOutcome: 'chooser-unavailable' }
     if (folderPickerError instanceof DOMException && folderPickerError.name === 'NotAllowedError') {
-      return { openVaultOutcome: 'failed', openVaultFailureMessage: 'Papeliz needs permission to read and save the notes in this folder.' }
+      return { openVaultOutcome: 'failed', openVaultFailureMessage: 'Couldn’t open the folder (No Permission)' }
     }
-    return { openVaultOutcome: 'failed', openVaultFailureMessage: 'The folder could not be opened.' }
+    return { openVaultOutcome: 'failed', openVaultFailureMessage: 'Couldn’t open the folder (Unknown Error)' }
   }
   return openPapelizVaultFolderHandle(papelizVaultFolderHandle)
 }
@@ -75,10 +76,10 @@ async function openPapelizVaultFolderHandle(papelizVaultFolderHandle: FileSystem
   try {
     papelizVaultFolderPermission = await ensureVaultFolderPermission(papelizVaultFolderHandle)
   } catch {
-    return { openVaultOutcome: 'failed', openVaultFailureMessage: 'The folder is no longer available. It may have been moved or deleted.' }
+    return { openVaultOutcome: 'failed', openVaultFailureMessage: `Couldn’t open “${papelizVaultFolderHandle.name}” (Folder Not Found)` }
   }
   if (papelizVaultFolderPermission !== 'granted') {
-    return { openVaultOutcome: 'failed', openVaultFailureMessage: 'Papeliz needs permission to read and save the notes in this folder.' }
+    return { openVaultOutcome: 'failed', openVaultFailureMessage: 'Couldn’t open the folder (No Permission)' }
   }
   const rememberedVaultFolder = await rememberVaultFolder(papelizVaultFolderHandle).catch(() => null)
   return {

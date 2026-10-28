@@ -63,15 +63,16 @@ export async function runPapelizInlineEdit(inlineEditRunRequest: PapelizInlineEd
   ]
   // The vault the edit was asked in, even if another one is open by the time it is answered.
   const inlineEditOpenVault = usePapelizWorkspaceStore.getState().openVault
-  const recordInlineEditTokenUsage = (completionTokenUsage: PapelizChatCompletionTokenUsage) => {
+  const recordInlineEditTokenUsage = (completionTokenUsage: PapelizChatCompletionTokenUsage, completionProviderReportedCostUsd: number | null = null) => {
     if (inlineEditOpenVault === null) return
     recordPapelizInlineEditTokenUsageInVault(
       inlineEditOpenVault.papelizVaultAdapter,
       activeProviderConnection.providerConnection.providerModelName,
       completionTokenUsage,
+      completionProviderReportedCostUsd,
     ).catch((inlineEditUsageWriteError: unknown) => {
       if (usePapelizWorkspaceStore.getState().openVault !== inlineEditOpenVault) return
-      usePapelizWorkspaceStore.getState().showWorkspaceNotice('error', `The inline edit’s token use could not be saved in the vault. ${describePapelizVaultError(inlineEditUsageWriteError)}`)
+      usePapelizWorkspaceStore.getState().showWorkspaceNotice('error', `Couldn’t save the token use (${describePapelizVaultError(inlineEditUsageWriteError)})`)
     })
   }
   let streamedReplacementText = ''
@@ -93,6 +94,6 @@ export async function runPapelizInlineEdit(inlineEditRunRequest: PapelizInlineEd
     }
     throw inlineEditRunError
   }
-  recordInlineEditTokenUsage(chatCompletionResult.completionTokenUsage)
+  recordInlineEditTokenUsage(chatCompletionResult.completionTokenUsage, chatCompletionResult.completionProviderReportedCostUsd)
   return chatCompletionResult.assistantText.replace(/^```[\w-]*\n([\s\S]*?)\n```$/, '$1')
 }

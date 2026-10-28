@@ -1,6 +1,7 @@
 // The AI providers the assistant offers, in the app's order (app/web/src/modules/assistant/
 // papeliz-assistant-provider-presets.ts). Each speaks the OpenAI-compatible format; a preset only
-// fills in the base URL, and the user can change it.
+// fills in the base URL, and the user can change it. Providers whose servers refuse calls from a
+// web page (Ollama Cloud, OpenCode Zen and Go, checked 2026-10-29) are left out, as in the app.
 
 export type PapelizSiteProvider = {
   papelizSiteProviderName: string
@@ -27,21 +28,6 @@ export const papelizSiteHostedProviders: readonly PapelizSiteProvider[] = [
     papelizSiteProviderName: 'Google Gemini',
     papelizSiteProviderDescription: 'Gemini models through Google’s OpenAI-compatible endpoint.',
     papelizSiteProviderBaseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
-  },
-  {
-    papelizSiteProviderName: 'Ollama Cloud',
-    papelizSiteProviderDescription: 'Ollama’s hosted models, with a key from your ollama.com account.',
-    papelizSiteProviderBaseUrl: 'https://ollama.com/v1',
-  },
-  {
-    papelizSiteProviderName: 'OpenCode Zen',
-    papelizSiteProviderDescription: 'OpenCode’s pay-as-you-go models served through Chat Completions.',
-    papelizSiteProviderBaseUrl: 'https://opencode.ai/zen/v1',
-  },
-  {
-    papelizSiteProviderName: 'OpenCode Go',
-    papelizSiteProviderDescription: 'OpenCode’s subscription with a curated set of open models.',
-    papelizSiteProviderBaseUrl: 'https://opencode.ai/zen/go/v1',
   },
 ]
 

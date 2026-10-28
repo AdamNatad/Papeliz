@@ -29,22 +29,17 @@ export const papelizSiteHeaderCommunityLink: PapelizSiteNavigationLink = {
   papelizSiteNavigationLabel: 'Community',
 }
 
-// The footer's "Made with ❤️" links: every page, since phones reach most of them only from here, with About
-// and Adam Natad first.
+// Phones show the page links and Community together, in one row under the bar.
+export const papelizSiteHeaderPhoneRowLinks: PapelizSiteNavigationLink[] = [...papelizSiteHeaderLinks, papelizSiteHeaderCommunityLink]
+
+// The footer's "Made with ❤️" links: only pages the top menu does not already show (Adam, 2026-10-28: "remove
+// redundants thats already on the Top Menu"), the legal ones named as in their Legal menu.
 export const papelizSiteFooterLinks: PapelizSiteNavigationLink[] = [
-  { papelizSiteNavigationHref: '/about/', papelizSiteNavigationLabel: 'About' },
   { papelizSiteNavigationHref: '/adam-natad/', papelizSiteNavigationLabel: 'Adam Natad' },
-  papelizSiteHeaderCommunityLink,
-  { papelizSiteNavigationHref: '/features/', papelizSiteNavigationLabel: 'Features' },
-  { papelizSiteNavigationHref: '/providers/', papelizSiteNavigationLabel: 'AI Providers' },
-  { papelizSiteNavigationHref: '/roadmap/', papelizSiteNavigationLabel: 'Roadmap' },
   { papelizSiteNavigationHref: '/changelog/', papelizSiteNavigationLabel: 'Changelog' },
-  ...(papelizSiteHelpUrl
-    ? [{ papelizSiteNavigationHref: papelizSiteHelpUrl, papelizSiteNavigationLabel: 'Help', papelizSiteNavigationIsExternal: true }]
-    : []),
-  { papelizSiteNavigationHref: '/privacy/', papelizSiteNavigationLabel: 'Privacy' },
-  { papelizSiteNavigationHref: '/terms/', papelizSiteNavigationLabel: 'Terms' },
-  { papelizSiteNavigationHref: '/license/', papelizSiteNavigationLabel: 'MIT License' },
+  { papelizSiteNavigationHref: '/privacy/', papelizSiteNavigationLabel: 'Privacy Policy' },
+  { papelizSiteNavigationHref: '/terms/', papelizSiteNavigationLabel: 'Terms of Service' },
+  { papelizSiteNavigationHref: '/license/', papelizSiteNavigationLabel: 'License Overview' },
 ]
 
 // The footer's community buttons, the same places as the Community page.

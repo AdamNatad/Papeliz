@@ -40,6 +40,8 @@ describe('the OpenAI-compatible client', () => {
       assistantToolCalls: [],
       completionFinishReason: 'stop',
       completionTokenUsage: { completionInputTokenCount: 8, completionOutputTokenCount: 3, isCompletionTokenUsageEstimated: true },
+      completionProviderReportedCostUsd: null,
+      isReasoningEffortRefused: false,
     })
     expect(textDeltas).toEqual(['Hello', ', vault'])
     expect(requests[0]?.requestUrl).toBe('https://provider.test/v1/chat/completions')
@@ -105,6 +107,39 @@ describe('the OpenAI-compatible client', () => {
       }),
     ).rejects.toThrow(/Unknown model/)
     expect(providerRequestCount).toBe(1)
+  })
+
+  it('sends the effort, and asks once more without it when the model refuses it', async () => {
+    const sentRequestBodies: Array<Record<string, unknown>> = []
+    const chatCompletionResult = await streamPapelizChatCompletion({
+      providerConnection: { ...testProviderConnection, providerBaseUrl: 'https://effort-provider.test/v1' },
+      chatMessages: [{ role: 'user', content: 'Hi' }],
+      reasoningEffort: 'high',
+      fetchFunction: async (_requestUrl, requestInit) => {
+        const sentRequestBody = JSON.parse(String(requestInit.body)) as Record<string, unknown>
+        sentRequestBodies.push(sentRequestBody)
+        if ('reasoning_effort' in sentRequestBody) return Response.json({ error: { message: 'reasoning_effort is not supported with this model' } }, { status: 400 })
+        return Response.json({ choices: [{ message: { content: 'Hello' }, finish_reason: 'stop' }], usage: { prompt_tokens: 9, completion_tokens: 1 } })
+      },
+    })
+    expect(sentRequestBodies.map((sentRequestBody) => sentRequestBody['reasoning_effort'])).toEqual(['high', undefined])
+    expect(chatCompletionResult.isReasoningEffortRefused).toBe(true)
+    expect(chatCompletionResult.assistantText).toBe('Hello')
+  })
+
+  it('reads what the request cost when the provider says so', async () => {
+    const chatCompletionResult = await streamPapelizChatCompletion({
+      providerConnection: testProviderConnection,
+      chatMessages: [{ role: 'user', content: 'Hi' }],
+      fetchFunction: async () =>
+        createEventStreamResponse([
+          sseLine({ choices: [{ delta: { content: 'Hi' }, finish_reason: 'stop' }] }),
+          sseLine({ choices: [], usage: { prompt_tokens: 12, completion_tokens: 2, cost: 0.000042 } }),
+          'data: [DONE]\n\n',
+        ]),
+    })
+    expect(chatCompletionResult.completionProviderReportedCostUsd).toBe(0.000042)
+    expect(chatCompletionResult.isReasoningEffortRefused).toBe(false)
   })
 
   it('puts tool calls back together from their pieces', async () => {

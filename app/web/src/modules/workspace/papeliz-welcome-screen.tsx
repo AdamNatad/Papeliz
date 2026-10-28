@@ -214,7 +214,7 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
 
   // In a preview, anything that would touch a folder or the remembered list says so instead.
   const showStartScreenPreviewOnlyNotice = () =>
-    showWorkspaceNotice('info', 'This is a preview, so nothing on your disk changes. Choose Live in the eye menu to leave it.')
+    showWorkspaceNotice('info', 'Nothing changed (Preview Only).')
 
   const recentVaultFolders = useMemo(
     () => rememberedVaultFolders.filter((rememberedVaultFolder) => !isRememberedVaultFolderHidden(rememberedVaultFolder)),
@@ -237,26 +237,37 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
   }, [recentVaultSearchText, listedVaultFolders])
 
   // The toast for a folder action that is off: why, with Try again when this page turned it off.
-  const showFolderAccessOffNotice = (offReason: PapelizFolderAccessOffReason) => {
+  // Try again turns it back on and opens the folder window again at once, from its own click (in a
+  // preview it only turns it back on).
+  const showFolderAccessOffNotice = (offReason: PapelizFolderAccessOffReason, isNewVault: boolean) => {
     const isOffReasonRetryable = offReason === 'chooser-unavailable' && detectedFolderAccessOffReason === null
     showWorkspaceNotice(
       'error',
       describePapelizFolderAccessOffReason(offReason),
-      isOffReasonRetryable ? { workspaceNoticeActionLabel: 'Try again', onWorkspaceNoticeAction: () => setFolderChooserUnavailable(false) } : undefined,
+      isOffReasonRetryable
+        ? {
+            workspaceNoticeActionLabel: 'Try again',
+            onWorkspaceNoticeAction: () => {
+              setFolderChooserUnavailable(false)
+              if (startScreenEyePreview === null) void pickAndOpenFolderVault(isNewVault)
+            },
+          }
+        : undefined,
     )
   }
 
   // Opens a picked or remembered folder. A new vault whose folder has no notes yet starts its first
   // note right away, named and ready to write in.
   const finishOpeningFolderVault = async (openVaultResult: PapelizOpenVaultResult, isNewVault: boolean) => {
-    // Closing the folder window and a browser refusing to save in the picked folder look the same.
+    // Closing the folder window and a browser refusing to let Papeliz edit the picked folder (the user
+    // turned its question down, or it doesn't ask at all) look the same.
     if (openVaultResult.openVaultOutcome === 'cancelled') {
-      showWorkspaceNotice('info', 'No folder was opened. If you picked one, this browser didn’t let Papeliz save there.')
+      showWorkspaceNotice('info', 'No folder opened.')
       return
     }
     if (openVaultResult.openVaultOutcome === 'chooser-unavailable') {
       setFolderChooserUnavailable(true)
-      showFolderAccessOffNotice('chooser-unavailable')
+      showFolderAccessOffNotice('chooser-unavailable', isNewVault)
       return
     }
     if (openVaultResult.openVaultOutcome === 'failed') {
@@ -271,7 +282,7 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
     if (!isNewVault) return
     const workspaceState = usePapelizWorkspaceStore.getState()
     if (workspaceState.vaultTreeEntries.some((vaultTreeEntry) => vaultTreeEntry.vaultEntryKind === 'note')) {
-      workspaceState.showWorkspaceNotice('info', 'That folder already has notes, so it opened as it is.')
+      workspaceState.showWorkspaceNotice('info', `Opened “${openVaultResult.papelizOpenVault.papelizVaultDisplayName}” as it is.`)
     } else {
       await workspaceState.createVaultNoteInFolder('')
     }
@@ -279,13 +290,18 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
 
   const openFolderVault = async (isNewVault: boolean) => {
     if (folderAccessOffReason !== null) {
-      showFolderAccessOffNotice(folderAccessOffReason)
+      showFolderAccessOffNotice(folderAccessOffReason, isNewVault)
       return
     }
     if (startScreenEyePreview !== null) {
       showStartScreenPreviewOnlyNotice()
       return
     }
+    await pickAndOpenFolderVault(isNewVault)
+  }
+
+  // Shows the folder window and opens the folder picked. Must run from a click.
+  const pickAndOpenFolderVault = async (isNewVault: boolean) => {
     setIsOpeningVault(true)
     try {
       await finishOpeningFolderVault(await pickAndOpenPapelizVaultFolder(), isNewVault)
@@ -358,14 +374,17 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
       if (confirmedVaultFolderDeleteRequest.vaultFolderDeleteScope === 'one-vault') {
         showWorkspaceNotice(
           keptVaultCount === 0 ? 'info' : 'error',
-          vaultFolderDeleteFailureMessages[0] ?? `“${confirmedVaultFolderDeleteRequest.rememberedVaultFolder.papelizVaultDisplayName}” was deleted.`,
+          vaultFolderDeleteFailureMessages[0] ?? `Deleted “${confirmedVaultFolderDeleteRequest.rememberedVaultFolder.papelizVaultDisplayName}”.`,
         )
       } else if (keptVaultCount === 0) {
-        showWorkspaceNotice('info', `${deletedVaultCount} ${deletedVaultCount === 1 ? 'vault was' : 'vaults were'} deleted.`)
+        showWorkspaceNotice('info', `Deleted ${deletedVaultCount} ${deletedVaultCount === 1 ? 'vault' : 'vaults'}.`)
       } else {
+        // A vault that couldn't be deleted stays in the Hidden list.
         showWorkspaceNotice(
           'error',
-          `${keptVaultCount} ${keptVaultCount === 1 ? 'vault stays' : 'vaults stay'} in the Hidden list: ${keptVaultCount === 1 ? 'it' : 'they'} could not be deleted right now. Try again in a moment.`,
+          vaultFoldersToDelete.length === 1
+            ? (vaultFolderDeleteFailureMessages[0] ?? '')
+            : `Couldn’t delete ${keptVaultCount} of ${vaultFoldersToDelete.length} vaults (Still Hidden)`,
         )
       }
     } finally {
@@ -410,9 +429,9 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                 <span className="mt-1 self-end text-[10.5px] leading-none text-white/70">by Adam Natad</span>
               </div>
             </div>
+            {/* The first sentence of the website's description, which follows "Papeliz is". */}
             <p className="mt-3 text-[11.5px] leading-[1.45] text-white/80">
-              An AI-native knowledge workspace that empowers users to create, organize, discover, and transform their knowledge with an
-              integrated AI assistant.
+              A free, open-source, cross-platform Markdown editor and AI-powered note-taking app for building your personal knowledge base.
             </p>
 
             <div className="mt-4 grid grid-cols-1 gap-[7px]">

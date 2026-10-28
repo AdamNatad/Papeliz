@@ -4,7 +4,13 @@ import { papelizHiddenVaultEntriesShownSettingName, readPapelizUserSetting, writ
 import { getVaultNoteRelativePathForNewWikilinkTarget } from '../links/papeliz-wikilink-targets'
 import type { PapelizNoteViewMode } from '../note-editor/papeliz-note-editor'
 import type { PapelizOpenVault } from '../vault/papeliz-open-vault'
-import { describePapelizVaultError, PapelizVaultOperationError, type PapelizVaultEntryKind, type PapelizVaultTreeEntry } from '../vault/papeliz-vault-adapter'
+import {
+  describePapelizVaultError,
+  isPapelizVaultEntryMissingError,
+  PapelizVaultOperationError,
+  type PapelizVaultEntryKind,
+  type PapelizVaultTreeEntry,
+} from '../vault/papeliz-vault-adapter'
 import {
   describeVaultEntryNameProblem,
   getVaultEntryName,
@@ -42,6 +48,30 @@ import {
   type PapelizVaultNoteEditingLock,
   removeVaultEntryLocksInside,
 } from './papeliz-vault-entry-locks'
+import {
+  carryVaultEntryLooksThroughMove,
+  formatPapelizFileListLooksFile,
+  papelizFileListLooksFileName,
+  parsePapelizFileListLooksFile,
+  removeVaultEntryLooksInside,
+  setPapelizVaultEntryLook,
+  type PapelizVaultEntryLook,
+  type PapelizVaultEntryLooks,
+} from './papeliz-vault-entry-looks'
+import { mergePapelizVaultNoteText, resolvePapelizVaultNoteMerge, type PapelizVaultNoteMergeChoice, type PapelizVaultNoteMergeResult } from '../vault/papeliz-vault-note-merge'
+import {
+  deletePapelizNoteRecoveryDraft,
+  papelizNoteRecoveryDraftAfterTypingStopsMilliseconds,
+  papelizNoteRecoveryDraftWhileTypingMilliseconds,
+  readPapelizNoteRecoveryDraft,
+  writePapelizNoteRecoveryDraft,
+} from './papeliz-note-recovery-drafts'
+import {
+  announcePapelizVaultChange,
+  createPapelizVaultChangeReloadScheduler,
+  papelizVaultChangePollMilliseconds,
+  subscribeToPapelizVaultChanges,
+} from './papeliz-vault-change-channel'
 
 export type { PapelizNoteViewMode }
 export type { PapelizVaultEntryPlacement }
@@ -62,7 +92,30 @@ export function usePapelizActiveVaultNoteEditingLock(): PapelizVaultNoteEditingL
   )
 }
 
-export type PapelizNoteSaveState = 'saved' | 'unsaved' | 'saving' | 'save-failed'
+// 'save-conflict': the note was saved elsewhere (another tab, another app) while this tab had changes
+// to it, and the two touch the same lines; the save waits for the user to settle them.
+export type PapelizNoteSaveState = 'saved' | 'unsaved' | 'saving' | 'save-failed' | 'save-conflict'
+
+// A note saved elsewhere while this tab had changes to it, where the two edits touch the same lines.
+// A save that can't go ahead by itself: both changed the same lines, or the note was moved or
+// trashed elsewhere while this tab had changes to it.
+export type PapelizVaultNoteSaveConflict =
+  | {
+      vaultNoteSaveConflictKind: 'same-lines-changed'
+      vaultNoteRelativePath: string
+      // The version this tab's changes were made on, the version saved since, and this tab's.
+      baseVaultNoteText: string
+      savedElsewhereVaultNoteText: string
+      myVaultNoteText: string
+      vaultNoteMergeResult: PapelizVaultNoteMergeResult
+    }
+  | {
+      vaultNoteSaveConflictKind: 'deleted-elsewhere'
+      vaultNoteRelativePath: string
+    }
+
+// What to do with a note moved or trashed elsewhere: write this tab's copy back, or close it.
+export type PapelizVaultNoteDeletedElsewhereChoice = 'keep-my-copy' | 'close-note'
 
 // One note that has been opened in a tab. `loadedNoteSessionId` stays the same across renames, so
 // the MD Code keeps its undo history and autosave keeps writing to the right file.
@@ -89,6 +142,14 @@ export interface PapelizWorkspaceNotice {
   workspaceNoticeAction: PapelizWorkspaceNoticeAction | null
 }
 
+// An AI Assistant proposal shown whole, read-only, in a tab of its own in place of the open note,
+// until it is accepted, rejected or closed. It is held in memory: nothing is written for it.
+export interface PapelizAssistantProposalPreview {
+  previewedAssistantProposalId: string
+  previewedVaultNoteRelativePath: string
+  previewedVaultNoteText: string
+}
+
 export type PapelizVaultEntryRenameResult =
   | { vaultEntryRenameOutcome: 'renamed' | 'unchanged'; renamedVaultEntryRelativePath: string }
   | { vaultEntryRenameOutcome: 'refused'; vaultEntryRenameProblem: string }
@@ -106,6 +167,8 @@ interface PapelizWorkspaceState {
   copiedVaultEntry: PapelizVaultTreeEntry | null
   // Notes and folders locked against editing in the open vault (papeliz-vault-entry-locks.ts).
   lockedVaultEntryRelativePaths: readonly string[]
+  // Each note's or folder's color and icon in the file list (papeliz-vault-entry-looks.ts).
+  vaultEntryLooks: PapelizVaultEntryLooks
   // Lock All Notes: every note is read-only, the per-note and per-folder locks above kept as they are.
   isWholeVaultEditingLocked: boolean
   // Show Hidden: the file list also lists hidden folders and notes (`.csessions`, `.trash`, …).
@@ -122,6 +185,9 @@ interface PapelizWorkspaceState {
   // The file list's chosen order in the open vault (see papeliz-vault-entry-order.ts).
   vaultEntryOrder: PapelizVaultEntryOrder
   workspaceNotice: PapelizWorkspaceNotice | null
+  assistantProposalPreview: PapelizAssistantProposalPreview | null
+  // Saves waiting on the user to settle a clash with a version saved elsewhere, by loaded note.
+  vaultNoteSaveConflictsByLoadedNoteSessionId: Record<number, PapelizVaultNoteSaveConflict>
 
   openVaultInWorkspace: (papelizOpenVault: PapelizOpenVault, openVaultOptions: PapelizOpenVaultInWorkspaceOptions) => Promise<void>
   closeVaultInWorkspace: () => Promise<void>
@@ -155,6 +221,15 @@ interface PapelizWorkspaceState {
     vaultNoteText: string,
     assistantVaultNoteWritePurpose?: PapelizAssistantVaultNoteWritePurpose,
   ) => Promise<void>
+  // For an accepted AI Assistant proposal to move notes and folders into `.trash`: one after another,
+  // with one notice for all. The caller checks first that each may go
+  // (papeliz-assistant-vault-entry-trash.ts). Throws on the first that fails.
+  moveVaultEntriesToTrashFromAssistant: (vaultEntryRelativePaths: readonly string[]) => Promise<void>
+  // Saves a picture added to an AI Assistant chat beside the chats, in `.csessions/attachments/`,
+  // under a free name made from `preferredAttachmentFileName`. Gives back where it went.
+  createChatAttachmentFileFromAssistant: (preferredAttachmentFileName: string, attachmentFileBlob: Blob) => Promise<string>
+  // A note's or folder's color and icon in the file list; an empty look puts back the default.
+  setVaultEntryLook: (vaultEntryRelativePath: string, vaultEntryLook: PapelizVaultEntryLook) => void
   setNoteViewMode: (noteViewMode: PapelizNoteViewMode) => void
   toggleNoteViewMode: () => void
   // Makes a copy beside the original ("Plan copy.md"), right after it in the file list.
@@ -197,6 +272,15 @@ interface PapelizWorkspaceState {
     workspaceNoticeAction?: PapelizWorkspaceNoticeAction,
   ) => void
   dismissWorkspaceNotice: () => void
+  showAssistantProposalPreview: (assistantProposalPreview: PapelizAssistantProposalPreview) => void
+  // Writes the note with each clash settled (Keep both, Keep saved or Keep mine).
+  resolveVaultNoteSaveConflict: (
+    loadedNoteSessionId: number,
+    mergeChoicesByConflictId: Readonly<Record<string, PapelizVaultNoteMergeChoice>>,
+  ) => Promise<void>
+  // Writes the note back as this tab has it, or closes it and lets its changes go.
+  resolveVaultNoteDeletedElsewhere: (loadedNoteSessionId: number, deletedElsewhereChoice: PapelizVaultNoteDeletedElsewhereChoice) => Promise<void>
+  closeAssistantProposalPreview: () => void
 }
 
 export interface PapelizOpenVaultInWorkspaceOptions {
@@ -315,6 +399,70 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
     })
   }
 
+  // Recovery copies of unsaved typing (papeliz-note-recovery-drafts.ts): 1 s after typing stops, at
+  // least every 2 s while it goes on, at once when the tab is hidden; a folder vault's notes only.
+  const noteRecoveryDraftTimersByLoadedNoteSessionId = new Map<number, { recoveryDraftTimer: ReturnType<typeof setTimeout>; firstUnwrittenChangeAt: number }>()
+  const writeNoteRecoveryDraftNow = (loadedNoteSessionId: number) => {
+    const pendingRecoveryDraft = noteRecoveryDraftTimersByLoadedNoteSessionId.get(loadedNoteSessionId)
+    if (pendingRecoveryDraft !== undefined) clearTimeout(pendingRecoveryDraft.recoveryDraftTimer)
+    noteRecoveryDraftTimersByLoadedNoteSessionId.delete(loadedNoteSessionId)
+    const { openVault, loadedVaultNotesByRelativePath } = getWorkspaceState()
+    if (openVault === null || openVault.papelizVaultAdapter.papelizVaultKind !== 'folder-on-disk') return
+    const vaultNoteRelativePath = findVaultNoteRelativePathForSession(loadedVaultNotesByRelativePath, loadedNoteSessionId)
+    const loadedVaultNote = vaultNoteRelativePath === null ? undefined : loadedVaultNotesByRelativePath[vaultNoteRelativePath]
+    if (vaultNoteRelativePath === null || loadedVaultNote?.noteLoadState !== 'loaded') return
+    if (loadedVaultNote.draftVaultNoteText === loadedVaultNote.savedVaultNoteText) return
+    void writePapelizNoteRecoveryDraft(openVault.papelizVaultId, vaultNoteRelativePath, loadedVaultNote.draftVaultNoteText, loadedVaultNote.savedVaultNoteText).catch(
+      () => undefined,
+    )
+  }
+  const scheduleNoteRecoveryDraft = (loadedNoteSessionId: number) => {
+    const typedAt = Date.now()
+    const pendingRecoveryDraft = noteRecoveryDraftTimersByLoadedNoteSessionId.get(loadedNoteSessionId)
+    const firstUnwrittenChangeAt = pendingRecoveryDraft?.firstUnwrittenChangeAt ?? typedAt
+    if (pendingRecoveryDraft !== undefined) clearTimeout(pendingRecoveryDraft.recoveryDraftTimer)
+    const waitedWhileTypingMilliseconds = typedAt - firstUnwrittenChangeAt
+    if (waitedWhileTypingMilliseconds >= papelizNoteRecoveryDraftWhileTypingMilliseconds) {
+      writeNoteRecoveryDraftNow(loadedNoteSessionId)
+      return
+    }
+    noteRecoveryDraftTimersByLoadedNoteSessionId.set(loadedNoteSessionId, {
+      recoveryDraftTimer: setTimeout(
+        () => writeNoteRecoveryDraftNow(loadedNoteSessionId),
+        Math.min(papelizNoteRecoveryDraftAfterTypingStopsMilliseconds, papelizNoteRecoveryDraftWhileTypingMilliseconds - waitedWhileTypingMilliseconds),
+      ),
+      firstUnwrittenChangeAt,
+    })
+  }
+  const writeEveryNoteRecoveryDraftNow = () => {
+    for (const loadedVaultNote of Object.values(getWorkspaceState().loadedVaultNotesByRelativePath)) writeNoteRecoveryDraftNow(loadedVaultNote.loadedNoteSessionId)
+  }
+
+  // A note just opened that has a recovery copy different from what is on disk offers it back. The
+  // copy goes in as unsaved changes made on its own base, so saving merges it with anything saved
+  // since rather than writing over it.
+  const offerNoteRecoveryDraft = async (openVault: PapelizOpenVault, vaultNoteRelativePath: string, loadedNoteSessionId: number, vaultNoteTextOnDisk: string) => {
+    if (openVault.papelizVaultAdapter.papelizVaultKind !== 'folder-on-disk') return
+    const noteRecoveryDraft = await readPapelizNoteRecoveryDraft(openVault.papelizVaultId, vaultNoteRelativePath)
+    if (noteRecoveryDraft === null || getWorkspaceState().openVault !== openVault) return
+    if (noteRecoveryDraft.recoveryDraftVaultNoteText === vaultNoteTextOnDisk) {
+      void deletePapelizNoteRecoveryDraft(openVault.papelizVaultId, vaultNoteRelativePath).catch(() => undefined)
+      return
+    }
+    showWorkspaceNotice('info', `Unsaved changes to “${getVaultNoteTitle(vaultNoteRelativePath)}” were kept from before.`, {
+      workspaceNoticeActionLabel: 'Restore',
+      onWorkspaceNoticeAction: () => {
+        updateLoadedVaultNoteForSession(loadedNoteSessionId, (note) => ({
+          ...note,
+          savedVaultNoteText: noteRecoveryDraft.recoveryDraftBaseVaultNoteText,
+          draftVaultNoteText: noteRecoveryDraft.recoveryDraftVaultNoteText,
+          noteSaveState: 'unsaved',
+        }))
+        scheduleAutosave(loadedNoteSessionId)
+      },
+    })
+  }
+
   const scheduleAutosave = (loadedNoteSessionId: number) => {
     cancelAutosaveTimer(loadedNoteSessionId)
     autosaveTimersByLoadedNoteSessionId.set(
@@ -341,21 +489,74 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
         }
         return
       }
-      const vaultNoteTextBeingSaved = loadedVaultNote.draftVaultNoteText
+      if (getWorkspaceState().vaultNoteSaveConflictsByLoadedNoteSessionId[loadedNoteSessionId] !== undefined) return
+      const draftVaultNoteTextAtSave = loadedVaultNote.draftVaultNoteText
       updateLoadedVaultNoteForSession(loadedNoteSessionId, (note) => ({ ...note, noteSaveState: 'saving' }))
       try {
+        // Saved elsewhere (another tab, another app) since this tab read it: merge the two, so neither
+        // side's changes are lost. A clash of the same lines waits for the user.
+        let vaultNoteTextBeingSaved = draftVaultNoteTextAtSave
+        const vaultNoteDiskRead = await openVault.papelizVaultAdapter.readVaultNoteText(vaultNoteRelativePath).then(
+          (vaultNoteText) => ({ vaultNoteTextOnDisk: vaultNoteText, isVaultNoteGoneFromDisk: false }),
+          (vaultNoteReadError: unknown) => ({ vaultNoteTextOnDisk: null, isVaultNoteGoneFromDisk: isPapelizVaultEntryMissingError(vaultNoteReadError) }),
+        )
+        // Moved or trashed elsewhere: writing it would bring it back unasked, so the user chooses.
+        if (vaultNoteDiskRead.isVaultNoteGoneFromDisk && openVault.papelizVaultAdapter.papelizVaultKind === 'folder-on-disk') {
+          setWorkspaceState((workspaceState) => ({
+            vaultNoteSaveConflictsByLoadedNoteSessionId: {
+              ...workspaceState.vaultNoteSaveConflictsByLoadedNoteSessionId,
+              [loadedNoteSessionId]: { vaultNoteSaveConflictKind: 'deleted-elsewhere', vaultNoteRelativePath },
+            },
+          }))
+          updateLoadedVaultNoteForSession(loadedNoteSessionId, (note) => ({ ...note, noteSaveState: 'save-conflict', noteSaveErrorMessage: null }))
+          return
+        }
+        const vaultNoteTextOnDisk = vaultNoteDiskRead.vaultNoteTextOnDisk
+        if (vaultNoteTextOnDisk !== null && vaultNoteTextOnDisk !== loadedVaultNote.savedVaultNoteText && vaultNoteTextOnDisk !== draftVaultNoteTextAtSave) {
+          const vaultNoteMergeResult = mergePapelizVaultNoteText(loadedVaultNote.savedVaultNoteText, vaultNoteTextOnDisk, draftVaultNoteTextAtSave)
+          if (vaultNoteMergeResult.mergeOutcome === 'conflict') {
+            setWorkspaceState((workspaceState) => ({
+              vaultNoteSaveConflictsByLoadedNoteSessionId: {
+                ...workspaceState.vaultNoteSaveConflictsByLoadedNoteSessionId,
+                [loadedNoteSessionId]: {
+                  vaultNoteSaveConflictKind: 'same-lines-changed',
+                  vaultNoteRelativePath,
+                  baseVaultNoteText: loadedVaultNote.savedVaultNoteText,
+                  savedElsewhereVaultNoteText: vaultNoteTextOnDisk,
+                  myVaultNoteText: draftVaultNoteTextAtSave,
+                  vaultNoteMergeResult,
+                },
+              },
+            }))
+            updateLoadedVaultNoteForSession(loadedNoteSessionId, (note) => ({ ...note, noteSaveState: 'save-conflict', noteSaveErrorMessage: null }))
+            return
+          }
+          vaultNoteTextBeingSaved = vaultNoteMergeResult.mergedVaultNoteText
+        }
         await openVault.papelizVaultAdapter.writeVaultNoteText(vaultNoteRelativePath, vaultNoteTextBeingSaved)
+        announceVaultChangeHere([vaultNoteRelativePath])
         let needsAnotherSave = false
         updateLoadedVaultNoteForSession(loadedNoteSessionId, (note) => {
-          needsAnotherSave = note.draftVaultNoteText !== vaultNoteTextBeingSaved
+          // Typed on while it saved: the newer typing is folded onto what was written.
+          let nextDraftVaultNoteText = vaultNoteTextBeingSaved
+          if (note.draftVaultNoteText !== draftVaultNoteTextAtSave) {
+            const typedOnMergeResult = mergePapelizVaultNoteText(draftVaultNoteTextAtSave, vaultNoteTextBeingSaved, note.draftVaultNoteText)
+            nextDraftVaultNoteText = typedOnMergeResult.mergeOutcome === 'clean' ? typedOnMergeResult.mergedVaultNoteText : note.draftVaultNoteText
+          }
+          needsAnotherSave = nextDraftVaultNoteText !== vaultNoteTextBeingSaved
           return {
             ...note,
             savedVaultNoteText: vaultNoteTextBeingSaved,
+            draftVaultNoteText: nextDraftVaultNoteText,
             noteSaveState: needsAnotherSave ? 'unsaved' : 'saved',
             noteSaveErrorMessage: null,
           }
         })
         if (needsAnotherSave) scheduleAutosave(loadedNoteSessionId)
+        // Saved as typed: its recovery copy is no longer needed.
+        else if (openVault.papelizVaultAdapter.papelizVaultKind === 'folder-on-disk') {
+          void deletePapelizNoteRecoveryDraft(openVault.papelizVaultId, vaultNoteRelativePath).catch(() => undefined)
+        }
       } catch (vaultSaveError) {
         updateLoadedVaultNoteForSession(loadedNoteSessionId, (note) => ({
           ...note,
@@ -397,14 +598,125 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
     const workspaceState = getWorkspaceState()
     const vaultNoteEditingLock = findVaultNoteEditingLock(workspaceState.isWholeVaultEditingLocked, workspaceState.lockedVaultEntryRelativePaths, vaultNoteRelativePath)
     if (vaultNoteEditingLock?.vaultNoteEditingLockKind === 'hidden-folder') {
-      throw new PapelizVaultOperationError('Papeliz doesn’t change notes in hidden folders.')
+      throw new PapelizVaultOperationError('Hidden Folder')
     }
     if (assistantVaultNoteWritePurpose === 'saved-chat-session') return
     if (vaultNoteEditingLock?.vaultNoteEditingLockKind === 'whole-vault') {
-      throw new PapelizVaultOperationError('All notes are locked. Unlock them in Accessibility to accept this change.')
+      throw new PapelizVaultOperationError('All Notes Locked')
     }
     if (vaultNoteEditingLock?.vaultNoteEditingLockKind === 'vault-entry') {
-      throw new PapelizVaultOperationError(`“${getVaultEntryName(vaultNoteEditingLock.lockingVaultEntryRelativePath)}” is locked. Unlock it to accept this change.`)
+      throw new PapelizVaultOperationError(vaultNoteEditingLock.lockingVaultEntryRelativePath === vaultNoteRelativePath ? 'Note Locked' : 'Folder Locked')
+    }
+  }
+
+  // Tells the vault's other tabs that this tab changed it: the notes saved, or null for the list of
+  // notes and folders. A vault in memory (the sample) is this tab's alone.
+  const announceVaultChangeHere = (changedVaultNoteRelativePaths: string[] | null) => {
+    const openVault = getWorkspaceState().openVault
+    if (openVault === null || openVault.papelizVaultAdapter.papelizVaultKind !== 'folder-on-disk') return
+    announcePapelizVaultChange(openVault.papelizVaultId, changedVaultNoteRelativePaths)
+  }
+
+  // After a change made here: the list is read again, and the vault's other tabs hear of it.
+  const loadVaultTreeEntriesAfterChange = async () => {
+    await loadVaultTreeEntries()
+    announceVaultChangeHere(null)
+  }
+
+  // A note saved elsewhere: an open note with no changes of its own takes the new text; one with
+  // changes keeps them, and its next save merges the two.
+  // A note moved or trashed elsewhere closes here too when it has nothing unsaved; one with changes
+  // stays open, and its next save asks what to do.
+  const adoptVaultNoteSavedElsewhere = async (openVault: PapelizOpenVault, vaultNoteRelativePath: string) => {
+    const { vaultNoteTextOnDisk, isVaultNoteGoneFromDisk } = await runVaultOperationInOrder(() =>
+      openVault.papelizVaultAdapter.readVaultNoteText(vaultNoteRelativePath),
+    ).then(
+      (vaultNoteText) => ({ vaultNoteTextOnDisk: vaultNoteText, isVaultNoteGoneFromDisk: false }),
+      (vaultNoteReadError: unknown) => ({ vaultNoteTextOnDisk: null, isVaultNoteGoneFromDisk: isPapelizVaultEntryMissingError(vaultNoteReadError) }),
+    )
+    if (getWorkspaceState().openVault !== openVault) return
+    const loadedVaultNote = getWorkspaceState().loadedVaultNotesByRelativePath[vaultNoteRelativePath]
+    if (loadedVaultNote?.noteLoadState !== 'loaded') return
+    const hasNothingUnsaved = loadedVaultNote.noteSaveState === 'saved' && loadedVaultNote.draftVaultNoteText === loadedVaultNote.savedVaultNoteText
+    if (vaultNoteTextOnDisk === null) {
+      if (!isVaultNoteGoneFromDisk) return
+      // Another app's change that no tab announced: the list stops showing the note too.
+      if (getWorkspaceState().vaultTreeEntries.some((vaultTreeEntry) => vaultTreeEntry.vaultEntryRelativePath === vaultNoteRelativePath)) {
+        void loadVaultTreeEntries()
+      }
+      if (hasNothingUnsaved) {
+        closeTabsInside(vaultNoteRelativePath)
+        showWorkspaceNotice('info', `“${getVaultNoteTitle(vaultNoteRelativePath)}” was moved or deleted elsewhere, so its tab closed.`)
+      }
+      return
+    }
+    if (vaultNoteTextOnDisk === loadedVaultNote.savedVaultNoteText || !hasNothingUnsaved) return
+    updateLoadedVaultNoteForSession(loadedVaultNote.loadedNoteSessionId, (note) => ({
+      ...note,
+      savedVaultNoteText: vaultNoteTextOnDisk,
+      draftVaultNoteText: vaultNoteTextOnDisk,
+    }))
+  }
+
+  // Reads again what changed elsewhere: the notes named, or, for null, the list of notes and folders,
+  // Papeliz's own files (order, locks, colors) and every open note.
+  const reloadVaultChangedElsewhere = async (changedVaultNoteRelativePaths: string[] | null) => {
+    const openVault = getWorkspaceState().openVault
+    if (openVault === null) return
+    if (changedVaultNoteRelativePaths === null) {
+      await loadVaultTreeEntries()
+      const [savedFileListOrderText, savedLockedEntriesText, savedFileListLooksText] = await Promise.all([
+        openVault.papelizVaultAdapter.readPapelizVaultSettingsFile(papelizFileListOrderFileName).catch(() => null),
+        openVault.papelizVaultAdapter.readPapelizVaultSettingsFile(papelizLockedEntriesFileName).catch(() => null),
+        openVault.papelizVaultAdapter.readPapelizVaultSettingsFile(papelizFileListLooksFileName).catch(() => null),
+      ])
+      if (getWorkspaceState().openVault !== openVault) return
+      setWorkspaceState({
+        vaultEntryOrder: parsePapelizFileListOrderFile(savedFileListOrderText),
+        lockedVaultEntryRelativePaths: parsePapelizLockedEntriesFile(savedLockedEntriesText),
+        isWholeVaultEditingLocked: parsePapelizWholeVaultEditingLock(savedLockedEntriesText),
+        vaultEntryLooks: parsePapelizFileListLooksFile(savedFileListLooksText),
+      })
+    }
+    for (const vaultNoteRelativePath of Object.keys(getWorkspaceState().loadedVaultNotesByRelativePath)) {
+      if (changedVaultNoteRelativePaths !== null && !changedVaultNoteRelativePaths.includes(vaultNoteRelativePath)) continue
+      await adoptVaultNoteSavedElsewhere(openVault, vaultNoteRelativePath)
+    }
+  }
+
+  // While a folder vault is open: the other tabs' changes are heard and read again; another browser's
+  // or app's are looked for when the tab comes back into view (everything) and every few seconds
+  // while it is in view (the open notes).
+  let stopWatchingVaultChangesElsewhere: (() => void) | null = null
+  const startWatchingVaultChangesElsewhere = (openVault: PapelizOpenVault) => {
+    stopWatchingVaultChangesElsewhere?.()
+    stopWatchingVaultChangesElsewhere = null
+    if (openVault.papelizVaultAdapter.papelizVaultKind !== 'folder-on-disk') return
+    const vaultReloadScheduler = createPapelizVaultChangeReloadScheduler((changedVaultNoteRelativePaths) => void reloadVaultChangedElsewhere(changedVaultNoteRelativePaths))
+    const stopListeningToVaultChanges = subscribeToPapelizVaultChanges((vaultChangeMessage) => {
+      if (vaultChangeMessage.papelizVaultId === getWorkspaceState().openVault?.papelizVaultId) {
+        vaultReloadScheduler.scheduleVaultReload(vaultChangeMessage.changedVaultNoteRelativePaths)
+      }
+    })
+    const isPageInView = () => typeof document === 'undefined' || document.visibilityState === 'visible'
+    // Coming back into view: look for changes made meanwhile. Going out of view, or the page being put
+    // away: every unsaved note's recovery copy is written now.
+    const lookAgainOnReturn = () => {
+      if (isPageInView()) vaultReloadScheduler.scheduleVaultReload(null)
+      else writeEveryNoteRecoveryDraftNow()
+    }
+    if (typeof document !== 'undefined') document.addEventListener('visibilitychange', lookAgainOnReturn)
+    if (typeof window !== 'undefined') window.addEventListener('pagehide', writeEveryNoteRecoveryDraftNow)
+    const vaultChangePollTimer = setInterval(() => {
+      const openVaultNoteRelativePaths = Object.keys(getWorkspaceState().loadedVaultNotesByRelativePath)
+      if (isPageInView() && openVaultNoteRelativePaths.length > 0) vaultReloadScheduler.scheduleVaultReload(openVaultNoteRelativePaths)
+    }, papelizVaultChangePollMilliseconds)
+    stopWatchingVaultChangesElsewhere = () => {
+      stopListeningToVaultChanges()
+      vaultReloadScheduler.cancelVaultReload()
+      if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', lookAgainOnReturn)
+      if (typeof window !== 'undefined') window.removeEventListener('pagehide', writeEveryNoteRecoveryDraftNow)
+      clearInterval(vaultChangePollTimer)
     }
   }
 
@@ -420,7 +732,7 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
     } catch (vaultTreeError) {
       if (getWorkspaceState().openVault !== openVault) return
       setWorkspaceState({ vaultTreeLoadState: 'load-failed' })
-      showWorkspaceNotice('error', `The notes could not be listed. ${describePapelizVaultError(vaultTreeError)}`)
+      showWorkspaceNotice('error', `Couldn’t list your notes (${describePapelizVaultError(vaultTreeError)})`)
     }
   }
 
@@ -468,16 +780,18 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
               fromVaultEntryRelativePath,
               toVaultEntryRelativePath,
             ),
+            vaultEntryLooks: carryVaultEntryLooksThroughMove(workspaceState.vaultEntryLooks, fromVaultEntryRelativePath, toVaultEntryRelativePath),
           }
         })
       })
       saveVaultEntryOrder()
       if (getWorkspaceState().lockedVaultEntryRelativePaths.length > 0) saveLockedVaultEntries()
+      if (Object.keys(getWorkspaceState().vaultEntryLooks).length > 0) saveVaultEntryLooks()
     } catch (vaultMoveError) {
-      await loadVaultTreeEntries()
+      await loadVaultTreeEntriesAfterChange()
       return describePapelizVaultError(vaultMoveError)
     }
-    await loadVaultTreeEntries()
+    await loadVaultTreeEntriesAfterChange()
     return null
   }
 
@@ -489,21 +803,25 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
     if (openVault === null) return
     papelizVaultSettingsFileWrites = papelizVaultSettingsFileWrites
       .then(() => openVault.papelizVaultAdapter.writePapelizVaultSettingsFile(papelizVaultSettingsFileName, papelizVaultSettingsFileText))
+      .then(() => announceVaultChangeHere(null))
       .catch((vaultSettingsWriteError: unknown) => {
         if (getWorkspaceState().openVault === openVault) {
-          showWorkspaceNotice('error', `${savedThingDescription} could not be saved in the vault. ${describePapelizVaultError(vaultSettingsWriteError)}`)
+          showWorkspaceNotice('error', `Couldn’t save ${savedThingDescription} (${describePapelizVaultError(vaultSettingsWriteError)})`)
         }
       })
   }
 
   const saveVaultEntryOrder = () =>
-    writePapelizVaultSettingsFileInOrder(papelizFileListOrderFileName, formatPapelizFileListOrderFile(getWorkspaceState().vaultEntryOrder), 'The file list order')
+    writePapelizVaultSettingsFileInOrder(papelizFileListOrderFileName, formatPapelizFileListOrderFile(getWorkspaceState().vaultEntryOrder), 'the file order')
+
+  const saveVaultEntryLooks = () =>
+    writePapelizVaultSettingsFileInOrder(papelizFileListLooksFileName, formatPapelizFileListLooksFile(getWorkspaceState().vaultEntryLooks), 'the colors and icons')
 
   const saveLockedVaultEntries = () =>
     writePapelizVaultSettingsFileInOrder(
       papelizLockedEntriesFileName,
       formatPapelizLockedEntriesFile(getWorkspaceState().lockedVaultEntryRelativePaths, getWorkspaceState().isWholeVaultEditingLocked),
-      'The editing locks',
+      'the locks',
     )
 
   const setVaultFolderEntryOrder = (vaultFolderRelativePath: string, orderedVaultEntryNames: readonly string[]) => {
@@ -528,7 +846,7 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
     if (openVault === null) return
     const sourceVaultEntryRelativePath = sourceVaultEntry.vaultEntryRelativePath
     if (sourceVaultEntry.vaultEntryKind === 'folder' && isVaultRelativePathInsideFolder(targetVaultFolderRelativePath, sourceVaultEntryRelativePath)) {
-      showWorkspaceNotice('error', `“${getVaultEntryName(sourceVaultEntryRelativePath)}” can’t be copied into itself.`)
+      showWorkspaceNotice('error', `Couldn’t paste “${getVaultEntryName(sourceVaultEntryRelativePath)}” (Into Itself)`)
       return
     }
     const sourceVaultEntryName = getVaultEntryName(sourceVaultEntryRelativePath)
@@ -546,11 +864,11 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
     try {
       await runVaultOperationInOrder(() => openVault.papelizVaultAdapter.copyVaultEntry(sourceVaultEntryRelativePath, copyVaultEntryRelativePath))
     } catch (vaultCopyError) {
-      showWorkspaceNotice('error', `“${describeVaultEntryForNotice(sourceVaultEntryRelativePath)}” could not be copied. ${describePapelizVaultError(vaultCopyError)}`)
-      await loadVaultTreeEntries()
+      showWorkspaceNotice('error', `Couldn’t copy “${describeVaultEntryForNotice(sourceVaultEntryRelativePath)}” (${describePapelizVaultError(vaultCopyError)})`)
+      await loadVaultTreeEntriesAfterChange()
       return
     }
-    await loadVaultTreeEntries()
+    await loadVaultTreeEntriesAfterChange()
     expandParentFoldersOf(copyVaultEntryRelativePath)
     const { vaultTreeEntries, vaultEntryOrder } = getWorkspaceState()
     if (vaultEntryOrder[targetVaultFolderRelativePath] !== undefined) {
@@ -564,7 +882,12 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
         ),
       )
     }
-    showWorkspaceNotice('info', `Made “${describeVaultEntryForNotice(copyVaultEntryRelativePath)}”.`)
+    showWorkspaceNotice(
+      'info',
+      copyNaming === 'always-add-copy'
+        ? `Duplicated “${describeVaultEntryForNotice(sourceVaultEntryRelativePath)}”.`
+        : `Pasted “${describeVaultEntryForNotice(copyVaultEntryRelativePath)}”.`,
+    )
   }
 
   const expandParentFoldersOf = (vaultEntryRelativePath: string) => {
@@ -576,6 +899,32 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
         expandedVaultFolderRelativePaths[vaultPathSegments.slice(0, segmentIndex + 1).join('/')] = true
       })
       return { expandedVaultFolderRelativePaths }
+    })
+  }
+
+  // Moves a note or folder into `.trash` after saving what is open inside it, and tidies up after it:
+  // its tabs close, a copy waiting to be pasted is forgotten, and its locks go. Throws on failure.
+  const trashVaultEntryAndTidyUp = async (openVault: PapelizOpenVault, vaultEntryRelativePath: string) => {
+    await saveVaultNotesInside(vaultEntryRelativePath)
+    await runVaultOperationInOrder(async () => {
+      await openVault.papelizVaultAdapter.moveVaultEntryToTrash(vaultEntryRelativePath)
+      closeTabsInside(vaultEntryRelativePath)
+      const copiedVaultEntryBeforeTrash = getWorkspaceState().copiedVaultEntry
+      if (copiedVaultEntryBeforeTrash !== null && isVaultRelativePathInsideFolder(copiedVaultEntryBeforeTrash.vaultEntryRelativePath, vaultEntryRelativePath)) {
+        setWorkspaceState({ copiedVaultEntry: null })
+      }
+      const lockedPathsBeforeTrash = getWorkspaceState().lockedVaultEntryRelativePaths
+      const lockedPathsAfterTrash = removeVaultEntryLocksInside(lockedPathsBeforeTrash, vaultEntryRelativePath)
+      if (lockedPathsAfterTrash.length !== lockedPathsBeforeTrash.length) {
+        setWorkspaceState({ lockedVaultEntryRelativePaths: lockedPathsAfterTrash })
+        saveLockedVaultEntries()
+      }
+      const looksBeforeTrash = getWorkspaceState().vaultEntryLooks
+      const looksAfterTrash = removeVaultEntryLooksInside(looksBeforeTrash, vaultEntryRelativePath)
+      if (Object.keys(looksAfterTrash).length !== Object.keys(looksBeforeTrash).length) {
+        setWorkspaceState({ vaultEntryLooks: looksAfterTrash })
+        saveVaultEntryLooks()
+      }
     })
   }
 
@@ -608,19 +957,30 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
       .filter((vaultPathSegment, vaultPathSegmentIndex) => !(vaultPathSegmentIndex === 0 && vaultPathSegment === papelizVaultChatSessionFolderName))
       .map((vaultPathSegment) => describeVaultEntryNameProblem(vaultPathSegment))
       .find((vaultPathSegmentProblem) => vaultPathSegmentProblem !== null)
-    if (vaultPathProblem !== undefined) throw new PapelizVaultOperationError(`A note can’t be named “${newVaultNoteRelativePath}”. ${vaultPathProblem}`)
+    if (vaultPathProblem !== undefined) throw new PapelizVaultOperationError(vaultPathProblem)
     await runVaultOperationInOrder(async () => {
-      const newVaultNoteFolderSegments = splitVaultRelativePath(getVaultEntryParentFolderRelativePath(newVaultNoteRelativePath))
-      for (let segmentIndex = 0; segmentIndex < newVaultNoteFolderSegments.length; segmentIndex += 1) {
-        const vaultFolderRelativePath = newVaultNoteFolderSegments.slice(0, segmentIndex + 1).join('/')
-        const isExistingFolder = getWorkspaceState().vaultTreeEntries.some(
-          (vaultTreeEntry) => vaultTreeEntry.vaultEntryKind === 'folder' && vaultTreeEntry.vaultEntryRelativePath.toLowerCase() === vaultFolderRelativePath.toLowerCase(),
-        )
-        if (!isExistingFolder) await papelizOpenVault.papelizVaultAdapter.createVaultFolder(vaultFolderRelativePath)
-      }
+      await createMissingVaultFolders(papelizOpenVault, getVaultEntryParentFolderRelativePath(newVaultNoteRelativePath))
       await papelizOpenVault.papelizVaultAdapter.createVaultNote(newVaultNoteRelativePath, newVaultNoteText)
     })
-    await loadVaultTreeEntries()
+    await loadVaultTreeEntriesAfterChange()
+  }
+
+  // Creates each folder on the way to `vaultFolderRelativePath` that isn't there yet.
+  const createMissingVaultFolders = async (papelizOpenVault: PapelizOpenVault, vaultFolderRelativePath: string) => {
+    const vaultFolderSegments = splitVaultRelativePath(vaultFolderRelativePath)
+    for (let segmentIndex = 0; segmentIndex < vaultFolderSegments.length; segmentIndex += 1) {
+      const vaultSubfolderRelativePath = vaultFolderSegments.slice(0, segmentIndex + 1).join('/')
+      const isExistingFolder = getWorkspaceState().vaultTreeEntries.some(
+        (vaultTreeEntry) => vaultTreeEntry.vaultEntryKind === 'folder' && vaultTreeEntry.vaultEntryRelativePath.toLowerCase() === vaultSubfolderRelativePath.toLowerCase(),
+      )
+      if (isExistingFolder) continue
+      try {
+        await papelizOpenVault.papelizVaultAdapter.createVaultFolder(vaultSubfolderRelativePath)
+      } catch (vaultFolderCreateError) {
+        // Made since the list was last read (by another step, or another tab): it is there, as wanted.
+        if (!(vaultFolderCreateError instanceof PapelizVaultOperationError && vaultFolderCreateError.message === 'Name Taken')) throw vaultFolderCreateError
+      }
+    }
   }
 
   return {
@@ -632,6 +992,7 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
     loadedVaultNotesByRelativePath: {},
     noteViewMode: 'md-code',
     lockedVaultEntryRelativePaths: [],
+    vaultEntryLooks: {},
     isWholeVaultEditingLocked: false,
     areHiddenVaultEntriesShown: false,
     copiedVaultEntry: null,
@@ -639,6 +1000,8 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
     vaultEntryBeingRenamedRelativePath: null,
     ...createInitialWorkspaceLayout(),
     workspaceNotice: null,
+    assistantProposalPreview: null,
+    vaultNoteSaveConflictsByLoadedNoteSessionId: {},
 
     openVaultInWorkspace: async (papelizOpenVault, openVaultOptions) => {
       await getWorkspaceState().closeVaultInWorkspace()
@@ -654,27 +1017,33 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
         vaultEntryBeingRenamedRelativePath: null,
         ...createInitialWorkspaceLayout(),
         workspaceNotice: null,
+        assistantProposalPreview: null,
+        vaultNoteSaveConflictsByLoadedNoteSessionId: {},
         vaultEntryOrder: {},
         lockedVaultEntryRelativePaths: [],
+        vaultEntryLooks: {},
         isWholeVaultEditingLocked: false,
         copiedVaultEntry: null,
       })
       // The file list's order and the editing locks, from the vault's own `.papeliz/` folder, and
       // whether this browser shows hidden entries.
-      const [savedFileListOrderText, savedLockedEntriesText, areHiddenVaultEntriesShown] = await Promise.all([
+      const [savedFileListOrderText, savedLockedEntriesText, savedFileListLooksText, areHiddenVaultEntriesShown] = await Promise.all([
         papelizOpenVault.papelizVaultAdapter.readPapelizVaultSettingsFile(papelizFileListOrderFileName).catch(() => null),
         papelizOpenVault.papelizVaultAdapter.readPapelizVaultSettingsFile(papelizLockedEntriesFileName).catch(() => null),
+        papelizOpenVault.papelizVaultAdapter.readPapelizVaultSettingsFile(papelizFileListLooksFileName).catch(() => null),
         readPapelizUserSetting<unknown>(papelizHiddenVaultEntriesShownSettingName, false).then((savedSettingValue) => savedSettingValue === true),
       ])
       if (getWorkspaceState().openVault === papelizOpenVault) {
         setWorkspaceState({
           vaultEntryOrder: parsePapelizFileListOrderFile(savedFileListOrderText),
           lockedVaultEntryRelativePaths: parsePapelizLockedEntriesFile(savedLockedEntriesText),
+          vaultEntryLooks: parsePapelizFileListLooksFile(savedFileListLooksText),
           isWholeVaultEditingLocked: parsePapelizWholeVaultEditingLock(savedLockedEntriesText),
           areHiddenVaultEntriesShown,
         })
       }
       await loadVaultTreeEntries()
+      startWatchingVaultChangesElsewhere(papelizOpenVault)
       if (openVaultOptions.expandAllTopLevelFolders) {
         const expandedVaultFolderRelativePaths: Record<string, true> = {}
         for (const vaultTreeEntry of getWorkspaceState().vaultTreeEntries) {
@@ -691,6 +1060,8 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
 
     closeVaultInWorkspace: async () => {
       if (getWorkspaceState().openVault === null) return
+      stopWatchingVaultChangesElsewhere?.()
+      stopWatchingVaultChangesElsewhere = null
       await getWorkspaceState().saveAllVaultNotesNow()
       for (const autosaveTimer of autosaveTimersByLoadedNoteSessionId.values()) clearTimeout(autosaveTimer)
       autosaveTimersByLoadedNoteSessionId.clear()
@@ -702,9 +1073,12 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
         loadedVaultNotesByRelativePath: {},
         vaultEntryBeingRenamedRelativePath: null,
         workspaceNotice: null,
+        assistantProposalPreview: null,
+        vaultNoteSaveConflictsByLoadedNoteSessionId: {},
         isVaultCloseConfirmationShown: false,
         vaultEntryOrder: {},
         lockedVaultEntryRelativePaths: [],
+        vaultEntryLooks: {},
         isWholeVaultEditingLocked: false,
         copiedVaultEntry: null,
       })
@@ -715,6 +1089,8 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
     openVaultNote: async (vaultNoteRelativePath) => {
       const openVault = getWorkspaceState().openVault
       if (openVault === null) return
+      // Going to a note leaves a proposal's preview.
+      if (getWorkspaceState().assistantProposalPreview !== null) setWorkspaceState({ assistantProposalPreview: null })
       expandParentFoldersOf(vaultNoteRelativePath)
       setWorkspaceState((workspaceState) => ({
         openNoteTabRelativePaths: workspaceState.openNoteTabRelativePaths.includes(vaultNoteRelativePath)
@@ -749,6 +1125,7 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
           savedVaultNoteText: vaultNoteText,
           draftVaultNoteText: vaultNoteText,
         }))
+        void offerNoteRecoveryDraft(openVault, vaultNoteRelativePath, loadedNoteSessionId, vaultNoteText)
       } catch (vaultReadError) {
         updateLoadedVaultNoteForSession(loadedNoteSessionId, (note) => ({
           ...note,
@@ -769,10 +1146,10 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
       try {
         await createVaultNoteWithItsFolders(openVault, newVaultNoteRelativePath, '')
       } catch (vaultCreateError) {
-        showWorkspaceNotice('error', `The note could not be created. ${describePapelizVaultError(vaultCreateError)}`)
+        showWorkspaceNotice('error', `Couldn’t create the note (${describePapelizVaultError(vaultCreateError)})`)
         return
       }
-      showWorkspaceNotice('info', `Created “${getVaultEntryName(newVaultNoteRelativePath)}”.`)
+      showWorkspaceNotice('info', `Created “${getVaultNoteTitle(newVaultNoteRelativePath)}”.`)
       await getWorkspaceState().openVaultNote(newVaultNoteRelativePath)
     },
 
@@ -797,7 +1174,7 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
           : (findVaultNoteRelativePathForSession(getWorkspaceState().loadedVaultNotesByRelativePath, loadedVaultNote.loadedNoteSessionId) ??
             vaultNoteRelativePath)
       if (getWorkspaceState().loadedVaultNotesByRelativePath[currentVaultNoteRelativePath]?.noteSaveState === 'save-failed') {
-        showWorkspaceNotice('error', 'This note couldn’t be saved, so its tab stays open and your changes are kept.')
+        showWorkspaceNotice('error', `Couldn’t close “${getVaultNoteTitle(currentVaultNoteRelativePath)}” (Not Saved)`)
         return
       }
       closeTabsInside(currentVaultNoteRelativePath)
@@ -810,6 +1187,7 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
         noteSaveState: note.noteSaveState === 'saving' ? 'saving' : draftVaultNoteText === note.savedVaultNoteText ? 'saved' : 'unsaved',
       }))
       scheduleAutosave(loadedNoteSessionId)
+      scheduleNoteRecoveryDraft(loadedNoteSessionId)
     },
 
     saveVaultNoteNow: async (vaultNoteRelativePath) => {
@@ -835,10 +1213,10 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
       try {
         await runVaultOperationInOrder(() => openVault.papelizVaultAdapter.createVaultNote(newVaultNoteRelativePath, ''))
       } catch (vaultCreateError) {
-        showWorkspaceNotice('error', `The note could not be created. ${describePapelizVaultError(vaultCreateError)}`)
+        showWorkspaceNotice('error', `Couldn’t create the note (${describePapelizVaultError(vaultCreateError)})`)
         return
       }
-      await loadVaultTreeEntries()
+      await loadVaultTreeEntriesAfterChange()
       // A new note opens in the view already showing (MD Code or MD View); both are for writing.
       await getWorkspaceState().openVaultNote(newVaultNoteRelativePath)
       getWorkspaceState().setExplorerPanelOpen(true)
@@ -855,10 +1233,10 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
       try {
         await runVaultOperationInOrder(() => openVault.papelizVaultAdapter.createVaultFolder(newVaultFolderRelativePath))
       } catch (vaultCreateError) {
-        showWorkspaceNotice('error', `The folder could not be created. ${describePapelizVaultError(vaultCreateError)}`)
+        showWorkspaceNotice('error', `Couldn’t create the folder (${describePapelizVaultError(vaultCreateError)})`)
         return
       }
-      await loadVaultTreeEntries()
+      await loadVaultTreeEntriesAfterChange()
       expandParentFoldersOf(newVaultFolderRelativePath)
       getWorkspaceState().setExplorerPanelOpen(true)
       setWorkspaceState({ vaultEntryBeingRenamedRelativePath: newVaultFolderRelativePath })
@@ -881,7 +1259,7 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
         return { vaultEntryRenameOutcome: 'unchanged', renamedVaultEntryRelativePath: vaultEntryRelativePath }
       }
       if (isVaultEntryNameTakenInFolder(getWorkspaceState().vaultTreeEntries, vaultParentFolderRelativePath, newVaultEntryName, vaultEntryRelativePath)) {
-        return { vaultEntryRenameOutcome: 'refused', vaultEntryRenameProblem: `“${newVaultEntryName}” already exists here.` }
+        return { vaultEntryRenameOutcome: 'refused', vaultEntryRenameProblem: 'Name Taken' }
       }
 
       const vaultEntryMoveProblem = await moveVaultEntryWithItsNotes(openVault, vaultEntryRelativePath, newVaultEntryRelativePath)
@@ -913,18 +1291,17 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
         return
       }
       if (targetVaultFolderRelativePath === vaultEntryRelativePath || targetVaultFolderRelativePath.startsWith(`${vaultEntryRelativePath}/`)) {
-        showWorkspaceNotice('error', `“${vaultEntryName}” can’t go inside itself.`)
+        showWorkspaceNotice('error', `Couldn’t move “${vaultEntryName}” (Into Itself)`)
         return
       }
-      const targetVaultFolderLabel = targetVaultFolderRelativePath === papelizVaultRootFolderRelativePath ? 'the top of the vault' : `“${getVaultEntryName(targetVaultFolderRelativePath)}”`
       if (isVaultEntryNameTakenInFolder(getWorkspaceState().vaultTreeEntries, targetVaultFolderRelativePath, vaultEntryName, vaultEntryRelativePath)) {
-        showWorkspaceNotice('error', `Not moved: “${vaultEntryName}” already exists in ${targetVaultFolderLabel}.`)
+        showWorkspaceNotice('error', `Couldn’t move “${getVaultNoteTitle(vaultEntryRelativePath)}” (Name Taken)`)
         return
       }
       const movedVaultEntryRelativePath = joinVaultRelativePath(targetVaultFolderRelativePath, vaultEntryName)
       const vaultEntryMoveProblem = await moveVaultEntryWithItsNotes(openVault, vaultEntryRelativePath, movedVaultEntryRelativePath)
       if (vaultEntryMoveProblem !== null) {
-        showWorkspaceNotice('error', `“${vaultEntryName}” could not be moved. ${vaultEntryMoveProblem}`)
+        showWorkspaceNotice('error', `Couldn’t move “${getVaultNoteTitle(vaultEntryRelativePath)}” (${vaultEntryMoveProblem})`)
         return
       }
       // The moved entry stays in sight: its new folder (and that folder's folders) open.
@@ -932,42 +1309,31 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
       if (vaultEntryPlacement.vaultEntryPlacementKind !== 'last' || getWorkspaceState().vaultEntryOrder[targetVaultFolderRelativePath] !== undefined) {
         placeNameInTargetFolder()
       }
-      showWorkspaceNotice('info', `Moved “${isVaultNoteFileName(vaultEntryName) ? getVaultNoteTitle(movedVaultEntryRelativePath) : vaultEntryName}” into ${targetVaultFolderLabel}.`)
+      showWorkspaceNotice(
+        'info',
+        targetVaultFolderRelativePath === papelizVaultRootFolderRelativePath
+          ? `Moved “${getVaultNoteTitle(movedVaultEntryRelativePath)}” to the top.`
+          : `Moved “${getVaultNoteTitle(movedVaultEntryRelativePath)}” into “${getVaultEntryName(targetVaultFolderRelativePath)}”.`,
+      )
     },
 
     moveVaultEntryToTrash: async (vaultEntryRelativePath) => {
       const openVault = getWorkspaceState().openVault
       if (openVault === null) return
-      await saveVaultNotesInside(vaultEntryRelativePath)
-      let trashVaultEntryRelativePath: string
       try {
-        trashVaultEntryRelativePath = await runVaultOperationInOrder(async () => {
-          const movedToVaultEntryRelativePath = await openVault.papelizVaultAdapter.moveVaultEntryToTrash(vaultEntryRelativePath)
-          closeTabsInside(vaultEntryRelativePath)
-          const copiedVaultEntryBeforeTrash = getWorkspaceState().copiedVaultEntry
-          if (copiedVaultEntryBeforeTrash !== null && isVaultRelativePathInsideFolder(copiedVaultEntryBeforeTrash.vaultEntryRelativePath, vaultEntryRelativePath)) {
-            setWorkspaceState({ copiedVaultEntry: null })
-          }
-          const lockedPathsBeforeTrash = getWorkspaceState().lockedVaultEntryRelativePaths
-          const lockedPathsAfterTrash = removeVaultEntryLocksInside(lockedPathsBeforeTrash, vaultEntryRelativePath)
-          if (lockedPathsAfterTrash.length !== lockedPathsBeforeTrash.length) {
-            setWorkspaceState({ lockedVaultEntryRelativePaths: lockedPathsAfterTrash })
-            saveLockedVaultEntries()
-          }
-          return movedToVaultEntryRelativePath
-        })
+        await trashVaultEntryAndTidyUp(openVault, vaultEntryRelativePath)
       } catch (vaultTrashError) {
-        showWorkspaceNotice('error', `“${getVaultEntryName(vaultEntryRelativePath)}” could not be moved to the trash. ${describePapelizVaultError(vaultTrashError)}`)
-        await loadVaultTreeEntries()
+        showWorkspaceNotice('error', `Couldn’t move “${getVaultNoteTitle(vaultEntryRelativePath)}” to the trash (${describePapelizVaultError(vaultTrashError)})`)
+        await loadVaultTreeEntriesAfterChange()
         return
       }
-      await loadVaultTreeEntries()
-      showWorkspaceNotice('info', `Moved “${getVaultEntryName(vaultEntryRelativePath)}” to ${trashVaultEntryRelativePath}.`)
+      await loadVaultTreeEntriesAfterChange()
+      showWorkspaceNotice('info', `Moved “${getVaultNoteTitle(vaultEntryRelativePath)}” to the trash.`)
     },
 
     writeVaultNoteTextFromAssistant: async (vaultNoteRelativePath, newVaultNoteText, assistantVaultNoteWritePurpose = 'accepted-change') => {
       const openVault = getWorkspaceState().openVault
-      if (openVault === null) throw new PapelizVaultOperationError('No vault is open.')
+      if (openVault === null) throw new PapelizVaultOperationError('No Vault Open')
       assertAssistantMayWriteVaultNote(vaultNoteRelativePath, assistantVaultNoteWritePurpose)
       const loadedVaultNote = getWorkspaceState().loadedVaultNotesByRelativePath[vaultNoteRelativePath]
       if (loadedVaultNote?.noteLoadState !== 'loaded') {
@@ -983,15 +1349,66 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
       const savedVaultNoteRelativePath = findVaultNoteRelativePathForSession(getWorkspaceState().loadedVaultNotesByRelativePath, loadedVaultNote.loadedNoteSessionId)
       const savedLoadedVaultNote = savedVaultNoteRelativePath === null ? undefined : getWorkspaceState().loadedVaultNotesByRelativePath[savedVaultNoteRelativePath]
       if (savedLoadedVaultNote?.noteSaveState === 'save-failed') {
-        throw new PapelizVaultOperationError(savedLoadedVaultNote.noteSaveErrorMessage ?? 'The note could not be saved.')
+        throw new PapelizVaultOperationError(savedLoadedVaultNote.noteSaveErrorMessage ?? 'Not Saved')
       }
     },
 
     createVaultNoteFromAssistant: async (vaultNoteRelativePath, vaultNoteText, assistantVaultNoteWritePurpose = 'accepted-change') => {
       const openVault = getWorkspaceState().openVault
-      if (openVault === null) throw new PapelizVaultOperationError('No vault is open.')
+      if (openVault === null) throw new PapelizVaultOperationError('No Vault Open')
       assertAssistantMayWriteVaultNote(vaultNoteRelativePath, assistantVaultNoteWritePurpose)
       await createVaultNoteWithItsFolders(openVault, vaultNoteRelativePath, vaultNoteText)
+    },
+
+    createChatAttachmentFileFromAssistant: async (preferredAttachmentFileName, attachmentFileBlob) => {
+      const openVault = getWorkspaceState().openVault
+      if (openVault === null) throw new PapelizVaultOperationError('No Vault Open')
+      const attachmentsFolderRelativePath = `${papelizVaultChatSessionFolderName}/attachments`
+      // Characters a file name can't hold become dashes.
+      const safeAttachmentFileName = preferredAttachmentFileName.replace(/[\\/:*?"<>|]+/g, '-').replace(/^\.+/, '').trim() || 'attachment'
+      const attachmentExtensionMatch = /(\.[a-z0-9]{1,8})$/i.exec(safeAttachmentFileName)
+      const attachmentExtension = attachmentExtensionMatch?.[1] ?? ''
+      const attachmentBaseName = safeAttachmentFileName.slice(0, safeAttachmentFileName.length - attachmentExtension.length).slice(0, 120)
+      let attachmentFileRelativePath = ''
+      await runVaultOperationInOrder(async () => {
+        await createMissingVaultFolders(openVault, attachmentsFolderRelativePath)
+        const takenAttachmentNames = new Set(
+          (await openVault.papelizVaultAdapter.listVaultTreeEntries({ isEveryHiddenVaultEntryListed: true }))
+            .map((vaultTreeEntry) => vaultTreeEntry.vaultEntryRelativePath.toLowerCase()),
+        )
+        const attachmentFileName = pickFreeVaultEntryName(attachmentBaseName, attachmentExtension, (candidateAttachmentFileName) =>
+          takenAttachmentNames.has(`${attachmentsFolderRelativePath}/${candidateAttachmentFileName}`.toLowerCase()),
+        )
+        attachmentFileRelativePath = `${attachmentsFolderRelativePath}/${attachmentFileName}`
+        await openVault.papelizVaultAdapter.createVaultAttachmentFile(attachmentFileRelativePath, attachmentFileBlob)
+      })
+      // The folders it made show in the list, so the next save finds them there.
+      await loadVaultTreeEntriesAfterChange()
+      return attachmentFileRelativePath
+    },
+
+    setVaultEntryLook: (vaultEntryRelativePath, vaultEntryLook) => {
+      setWorkspaceState((workspaceState) => ({ vaultEntryLooks: setPapelizVaultEntryLook(workspaceState.vaultEntryLooks, vaultEntryRelativePath, vaultEntryLook) }))
+      saveVaultEntryLooks()
+    },
+
+    moveVaultEntriesToTrashFromAssistant: async (vaultEntryRelativePaths) => {
+      const openVault = getWorkspaceState().openVault
+      if (openVault === null) throw new PapelizVaultOperationError('No Vault Open')
+      try {
+        for (const vaultEntryRelativePath of vaultEntryRelativePaths) await trashVaultEntryAndTidyUp(openVault, vaultEntryRelativePath)
+      } finally {
+        await loadVaultTreeEntriesAfterChange()
+      }
+      const trashedNoteCount = vaultEntryRelativePaths.filter(isVaultNoteFileName).length
+      const trashedFolderCount = vaultEntryRelativePaths.length - trashedNoteCount
+      const describeTrashedCount = (trashedCount: number, singularWord: string) => `${trashedCount} ${singularWord}${trashedCount === 1 ? '' : 's'}`
+      showWorkspaceNotice(
+        'info',
+        vaultEntryRelativePaths.length === 1
+          ? `Moved “${getVaultNoteTitle(vaultEntryRelativePaths[0] ?? '')}” to the trash.`
+          : `Moved ${[trashedNoteCount > 0 ? describeTrashedCount(trashedNoteCount, 'note') : '', trashedFolderCount > 0 ? describeTrashedCount(trashedFolderCount, 'folder') : ''].filter((countWords) => countWords.length > 0).join(' and ')} to the trash.`,
+      )
     },
 
     setNoteViewMode: (noteViewMode) => setWorkspaceState({ noteViewMode }),
@@ -1005,7 +1422,7 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
 
     copyVaultEntryForPaste: (copiedVaultEntry) => {
       setWorkspaceState({ copiedVaultEntry })
-      showWorkspaceNotice('info', `Copied “${describeVaultEntryForNotice(copiedVaultEntry.vaultEntryRelativePath)}”. Paste it from a folder’s ··· menu, or with Ctrl+V.`)
+      showWorkspaceNotice('info', `Copied “${describeVaultEntryForNotice(copiedVaultEntry.vaultEntryRelativePath)}”.`)
     },
 
     pasteCopiedVaultEntry: async (targetVaultFolderRelativePath) => {
@@ -1013,7 +1430,7 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
       if (copiedVaultEntry === null) return
       if (!vaultTreeEntries.some((vaultTreeEntry) => vaultTreeEntry.vaultEntryRelativePath === copiedVaultEntry.vaultEntryRelativePath)) {
         setWorkspaceState({ copiedVaultEntry: null })
-        showWorkspaceNotice('error', 'The copied note or folder is no longer in the vault.')
+        showWorkspaceNotice('error', `Couldn’t paste “${describeVaultEntryForNotice(copiedVaultEntry.vaultEntryRelativePath)}” (File Not Found)`)
         return
       }
       await copyVaultEntryIntoFolder(copiedVaultEntry, targetVaultFolderRelativePath, 'add-copy-when-taken')
@@ -1099,6 +1516,69 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
     },
     showWorkspaceNotice,
     dismissWorkspaceNotice: () => setWorkspaceState({ workspaceNotice: null }),
+    showAssistantProposalPreview: (assistantProposalPreview) => setWorkspaceState({ assistantProposalPreview }),
+    closeAssistantProposalPreview: () => setWorkspaceState({ assistantProposalPreview: null }),
+
+    resolveVaultNoteSaveConflict: async (loadedNoteSessionId, mergeChoicesByConflictId) => {
+      const vaultNoteSaveConflict = getWorkspaceState().vaultNoteSaveConflictsByLoadedNoteSessionId[loadedNoteSessionId]
+      if (vaultNoteSaveConflict?.vaultNoteSaveConflictKind !== 'same-lines-changed') return
+      const remainingSaveConflicts = { ...getWorkspaceState().vaultNoteSaveConflictsByLoadedNoteSessionId }
+      delete remainingSaveConflicts[loadedNoteSessionId]
+      setWorkspaceState({ vaultNoteSaveConflictsByLoadedNoteSessionId: remainingSaveConflicts })
+      // The settled text is now this tab's, made on the version saved elsewhere; saving it merges again
+      // if yet another save landed meanwhile. Typing since the clash was shown is kept as typed.
+      updateLoadedVaultNoteForSession(loadedNoteSessionId, (note) => ({
+        ...note,
+        savedVaultNoteText: vaultNoteSaveConflict.savedElsewhereVaultNoteText,
+        draftVaultNoteText:
+          note.draftVaultNoteText === vaultNoteSaveConflict.myVaultNoteText
+            ? resolvePapelizVaultNoteMerge(vaultNoteSaveConflict.vaultNoteMergeResult, mergeChoicesByConflictId)
+            : note.draftVaultNoteText,
+        noteSaveState: 'unsaved',
+      }))
+      await saveLoadedVaultNote(loadedNoteSessionId)
+    },
+
+    resolveVaultNoteDeletedElsewhere: async (loadedNoteSessionId, deletedElsewhereChoice) => {
+      const openVault = getWorkspaceState().openVault
+      const vaultNoteSaveConflict = getWorkspaceState().vaultNoteSaveConflictsByLoadedNoteSessionId[loadedNoteSessionId]
+      if (openVault === null || vaultNoteSaveConflict?.vaultNoteSaveConflictKind !== 'deleted-elsewhere') return
+      const remainingSaveConflicts = { ...getWorkspaceState().vaultNoteSaveConflictsByLoadedNoteSessionId }
+      delete remainingSaveConflicts[loadedNoteSessionId]
+      setWorkspaceState({ vaultNoteSaveConflictsByLoadedNoteSessionId: remainingSaveConflicts })
+      const vaultNoteRelativePath = findVaultNoteRelativePathForSession(getWorkspaceState().loadedVaultNotesByRelativePath, loadedNoteSessionId)
+      if (vaultNoteRelativePath === null) return
+      if (deletedElsewhereChoice === 'close-note') {
+        closeTabsInside(vaultNoteRelativePath)
+        void deletePapelizNoteRecoveryDraft(openVault.papelizVaultId, vaultNoteRelativePath).catch(() => undefined)
+        return
+      }
+      // Written back where it was, with any folders on the way made again; typing since the question
+      // was shown is kept.
+      await loadVaultTreeEntries()
+      try {
+        let writtenVaultNoteText = ''
+        await runVaultOperationInOrder(async () => {
+          await createMissingVaultFolders(openVault, getVaultEntryParentFolderRelativePath(vaultNoteRelativePath))
+          writtenVaultNoteText = getWorkspaceState().loadedVaultNotesByRelativePath[vaultNoteRelativePath]?.draftVaultNoteText ?? ''
+          await openVault.papelizVaultAdapter.writeVaultNoteText(vaultNoteRelativePath, writtenVaultNoteText)
+        })
+        updateLoadedVaultNoteForSession(loadedNoteSessionId, (note) => ({
+          ...note,
+          savedVaultNoteText: writtenVaultNoteText,
+          noteSaveState: note.draftVaultNoteText === writtenVaultNoteText ? 'saved' : 'unsaved',
+          noteSaveErrorMessage: null,
+        }))
+        void deletePapelizNoteRecoveryDraft(openVault.papelizVaultId, vaultNoteRelativePath).catch(() => undefined)
+      } catch (vaultSaveError) {
+        updateLoadedVaultNoteForSession(loadedNoteSessionId, (note) => ({
+          ...note,
+          noteSaveState: 'save-failed',
+          noteSaveErrorMessage: describePapelizVaultError(vaultSaveError),
+        }))
+      }
+      await loadVaultTreeEntriesAfterChange()
+    },
   }
 })
 

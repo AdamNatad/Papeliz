@@ -10,9 +10,9 @@ export const papelizSiteDescription =
 // Every platform the description names, for search engines' structured data.
 export const papelizSitePlatformNames = ['Web browser', 'Windows', 'macOS', 'Linux', 'Android', 'iOS', 'HarmonyOS']
 
-// The public origin, such as https://example.com, once the domain is chosen. The sitemap, robots
-// file and canonical links use it; without it they leave absolute URLs out.
-export const papelizSiteCanonicalOrigin: string | null = null
+// The public origin. The sitemap, robots file, canonical links, link-preview banner and structured
+// data use it; without it they leave absolute URLs out.
+export const papelizSiteCanonicalOrigin: string | null = 'https://papeliz.com'
 
 // The webapp is served at /app/ on the same domain as the site.
 export const papelizSiteAppUrl: string | null = '/app/'
@@ -32,3 +32,22 @@ export const papelizSiteHelpUrl: string | null = '/help/'
 export const papelizSiteAuthorName = 'Adam Natad'
 export const papelizSiteCopyrightHolder = 'Natad Corporation'
 export const papelizSiteCopyrightYear = 2026
+
+// Who makes Papeliz, for search engines' structured data (lib/papeliz-site-jsonld.ts): Adam Natad,
+// with the profiles that name him, and Natad Corporation, the organization behind it.
+export const papelizSiteAuthorAlternateName = 'Jose Adam Climaco Natad'
+export const papelizSiteAuthorJobTitle = 'Software Developer, Creator of Papeliz, and Founder and CEO of Natad Corporation'
+export const papelizSiteAuthorPagePath = '/adam-natad/'
+export const papelizSiteAuthorPortraitPath = '/images/adam-natad/adam-natad-portrait.webp'
+export const papelizSiteAuthorProfileUrls = [
+  'https://adamnatad.com',
+  'https://natad.ai/adam-natad/',
+  'https://www.facebook.com/AdamNatadFB',
+  'https://www.youtube.com/@AdamNatad',
+  'https://x.com/AdamNatad',
+  'https://www.linkedin.com/in/adamnatad/',
+  'https://github.com/AdamNatad',
+  'https://orcid.org/0009-0002-8363-2363',
+]
+export const papelizSiteOrganizationUrl = 'https://natad.ai/'
+export const papelizSiteOrganizationLogoPath = '/images/adam-natad/natad-corporation-icon.png'

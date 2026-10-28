@@ -5,8 +5,20 @@ import { usePapelizWorkspaceStore } from '../workspace/papeliz-workspace-store'
 import { isPapelizChatSessionNotePath } from './papeliz-assistant-chat-session-files'
 import { usePapelizAssistantConversationStore } from './papeliz-assistant-conversation-store'
 import { usePapelizAssistantInlineEditUsageFileWriteStore } from './papeliz-assistant-inline-edit-usage-file'
+import {
+  findPapelizAssistantModelPrice,
+  formatPapelizAssistantCostUsd,
+  papelizAssistantBuiltInModelPricesCheckedOn,
+  usePapelizAssistantModelPricesStore,
+  workOutPapelizAssistantModelCost,
+  type PapelizAssistantModelCost,
+} from './papeliz-assistant-model-prices'
 import { usePapelizAssistantPanelUiStore } from './papeliz-assistant-panel-ui-store'
-import { formatPapelizAssistantTokenCountInFull, type PapelizAssistantTokenUsageTally } from './papeliz-assistant-token-usage'
+import {
+  formatPapelizAssistantTokenCountInFull,
+  type PapelizAssistantModelTokenUsageTally,
+  type PapelizAssistantTokenUsageTally,
+} from './papeliz-assistant-token-usage'
 import {
   readPapelizAssistantVaultTokenUsageRecords,
   summarizePapelizAssistantVaultTokenUsage,
@@ -31,6 +43,56 @@ function describeAssistantTokenUsageTally(assistantTokenUsageTally: PapelizAssis
   return `${isAtLineStart ? 'About' : 'about'} ${tokenUsageDescription}`
 }
 
+const papelizBuiltInPricesCheckedOnLabel = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(
+  new Date(`${papelizAssistantBuiltInModelPricesCheckedOn}T12:00:00`),
+)
+
+// Where a model's cost came from, in a few words.
+function describeModelCostSource(modelCost: PapelizAssistantModelCost | null): string {
+  if (modelCost === null) return 'No price'
+  if (modelCost.modelCostSource === 'provider-reported') return 'Provider’s figure'
+  if (modelCost.modelCostSource === 'typed-by-user') return 'Your price'
+  return 'Papeliz price'
+}
+
+// What several models' requests cost together. Null when none of them has a cost; `isCostPartial`
+// when some do and some don't, and `isCostEstimated` when any is worked out from a price.
+function addUpModelCosts(modelCosts: ReadonlyArray<PapelizAssistantModelCost | null>): { costUsd: number; isCostEstimated: boolean; isCostPartial: boolean } | null {
+  const knownModelCosts = modelCosts.filter((modelCost): modelCost is PapelizAssistantModelCost => modelCost !== null)
+  if (knownModelCosts.length === 0) return null
+  return {
+    costUsd: knownModelCosts.reduce((costUsd, modelCost) => costUsd + modelCost.modelCostUsd, 0),
+    isCostEstimated: knownModelCosts.some((modelCost) => modelCost.modelCostSource !== 'provider-reported'),
+    isCostPartial: knownModelCosts.length < modelCosts.length,
+  }
+}
+
+// "about $0.61", or "$0.61+" when some of it has no price.
+function describeAddedUpCost(addedUpCost: { costUsd: number; isCostEstimated: boolean; isCostPartial: boolean }): string {
+  return `${addedUpCost.isCostEstimated ? 'about ' : ''}${formatPapelizAssistantCostUsd(addedUpCost.costUsd)}${addedUpCost.isCostPartial ? '+' : ''}`
+}
+
+// One model under By model: its tokens, its cost and where the cost came from. Its price is set in
+// Provider settings, under Advanced.
+function PapelizUsageViewModelRow({ modelTokenUsageTally }: { modelTokenUsageTally: PapelizAssistantModelTokenUsageTally }) {
+  const userModelPrices = usePapelizAssistantModelPricesStore((modelPricesState) => modelPricesState.userModelPrices)
+  const modelCost = workOutPapelizAssistantModelCost(modelTokenUsageTally, findPapelizAssistantModelPrice(modelTokenUsageTally.providerModelName, userModelPrices))
+  return (
+    <li className="flex items-start gap-2 px-2 py-1.5">
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-medium">{modelTokenUsageTally.providerModelName}</span>
+        <span className="block text-xs text-papeliz-ink-subtle tabular-nums">{describeAssistantTokenUsageTally(modelTokenUsageTally, true)}</span>
+      </span>
+      <span className="flex-none text-right">
+        <span className="block text-sm font-semibold tabular-nums">
+          {modelCost === null ? '—' : `${modelCost.modelCostSource === 'provider-reported' ? '' : 'about '}${formatPapelizAssistantCostUsd(modelCost.modelCostUsd)}`}
+        </span>
+        <span className="block text-[11px] text-papeliz-ink-subtle">{describeModelCostSource(modelCost)}</span>
+      </span>
+    </li>
+  )
+}
+
 function PapelizUsageViewSectionHeading({ children }: { children: ReactNode }) {
   return <h3 className="px-2 pb-1 text-[12px] font-semibold text-papeliz-ink-subtle">{children}</h3>
 }
@@ -47,8 +109,8 @@ function PapelizUsageViewTotalRow({ usageTotalLabel, usageTotalCount, isUsageTot
   )
 }
 
-// Usage: the tokens the assistant used in this vault, from the chat session notes (and the inline
-// edits' file), per model and per chat. A chat opens in Chat, as from Sessions.
+// Usage: the tokens the assistant used in this vault, and what they cost, from the chat session notes
+// (and the inline edits' file), per model and per chat. A chat opens in the chat, as from Sessions.
 export function PapelizAssistantUsageView() {
   const openVault = usePapelizWorkspaceStore((workspaceState) => workspaceState.openVault)
   const vaultTreeEntries = usePapelizWorkspaceStore((workspaceState) => workspaceState.vaultTreeEntries)
@@ -58,6 +120,14 @@ export function PapelizAssistantUsageView() {
   const openSavedChatSession = usePapelizAssistantConversationStore((conversationState) => conversationState.openSavedChatSession)
   const setAssistantPanelTab = usePapelizAssistantPanelUiStore((panelUiState) => panelUiState.setAssistantPanelTab)
   const inlineEditUsageFileWriteCount = usePapelizAssistantInlineEditUsageFileWriteStore((writeState) => writeState.inlineEditUsageFileWriteCount)
+  const userModelPrices = usePapelizAssistantModelPricesStore((modelPricesState) => modelPricesState.userModelPrices)
+  // What a list of model rows cost together, at today's prices.
+  const addUpModelTokenUsageCosts = (modelTokenUsageTallies: readonly PapelizAssistantModelTokenUsageTally[]) =>
+    addUpModelCosts(
+      modelTokenUsageTallies.map((modelTokenUsageTally) =>
+        workOutPapelizAssistantModelCost(modelTokenUsageTally, findPapelizAssistantModelPrice(modelTokenUsageTally.providerModelName, userModelPrices)),
+      ),
+    )
   const [vaultTokenUsageRecords, setVaultTokenUsageRecords] = useState<PapelizAssistantVaultTokenUsageRecords | null>(null)
 
   // One string, so the notes are read again only when a chat note comes or goes.
@@ -111,7 +181,10 @@ export function PapelizAssistantUsageView() {
     ) : null
   const usageFiguresNotice = (
     <p className="px-2 text-xs leading-relaxed text-papeliz-ink-subtle">
-      Figures are your provider’s own token counts, or estimates (marked “about”) where it gave none. Cost isn’t shown.
+      Tokens are your provider’s own counts, or estimates (marked “about”) where it gave none. Cost is the provider’s own figure where it gives one;
+      otherwise it is worked out from the tokens at Papeliz’s price for the model, from the provider’s own price page (checked{' '}
+      {papelizBuiltInPricesCheckedOnLabel}), or at the price set in Provider settings, under Advanced. Cached-input discounts aren’t counted, so your
+      provider’s bill is what counts.
     </p>
   )
 
@@ -125,7 +198,10 @@ export function PapelizAssistantUsageView() {
     )
   }
 
-  const { vaultTokenUsageTally, vaultModelTokenUsageTallies, inlineEditsTokenUsageTally, assistantUsageViewSessionRowsWithTokenUsage } = vaultTokenUsageSummary
+  const { vaultTokenUsageTally, vaultModelTokenUsageTallies, inlineEditsTokenUsageTally, assistantUsageViewSessionRowsWithTokenUsage, inlineEditModelTokenUsageTallies } =
+    vaultTokenUsageSummary
+  const vaultAddedUpCost = addUpModelTokenUsageCosts(vaultModelTokenUsageTallies)
+  const inlineEditsAddedUpCost = addUpModelTokenUsageCosts(inlineEditModelTokenUsageTallies)
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-3 py-3">
       <section aria-label="This vault">
@@ -142,6 +218,12 @@ export function PapelizAssistantUsageView() {
             isUsageTotalEstimated={vaultTokenUsageTally.isAssistantTokenCountEstimated}
           />
           <PapelizUsageViewTotalRow usageTotalLabel="Requests" usageTotalCount={vaultTokenUsageTally.assistantRequestCount} isUsageTotalEstimated={false} />
+          <div className="flex items-baseline justify-between gap-3 px-2 py-1 text-sm">
+            <dt className="text-papeliz-ink-muted">Cost</dt>
+            <dd className="font-semibold tabular-nums">
+              {vaultAddedUpCost === null ? <span className="font-normal text-papeliz-ink-subtle">No prices yet</span> : describeAddedUpCost(vaultAddedUpCost)}
+            </dd>
+          </div>
         </dl>
       </section>
 
@@ -149,10 +231,7 @@ export function PapelizAssistantUsageView() {
         <PapelizUsageViewSectionHeading>By model</PapelizUsageViewSectionHeading>
         <ul className="flex flex-col">
           {vaultModelTokenUsageTallies.map((modelTokenUsageTally) => (
-            <li key={modelTokenUsageTally.providerModelName} className="px-2 py-1.5">
-              <span className="block truncate text-sm font-medium">{modelTokenUsageTally.providerModelName}</span>
-              <span className="block text-xs text-papeliz-ink-subtle tabular-nums">{describeAssistantTokenUsageTally(modelTokenUsageTally, true)}</span>
-            </li>
+            <PapelizUsageViewModelRow key={modelTokenUsageTally.providerModelName} modelTokenUsageTally={modelTokenUsageTally} />
           ))}
         </ul>
       </section>
@@ -163,6 +242,7 @@ export function PapelizAssistantUsageView() {
         <ul className="flex flex-col gap-px">
           {assistantUsageViewSessionRowsWithTokenUsage.map((assistantUsageViewSessionRow) => {
             const chatSessionUpdatedAtLabel = formatChatSessionUpdatedAt(assistantUsageViewSessionRow.chatSessionUpdatedAt)
+            const chatSessionAddedUpCost = addUpModelTokenUsageCosts(assistantUsageViewSessionRow.chatSessionTokenUsage.chatSessionModelTokenUsageTallies)
             return (
               <li key={assistantUsageViewSessionRow.chatSessionVaultNoteRelativePath}>
                 <button
@@ -182,6 +262,7 @@ export function PapelizAssistantUsageView() {
                     <span className="block text-xs text-papeliz-ink-subtle tabular-nums">
                       {chatSessionUpdatedAtLabel.length > 0 && `${chatSessionUpdatedAtLabel} · `}
                       {describeAssistantTokenUsageTally(assistantUsageViewSessionRow.chatSessionTokenUsage.chatSessionTokenUsageTally, chatSessionUpdatedAtLabel.length === 0)}
+                      {chatSessionAddedUpCost !== null && ` · ${describeAddedUpCost(chatSessionAddedUpCost)}`}
                     </span>
                   </span>
                 </button>
@@ -195,7 +276,10 @@ export function PapelizAssistantUsageView() {
       {inlineEditsTokenUsageTally.assistantRequestCount > 0 && (
         <section aria-label="Inline edits">
           <PapelizUsageViewSectionHeading>Inline edits</PapelizUsageViewSectionHeading>
-          <p className="px-2 py-1 text-sm text-papeliz-ink-muted tabular-nums">{describeAssistantTokenUsageTally(inlineEditsTokenUsageTally, true)}</p>
+          <p className="px-2 py-1 text-sm text-papeliz-ink-muted tabular-nums">
+            {describeAssistantTokenUsageTally(inlineEditsTokenUsageTally, true)}
+            {inlineEditsAddedUpCost !== null && ` · ${describeAddedUpCost(inlineEditsAddedUpCost)}`}
+          </p>
         </section>
       )}
 

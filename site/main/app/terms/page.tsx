@@ -4,7 +4,7 @@ import { papelizSiteCopyrightHolder } from '@/lib/papeliz-site-config'
 import { createPapelizSitePageMetadata } from '@/lib/papeliz-site-seo'
 
 export const metadata = createPapelizSitePageMetadata({
-  papelizSitePageTitle: 'Terms',
+  papelizSitePageTitle: 'Terms of Service',
   papelizSitePageDescription: 'The terms for using the Papeliz website and app: free, open source, provided as is, with your own AI provider.',
   papelizSitePagePath: '/terms/',
 })
@@ -12,13 +12,9 @@ export const metadata = createPapelizSitePageMetadata({
 export default function PapelizSiteTermsPage() {
   return (
     <PapelizLegalDocument
-      papelizLegalDocumentHeading="Terms of use"
-      papelizLegalDocumentLead={
-        <p>
-          These terms cover the Papeliz website and the Papeliz web app. They are written in plain
-          language. This is a draft and will be finalized before launch.
-        </p>
-      }
+      papelizLegalDocumentPath="/terms/"
+      papelizLegalDocumentTitle="Terms of Service"
+      papelizLegalDocumentSummary="The terms for using the Papeliz website and the Papeliz web app, in plain language. This is a draft and will be finalized before launch."
     >
       <PapelizLegalDocumentSection papelizLegalSectionTitle="Free and open source">
         <p>

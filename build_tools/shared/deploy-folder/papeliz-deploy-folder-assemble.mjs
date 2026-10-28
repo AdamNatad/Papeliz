@@ -2,7 +2,7 @@
 // Assembles the deploy folder: one static folder for one domain.
 //
 //   deploy/        the website's export (site/main/out), served at /
-//   deploy/app/    the webapp's build (app/web/dist), served at /app/
+//   deploy/app/    the webapp's build (app/web/dist/app), served at /app/
 //   deploy/help/   the help site's export (site/help/out), served at /help/
 //
 // Run the builds first; the root `deploy:assemble` script runs them, then this. A deploy folder
@@ -25,7 +25,7 @@ const deployFolderDirectory = path.join(papelizRepositoryRoot, 'deploy')
 const papelizDeployFolderNestedBuilds = [
   {
     nestedBuildTitle: 'webapp',
-    nestedBuildDirectory: path.join(papelizRepositoryRoot, 'app', 'web', 'dist'),
+    nestedBuildDirectory: path.join(papelizRepositoryRoot, 'app', 'web', 'dist', 'app'),
     nestedBuildDeployPathSegment: 'app',
     nestedBuildAssetPathPrefix: '/app/assets/',
     nestedBuildRootScript: 'webapp:build',

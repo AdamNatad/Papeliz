@@ -34,8 +34,8 @@ export function PapelizSiteFooter() {
               <span className="text-2xl leading-none font-semibold tracking-[-0.01em]">Papeliz</span>
             </div>
 
-            <p className="mt-3 max-w-md text-sm leading-relaxed text-white/90">
-              A Markdown editor and viewer with an assistant on your own key. Free and open source.
+            <p className="mt-3 max-w-md text-sm leading-relaxed text-pretty text-white/90">
+              A free and open-source Markdown editor and viewer with a built-in AI assistant.
             </p>
 
             <div className="mt-5 flex flex-wrap items-center gap-3">

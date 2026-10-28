@@ -16,9 +16,13 @@ export interface PapelizChatToolCall {
   function: { name: string; arguments: string }
 }
 
+// A part of a user message that carries more than text: the text, or a picture as a URL (a `data:`
+// URL for one the user added).
+export type PapelizChatUserContentPart = { type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } }
+
 export type PapelizChatMessage =
   | { role: 'system'; content: string }
-  | { role: 'user'; content: string }
+  | { role: 'user'; content: string | PapelizChatUserContentPart[] }
   | { role: 'assistant'; content: string | null; tool_calls?: PapelizChatToolCall[] }
   | { role: 'tool'; tool_call_id: string; content: string }
 
@@ -39,6 +43,10 @@ export interface PapelizChatCompletionResult {
   assistantToolCalls: PapelizChatToolCall[]
   completionFinishReason: string | null
   completionTokenUsage: PapelizChatCompletionTokenUsage
+  // What the request cost in US dollars, when the provider says so itself (OpenRouter does).
+  completionProviderReportedCostUsd: number | null
+  // True when the server refused `reasoning_effort` and the request was sent again without it.
+  isReasoningEffortRefused: boolean
 }
 
 export class PapelizAssistantProviderError extends Error {
@@ -60,6 +68,8 @@ interface PapelizChatCompletionRequest {
   abortSignal?: AbortSignal
   onAssistantTextDelta?: (assistantTextDelta: string) => void
   maximumCompletionTokens?: number
+  // Sent as `reasoning_effort` to models that think before they answer.
+  reasoningEffort?: 'low' | 'medium' | 'high'
   fetchFunction?: PapelizFetchFunction
 }
 
@@ -137,6 +147,8 @@ interface PapelizProviderReportedTokenUsage {
   prompt_tokens?: unknown
   completion_tokens?: unknown
   total_tokens?: unknown
+  // OpenRouter's charge for the request, in US dollars.
+  cost?: unknown
 }
 
 interface PapelizStreamedChunk {
@@ -148,8 +160,10 @@ interface PapelizStreamedChunk {
   usage?: PapelizProviderReportedTokenUsage | null
 }
 
-// Where the provider gives no count: about four characters a token, over what was sent and received.
+// Where the provider gives no count: about four characters a token, over what was sent and received,
+// and a picture about a thousand tokens whatever its size.
 const papelizEstimatedCharactersPerToken = 4
+const papelizEstimatedTokensPerImage = 1000
 
 interface PapelizChatCompletionTokenUsageEstimateRequest {
   sentChatMessages: readonly PapelizChatMessage[]
@@ -160,7 +174,16 @@ interface PapelizChatCompletionTokenUsageEstimateRequest {
 
 export function estimatePapelizChatCompletionTokenUsage(tokenUsageEstimateRequest: PapelizChatCompletionTokenUsageEstimateRequest): PapelizChatCompletionTokenUsage {
   const sentChatTools = tokenUsageEstimateRequest.sentChatTools ?? []
-  const sentCharacterCount = JSON.stringify(tokenUsageEstimateRequest.sentChatMessages).length + (sentChatTools.length > 0 ? JSON.stringify(sentChatTools).length : 0)
+  let sentImageCount = 0
+  // A picture's data says nothing of its tokens, so it is counted as pictures, not characters.
+  const sentMessagesText = JSON.stringify(tokenUsageEstimateRequest.sentChatMessages, (messageFieldName, messageFieldValue: unknown) => {
+    if (messageFieldName === 'image_url') {
+      sentImageCount += 1
+      return ''
+    }
+    return messageFieldValue
+  })
+  const sentCharacterCount = sentMessagesText.length + (sentChatTools.length > 0 ? JSON.stringify(sentChatTools).length : 0)
   const receivedCharacterCount =
     tokenUsageEstimateRequest.receivedAssistantText.length +
     (tokenUsageEstimateRequest.receivedToolCalls ?? []).reduce(
@@ -168,7 +191,7 @@ export function estimatePapelizChatCompletionTokenUsage(tokenUsageEstimateReques
       0,
     )
   return {
-    completionInputTokenCount: Math.ceil(sentCharacterCount / papelizEstimatedCharactersPerToken),
+    completionInputTokenCount: Math.ceil(sentCharacterCount / papelizEstimatedCharactersPerToken) + sentImageCount * papelizEstimatedTokensPerImage,
     completionOutputTokenCount: Math.ceil(receivedCharacterCount / papelizEstimatedCharactersPerToken),
     isCompletionTokenUsageEstimated: true,
   }
@@ -209,15 +232,18 @@ function readProviderBaseUrlKey(providerBaseUrl: string): string {
   return providerBaseUrl.trim().replace(/\/+$/, '').toLowerCase()
 }
 
-// A server that does not know `stream_options` says so with a 400 (or a 422 from a strict schema)
+// A server that does not know an optional field says so with a 400 (or a 422 from a strict schema)
 // whose message names it.
-function isStreamUsageOptionRejection(providerRequestError: unknown): boolean {
+function isOptionalRequestFieldRejection(providerRequestError: unknown, rejectedFieldPattern: RegExp): boolean {
   return (
     providerRequestError instanceof PapelizAssistantProviderError &&
     (providerRequestError.providerHttpStatus === 400 || providerRequestError.providerHttpStatus === 422) &&
-    /stream_options|include_usage/i.test(providerRequestError.message)
+    rejectedFieldPattern.test(providerRequestError.message)
   )
 }
+
+const papelizStreamUsageOptionFieldPattern = /stream_options|include_usage/i
+const papelizReasoningEffortFieldPattern = /reasoning_effort|reasoning effort|reasoning/i
 
 // Streams one chat completion. Text arrives through `onAssistantTextDelta` as it is written; tool
 // calls arrive in pieces and are put back together before they are returned.
@@ -236,28 +262,45 @@ export async function streamPapelizChatCompletion(chatCompletionRequest: Papeliz
 
   // The token counts come on the last chunk only when asked for.
   const providerBaseUrlKey = readProviderBaseUrlKey(chatCompletionRequest.providerConnection.providerBaseUrl)
-  const isStreamUsageOptionSent = !papelizProviderBaseUrlsRejectingStreamUsageOption.has(providerBaseUrlKey)
-  const sendChatCompletionRequest = (shouldSendStreamUsageOption: boolean) =>
+  let shouldSendStreamUsageOption = !papelizProviderBaseUrlsRejectingStreamUsageOption.has(providerBaseUrlKey)
+  let shouldSendReasoningEffort = chatCompletionRequest.reasoningEffort !== undefined
+  let isReasoningEffortRefused = false
+  const sendChatCompletionRequest = () =>
     sendProviderRequest(
       chatCompletionRequest.providerConnection,
       'chat/completions',
       {
         method: 'POST',
         headers: buildProviderHeaders(chatCompletionRequest.providerConnection),
-        body: JSON.stringify(shouldSendStreamUsageOption ? { ...requestBody, stream_options: { include_usage: true } } : requestBody),
+        body: JSON.stringify({
+          ...requestBody,
+          ...(shouldSendStreamUsageOption ? { stream_options: { include_usage: true } } : {}),
+          ...(shouldSendReasoningEffort ? { reasoning_effort: chatCompletionRequest.reasoningEffort } : {}),
+        }),
         signal: chatCompletionRequest.abortSignal ?? null,
       },
       fetchFunction,
     )
-  let providerResponse: Response
-  try {
-    providerResponse = await sendChatCompletionRequest(isStreamUsageOptionSent)
-  } catch (providerRequestError) {
-    if (!isStreamUsageOptionSent || !isStreamUsageOptionRejection(providerRequestError)) throw providerRequestError
-    // This server refuses `stream_options`: ask once more without it, and leave it out from now on.
-    // Its usage is then estimated, unless it sends counts anyway.
-    papelizProviderBaseUrlsRejectingStreamUsageOption.add(providerBaseUrlKey)
-    providerResponse = await sendChatCompletionRequest(false)
+  // A server that refuses `stream_options` or `reasoning_effort` is asked once more without it.
+  // `stream_options` is then left out for that server from now on, and its usage is estimated unless
+  // it sends counts anyway; the caller hears that the effort was refused, to stop sending it.
+  let providerResponse: Response | null = null
+  while (providerResponse === null) {
+    try {
+      providerResponse = await sendChatCompletionRequest()
+    } catch (providerRequestError) {
+      if (shouldSendStreamUsageOption && isOptionalRequestFieldRejection(providerRequestError, papelizStreamUsageOptionFieldPattern)) {
+        papelizProviderBaseUrlsRejectingStreamUsageOption.add(providerBaseUrlKey)
+        shouldSendStreamUsageOption = false
+        continue
+      }
+      if (shouldSendReasoningEffort && isOptionalRequestFieldRejection(providerRequestError, papelizReasoningEffortFieldPattern)) {
+        shouldSendReasoningEffort = false
+        isReasoningEffortRefused = true
+        continue
+      }
+      throw providerRequestError
+    }
   }
 
   let assistantText = ''
@@ -323,10 +366,15 @@ export async function streamPapelizChatCompletion(chatCompletionRequest: Papeliz
   const assistantToolCalls = [...toolCallsByIndex.entries()]
     .sort(([firstIndex], [secondIndex]) => firstIndex - secondIndex)
     .map(([toolCallIndex, assembledToolCall]) => ({ ...assembledToolCall, id: assembledToolCall.id || `papeliz-tool-call-${toolCallIndex}` }))
+  // Set inside `takeChunk`, which the type checker cannot follow.
+  const settledReportedTokenUsage = reportedTokenUsage as PapelizProviderReportedTokenUsage | null
+  const reportedCost = settledReportedTokenUsage?.cost
   return {
     assistantText,
     assistantToolCalls,
     completionFinishReason,
+    completionProviderReportedCostUsd: typeof reportedCost === 'number' && Number.isFinite(reportedCost) && reportedCost >= 0 ? reportedCost : null,
+    isReasoningEffortRefused,
     completionTokenUsage: settleChatCompletionTokenUsage(reportedTokenUsage, () =>
       estimatePapelizChatCompletionTokenUsage({
         sentChatMessages: chatCompletionRequest.chatMessages,

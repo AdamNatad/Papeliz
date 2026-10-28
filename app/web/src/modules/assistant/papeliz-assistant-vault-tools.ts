@@ -12,19 +12,28 @@ import { getPapelizVaultSearchClient, readLatestPapelizVaultNoteText, usePapeliz
 import { usePapelizWorkspaceStore } from '../workspace/papeliz-workspace-store'
 import type { PapelizChatToolCall, PapelizChatToolDefinition } from './papeliz-openai-compatible-client'
 import { isPapelizChatSessionNotePath } from './papeliz-assistant-chat-session-files'
+import {
+  findPapelizAssistantVaultEntryTrashProblem,
+  keepOutermostPapelizVaultEntries,
+  listPapelizAssistantWholeVaultTrashEntries,
+} from './papeliz-assistant-vault-entry-trash'
 import { applyPapelizVaultNoteTextEdits, type PapelizVaultNoteTextEdit } from './papeliz-vault-note-text-edits'
 
-// The tools the assistant can call. Four only look; two propose. A proposal changes nothing: it
-// becomes a diff card the user accepts or rejects (papeliz-assistant-conversation-store.ts).
+// The tools the assistant can call. Four only look; three propose. A proposal changes nothing: it
+// becomes a card the user accepts or rejects (papeliz-assistant-conversation-store.ts), unless the
+// user turned on Bypass permission, when it applies at once.
 
 export interface PapelizAssistantProposalDraft {
-  assistantProposalKind: 'edit-note' | 'create-note'
+  assistantProposalKind: 'edit-note' | 'create-note' | 'trash-entries'
+  // The note an edit or a new note is for; for 'trash-entries', the first entry.
   vaultNoteRelativePath: string
   proposalReason: string
   vaultNoteTextEdits: PapelizVaultNoteTextEdit[]
   newVaultNoteText: string
   // The note as it was when proposed, for the diff.
   originalVaultNoteText: string
+  // For 'trash-entries': the notes and folders to move into `.trash`.
+  trashedVaultEntryRelativePaths: string[]
 }
 
 export type PapelizAssistantToolActivityKind = 'searched' | 'read' | 'listed-links' | 'listed-notes' | 'proposed' | 'failed'
@@ -128,6 +137,27 @@ export const papelizAssistantVaultToolDefinitions: PapelizChatToolDefinition[] =
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'proposeVaultEntriesTrash',
+      description:
+        'Propose deleting notes or folders: they move into the vault’s .trash folder, where the user can restore them; nothing is erased. Give their paths, or wholeVault true for everything in the vault. Saved chats (.csessions), hidden folders and locked notes are never moved, and are reported back as skipped.',
+      parameters: {
+        type: 'object',
+        properties: {
+          vaultEntryRelativePaths: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Notes ("Ideas/Compost.md") or folders ("Ideas") to move to the trash.',
+          },
+          wholeVault: { type: 'boolean', description: 'True to move everything in the vault to the trash.' },
+          reason: { type: 'string', description: 'One short sentence the user sees: why delete these.' },
+        },
+        required: ['reason'],
+      },
+    },
+  },
 ]
 
 function readToolArguments(toolCall: PapelizChatToolCall): Record<string, unknown> {
@@ -160,6 +190,19 @@ function resolveToolVaultNoteRelativePath(typedVaultNoteRelativePath: string): s
   const cleanedVaultNoteRelativePath = typedVaultNoteRelativePath.trim().replace(/^\[\[|\]\]$/g, '')
   if (vaultNoteRelativePaths.includes(cleanedVaultNoteRelativePath)) return cleanedVaultNoteRelativePath
   return createPapelizWikilinkTargetResolver(vaultNoteRelativePaths)(cleanedVaultNoteRelativePath, null)
+}
+
+// Accepts a note or folder path as listed (with or without a trailing "/" or ".md"), or a note's name,
+// and finds the vault entry it means.
+function resolveToolVaultEntryRelativePath(typedVaultEntryRelativePath: string, vaultEntryRelativePaths: readonly string[]): string | null {
+  const cleanedVaultEntryRelativePath = typedVaultEntryRelativePath.trim().replace(/^\/+|\/+$/g, '')
+  const lowerCaseVaultEntryRelativePath = cleanedVaultEntryRelativePath.toLowerCase()
+  const listedVaultEntryRelativePath = vaultEntryRelativePaths.find(
+    (vaultEntryRelativePath) =>
+      vaultEntryRelativePath.toLowerCase() === lowerCaseVaultEntryRelativePath ||
+      vaultEntryRelativePath.toLowerCase() === `${lowerCaseVaultEntryRelativePath}${papelizVaultNoteFileExtension}`,
+  )
+  return listedVaultEntryRelativePath ?? resolveToolVaultNoteRelativePath(cleanedVaultEntryRelativePath)
 }
 
 export async function executePapelizAssistantVaultTool(toolCall: PapelizChatToolCall): Promise<PapelizAssistantToolOutcome> {
@@ -269,6 +312,7 @@ export async function executePapelizAssistantVaultTool(toolCall: PapelizChatTool
             vaultNoteTextEdits,
             newVaultNoteText: vaultNoteTextEditsResult.editedVaultNoteText,
             originalVaultNoteText,
+            trashedVaultEntryRelativePaths: [],
           },
         }
       } catch (vaultReadError) {
@@ -300,6 +344,56 @@ export async function executePapelizAssistantVaultTool(toolCall: PapelizChatTool
           vaultNoteTextEdits: [],
           newVaultNoteText: readStringArgument(toolArguments, 'noteText'),
           originalVaultNoteText: '',
+          trashedVaultEntryRelativePaths: [],
+        },
+      }
+    }
+    case 'proposeVaultEntriesTrash': {
+      const { vaultTreeEntries, isWholeVaultEditingLocked, lockedVaultEntryRelativePaths } = usePapelizWorkspaceStore.getState()
+      const vaultEntryRelativePaths = vaultTreeEntries.map((vaultTreeEntry) => vaultTreeEntry.vaultEntryRelativePath)
+      const typedVaultEntryRelativePaths = (Array.isArray(toolArguments['vaultEntryRelativePaths']) ? toolArguments['vaultEntryRelativePaths'] : []).filter(
+        (typedVaultEntryRelativePath): typedVaultEntryRelativePath is string => typeof typedVaultEntryRelativePath === 'string',
+      )
+      const skippedVaultEntries: Array<{ vaultEntryRelativePath: string; skippedBecause: string }> = []
+      const requestedVaultEntryRelativePaths: string[] =
+        toolArguments['wholeVault'] === true ? listPapelizAssistantWholeVaultTrashEntries(vaultEntryRelativePaths, isWholeVaultEditingLocked, lockedVaultEntryRelativePaths) : []
+      for (const typedVaultEntryRelativePath of typedVaultEntryRelativePaths) {
+        const resolvedVaultEntryRelativePath = resolveToolVaultEntryRelativePath(typedVaultEntryRelativePath, vaultEntryRelativePaths)
+        if (resolvedVaultEntryRelativePath === null) {
+          skippedVaultEntries.push({ vaultEntryRelativePath: typedVaultEntryRelativePath, skippedBecause: 'Not In Vault' })
+          continue
+        }
+        const vaultEntryTrashProblem = findPapelizAssistantVaultEntryTrashProblem(resolvedVaultEntryRelativePath, isWholeVaultEditingLocked, lockedVaultEntryRelativePaths)
+        if (vaultEntryTrashProblem === null) requestedVaultEntryRelativePaths.push(resolvedVaultEntryRelativePath)
+        else skippedVaultEntries.push({ vaultEntryRelativePath: resolvedVaultEntryRelativePath, skippedBecause: vaultEntryTrashProblem })
+      }
+      const trashedVaultEntryRelativePaths = keepOutermostPapelizVaultEntries(requestedVaultEntryRelativePaths)
+      if (trashedVaultEntryRelativePaths.length === 0) {
+        return failedToolOutcome(
+          'Propose deleting',
+          skippedVaultEntries.length > 0
+            ? `Nothing may be moved: ${skippedVaultEntries.map((skippedVaultEntry) => `${skippedVaultEntry.vaultEntryRelativePath} (${skippedVaultEntry.skippedBecause})`).join(', ')}`
+            : 'Name the notes or folders to delete.',
+        )
+      }
+      return {
+        toolResultText: JSON.stringify({
+          proposed: true,
+          vaultEntryRelativePaths: trashedVaultEntryRelativePaths,
+          skipped: skippedVaultEntries,
+          note: 'The user will decide. Accepted entries move into the vault’s .trash folder; nothing is erased.',
+        }),
+        toolActivityKind: 'proposed',
+        toolActivityLabel: 'Proposed deleting',
+        toolActivityVaultNoteRelativePaths: trashedVaultEntryRelativePaths.filter(isVaultNoteFileName),
+        proposalDraft: {
+          assistantProposalKind: 'trash-entries',
+          vaultNoteRelativePath: trashedVaultEntryRelativePaths[0] ?? '',
+          proposalReason: readStringArgument(toolArguments, 'reason'),
+          vaultNoteTextEdits: [],
+          newVaultNoteText: '',
+          originalVaultNoteText: '',
+          trashedVaultEntryRelativePaths,
         },
       }
     }
