@@ -19,9 +19,12 @@ export const papelizSiteAppUrl: string | null = '/app/'
 // The header's Use App menu: Download and My Account show "Coming soon" until these are set.
 export const papelizSiteDownloadUrl: string | null = null
 export const papelizSiteAccountUrl: string | null = null
-export const papelizSiteGitHubRepositoryUrl: string | null = null
-// GitHub's Discussions and Issues for the repository, once it exists.
-export const papelizSiteGitHubDiscussionsUrl: string | null = papelizSiteGitHubRepositoryUrl ? `${papelizSiteGitHubRepositoryUrl}/discussions` : null
+export const papelizSiteGitHubRepositoryUrl: string | null = 'https://github.com/AdamNatad/Papeliz'
+// GitHub's Discussions and Issues for the repository. Discussions are turned off on the repository
+// for now, so their link shows "Coming soon" until they are turned on.
+const isPapelizSiteGitHubDiscussionsOn = false
+export const papelizSiteGitHubDiscussionsUrl: string | null =
+  papelizSiteGitHubRepositoryUrl && isPapelizSiteGitHubDiscussionsOn ? `${papelizSiteGitHubRepositoryUrl}/discussions` : null
 export const papelizSiteGitHubIssuesUrl: string | null = papelizSiteGitHubRepositoryUrl ? `${papelizSiteGitHubRepositoryUrl}/issues` : null
 // The Discord server's invite address, for the Community page.
 export const papelizSiteDiscordUrl: string | null = null
