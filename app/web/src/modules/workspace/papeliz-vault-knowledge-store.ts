@@ -12,11 +12,15 @@ import { usePapelizWorkspaceStore } from './papeliz-workspace-store'
 interface PapelizVaultKnowledgeState {
   vaultNoteIndexEntriesByRelativePath: Record<string, PapelizVaultNoteIndexEntry>
   vaultKnowledgeBuildState: 'idle' | 'building' | 'ready'
+  // Goes up each time the search index changes (a note typed in, added or removed, a vault opened),
+  // once per change or batch, so a search on screen runs again instead of showing old results.
+  vaultSearchIndexVersion: number
 }
 
 export const usePapelizVaultKnowledgeStore = create<PapelizVaultKnowledgeState>()(() => ({
   vaultNoteIndexEntriesByRelativePath: {},
   vaultKnowledgeBuildState: 'idle',
+  vaultSearchIndexVersion: 0,
 }))
 
 const papelizDraftReindexDelayMilliseconds = 400
@@ -42,12 +46,15 @@ export function startPapelizVaultKnowledgeSync(): () => void {
   const draftReindexTimersByRelativePath = new Map<string, ReturnType<typeof setTimeout>>()
   const papelizSearchClient = getPapelizVaultSearchClient()
 
-  const indexVaultNote = (vaultNoteRelativePath: string, vaultNoteText: string) => {
+  // The note goes to the search index before the version goes up, so a search that the new version
+  // starts is answered after the note is in. A batch announces the change once, at its end.
+  const indexVaultNote = (vaultNoteRelativePath: string, vaultNoteText: string, shouldAnnounceSearchIndexChange: boolean) => {
     const vaultNoteIndexEntry = readPapelizVaultNoteIndexEntry(vaultNoteRelativePath, vaultNoteText)
+    papelizSearchClient.upsertVaultSearchNote({ vaultNoteRelativePath, vaultNoteTitle: getVaultNoteTitle(vaultNoteRelativePath), vaultNoteText })
     usePapelizVaultKnowledgeStore.setState((knowledgeState) => ({
       vaultNoteIndexEntriesByRelativePath: { ...knowledgeState.vaultNoteIndexEntriesByRelativePath, [vaultNoteRelativePath]: vaultNoteIndexEntry },
+      ...(shouldAnnounceSearchIndexChange ? { vaultSearchIndexVersion: knowledgeState.vaultSearchIndexVersion + 1 } : {}),
     }))
-    papelizSearchClient.upsertVaultSearchNote({ vaultNoteRelativePath, vaultNoteTitle: getVaultNoteTitle(vaultNoteRelativePath), vaultNoteText })
   }
 
   const syncVaultNotePaths = async () => {
@@ -57,7 +64,11 @@ export function startPapelizVaultKnowledgeSync(): () => void {
       syncedOpenVault = openVault
       knownVaultNoteRelativePaths = new Set()
       papelizSearchClient.replaceAllVaultSearchNotes([])
-      usePapelizVaultKnowledgeStore.setState({ vaultNoteIndexEntriesByRelativePath: {}, vaultKnowledgeBuildState: openVault === null ? 'idle' : 'building' })
+      usePapelizVaultKnowledgeStore.setState((knowledgeState) => ({
+        vaultNoteIndexEntriesByRelativePath: {},
+        vaultKnowledgeBuildState: openVault === null ? 'idle' : 'building',
+        vaultSearchIndexVersion: knowledgeState.vaultSearchIndexVersion + 1,
+      }))
     }
     if (openVault === null || workspaceState.vaultTreeLoadState !== 'loaded') return
 
@@ -80,12 +91,16 @@ export function startPapelizVaultKnowledgeSync(): () => void {
       try {
         const vaultNoteText = await readLatestPapelizVaultNoteText(openVault, addedVaultNoteRelativePath)
         if (usePapelizWorkspaceStore.getState().openVault !== openVault) return
-        indexVaultNote(addedVaultNoteRelativePath, vaultNoteText)
+        indexVaultNote(addedVaultNoteRelativePath, vaultNoteText, false)
       } catch {
         // A note that can't be read now is indexed when it is next opened or saved.
       }
     }
-    usePapelizVaultKnowledgeStore.setState({ vaultKnowledgeBuildState: 'ready' })
+    const hasSearchIndexChanged = removedVaultNoteRelativePaths.length > 0 || addedVaultNoteRelativePaths.length > 0
+    usePapelizVaultKnowledgeStore.setState((knowledgeState) => ({
+      vaultKnowledgeBuildState: 'ready',
+      ...(hasSearchIndexChanged ? { vaultSearchIndexVersion: knowledgeState.vaultSearchIndexVersion + 1 } : {}),
+    }))
   }
 
   const queueVaultNotePathSync = () => {
@@ -112,7 +127,7 @@ export function startPapelizVaultKnowledgeSync(): () => void {
           draftReindexTimersByRelativePath.delete(vaultNoteRelativePath)
           const latestLoadedVaultNote = usePapelizWorkspaceStore.getState().loadedVaultNotesByRelativePath[vaultNoteRelativePath]
           if (latestLoadedVaultNote?.noteLoadState === 'loaded' && knownVaultNoteRelativePaths.has(vaultNoteRelativePath)) {
-            indexVaultNote(vaultNoteRelativePath, latestLoadedVaultNote.draftVaultNoteText)
+            indexVaultNote(vaultNoteRelativePath, latestLoadedVaultNote.draftVaultNoteText, true)
           }
         }, papelizDraftReindexDelayMilliseconds),
       )

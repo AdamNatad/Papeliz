@@ -35,7 +35,7 @@ import {
   isVaultRelativePathHidden,
   papelizVaultRootFolderRelativePath,
 } from '../vault/papeliz-vault-relative-paths'
-import { getPapelizVaultSearchClient } from './papeliz-vault-knowledge-store'
+import { getPapelizVaultSearchClient, usePapelizVaultKnowledgeStore } from './papeliz-vault-knowledge-store'
 import { listVaultFolderEntryNamesInOrder, sortVaultFolderEntries, type PapelizVaultEntryOrder, type PapelizVaultEntryPlacement } from './papeliz-vault-entry-order'
 import { PapelizWorkspaceEyePreviewerSlot } from './papeliz-workspace-eye-previewer-slot'
 import { PapelizVaultEntryLookPanel } from './papeliz-vault-entry-look-panel'
@@ -175,9 +175,12 @@ export function PapelizFileExplorer({ fileListFootSection }: PapelizFileExplorer
     )
   }, [noteNameFilterText, vaultTreeEntries])
   const [noteTextSearchResults, setNoteTextSearchResults] = useState<PapelizVaultSearchResult[]>([])
+  const vaultSearchIndexVersion = usePapelizVaultKnowledgeStore((knowledgeState) => knowledgeState.vaultSearchIndexVersion)
 
   useEffect(() => {
-    // Full-text search runs a moment after typing stops; notes already matched by name are left out.
+    // Full-text search runs a moment after typing stops, and again when the index changes (a note
+    // edited, added or removed), so results never show text a note no longer has. A newer run
+    // cancels the older one's timer and drops its answer. Notes already matched by name are left out.
     const searchQueryText = noteNameFilterText.trim()
     if (searchQueryText.length < 2) return
     let isSearchStillWanted = true
@@ -192,7 +195,7 @@ export function PapelizFileExplorer({ fileListFootSection }: PapelizFileExplorer
       isSearchStillWanted = false
       clearTimeout(searchTimer)
     }
-  }, [noteNameFilterText])
+  }, [noteNameFilterText, vaultSearchIndexVersion])
 
   // The open note's highlight: one pill behind the rows that glides to the note opened next. When
   // the note's own row moves (a folder above sliding open or shut, the panel resized) the pill

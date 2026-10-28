@@ -22,6 +22,9 @@ export const papelizSiteChangelogEntries: PapelizSiteChangelogEntry[] = [
       'The same note open in two tabs or apps: changes are combined on save, and a clash asks what to keep.',
       'Unsaved typing is kept in the browser, so a closed tab doesn’t lose it.',
       'Color and icon for any note or folder in the file list.',
+      'Search results update when you edit a note, instead of showing text the note no longer has.',
+      'Bigger buttons on touch screens: a tab’s lock and close, and New note.',
+      'The sample vault is marked Temporary, and its notes read “Kept until reload”.',
     ],
   },
   {

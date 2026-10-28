@@ -292,9 +292,9 @@ export function PapelizNoteTabsBar() {
       onClick={() =>
         void createVaultNoteInFolder(activeVaultNoteRelativePath === null ? '' : getVaultEntryParentFolderRelativePath(activeVaultNoteRelativePath))
       }
-      // A solid blue button with a white plus, so it is easy to see.
+      // A solid blue button with a white plus, so it is easy to see; larger on touch screens.
       className={joinPapelizClassNames(
-        'grid size-7 flex-none place-items-center rounded-md bg-papeliz-gradient-start text-white shadow-papeliz-card transition-[filter,transform] duration-150 hover:brightness-[1.12] active:scale-[.94]',
+        'grid size-7 flex-none place-items-center pointer-coarse:size-9 rounded-md bg-papeliz-gradient-start text-white shadow-papeliz-card transition-[filter,transform] duration-150 hover:brightness-[1.12] active:scale-[.94]',
         isNoteTabsStacked ? 'mx-0.5' : 'mx-1 mb-[3px] self-end',
       )}
     >
@@ -390,7 +390,8 @@ export function PapelizNoteTabsBar() {
                   title={noteTabLockTitle}
                   onClick={() => toggleVaultNoteTabLock(vaultNoteRelativePath)}
                   className={joinPapelizClassNames(
-                    'ml-1.5 grid size-5 flex-none place-items-center rounded-md transition-colors hover:bg-papeliz-press focus-visible:outline-offset-[-1px]',
+                    // 32 px on touch screens, so a finger finds it; the tab's title keeps its own width.
+                    'ml-1.5 grid size-5 flex-none place-items-center rounded-md transition-colors pointer-coarse:ml-0.5 pointer-coarse:size-8 hover:bg-papeliz-press focus-visible:outline-offset-[-1px]',
                     vaultNoteEditingLock !== null ? 'text-papeliz-blue' : 'text-papeliz-ink-subtle hover:text-papeliz-ink',
                   )}
                 >
@@ -419,7 +420,7 @@ export function PapelizNoteTabsBar() {
                     )}
                   </span>
                 </button>
-                <span className="relative mr-2 grid size-5 flex-none place-items-center">
+                <span className="relative mr-2 grid size-5 flex-none place-items-center pointer-coarse:mr-0.5 pointer-coarse:size-8">
                   {hasChangesOnTheirWay && (
                     <span
                       aria-label="Unsaved changes"
@@ -433,7 +434,7 @@ export function PapelizNoteTabsBar() {
                     title={`Close ${vaultNoteTabTitle}`}
                     onClick={() => void closeVaultNoteTab(vaultNoteRelativePath)}
                     className={joinPapelizClassNames(
-                      'grid size-5 place-items-center rounded-md text-papeliz-ink-subtle transition-[opacity,background-color,color] hover:bg-papeliz-press hover:text-papeliz-ink focus-visible:opacity-100',
+                      'grid size-5 place-items-center rounded-md text-papeliz-ink-subtle transition-[opacity,background-color,color] pointer-coarse:size-8 hover:bg-papeliz-press hover:text-papeliz-ink focus-visible:opacity-100',
                       isActiveTab && !hasChangesOnTheirWay ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100',
                     )}
                   >

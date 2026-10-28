@@ -31,7 +31,8 @@ function describeNoteSaveState(noteSaveState: PapelizNoteSaveState, isFolderOnDi
   if (noteSaveState === 'unsaved') return 'Unsaved changes'
   if (noteSaveState === 'save-failed') return 'Not saved'
   if (noteSaveState === 'save-conflict') return isVaultNoteDeletedElsewhere ? 'Moved or deleted elsewhere' : 'Changed elsewhere too'
-  return isFolderOnDisk ? 'Saved to disk' : 'Saved in this tab'
+  // The sample vault lives in memory: its notes last until the tab is reloaded or closed.
+  return isFolderOnDisk ? 'Saved to disk' : 'Kept until reload'
 }
 
 function describeVaultNoteEditingLock(vaultNoteEditingLock: PapelizVaultNoteEditingLock | null, vaultNoteRelativePath: string | null): string {
@@ -135,6 +136,15 @@ export function PapelizStatusBar() {
       >
         <FolderOpen className="size-[13px] flex-none opacity-80" aria-hidden="true" />
         <span className="truncate font-medium text-white">{openVault.papelizVaultDisplayName}</span>
+        {/* Always shown for the sample vault, so nobody mistakes it for storage that lasts. */}
+        {!isFolderOnDisk && (
+          <span
+            className="flex-none rounded-full bg-white/20 px-1.5 text-[11px] leading-[17px] font-semibold text-white"
+            title="The sample vault lives only in this tab. Reloading or closing the tab starts it fresh; open a folder to keep your notes."
+          >
+            Temporary
+          </span>
+        )}
         {activeVaultNoteRelativePath !== null && <span className="truncate text-white/70 max-sm:hidden">/ {activeVaultNoteRelativePath}</span>}
       </span>
       <span className="ml-auto flex flex-none items-center gap-4">
