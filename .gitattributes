@@ -1,0 +1,7 @@
+* text=auto
+
+# Shell scripts keep LF line endings on a Windows checkout.
+*.sh text eol=lf
+
+# Windows batch files need CRLF line endings.
+*.bat text eol=crlf

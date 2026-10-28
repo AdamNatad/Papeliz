@@ -1,0 +1,188 @@
+/* Text links on the Adam Natad page. As in the footer, an underline slides in from the left on hover or keyboard focus;
+   here it is drawn as a background so it also follows a link that wraps onto a second line. At rest there is no line
+   (Adam, 2026-10-28): the link's colour and weight set it apart from the text around it. */
+.adamNatadProfileInlineLink {
+  font-weight: 500;
+  text-decoration: none;
+  padding-bottom: 2px;
+  background-repeat: no-repeat;
+  background-position: 0 100%;
+  background-size: 0% 2px;
+  transition: background-size 300ms ease-out;
+}
+
+.adamNatadProfileInlineLink:hover,
+.adamNatadProfileInlineLink:focus-visible {
+  background-size: 100% 2px;
+}
+
+/* On the cards: Papeliz blue. */
+.adamNatadProfileInlineLinkOnCard {
+  color: var(--color-papeliz-blue);
+  background-image: linear-gradient(var(--color-papeliz-blue), var(--color-papeliz-blue));
+}
+
+/* A name highlighted in running text (the timeline's company names, Adam 2026-10-14): bold, in the text's ink. */
+.adamNatadProfileInlineLinkOnCardInk {
+  color: var(--color-papeliz-ink);
+  font-weight: 700;
+  background-image: linear-gradient(var(--color-papeliz-ink), var(--color-papeliz-ink));
+}
+
+/* On the Cloudflare-orange startup panel: white. */
+.adamNatadProfileInlineLinkOnCloudflareOrange {
+  color: #ffffff;
+  font-weight: 600;
+  background-image: linear-gradient(#ffffff, #ffffff);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .adamNatadProfileInlineLink {
+    transition: none;
+  }
+}
+
+/* The Personal Timeline (Adam, 2026-10-14: colourful and animated). A faint track with a green-to-violet gradient fill
+   that draws down as the reader scrolls (the page sets --adam-natad-profile-timeline-progress from 0 to 1), a glowing
+   tip at its end, and a dot per entry that lights up in its own colour (--adam-natad-profile-timeline-dot-color) with
+   one pulse when reached. Entries fade up as they come into view. With reduced motion everything shows filled, still. */
+.adamNatadProfileTimeline {
+  position: relative;
+  --adam-natad-profile-timeline-progress: 0;
+}
+
+.adamNatadProfileTimelineTrack {
+  position: absolute;
+  left: 0;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  border-radius: 9999px;
+  background: var(--color-papeliz-line);
+}
+
+.adamNatadProfileTimelineFill,
+.adamNatadProfileTimelineGlow {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  /* Green for life at the start, through teal, sky and indigo to violet (JS stops in client.tsx match). */
+  background: linear-gradient(to bottom, #22c55e 0%, #14b8a6 25%, #0ea5e9 50%, #6366f1 75%, #8b5cf6 100%);
+  clip-path: inset(0 0 calc((1 - var(--adam-natad-profile-timeline-progress)) * 100%) 0 round 9999px);
+}
+
+.adamNatadProfileTimelineFill {
+  left: 0;
+  right: 0;
+  border-radius: inherit;
+}
+
+/* A soft halo in the same colours behind the drawn part of the line. */
+.adamNatadProfileTimelineGlow {
+  left: -4px;
+  right: -4px;
+  border-radius: 9999px;
+  filter: blur(4px);
+  opacity: 0.45;
+}
+
+.adamNatadProfileTimelineTip {
+  position: absolute;
+  left: 50%;
+  top: calc(var(--adam-natad-profile-timeline-progress) * 100%);
+  width: 9px;
+  height: 9px;
+  border-radius: 9999px;
+  background: #ffffff;
+  transform: translate(-50%, -50%);
+  box-shadow:
+    0 0 0 3px var(--adam-natad-profile-timeline-tip-color, #22c55e),
+    0 0 14px 5px color-mix(in srgb, var(--adam-natad-profile-timeline-tip-color, #22c55e) 45%, transparent);
+  opacity: 0;
+  transition: opacity 300ms ease;
+}
+
+.adamNatadProfileTimeline[data-adam-natad-profile-timeline-drawing="true"] .adamNatadProfileTimelineTip {
+  opacity: 1;
+}
+
+.adamNatadProfileTimelineItem {
+  position: relative;
+  padding-left: 1.75rem;
+  padding-bottom: 1.75rem;
+}
+
+.adamNatadProfileTimelineItem:last-child {
+  padding-bottom: 0;
+}
+
+.adamNatadProfileTimelineDot {
+  position: absolute;
+  left: -4.5px;
+  top: 4px;
+  width: 12px;
+  height: 12px;
+  border-radius: 9999px;
+  background: var(--color-papeliz-line);
+  box-shadow: 0 0 0 4px var(--color-papeliz-surface-soft);
+  transform: scale(0.85);
+  transition:
+    background-color 400ms ease,
+    transform 450ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 400ms ease;
+}
+
+.adamNatadProfileTimelineDot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 2px solid var(--adam-natad-profile-timeline-dot-color);
+  opacity: 0;
+}
+
+.adamNatadProfileTimelineItem[data-adam-natad-profile-timeline-reached="true"] .adamNatadProfileTimelineDot {
+  background: var(--adam-natad-profile-timeline-dot-color);
+  transform: scale(1);
+  box-shadow:
+    0 0 0 4px var(--color-papeliz-surface-soft),
+    0 0 0 7px color-mix(in srgb, var(--adam-natad-profile-timeline-dot-color) 22%, transparent);
+}
+
+.adamNatadProfileTimelineItem[data-adam-natad-profile-timeline-reached="true"] .adamNatadProfileTimelineDot::after {
+  animation: adam-natad-profile-timeline-dot-pulse 900ms ease-out 1;
+}
+
+@keyframes adam-natad-profile-timeline-dot-pulse {
+  from {
+    transform: scale(1);
+    opacity: 0.75;
+  }
+  to {
+    transform: scale(2.8);
+    opacity: 0;
+  }
+}
+
+.adamNatadProfileTimelineItemBody {
+  transition:
+    opacity 550ms ease,
+    transform 550ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.adamNatadProfileTimelineItem[data-adam-natad-profile-timeline-revealed="false"] .adamNatadProfileTimelineItemBody {
+  opacity: 0;
+  transform: translateY(14px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .adamNatadProfileTimelineDot,
+  .adamNatadProfileTimelineItemBody,
+  .adamNatadProfileTimelineTip {
+    transition: none;
+  }
+
+  .adamNatadProfileTimelineItem[data-adam-natad-profile-timeline-reached="true"] .adamNatadProfileTimelineDot::after {
+    animation: none;
+  }
+}

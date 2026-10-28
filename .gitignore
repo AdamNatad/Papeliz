@@ -1,0 +1,53 @@
+# Dependencies and builds
+node_modules/
+dist/
+build/
+.next/
+out/
+next-env.d.ts
+.turbo/
+coverage/
+*.tsbuildinfo
+*.tgz
+/deploy/
+
+# Tool caches
+.cache/
+.vite/
+.eslintcache
+.wrangler/
+
+# Test reports
+playwright-report/
+test-results/
+blob-report/
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Environment and local secrets
+.env
+.env.*
+!.env.example
+.dev.vars
+.dev.vars.*
+*.pem
+
+# Scratch: keep only the folder's README and .gitkeep
+test_trash/*
+!test_trash/.gitkeep
+!test_trash/README.md
+
+# Editors and OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.swp
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# Agent-local settings
+.claude/settings.local.json

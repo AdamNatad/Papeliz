@@ -1,0 +1,6 @@
+packages:
+  - "app/*"
+  - "site/*"
+
+# Install only releases that are at least 7 days old (minutes).
+minimumReleaseAge: 10080

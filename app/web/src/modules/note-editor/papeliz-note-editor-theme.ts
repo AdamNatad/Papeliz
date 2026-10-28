@@ -1,0 +1,115 @@
+import { EditorView } from '@codemirror/view'
+
+// What MD Code and MD View share: cursor, selection, find and replace, the `[[` list. Every color
+// is a theme variable from papeliz-webapp.css, so light and dark follow the app's theme.
+export const papelizNoteEditorBaseTheme = EditorView.theme({
+  '&': {
+    color: 'var(--color-papeliz-ink)',
+    backgroundColor: 'transparent',
+  },
+  '&.cm-focused': { outline: 'none' },
+  '.cm-content': { caretColor: 'var(--color-papeliz-blue)' },
+  '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--color-papeliz-blue)', borderLeftWidth: '2px' },
+  '&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection': {
+    backgroundColor: 'var(--color-papeliz-selection)',
+  },
+  '.cm-placeholder': { color: 'var(--color-papeliz-ink-subtle)' },
+  '.cm-searchMatch': { backgroundColor: 'var(--color-papeliz-search-match)', borderRadius: '3px' },
+  '.cm-searchMatch.cm-searchMatch-selected': { backgroundColor: 'var(--color-papeliz-search-match-selected)' },
+  '.cm-selectionMatch': { backgroundColor: 'var(--color-papeliz-blue-soft)' },
+
+  // Find and replace (Ctrl+F): pill fields and buttons, as in the rest of Papeliz.
+  '.cm-panels': {
+    backgroundColor: 'var(--color-papeliz-surface)',
+    color: 'var(--color-papeliz-ink)',
+    fontFamily: 'var(--font-sans)',
+  },
+  '.cm-panels.cm-panels-top': { borderBottom: '1px solid var(--color-papeliz-line)' },
+  '.cm-search': {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: '6px',
+    padding: '10px 40px 10px 10px',
+    fontSize: '13px',
+    position: 'relative',
+  },
+  '.cm-search br': { display: 'none' },
+  '.cm-textfield': {
+    height: '30px',
+    padding: '0 12px',
+    margin: '0',
+    borderRadius: '9999px',
+    border: '1px solid var(--color-papeliz-line-strong)',
+    backgroundColor: 'var(--color-papeliz-surface)',
+    fontFamily: 'var(--font-sans)',
+    fontSize: '13px',
+    color: 'var(--color-papeliz-ink)',
+  },
+  '.cm-textfield:focus': { outline: '2px solid var(--color-papeliz-blue)', outlineOffset: '1px' },
+  '.cm-button': {
+    height: '30px',
+    padding: '0 12px',
+    margin: '0',
+    borderRadius: '9999px',
+    border: 'none',
+    backgroundImage: 'none',
+    backgroundColor: 'var(--color-papeliz-surface-gray)',
+    color: 'var(--color-papeliz-ink)',
+    fontFamily: 'var(--font-sans)',
+    fontSize: '13px',
+    fontWeight: '500',
+    cursor: 'pointer',
+    transition: 'background-color 120ms ease',
+  },
+  '.cm-button:hover': { backgroundColor: 'var(--color-papeliz-surface-gray-hover)' },
+  '.cm-button:active': { backgroundImage: 'none', backgroundColor: 'var(--color-papeliz-press)' },
+  '.cm-search label': {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '5px',
+    margin: '0 4px',
+    color: 'var(--color-papeliz-ink-muted)',
+    fontSize: '13px',
+  },
+  '.cm-search button[name=close]': {
+    position: 'absolute',
+    top: '10px',
+    right: '10px',
+    width: '30px',
+    height: '30px',
+    borderRadius: '9999px',
+    fontSize: '18px',
+    lineHeight: '1',
+    color: 'var(--color-papeliz-ink-muted)',
+    cursor: 'pointer',
+  },
+  '.cm-search button[name=close]:hover': { backgroundColor: 'var(--color-papeliz-hover)' },
+
+  // The `[[` note list.
+  '.cm-tooltip': {
+    border: '1px solid var(--color-papeliz-line)',
+    borderRadius: '14px',
+    backgroundColor: 'var(--color-papeliz-surface)',
+    boxShadow: 'var(--shadow-papeliz-pop)',
+    overflow: 'hidden',
+    animation: 'papeliz-pop-in 140ms var(--ease-papeliz-out)',
+  },
+  '.cm-tooltip.cm-tooltip-autocomplete > ul': {
+    fontFamily: 'var(--font-sans)',
+    fontSize: '13.5px',
+    maxHeight: '260px',
+    padding: '4px',
+  },
+  '.cm-tooltip.cm-tooltip-autocomplete > ul > li': {
+    padding: '5px 10px',
+    borderRadius: '9999px',
+    color: 'var(--color-papeliz-ink)',
+  },
+  '.cm-tooltip.cm-tooltip-autocomplete > ul > li[aria-selected]': {
+    backgroundColor: 'var(--color-papeliz-blue-soft)',
+    color: 'var(--color-papeliz-blue)',
+  },
+  '.cm-completionIcon': { display: 'none' },
+  '.cm-completionDetail': { color: 'var(--color-papeliz-ink-subtle)', fontStyle: 'normal', marginLeft: '8px' },
+})

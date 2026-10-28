@@ -1,0 +1,326 @@
+@import 'tailwindcss';
+
+/* The app's colors (app/web/src/papeliz-webapp.css), so the website and the app look like one
+   product: Papeliz blue and white, with the same dark theme. Text colors keep WCAG AA contrast on
+   their grounds in both themes. */
+@theme {
+  /* Figtree and JetBrains Mono come from next/font in app/layout.tsx. */
+  --font-sans: var(--font-papeliz-site-figtree), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: var(--font-papeliz-site-jetbrains-mono), ui-monospace, 'Cascadia Code', Consolas, monospace;
+
+  --color-papeliz-blue: #0064d4;
+  --color-papeliz-blue-hover: #0057ba;
+  /* Text on a solid papeliz-blue fill: white on the light theme's blue, dark ink on the dark theme's. */
+  --color-papeliz-on-blue: #ffffff;
+  --color-papeliz-violet: #5b70ff;
+  --color-papeliz-gradient-start: #0064d4;
+  --color-papeliz-gradient-end: #5b70ff;
+  --color-papeliz-topbar: #0064d4;
+  --color-papeliz-blue-soft: #eaf2fe;
+  --color-papeliz-blue-soft-hover: #ddeafd;
+  --color-papeliz-blue-line: #bcd4f6;
+  --color-papeliz-ink: #111112;
+  --color-papeliz-ink-muted: #55595f;
+  --color-papeliz-ink-subtle: #686c73;
+  --color-papeliz-line: #dce0e6;
+  --color-papeliz-line-strong: #c5cbd3;
+  --color-papeliz-surface: #ffffff;
+  --color-papeliz-surface-soft: #f2f4f7;
+  --color-papeliz-surface-gray: #e8ebf0;
+  --color-papeliz-surface-gray-hover: #dde1e7;
+  --color-papeliz-hover: rgb(16 24 40 / 0.06);
+  --color-papeliz-press: rgb(16 24 40 / 0.1);
+  --color-papeliz-diff-added: #e2f5e7;
+  --color-papeliz-diff-added-ink: #17663a;
+  --color-papeliz-diff-removed: #fde8e7;
+  --color-papeliz-diff-removed-ink: #a3302a;
+  --color-papeliz-selection: #d7e6fd;
+
+  --shadow-papeliz-card: 0 1px 2px rgb(17 17 18 / 0.04), 0 6px 20px rgb(17 17 18 / 0.06);
+  --shadow-papeliz-pop: 0 2px 6px rgb(17 17 18 / 0.06), 0 18px 48px rgb(17 17 18 / 0.14);
+
+  --ease-papeliz-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* Dark: the app's dark values. Picked with the Accessibility menu, or by the device when the theme
+   is "Device" (lib/papeliz-site-theme.ts). The two blocks below hold the same values. */
+:root[data-papeliz-theme='dark'] {
+  color-scheme: dark;
+  --color-papeliz-blue: #5ea2ff;
+  --color-papeliz-blue-hover: #7db4ff;
+  --color-papeliz-on-blue: #0d1626;
+  --color-papeliz-topbar: #103a70;
+  --color-papeliz-blue-soft: #172a45;
+  --color-papeliz-blue-soft-hover: #1d3456;
+  --color-papeliz-blue-line: #2f5487;
+  --color-papeliz-ink: #ececef;
+  --color-papeliz-ink-muted: #b4b8bf;
+  --color-papeliz-ink-subtle: #959aa3;
+  --color-papeliz-line: #30333a;
+  --color-papeliz-line-strong: #444851;
+  --color-papeliz-surface: #15161a;
+  --color-papeliz-surface-soft: #1d1f24;
+  --color-papeliz-surface-gray: #282b31;
+  --color-papeliz-surface-gray-hover: #31343b;
+  --color-papeliz-hover: rgb(255 255 255 / 0.07);
+  --color-papeliz-press: rgb(255 255 255 / 0.12);
+  --color-papeliz-diff-added: #12301f;
+  --color-papeliz-diff-added-ink: #74d69e;
+  --color-papeliz-diff-removed: #3b1816;
+  --color-papeliz-diff-removed-ink: #ff8f80;
+  --color-papeliz-selection: #24446e;
+  --shadow-papeliz-card: 0 1px 2px rgb(0 0 0 / 0.4), 0 6px 20px rgb(0 0 0 / 0.3);
+  --shadow-papeliz-pop: 0 2px 6px rgb(0 0 0 / 0.4), 0 18px 48px rgb(0 0 0 / 0.55);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-papeliz-theme='light']) {
+    color-scheme: dark;
+    --color-papeliz-blue: #5ea2ff;
+    --color-papeliz-blue-hover: #7db4ff;
+  --color-papeliz-on-blue: #0d1626;
+    --color-papeliz-topbar: #103a70;
+    --color-papeliz-blue-soft: #172a45;
+    --color-papeliz-blue-soft-hover: #1d3456;
+    --color-papeliz-blue-line: #2f5487;
+    --color-papeliz-ink: #ececef;
+    --color-papeliz-ink-muted: #b4b8bf;
+    --color-papeliz-ink-subtle: #959aa3;
+    --color-papeliz-line: #30333a;
+    --color-papeliz-line-strong: #444851;
+    --color-papeliz-surface: #15161a;
+    --color-papeliz-surface-soft: #1d1f24;
+    --color-papeliz-surface-gray: #282b31;
+    --color-papeliz-surface-gray-hover: #31343b;
+    --color-papeliz-hover: rgb(255 255 255 / 0.07);
+    --color-papeliz-press: rgb(255 255 255 / 0.12);
+    --color-papeliz-diff-added: #12301f;
+    --color-papeliz-diff-added-ink: #74d69e;
+    --color-papeliz-diff-removed: #3b1816;
+    --color-papeliz-diff-removed-ink: #ff8f80;
+    --color-papeliz-selection: #24446e;
+    --shadow-papeliz-card: 0 1px 2px rgb(0 0 0 / 0.4), 0 6px 20px rgb(0 0 0 / 0.3);
+    --shadow-papeliz-pop: 0 2px 6px rgb(0 0 0 / 0.4), 0 18px 48px rgb(0 0 0 / 0.55);
+  }
+}
+
+:root {
+  color-scheme: light;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--color-papeliz-surface);
+  color: var(--color-papeliz-ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-papeliz-blue);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: var(--color-papeliz-selection);
+}
+
+/* White text on a coloured ground (the top bar, the footer, blue menus and badges): selected text turns the top
+   bar's blue on white, instead of staying white on the pale selection blue. */
+.papeliz-site-selection-on-color::selection,
+.papeliz-site-selection-on-color ::selection {
+  background: #ffffff;
+  color: var(--color-papeliz-topbar);
+}
+
+/* A light card or button inside such an area (the Accessibility card, Use App) keeps the page's selection. */
+.papeliz-site-selection-on-surface::selection,
+.papeliz-site-selection-on-surface ::selection {
+  background: var(--color-papeliz-selection);
+  color: var(--color-papeliz-ink);
+}
+
+/* Switching themes eases every color over a quarter second instead of snapping, as in the app. */
+.papeliz-theme-is-changing,
+.papeliz-theme-is-changing * {
+  transition:
+    background-color 240ms ease,
+    border-color 240ms ease,
+    color 240ms ease,
+    fill 240ms ease !important;
+}
+
+@keyframes papeliz-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.97);
+  }
+}
+
+.papeliz-pop-enter {
+  animation: papeliz-pop-in 150ms var(--ease-papeliz-out);
+  transform-origin: top right;
+}
+
+/* The light that sweeps across the "Introducing Papeliz" pill
+   (components/marketing/papeliz-site-introducing-badge.tsx). */
+.papeliz-site-introducing-badge-sweep {
+  background: linear-gradient(
+    105deg,
+    transparent 38%,
+    rgb(255 255 255 / 0.12) 46%,
+    rgb(255 255 255 / 0.3) 50%,
+    rgb(255 255 255 / 0.12) 54%,
+    transparent 62%
+  );
+  animation: papeliz-site-introducing-badge-sweep 2.75s ease-in-out infinite;
+}
+
+@keyframes papeliz-site-introducing-badge-sweep {
+  from {
+    transform: translateX(-130%) skewX(-14deg);
+  }
+  to {
+    transform: translateX(130%) skewX(-14deg);
+  }
+}
+
+/* The caret after the home title's typed words (components/marketing/papeliz-site-hero-typed-word.tsx). */
+.papeliz-site-hero-caret {
+  margin-left: 0.04em;
+  font-weight: 300;
+  animation: papeliz-site-hero-caret-blink 1s steps(1) infinite;
+}
+
+@keyframes papeliz-site-hero-caret-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+/* ---- Sliding choices (components/theme/papeliz-site-sliding-choice-group.tsx), the app's switch:
+   equal choices on a gray track, with a white pill under the chosen one. Moving to another choice,
+   the pill's leading edge goes first so it stretches and settles; pressing another choice leans the
+   pill toward it. ---- */
+
+.papeliz-sliding-choice-group {
+  --papeliz-sliding-choice-inset: 4px;
+  --papeliz-sliding-choice-gap: 4px;
+  --papeliz-sliding-choice-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --papeliz-sliding-choice-width: calc(
+    (100% - 2 * var(--papeliz-sliding-choice-inset) - (var(--papeliz-sliding-choice-count) - 1) * var(--papeliz-sliding-choice-gap)) /
+      var(--papeliz-sliding-choice-count)
+  );
+  --papeliz-sliding-choice-pill-left: calc(
+    var(--papeliz-sliding-choice-inset) + var(--papeliz-chosen-sliding-choice-index) * (var(--papeliz-sliding-choice-width) + var(--papeliz-sliding-choice-gap))
+  );
+  --papeliz-sliding-choice-lean-left: 0px;
+  --papeliz-sliding-choice-lean-right: 0px;
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  gap: var(--papeliz-sliding-choice-gap);
+  padding: var(--papeliz-sliding-choice-inset);
+  border-radius: 12px;
+  background: var(--color-papeliz-surface-gray);
+  box-shadow: inset 0 0 0 1px var(--color-papeliz-line);
+}
+
+.papeliz-sliding-choice-pill {
+  position: absolute;
+  top: var(--papeliz-sliding-choice-inset);
+  bottom: var(--papeliz-sliding-choice-inset);
+  z-index: 0;
+  left: calc(var(--papeliz-sliding-choice-pill-left) - var(--papeliz-sliding-choice-lean-left));
+  right: calc(100% - var(--papeliz-sliding-choice-pill-left) - var(--papeliz-sliding-choice-width) - var(--papeliz-sliding-choice-lean-right));
+  border-radius: 9px;
+  background: var(--color-papeliz-surface);
+  box-shadow:
+    0 1px 2px rgb(17 17 18 / 0.12),
+    0 2px 8px rgb(17 17 18 / 0.08);
+  pointer-events: none;
+  /* Toward an earlier choice: the left edge leads. */
+  transition:
+    left 260ms var(--papeliz-sliding-choice-ease),
+    right 380ms var(--papeliz-sliding-choice-ease) 30ms;
+}
+
+.papeliz-sliding-choice-group[data-papeliz-sliding-choice-move='forward'] .papeliz-sliding-choice-pill {
+  /* Toward a later choice: the right edge leads. */
+  transition:
+    right 260ms var(--papeliz-sliding-choice-ease),
+    left 380ms var(--papeliz-sliding-choice-ease) 30ms;
+}
+
+.papeliz-sliding-choice-group:has(.papeliz-sliding-choice[data-papeliz-sliding-choice-chosen='true'] ~ .papeliz-sliding-choice:active) {
+  --papeliz-sliding-choice-lean-right: 6px;
+}
+
+.papeliz-sliding-choice-group:has(.papeliz-sliding-choice:active ~ .papeliz-sliding-choice[data-papeliz-sliding-choice-chosen='true']) {
+  --papeliz-sliding-choice-lean-left: 6px;
+}
+
+.papeliz-sliding-choice {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  min-width: 0;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 8px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  color: var(--color-papeliz-ink-muted);
+  cursor: pointer;
+  transition: color 160ms ease;
+}
+
+.papeliz-sliding-choice[data-papeliz-sliding-choice-chosen='true'] {
+  color: var(--color-papeliz-blue);
+  font-weight: 600;
+  transition-delay: 90ms;
+}
+
+.papeliz-sliding-choice[data-papeliz-sliding-choice-chosen='false']:hover {
+  color: var(--color-papeliz-ink);
+}
+
+.papeliz-sliding-choice:focus-visible {
+  outline: 2px solid var(--color-papeliz-blue);
+  outline-offset: 1px;
+}
+
+.papeliz-sliding-choice svg {
+  flex: none;
+  transition: transform 220ms var(--papeliz-sliding-choice-ease);
+}
+
+.papeliz-sliding-choice[data-papeliz-sliding-choice-chosen='false']:active svg {
+  transform: scale(0.88);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .papeliz-site-introducing-badge-sweep,
+  .papeliz-site-hero-caret {
+    display: none;
+  }
+
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0s !important;
+    animation-duration: 0s !important;
+  }
+}

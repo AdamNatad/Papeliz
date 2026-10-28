@@ -1,0 +1,1907 @@
+@import 'tailwindcss';
+
+/* Papeliz blue and white, with a dark theme. Every color is a variable here;
+   the app, the note editor and the MD View all read them, so both themes follow one list. Text
+   colors keep WCAG AA contrast on their grounds in both themes. `static` keeps every variable in
+   the build, including those only the editor's JavaScript themes read. */
+@theme static {
+  --font-sans: 'Figtree', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Code', Consolas, monospace;
+  --font-serif: Charter, 'Bitstream Charter', 'Sitka Text', Cambria, Georgia, serif;
+
+  --color-papeliz-blue: #0064d4;
+  --color-papeliz-blue-hover: #0057ba;
+  --color-papeliz-violet: #5b70ff;
+  --color-papeliz-gradient-start: #0064d4;
+  --color-papeliz-gradient-end: #5b70ff;
+  /* The red equivalent of the blue gradient, for Cancel in dialogs. */
+  --color-papeliz-red-gradient-start: #c62f2f;
+  --color-papeliz-red-gradient-end: #f0645c;
+  --color-papeliz-topbar: #0064d4;
+  --color-papeliz-blue-soft: #eaf2fe;
+  --color-papeliz-blue-soft-hover: #ddeafd;
+  --color-papeliz-blue-line: #bcd4f6;
+  --color-papeliz-ink: #111112;
+  --color-papeliz-ink-muted: #55595f;
+  --color-papeliz-ink-subtle: #686c73;
+  --color-papeliz-line: #dce0e6;
+  --color-papeliz-line-strong: #c5cbd3;
+  --color-papeliz-surface: #ffffff;
+  --color-papeliz-surface-soft: #f2f4f7;
+  --color-papeliz-surface-gray: #e8ebf0;
+  --color-papeliz-surface-gray-hover: #dde1e7;
+  --color-papeliz-hover: rgb(16 24 40 / 0.06);
+  --color-papeliz-press: rgb(16 24 40 / 0.1);
+  --color-papeliz-tab-strip: #e3e7ed;
+  --color-papeliz-tab: #eff1f5;
+  --color-papeliz-tab-hover: #f8f9fb;
+  /* Callout card colors: the ground and the ink of each, for `> [!note|purple]` and the kinds. */
+  --color-papeliz-callout-red-ground: #fde8e7;
+  --color-papeliz-callout-red-ink: #a3302a;
+  --color-papeliz-callout-orange-ground: #ffeedd;
+  --color-papeliz-callout-orange-ink: #9a4a00;
+  --color-papeliz-callout-yellow-ground: #fff5c7;
+  --color-papeliz-callout-yellow-ink: #7a5d00;
+  --color-papeliz-callout-green-ground: #e2f5e7;
+  --color-papeliz-callout-green-ink: #17663a;
+  --color-papeliz-callout-teal-ground: #dcf4f0;
+  --color-papeliz-callout-teal-ink: #0e6b61;
+  --color-papeliz-callout-blue-ground: #eaf2fe;
+  --color-papeliz-callout-blue-ink: #0057ba;
+  --color-papeliz-callout-purple-ground: #efe9ff;
+  --color-papeliz-callout-purple-ink: #5b3fc4;
+  --color-papeliz-callout-pink-ground: #fde7f3;
+  --color-papeliz-callout-pink-ink: #a3236b;
+  --color-papeliz-callout-gray-ground: #e8ebf0;
+  --color-papeliz-callout-gray-ink: #4b5058;
+  --color-papeliz-backdrop: rgb(17 17 18 / 0.24);
+  --color-papeliz-ok: #1e8e4a;
+  --color-papeliz-diff-added: #e2f5e7;
+  --color-papeliz-diff-added-ink: #17663a;
+  --color-papeliz-diff-removed: #fde8e7;
+  --color-papeliz-diff-removed-ink: #a3302a;
+  --color-papeliz-warning: #fff4e0;
+  --color-papeliz-warning-ink: #8a4b00;
+  --color-papeliz-selection: #d7e6fd;
+  --color-papeliz-code-ink: #a3302a;
+  --color-papeliz-frontmatter-ink: #5b4cc4;
+  --color-papeliz-search-match: #fff0b3;
+  --color-papeliz-search-match-selected: #ffd65c;
+  /* The chosen tab in a solid blue switch (the AI Assistant's tabs, This note's tabs) and the
+     chosen row in a list (the open note, the current chat session, the heading at the cursor). */
+  --color-papeliz-chosen-tab-track: #e8ebf0;
+  --color-papeliz-chosen-tab-ground: #0064d4;
+  --color-papeliz-chosen-tab-other-ink: #3d4249;
+  --color-papeliz-chosen-row-ground: #dce9fd;
+  --color-papeliz-chosen-row-ink: #0057ba;
+
+  --shadow-papeliz-card: 0 1px 2px rgb(17 17 18 / 0.04), 0 6px 20px rgb(17 17 18 / 0.06);
+  --shadow-papeliz-pop: 0 2px 6px rgb(17 17 18 / 0.06), 0 18px 48px rgb(17 17 18 / 0.14);
+
+  --ease-papeliz-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* Dark: the same list for dark grounds. Picked with the theme button, or by the device when the
+   theme is "Match this device". The two blocks below hold the same values. */
+:root[data-papeliz-theme='dark'] {
+  color-scheme: dark;
+  --color-papeliz-blue: #5ea2ff;
+  --color-papeliz-blue-hover: #7db4ff;
+  --color-papeliz-topbar: #103a70;
+  --color-papeliz-blue-soft: #172a45;
+  --color-papeliz-blue-soft-hover: #1d3456;
+  --color-papeliz-blue-line: #2f5487;
+  --color-papeliz-ink: #ececef;
+  --color-papeliz-ink-muted: #b4b8bf;
+  --color-papeliz-ink-subtle: #959aa3;
+  --color-papeliz-line: #30333a;
+  --color-papeliz-line-strong: #444851;
+  --color-papeliz-surface: #15161a;
+  --color-papeliz-surface-soft: #1d1f24;
+  --color-papeliz-surface-gray: #282b31;
+  --color-papeliz-surface-gray-hover: #31343b;
+  --color-papeliz-hover: rgb(255 255 255 / 0.07);
+  --color-papeliz-press: rgb(255 255 255 / 0.12);
+  --color-papeliz-tab-strip: #0f1014;
+  --color-papeliz-tab: #202227;
+  --color-papeliz-tab-hover: #272a30;
+  --color-papeliz-callout-red-ground: #3b1816;
+  --color-papeliz-callout-red-ink: #ff8f80;
+  --color-papeliz-callout-orange-ground: #3a2410;
+  --color-papeliz-callout-orange-ink: #ffb370;
+  --color-papeliz-callout-yellow-ground: #352c0c;
+  --color-papeliz-callout-yellow-ink: #f2d264;
+  --color-papeliz-callout-green-ground: #12301f;
+  --color-papeliz-callout-green-ink: #74d69e;
+  --color-papeliz-callout-teal-ground: #0f302c;
+  --color-papeliz-callout-teal-ink: #6fdccd;
+  --color-papeliz-callout-blue-ground: #172a45;
+  --color-papeliz-callout-blue-ink: #7db4ff;
+  --color-papeliz-callout-purple-ground: #2a1f4a;
+  --color-papeliz-callout-purple-ink: #b8a4ff;
+  --color-papeliz-callout-pink-ground: #3d1730;
+  --color-papeliz-callout-pink-ink: #ff8fc8;
+  --color-papeliz-callout-gray-ground: #282b31;
+  --color-papeliz-callout-gray-ink: #b4b8bf;
+  --color-papeliz-backdrop: rgb(0 0 0 / 0.5);
+  --color-papeliz-ok: #3fb970;
+  --color-papeliz-diff-added: #12301f;
+  --color-papeliz-diff-added-ink: #74d69e;
+  --color-papeliz-diff-removed: #3b1816;
+  --color-papeliz-diff-removed-ink: #ff8f80;
+  --color-papeliz-warning: #33260f;
+  --color-papeliz-warning-ink: #f5b95c;
+  --color-papeliz-selection: #24446e;
+  --color-papeliz-code-ink: #ff8f80;
+  --color-papeliz-frontmatter-ink: #b3a6ff;
+  --color-papeliz-search-match: #5a4710;
+  --color-papeliz-search-match-selected: #8a6a0a;
+  --color-papeliz-chosen-tab-track: #24272d;
+  --color-papeliz-chosen-tab-ground: #2f6fdb;
+  --color-papeliz-chosen-tab-other-ink: #c9cdd3;
+  --color-papeliz-chosen-row-ground: #1f3a63;
+  --color-papeliz-chosen-row-ink: #8cbcff;
+  --shadow-papeliz-card: 0 1px 2px rgb(0 0 0 / 0.4), 0 6px 20px rgb(0 0 0 / 0.3);
+  --shadow-papeliz-pop: 0 2px 6px rgb(0 0 0 / 0.4), 0 18px 48px rgb(0 0 0 / 0.55);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-papeliz-theme='light']) {
+    color-scheme: dark;
+    --color-papeliz-blue: #5ea2ff;
+    --color-papeliz-blue-hover: #7db4ff;
+    --color-papeliz-topbar: #103a70;
+    --color-papeliz-blue-soft: #172a45;
+    --color-papeliz-blue-soft-hover: #1d3456;
+    --color-papeliz-blue-line: #2f5487;
+    --color-papeliz-ink: #ececef;
+    --color-papeliz-ink-muted: #b4b8bf;
+    --color-papeliz-ink-subtle: #959aa3;
+    --color-papeliz-line: #30333a;
+    --color-papeliz-line-strong: #444851;
+    --color-papeliz-surface: #15161a;
+    --color-papeliz-surface-soft: #1d1f24;
+    --color-papeliz-surface-gray: #282b31;
+    --color-papeliz-surface-gray-hover: #31343b;
+    --color-papeliz-hover: rgb(255 255 255 / 0.07);
+    --color-papeliz-press: rgb(255 255 255 / 0.12);
+    --color-papeliz-tab-strip: #0f1014;
+    --color-papeliz-tab: #202227;
+    --color-papeliz-tab-hover: #272a30;
+    --color-papeliz-callout-red-ground: #3b1816;
+    --color-papeliz-callout-red-ink: #ff8f80;
+    --color-papeliz-callout-orange-ground: #3a2410;
+    --color-papeliz-callout-orange-ink: #ffb370;
+    --color-papeliz-callout-yellow-ground: #352c0c;
+    --color-papeliz-callout-yellow-ink: #f2d264;
+    --color-papeliz-callout-green-ground: #12301f;
+    --color-papeliz-callout-green-ink: #74d69e;
+    --color-papeliz-callout-teal-ground: #0f302c;
+    --color-papeliz-callout-teal-ink: #6fdccd;
+    --color-papeliz-callout-blue-ground: #172a45;
+    --color-papeliz-callout-blue-ink: #7db4ff;
+    --color-papeliz-callout-purple-ground: #2a1f4a;
+    --color-papeliz-callout-purple-ink: #b8a4ff;
+    --color-papeliz-callout-pink-ground: #3d1730;
+    --color-papeliz-callout-pink-ink: #ff8fc8;
+    --color-papeliz-callout-gray-ground: #282b31;
+    --color-papeliz-callout-gray-ink: #b4b8bf;
+    --color-papeliz-backdrop: rgb(0 0 0 / 0.5);
+    --color-papeliz-ok: #3fb970;
+    --color-papeliz-diff-added: #12301f;
+    --color-papeliz-diff-added-ink: #74d69e;
+    --color-papeliz-diff-removed: #3b1816;
+    --color-papeliz-diff-removed-ink: #ff8f80;
+    --color-papeliz-warning: #33260f;
+    --color-papeliz-warning-ink: #f5b95c;
+    --color-papeliz-selection: #24446e;
+    --color-papeliz-code-ink: #ff8f80;
+    --color-papeliz-frontmatter-ink: #b3a6ff;
+    --color-papeliz-search-match: #5a4710;
+    --color-papeliz-search-match-selected: #8a6a0a;
+    --color-papeliz-chosen-tab-track: #24272d;
+    --color-papeliz-chosen-tab-ground: #2f6fdb;
+    --color-papeliz-chosen-tab-other-ink: #c9cdd3;
+    --color-papeliz-chosen-row-ground: #1f3a63;
+    --color-papeliz-chosen-row-ink: #8cbcff;
+    --shadow-papeliz-card: 0 1px 2px rgb(0 0 0 / 0.4), 0 6px 20px rgb(0 0 0 / 0.3);
+    --shadow-papeliz-pop: 0 2px 6px rgb(0 0 0 / 0.4), 0 18px 48px rgb(0 0 0 / 0.55);
+  }
+}
+
+@layer base {
+  /* The interface is not text to select: buttons, tabs, the file list, menus and labels stay put
+     under a drag or a double-click. What is meant to be read and copied can be selected: the note
+     (MD Code, MD View and the page), form fields, the Assistant's words and its previews. A modal
+     dialog sits in the browser's top layer and does not take the page's setting, so it is named too. */
+  body,
+  dialog {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  input,
+  textarea,
+  [contenteditable]:not([contenteditable='false']),
+  .cm-content,
+  .papeliz-md-view-article,
+  .papeliz-selectable-text {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+
+  :root {
+    color-scheme: light;
+    /* The note's text settings; the "Aa" button changes them (papeliz-note-typography-store.ts). */
+    --papeliz-note-font-family: var(--font-sans);
+    --papeliz-note-font-size: 17px;
+    --papeliz-note-column-width: 720px;
+  }
+
+  html,
+  body,
+  #papeliz-webapp-root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: var(--color-papeliz-surface);
+    color: var(--color-papeliz-ink);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  button {
+    cursor: pointer;
+  }
+
+  button:disabled {
+    cursor: default;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-papeliz-blue);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: var(--color-papeliz-selection);
+  }
+}
+
+/* Switching themes eases every color over a quarter second instead of snapping. */
+.papeliz-theme-is-changing,
+.papeliz-theme-is-changing * {
+  transition:
+    background-color 240ms ease,
+    border-color 240ms ease,
+    color 240ms ease,
+    fill 240ms ease !important;
+}
+
+/* ---- Motion: short, eased entrances. All of it switches off with "reduce motion" (bottom). ---- */
+
+@keyframes papeliz-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes papeliz-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.97);
+  }
+}
+
+@keyframes papeliz-rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+@keyframes papeliz-slide-in-from-left {
+  from {
+    transform: translateX(-100%);
+  }
+}
+
+@keyframes papeliz-slide-in-from-right {
+  from {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes papeliz-panel-in-from-right {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+}
+
+@keyframes papeliz-dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.97);
+  }
+}
+
+@keyframes papeliz-icon-swap {
+  from {
+    opacity: 0;
+    transform: rotate(-24deg) scale(0.6);
+  }
+}
+
+@keyframes papeliz-file-explorer-folder-children-unfold {
+  from {
+    grid-template-rows: 0fr;
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes papeliz-saving-pulse {
+  50% {
+    opacity: 0.3;
+  }
+}
+
+.papeliz-pop-enter {
+  animation: papeliz-pop-in 150ms var(--ease-papeliz-out);
+  transform-origin: top left;
+}
+
+/* The file list and the Assistant slide open and shut (papeliz-sliding-side-panel.tsx). Docked, the
+   panel's width slides, so the note moves over with it: opening grows it from nothing, shutting
+   slides it back to nothing. Dragging its edge resizes it at once. */
+@keyframes papeliz-side-panel-docked-open {
+  from {
+    width: 0;
+  }
+}
+
+.papeliz-side-panel-docked-opening {
+  animation: papeliz-side-panel-docked-open 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.papeliz-side-panel-docked-closing {
+  transition: width 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* On a phone, a drawer slides over the note from its edge, over a backdrop that fades. */
+.papeliz-side-panel-drawer {
+  transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.papeliz-side-panel-drawer-opening[data-papeliz-side-panel-side='left'] {
+  animation: papeliz-slide-in-from-left 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.papeliz-side-panel-drawer-opening[data-papeliz-side-panel-side='right'] {
+  animation: papeliz-slide-in-from-right 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.papeliz-side-panel-backdrop-opening {
+  animation: papeliz-fade-in 280ms ease;
+}
+
+.papeliz-side-panel-drawer[data-papeliz-side-panel-side='left'][data-papeliz-side-panel-drawn-shut='true'] {
+  transform: translateX(-100%);
+}
+
+.papeliz-side-panel-drawer[data-papeliz-side-panel-side='right'][data-papeliz-side-panel-drawn-shut='true'] {
+  transform: translateX(100%);
+}
+
+.papeliz-side-panel-backdrop {
+  transition: opacity 280ms ease;
+}
+
+.papeliz-side-panel-backdrop[data-papeliz-side-panel-drawn-shut='true'] {
+  opacity: 0;
+}
+
+.papeliz-note-view-enter {
+  animation: papeliz-fade-in 180ms ease-out;
+}
+
+.papeliz-tab-enter {
+  animation: papeliz-pop-in 180ms var(--ease-papeliz-out);
+  transform-origin: left center;
+}
+
+.papeliz-dialog-enter[open] {
+  animation: papeliz-dialog-in 200ms var(--ease-papeliz-out);
+}
+
+.papeliz-dialog-enter[open]::backdrop {
+  animation: papeliz-fade-in 200ms ease-out;
+}
+
+.papeliz-icon-swap-enter {
+  animation: papeliz-icon-swap 220ms var(--ease-papeliz-out);
+}
+
+.papeliz-notice-enter {
+  animation: papeliz-rise-in 240ms var(--ease-papeliz-out);
+}
+
+/* Dragging a tab in stacked rows: a blue line beside a tab marks where the dragged one will land
+   (papeliz-note-tabs-bar.tsx). */
+.papeliz-note-tab-drop-indicator-before::before,
+.papeliz-note-tab-drop-indicator-after::after {
+  content: '';
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  width: 3px;
+  border-radius: 9999px;
+  background: var(--color-papeliz-blue);
+  pointer-events: none;
+}
+
+.papeliz-note-tab-drop-indicator-before::before {
+  left: -3px;
+}
+
+.papeliz-note-tab-drop-indicator-after::after {
+  right: -3px;
+}
+
+/* The note's zoom in the status bar: - 100% + (papeliz-status-bar.tsx). */
+.papeliz-note-zoom-button {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 9999px;
+  color: rgb(255 255 255 / 0.85);
+  transition: background-color 150ms ease;
+}
+
+.papeliz-note-zoom-button:hover:not(:disabled) {
+  background: rgb(255 255 255 / 0.18);
+  color: #ffffff;
+}
+
+.papeliz-note-zoom-button:disabled {
+  opacity: 0.4;
+}
+
+/* The file list's open-note highlight (papeliz-file-explorer.tsx): one pill behind the rows that
+   glides to the note opened next, as the switches' pills do. */
+.papeliz-file-explorer-active-note-highlight {
+  position: absolute;
+  top: 0;
+  left: 0;
+  border-radius: 9999px;
+  background: var(--color-papeliz-chosen-row-ground);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+
+.papeliz-file-explorer-active-note-highlight[data-papeliz-active-note-highlight-shown='true'] {
+  opacity: 1;
+}
+
+.papeliz-file-explorer-active-note-highlight[data-papeliz-active-note-highlight-gliding='true'] {
+  transition:
+    transform 320ms cubic-bezier(0.22, 1, 0.36, 1),
+    width 320ms cubic-bezier(0.22, 1, 0.36, 1),
+    height 320ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 150ms ease;
+}
+
+/* The file list button's panel grows into a block when the list opens and back into a bar when it
+   closes (papeliz-file-list-toggle-icon.tsx). */
+.papeliz-file-list-toggle-icon-panel {
+  transition:
+    x 220ms var(--ease-papeliz-out),
+    y 220ms var(--ease-papeliz-out),
+    width 220ms var(--ease-papeliz-out),
+    height 220ms var(--ease-papeliz-out),
+    rx 220ms var(--ease-papeliz-out);
+}
+
+/* A toast slides in to the top right. */
+.papeliz-notice-enter-from-right {
+  animation: papeliz-panel-in-from-right 240ms var(--ease-papeliz-out);
+}
+
+/* A folder's rows slide open and shut (papeliz-file-explorer.tsx). One grid row grows from nothing
+   to the rows' height while they fade in and come down a little, and the rows below move with them.
+   The rows are clipped only while they slide, so a drop line's dot above the first row still shows. */
+.papeliz-file-explorer-folder-children {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition:
+    grid-template-rows 280ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 200ms ease,
+    transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.papeliz-file-explorer-folder-children > ul {
+  min-height: 0;
+}
+
+/* This note, under the file list (papeliz-file-list-this-note-section.tsx), folds the same way: one
+   grid row from nothing to its height. It stays in the page, so folding is a plain transition. */
+.papeliz-file-list-this-note-body {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition:
+    grid-template-rows 280ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 200ms ease;
+}
+
+.papeliz-file-list-this-note-body > div {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.papeliz-file-list-this-note-body[data-papeliz-this-note-folded='true'] {
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+
+.papeliz-file-explorer-folder-children-opening > ul,
+.papeliz-file-explorer-folder-children[data-papeliz-folder-children-drawn-shut='true'] > ul {
+  overflow: hidden;
+}
+
+.papeliz-file-explorer-folder-children[data-papeliz-folder-children-drawn-shut='true'] {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+.papeliz-file-explorer-folder-children-opening {
+  animation: papeliz-file-explorer-folder-children-unfold 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.papeliz-saving-dot {
+  animation: papeliz-saving-pulse 900ms ease-in-out infinite;
+}
+
+/* The start page arrives in a short cascade. */
+.papeliz-welcome-enter > * {
+  animation: papeliz-rise-in 480ms var(--ease-papeliz-out) both;
+}
+
+.papeliz-welcome-enter > :nth-child(2) {
+  animation-delay: 40ms;
+}
+
+.papeliz-welcome-enter > :nth-child(3) {
+  animation-delay: 80ms;
+}
+
+.papeliz-welcome-enter > :nth-child(4) {
+  animation-delay: 120ms;
+}
+
+.papeliz-welcome-enter > :nth-child(n + 5) {
+  animation-delay: 160ms;
+}
+
+/* ---- The MD Code | MD View switch in the blue topbar ---- */
+
+/* The pill is placed by its two edges. Moving to a view, the edge on that side leads and the
+   other follows a little later, so the pill stretches and settles instead of sliding stiffly.
+   Pressing the view that isn't chosen leans the near edge 6px toward it; releasing either lands
+   the switch or springs back. One easing layer only: the edges themselves carry the transition. */
+.papeliz-note-view-switch {
+  --papeliz-switch-pill-left: 3px;
+  --papeliz-switch-pill-right: calc(50% + 1px);
+  --papeliz-switch-lean-left: 0px;
+  --papeliz-switch-lean-right: 0px;
+  --papeliz-switch-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 9999px;
+  background: rgb(255 255 255 / 0.15);
+  box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.12);
+}
+
+.papeliz-note-view-switch[data-papeliz-chosen-note-view='md-view'] {
+  --papeliz-switch-pill-left: calc(50% + 1px);
+  --papeliz-switch-pill-right: 3px;
+}
+
+.papeliz-note-view-switch-pill {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  z-index: 0;
+  left: calc(var(--papeliz-switch-pill-left) - var(--papeliz-switch-lean-left));
+  right: calc(var(--papeliz-switch-pill-right) - var(--papeliz-switch-lean-right));
+  border-radius: 9999px;
+  background: #ffffff;
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.16),
+    0 2px 8px rgb(0 0 0 / 0.12);
+  pointer-events: none;
+  /* Heading to MD Code: the left edge leads. */
+  transition:
+    left 260ms var(--papeliz-switch-ease),
+    right 380ms var(--papeliz-switch-ease) 30ms;
+}
+
+.papeliz-note-view-switch[data-papeliz-chosen-note-view='md-view'] .papeliz-note-view-switch-pill {
+  /* Heading to MD View: the right edge leads. */
+  transition:
+    right 260ms var(--papeliz-switch-ease),
+    left 380ms var(--papeliz-switch-ease) 30ms;
+}
+
+.papeliz-note-view-switch[data-papeliz-chosen-note-view='md-code']:has(.papeliz-note-view-switch-option[aria-pressed='false']:active) {
+  --papeliz-switch-lean-right: 6px;
+}
+
+.papeliz-note-view-switch[data-papeliz-chosen-note-view='md-view']:has(.papeliz-note-view-switch-option[aria-pressed='false']:active) {
+  --papeliz-switch-lean-left: 6px;
+}
+
+.papeliz-note-view-switch-option {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 12px;
+  border-radius: 9999px;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  color: rgb(255 255 255 / 0.86);
+  transition:
+    color 220ms ease,
+    background-color 160ms ease;
+}
+
+@media (min-width: 640px) {
+  .papeliz-note-view-switch-option {
+    padding: 0 16px;
+  }
+}
+
+.papeliz-note-view-switch-option:focus-visible {
+  outline-color: #ffffff;
+}
+
+/* The chosen view is not a switch to press: no hover, no lean, no press state. */
+.papeliz-note-view-switch-option[aria-pressed='true'] {
+  pointer-events: none;
+  color: var(--color-papeliz-gradient-start);
+  transition-delay: 90ms;
+}
+
+.papeliz-note-view-switch-option[aria-pressed='false']:hover {
+  color: #ffffff;
+  background: rgb(255 255 255 / 0.1);
+}
+
+.papeliz-note-view-switch-option svg {
+  transition: transform 220ms var(--papeliz-switch-ease);
+}
+
+.papeliz-note-view-switch-option[aria-pressed='false']:active svg {
+  transform: scale(0.88);
+}
+
+/* ---- Sliding choices (papeliz-sliding-choice-group.tsx): the Accessibility menu's choices and the
+   Assistant panel's tabs. The white pill moves as the MD Code | MD View switch's does. ---- */
+
+.papeliz-sliding-choice-group {
+  --papeliz-sliding-choice-inset: 4px;
+  --papeliz-sliding-choice-gap: 4px;
+  --papeliz-sliding-choice-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --papeliz-sliding-choice-width: calc(
+    (100% - 2 * var(--papeliz-sliding-choice-inset) - (var(--papeliz-sliding-choice-count) - 1) * var(--papeliz-sliding-choice-gap)) /
+      var(--papeliz-sliding-choice-count)
+  );
+  --papeliz-sliding-choice-pill-left: calc(
+    var(--papeliz-sliding-choice-inset) + var(--papeliz-chosen-sliding-choice-index) * (var(--papeliz-sliding-choice-width) + var(--papeliz-sliding-choice-gap))
+  );
+  --papeliz-sliding-choice-lean-left: 0px;
+  --papeliz-sliding-choice-lean-right: 0px;
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  gap: var(--papeliz-sliding-choice-gap);
+  padding: var(--papeliz-sliding-choice-inset);
+  border-radius: 12px;
+  background: var(--color-papeliz-surface-gray);
+  box-shadow: inset 0 0 0 1px var(--color-papeliz-line);
+}
+
+.papeliz-sliding-choice-pill {
+  position: absolute;
+  top: var(--papeliz-sliding-choice-inset);
+  bottom: var(--papeliz-sliding-choice-inset);
+  z-index: 0;
+  left: calc(var(--papeliz-sliding-choice-pill-left) - var(--papeliz-sliding-choice-lean-left));
+  right: calc(100% - var(--papeliz-sliding-choice-pill-left) - var(--papeliz-sliding-choice-width) - var(--papeliz-sliding-choice-lean-right));
+  border-radius: 9px;
+  background: var(--color-papeliz-surface);
+  box-shadow:
+    0 1px 2px rgb(17 17 18 / 0.12),
+    0 2px 8px rgb(17 17 18 / 0.08);
+  pointer-events: none;
+  /* Toward an earlier choice: the left edge leads. */
+  transition:
+    left 260ms var(--papeliz-sliding-choice-ease),
+    right 380ms var(--papeliz-sliding-choice-ease) 30ms;
+}
+
+.papeliz-sliding-choice-group[data-papeliz-sliding-choice-move='forward'] .papeliz-sliding-choice-pill {
+  /* Toward a later choice: the right edge leads. */
+  transition:
+    right 260ms var(--papeliz-sliding-choice-ease),
+    left 380ms var(--papeliz-sliding-choice-ease) 30ms;
+}
+
+/* Pressing another choice leans the pill toward it before the click lands. */
+.papeliz-sliding-choice-group:has(.papeliz-sliding-choice[data-papeliz-sliding-choice-chosen='true'] ~ .papeliz-sliding-choice:active) {
+  --papeliz-sliding-choice-lean-right: 6px;
+}
+
+.papeliz-sliding-choice-group:has(.papeliz-sliding-choice:active ~ .papeliz-sliding-choice[data-papeliz-sliding-choice-chosen='true']) {
+  --papeliz-sliding-choice-lean-left: 6px;
+}
+
+.papeliz-sliding-choice {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  min-width: 0;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 8px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  color: var(--color-papeliz-ink-muted);
+  transition: color 160ms ease;
+}
+
+.papeliz-sliding-choice[data-papeliz-sliding-choice-chosen='true'] {
+  color: var(--color-papeliz-blue);
+  font-weight: 600;
+  transition-delay: 90ms;
+}
+
+.papeliz-sliding-choice[data-papeliz-sliding-choice-chosen='false']:hover {
+  color: var(--color-papeliz-ink);
+}
+
+/* The solid blue switch (data-papeliz-sliding-choice-tone='solid-blue'): the chosen choice is solid
+   blue with white words, like the New note button. The words on the track stay dark and never change
+   color; a white copy of them rides in the pill instead (.papeliz-sliding-choice-pill-words-…), cut
+   to the pill's two edges as they move. So a word is white exactly where the pill covers it, even
+   halfway through a slide, and never turns dark on the blue. */
+.papeliz-sliding-choice-group[data-papeliz-sliding-choice-tone='solid-blue'] {
+  background: var(--color-papeliz-chosen-tab-track);
+}
+
+.papeliz-sliding-choice-group[data-papeliz-sliding-choice-tone='solid-blue'] .papeliz-sliding-choice-pill {
+  background: var(--color-papeliz-chosen-tab-ground);
+  box-shadow: 0 1px 2px rgb(17 17 18 / 0.18);
+}
+
+.papeliz-sliding-choice-group[data-papeliz-sliding-choice-tone='solid-blue'] .papeliz-sliding-choice {
+  color: var(--color-papeliz-chosen-tab-other-ink);
+  transition-delay: 0ms;
+}
+
+.papeliz-sliding-choice-group[data-papeliz-sliding-choice-tone='solid-blue'] .papeliz-sliding-choice:hover {
+  color: var(--color-papeliz-ink);
+}
+
+/* The white words: a layer cut at the pill's left edge, holding a layer cut at its right edge, each
+   cut moving with that edge's own timing (as .papeliz-sliding-choice-pill's left and right do). */
+.papeliz-sliding-choice-pill-words-left-edge {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  clip-path: inset(
+    var(--papeliz-sliding-choice-inset) 0 var(--papeliz-sliding-choice-inset)
+      calc(var(--papeliz-sliding-choice-pill-left) - var(--papeliz-sliding-choice-lean-left)) round 9px 0 0 9px
+  );
+  transition: clip-path 260ms var(--papeliz-sliding-choice-ease);
+}
+
+.papeliz-sliding-choice-pill-words-right-edge {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  gap: var(--papeliz-sliding-choice-gap);
+  padding: var(--papeliz-sliding-choice-inset);
+  background: var(--color-papeliz-chosen-tab-ground);
+  clip-path: inset(
+    var(--papeliz-sliding-choice-inset)
+      calc(100% - var(--papeliz-sliding-choice-pill-left) - var(--papeliz-sliding-choice-width) - var(--papeliz-sliding-choice-lean-right))
+      var(--papeliz-sliding-choice-inset) 0 round 0 9px 9px 0
+  );
+  transition: clip-path 380ms var(--papeliz-sliding-choice-ease) 30ms;
+}
+
+.papeliz-sliding-choice-group[data-papeliz-sliding-choice-move='forward'] .papeliz-sliding-choice-pill-words-left-edge {
+  transition: clip-path 380ms var(--papeliz-sliding-choice-ease) 30ms;
+}
+
+.papeliz-sliding-choice-group[data-papeliz-sliding-choice-move='forward'] .papeliz-sliding-choice-pill-words-right-edge {
+  transition: clip-path 260ms var(--papeliz-sliding-choice-ease);
+}
+
+/* Each white word sits exactly over its choice's dark word. */
+.papeliz-sliding-choice-pill-word {
+  display: flex;
+  min-width: 0;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 8px;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  color: #fff;
+}
+
+.papeliz-sliding-choice-pill-word[data-papeliz-sliding-choice-chosen='true'] {
+  font-weight: 600;
+}
+
+.papeliz-sliding-choice:focus-visible {
+  outline: 2px solid var(--color-papeliz-blue);
+  outline-offset: 1px;
+}
+
+.papeliz-sliding-choice svg {
+  flex: none;
+  transition: transform 220ms var(--papeliz-sliding-choice-ease);
+}
+
+.papeliz-sliding-choice[data-papeliz-sliding-choice-chosen='false']:active svg {
+  transform: scale(0.88);
+}
+
+/* ---- The assistant ---- */
+
+.papeliz-assistant-suggestion-chip {
+  display: inline-flex;
+  height: 30px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  border-radius: 9999px;
+  background: var(--color-papeliz-surface-gray);
+  color: var(--color-papeliz-ink);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease,
+    transform 120ms ease;
+}
+
+.papeliz-assistant-suggestion-chip:hover {
+  background: var(--color-papeliz-surface-gray-hover);
+}
+
+.papeliz-assistant-suggestion-chip:active {
+  transform: scale(0.97);
+}
+
+.papeliz-assistant-suggestion-chip[aria-pressed='true'] {
+  background: var(--color-papeliz-blue-soft);
+  color: var(--color-papeliz-blue);
+}
+
+.papeliz-assistant-suggestion-chip:disabled {
+  opacity: 0.5;
+}
+
+.papeliz-assistant-suggestion-chip svg {
+  color: var(--color-papeliz-ink-muted);
+}
+
+/* Diffs: what goes and what comes. */
+.papeliz-text-diff-removed {
+  background: var(--color-papeliz-diff-removed);
+  color: var(--color-papeliz-diff-removed-ink);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+  border-radius: 4px;
+  padding: 0 2px;
+}
+
+.papeliz-text-diff-added {
+  background: var(--color-papeliz-diff-added);
+  color: var(--color-papeliz-diff-added-ink);
+  text-decoration: none;
+  border-radius: 4px;
+  padding: 0 2px;
+}
+
+/* An answer in the chat uses the note's styles, smaller. */
+.papeliz-md-view-article.papeliz-assistant-message-markdown {
+  max-width: none;
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.papeliz-assistant-message-markdown h1,
+.papeliz-assistant-message-markdown h2,
+.papeliz-assistant-message-markdown h3 {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0;
+  margin: 12px 0 4px;
+}
+
+.papeliz-assistant-message-markdown p,
+.papeliz-assistant-message-markdown ul,
+.papeliz-assistant-message-markdown ol {
+  margin-bottom: 8px;
+}
+
+.papeliz-assistant-message-markdown > :last-child {
+  margin-bottom: 0;
+}
+
+/* A side panel's draggable edge. Its seam is the handle's left edge; it turns blue, with a soft
+   halo, as soon as the pointer is on it, while dragging, and on keyboard focus. */
+.papeliz-panel-resize-handle::before {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  left: -2px;
+  width: 3px;
+  background: transparent;
+  transition: background-color 120ms ease, box-shadow 120ms ease;
+}
+
+.papeliz-panel-resize-handle:hover::before,
+.papeliz-panel-resize-handle[data-papeliz-panel-resizing='true']::before,
+.papeliz-panel-resize-handle:focus-visible::before {
+  background: var(--color-papeliz-blue);
+  box-shadow: 0 0 0 2px var(--color-papeliz-blue-soft);
+}
+
+.papeliz-panel-resize-handle:focus-visible {
+  outline: none;
+}
+
+:root[data-papeliz-panel-resizing='true'],
+:root[data-papeliz-panel-resizing='true'] * {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
+
+/* The inline format buttons in the note's context menu (B, I, S, code, wikilink, link). Each shows
+   its format in its own glyph, and turns blue while that format is on. */
+.papeliz-note-format-button {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  min-width: 30px;
+  height: 30px;
+  padding: 0 7px;
+  border-radius: 9999px;
+  color: var(--color-papeliz-ink-muted);
+  font: 600 13.5px/1 var(--font-sans);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.papeliz-note-format-button:hover {
+  background: var(--color-papeliz-hover);
+  color: var(--color-papeliz-ink);
+}
+
+.papeliz-note-format-button:active {
+  background: var(--color-papeliz-press);
+}
+
+.papeliz-note-format-button[aria-pressed='true'] {
+  background: var(--color-papeliz-blue-soft);
+  color: var(--color-papeliz-blue);
+}
+
+.papeliz-note-format-button[data-papeliz-inline-markdown-format='underline'] {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Underlined words in MD View (`<u>words</u>`) and on the locked page. */
+.papeliz-md-view .cm-papeliz-md-view-underlined-text,
+.papeliz-md-view-article u {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.papeliz-note-format-button[data-papeliz-inline-markdown-format='bold'] {
+  font-weight: 800;
+}
+
+.papeliz-note-format-button[data-papeliz-inline-markdown-format='italic'] {
+  font-style: italic;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 15px;
+}
+
+.papeliz-note-format-button[data-papeliz-inline-markdown-format='strikethrough'] {
+  text-decoration: line-through;
+}
+
+.papeliz-note-format-button[data-papeliz-inline-markdown-format='inline-code'],
+.papeliz-note-format-button[data-papeliz-inline-markdown-format='wikilink'] {
+  font: 600 11.5px/1 var(--font-mono);
+}
+
+/* Inline edits: the passage being edited, and the box under it. */
+.cm-papeliz-inline-edit-passage {
+  background: var(--color-papeliz-selection);
+  border-radius: 4px;
+}
+
+.papeliz-inline-edit-host {
+  cursor: default;
+  white-space: normal;
+}
+
+/* ---- The note editor (MD Code and the editable MD View) ---- */
+
+/* CodeMirror grows with the note and the note column scrolls. */
+.papeliz-note-editor .cm-editor {
+  min-height: 60vh;
+}
+
+/* MD View, editable: the same Markdown drawn as a page. Selectors carry three classes so they win
+   over CodeMirror's own line styles. */
+.papeliz-md-view .cm-line.cm-papeliz-md-view-heading {
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.papeliz-md-view .cm-line.cm-papeliz-md-view-heading-1 {
+  font-size: 2.2em;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.18;
+  padding-top: 0.15em;
+  padding-bottom: 0.2em;
+}
+
+.papeliz-md-view .cm-line.cm-papeliz-md-view-heading-2 {
+  font-size: 1.3em;
+  padding-top: 0.8em;
+}
+
+.papeliz-md-view .cm-line.cm-papeliz-md-view-heading-3 {
+  font-size: 1.08em;
+  padding-top: 0.6em;
+}
+
+.papeliz-md-view .cm-line.cm-papeliz-md-view-quote-line {
+  border-left: 3px solid var(--color-papeliz-line-strong);
+  padding-left: 16px;
+  color: var(--color-papeliz-ink-muted);
+}
+
+.papeliz-md-view .cm-line.cm-papeliz-md-view-callout-line {
+  --papeliz-callout-ground: var(--color-papeliz-blue-soft);
+  --papeliz-callout-ink: var(--color-papeliz-blue);
+  background: var(--papeliz-callout-ground);
+  padding: 0 18px;
+  font-size: 0.94em;
+}
+
+.papeliz-md-view .cm-line.cm-papeliz-md-view-callout-line-first {
+  border-top-left-radius: 16px;
+  border-top-right-radius: 16px;
+  padding-top: 12px;
+}
+
+.papeliz-md-view .cm-line.cm-papeliz-md-view-callout-line-last {
+  border-bottom-left-radius: 16px;
+  border-bottom-right-radius: 16px;
+  padding-bottom: 12px;
+}
+
+.papeliz-md-view .cm-papeliz-md-view-callout-line[data-papeliz-callout-kind='warning'],
+.papeliz-md-view .cm-papeliz-md-view-callout-line[data-papeliz-callout-kind='caution'],
+.papeliz-md-view .cm-papeliz-md-view-callout-line[data-papeliz-callout-kind='attention'] {
+  --papeliz-callout-ground: var(--color-papeliz-warning);
+  --papeliz-callout-ink: var(--color-papeliz-warning-ink);
+}
+
+.papeliz-md-view .cm-papeliz-md-view-callout-line[data-papeliz-callout-kind='danger'],
+.papeliz-md-view .cm-papeliz-md-view-callout-line[data-papeliz-callout-kind='error'],
+.papeliz-md-view .cm-papeliz-md-view-callout-line[data-papeliz-callout-kind='failure'],
+.papeliz-md-view .cm-papeliz-md-view-callout-line[data-papeliz-callout-kind='bug'] {
+  --papeliz-callout-ground: var(--color-papeliz-diff-removed);
+  --papeliz-callout-ink: var(--color-papeliz-diff-removed-ink);
+}
+
+.papeliz-md-view .cm-papeliz-md-view-callout-line[data-papeliz-callout-kind='success'],
+.papeliz-md-view .cm-papeliz-md-view-callout-line[data-papeliz-callout-kind='check'],
+.papeliz-md-view .cm-papeliz-md-view-callout-line[data-papeliz-callout-kind='done'] {
+  --papeliz-callout-ground: var(--color-papeliz-diff-added);
+  --papeliz-callout-ink: var(--color-papeliz-diff-added-ink);
+}
+
+.papeliz-md-view .cm-papeliz-md-view-callout-line[data-papeliz-callout-kind='quote'],
+.papeliz-md-view .cm-papeliz-md-view-callout-line[data-papeliz-callout-kind='cite'] {
+  --papeliz-callout-ground: var(--color-papeliz-surface-gray);
+  --papeliz-callout-ink: var(--color-papeliz-ink-muted);
+}
+
+/* More kinds with their own colors, then a color chosen in the Markdown, which wins. */
+.papeliz-md-view .cm-papeliz-md-view-callout-line[data-papeliz-callout-kind='abstract'],
+.papeliz-md-view .cm-papeliz-md-view-callout-line[data-papeliz-callout-kind='summary'],
+.papeliz-md-view .cm-papeliz-md-view-callout-line[data-papeliz-callout-kind='tldr'] {
+  --papeliz-callout-ground: var(--color-papeliz-callout-teal-ground);
+  --papeliz-callout-ink: var(--color-papeliz-callout-teal-ink);
+}
+
+.papeliz-md-view .cm-papeliz-md-view-callout-line[data-papeliz-callout-kind='question'],
+.papeliz-md-view .cm-papeliz-md-view-callout-line[data-papeliz-callout-kind='help'],
+.papeliz-md-view .cm-papeliz-md-view-callout-line[data-papeliz-callout-kind='faq'] {
+  --papeliz-callout-ground: var(--color-papeliz-callout-yellow-ground);
+  --papeliz-callout-ink: var(--color-papeliz-callout-yellow-ink);
+}
+
+.papeliz-md-view .cm-papeliz-md-view-callout-line[data-papeliz-callout-kind='example'] {
+  --papeliz-callout-ground: var(--color-papeliz-callout-purple-ground);
+  --papeliz-callout-ink: var(--color-papeliz-callout-purple-ink);
+}
+
+.papeliz-md-view .cm-papeliz-md-view-callout-line[data-papeliz-callout-color='red'] {
+  --papeliz-callout-ground: var(--color-papeliz-callout-red-ground);
+  --papeliz-callout-ink: var(--color-papeliz-callout-red-ink);
+}
+
+.papeliz-md-view .cm-papeliz-md-view-callout-line[data-papeliz-callout-color='orange'] {
+  --papeliz-callout-ground: var(--color-papeliz-callout-orange-ground);
+  --papeliz-callout-ink: var(--color-papeliz-callout-orange-ink);
+}
+
+.papeliz-md-view .cm-papeliz-md-view-callout-line[data-papeliz-callout-color='yellow'] {
+  --papeliz-callout-ground: var(--color-papeliz-callout-yellow-ground);
+  --papeliz-callout-ink: var(--color-papeliz-callout-yellow-ink);
+}
+
+.papeliz-md-view .cm-papeliz-md-view-callout-line[data-papeliz-callout-color='green'] {
+  --papeliz-callout-ground: var(--color-papeliz-callout-green-ground);
+  --papeliz-callout-ink: var(--color-papeliz-callout-green-ink);
+}
+
+.papeliz-md-view .cm-papeliz-md-view-callout-line[data-papeliz-callout-color='teal'] {
+  --papeliz-callout-ground: var(--color-papeliz-callout-teal-ground);
+  --papeliz-callout-ink: var(--color-papeliz-callout-teal-ink);
+}
+
+.papeliz-md-view .cm-papeliz-md-view-callout-line[data-papeliz-callout-color='blue'] {
+  --papeliz-callout-ground: var(--color-papeliz-callout-blue-ground);
+  --papeliz-callout-ink: var(--color-papeliz-callout-blue-ink);
+}
+
+.papeliz-md-view .cm-papeliz-md-view-callout-line[data-papeliz-callout-color='purple'] {
+  --papeliz-callout-ground: var(--color-papeliz-callout-purple-ground);
+  --papeliz-callout-ink: var(--color-papeliz-callout-purple-ink);
+}
+
+.papeliz-md-view .cm-papeliz-md-view-callout-line[data-papeliz-callout-color='pink'] {
+  --papeliz-callout-ground: var(--color-papeliz-callout-pink-ground);
+  --papeliz-callout-ink: var(--color-papeliz-callout-pink-ink);
+}
+
+.papeliz-md-view .cm-papeliz-md-view-callout-line[data-papeliz-callout-color='gray'] {
+  --papeliz-callout-ground: var(--color-papeliz-callout-gray-ground);
+  --papeliz-callout-ink: var(--color-papeliz-callout-gray-ink);
+}
+
+.papeliz-md-view .cm-papeliz-md-view-callout-title {
+  color: var(--papeliz-callout-ink);
+  font-weight: 600;
+}
+
+.papeliz-md-view .cm-line.cm-papeliz-md-view-code-line,
+.papeliz-md-view .cm-line.cm-papeliz-md-view-frontmatter-line {
+  font-family: var(--font-mono);
+  font-size: 13.5px;
+  line-height: 1.65;
+  background: var(--color-papeliz-surface-soft);
+  padding: 0 16px;
+}
+
+.papeliz-md-view .cm-line.cm-papeliz-md-view-frontmatter-line {
+  color: var(--color-papeliz-ink-muted);
+}
+
+.papeliz-md-view .cm-line.cm-papeliz-md-view-code-line-first,
+.papeliz-md-view .cm-line.cm-papeliz-md-view-frontmatter-line-first {
+  border-top-left-radius: 14px;
+  border-top-right-radius: 14px;
+  padding-top: 8px;
+}
+
+.papeliz-md-view .cm-line.cm-papeliz-md-view-code-line-last,
+.papeliz-md-view .cm-line.cm-papeliz-md-view-frontmatter-line-last {
+  border-bottom-left-radius: 14px;
+  border-bottom-right-radius: 14px;
+  padding-bottom: 8px;
+}
+
+.papeliz-md-view .cm-line.cm-papeliz-md-view-table-line {
+  font-family: var(--font-mono);
+  font-size: 14px;
+}
+
+.papeliz-md-view .cm-line.cm-papeliz-md-view-rule-line {
+  background: linear-gradient(var(--color-papeliz-line), var(--color-papeliz-line)) center / 100% 1px no-repeat;
+}
+
+.papeliz-md-view .cm-line.cm-papeliz-md-view-list-line {
+  padding-left: calc(var(--papeliz-list-hanging-indent) + 2px);
+  text-indent: calc(-1 * var(--papeliz-list-hanging-indent));
+}
+
+.papeliz-md-view .cm-papeliz-md-view-inline-code {
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+  background: var(--color-papeliz-surface-gray);
+  border-radius: 6px;
+  padding: 1px 5px;
+}
+
+.papeliz-md-view .cm-papeliz-md-view-bullet {
+  color: var(--color-papeliz-ink-subtle);
+  display: inline-block;
+  width: 0.7em;
+  /* An inline block inherits the line's negative hanging indent; without this the dot is pushed
+     out of its own box and out of sight. */
+  text-indent: 0;
+}
+
+.papeliz-md-view .cm-papeliz-md-view-task-checkbox {
+  appearance: none;
+  width: 17px;
+  height: 17px;
+  margin: 0 4px 0 0;
+  vertical-align: -3px;
+  border: 1.6px solid var(--color-papeliz-line-strong);
+  border-radius: 6px;
+  background: var(--color-papeliz-surface);
+  cursor: pointer;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    transform 120ms ease;
+}
+
+.papeliz-md-view .cm-papeliz-md-view-task-checkbox:active {
+  transform: scale(0.9);
+}
+
+.papeliz-md-view .cm-papeliz-md-view-task-checkbox:checked {
+  background: var(--color-papeliz-gradient-start)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E")
+    center / 11px no-repeat;
+  border-color: var(--color-papeliz-gradient-start);
+}
+
+.papeliz-md-view .cm-papeliz-md-view-task-done {
+  color: var(--color-papeliz-ink-subtle);
+}
+
+.papeliz-md-view .cm-papeliz-md-view-wikilink,
+.papeliz-md-view .cm-papeliz-md-view-link {
+  color: var(--color-papeliz-blue);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.papeliz-md-view .cm-papeliz-md-view-wikilink {
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.papeliz-md-view .cm-papeliz-md-view-wikilink:hover,
+.papeliz-md-view .cm-papeliz-md-view-link[data-papeliz-link-href]:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.papeliz-md-view .cm-papeliz-md-view-wikilink.cm-papeliz-md-view-wikilink-unresolved {
+  color: var(--color-papeliz-ink-muted);
+  text-decoration: underline dashed var(--color-papeliz-line-strong);
+  text-underline-offset: 4px;
+}
+
+.papeliz-md-view .cm-papeliz-md-view-tag {
+  background: var(--color-papeliz-blue-soft);
+  color: var(--color-papeliz-blue);
+  border-radius: 9999px;
+  padding: 1px 8px;
+  font-size: 0.82em;
+  font-weight: 500;
+}
+
+/* ---- The MD View with the lock on: the rendered, sanitized page ---- */
+.papeliz-md-view-article {
+  max-width: var(--papeliz-note-column-width);
+  margin: 0 auto;
+  font-family: var(--papeliz-note-font-family);
+  font-size: var(--papeliz-note-font-size);
+  line-height: 1.7;
+  color: var(--color-papeliz-ink);
+  overflow-wrap: break-word;
+}
+
+.papeliz-md-view-article > :first-child {
+  margin-top: 0;
+}
+
+.papeliz-md-view-article h1 {
+  font-size: 2.24em;
+  line-height: 1.15;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  margin: 0 0 14px;
+}
+
+.papeliz-md-view-article h2 {
+  font-size: 1.3em;
+  line-height: 1.3;
+  font-weight: 600;
+  margin: 30px 0 8px;
+}
+
+.papeliz-md-view-article h3 {
+  font-size: 1.06em;
+  line-height: 1.35;
+  font-weight: 600;
+  margin: 24px 0 6px;
+}
+
+.papeliz-md-view-article h4,
+.papeliz-md-view-article h5,
+.papeliz-md-view-article h6 {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 20px 0 6px;
+}
+
+.papeliz-md-view-article p {
+  margin: 0 0 14px;
+}
+
+.papeliz-md-view-article strong {
+  font-weight: 600;
+}
+
+.papeliz-md-view-article a {
+  color: var(--color-papeliz-blue);
+  font-weight: 500;
+  text-decoration: none;
+  border-radius: 4px;
+}
+
+.papeliz-md-view-article a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.papeliz-md-view-article a.papeliz-md-view-wikilink-unresolved {
+  color: var(--color-papeliz-ink-muted);
+  text-decoration: underline dashed var(--color-papeliz-line-strong);
+  text-underline-offset: 4px;
+}
+
+.papeliz-md-view-article ul,
+.papeliz-md-view-article ol {
+  margin: 0 0 16px;
+  padding-left: 24px;
+}
+
+.papeliz-md-view-article ul {
+  list-style: disc;
+}
+
+.papeliz-md-view-article ol {
+  list-style: decimal;
+}
+
+.papeliz-md-view-article li {
+  margin-bottom: 4px;
+}
+
+.papeliz-md-view-article li > ul,
+.papeliz-md-view-article li > ol {
+  margin: 4px 0 0;
+}
+
+.papeliz-md-view-article ul.contains-task-list {
+  list-style: none;
+  padding-left: 0;
+}
+
+.papeliz-md-view-article li.task-list-item {
+  position: relative;
+  padding-left: 30px;
+  margin-bottom: 2px;
+}
+
+.papeliz-md-view-article li.task-list-item > p {
+  margin: 0;
+}
+
+.papeliz-md-view-article li.task-list-item input[type='checkbox'] {
+  appearance: none;
+  position: absolute;
+  left: 0;
+  top: 0.38em;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  border: 1.6px solid var(--color-papeliz-line-strong);
+  border-radius: 6px;
+  background: var(--color-papeliz-surface);
+}
+
+.papeliz-md-view-article li.task-list-item input[type='checkbox']:checked {
+  background: var(--color-papeliz-gradient-start)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E")
+    center / 12px no-repeat;
+  border-color: var(--color-papeliz-gradient-start);
+}
+
+.papeliz-md-view-article li.task-list-item:has(> input:checked) {
+  color: var(--color-papeliz-ink-subtle);
+}
+
+.papeliz-md-view-article blockquote {
+  margin: 6px 0 18px;
+  padding: 2px 0 2px 16px;
+  border-left: 3px solid var(--color-papeliz-line-strong);
+  color: var(--color-papeliz-ink-muted);
+}
+
+.papeliz-md-view-article .papeliz-md-view-callout {
+  --papeliz-callout-ground: var(--color-papeliz-blue-soft);
+  --papeliz-callout-ink: var(--color-papeliz-blue);
+  background: var(--papeliz-callout-ground);
+  border-radius: 16px;
+  padding: 14px 18px;
+  margin: 6px 0 18px;
+  font-size: 16px;
+}
+
+.papeliz-md-view-article .papeliz-md-view-callout[data-papeliz-callout-kind='warning'],
+.papeliz-md-view-article .papeliz-md-view-callout[data-papeliz-callout-kind='caution'],
+.papeliz-md-view-article .papeliz-md-view-callout[data-papeliz-callout-kind='attention'] {
+  --papeliz-callout-ground: var(--color-papeliz-warning);
+  --papeliz-callout-ink: var(--color-papeliz-warning-ink);
+}
+
+.papeliz-md-view-article .papeliz-md-view-callout[data-papeliz-callout-kind='danger'],
+.papeliz-md-view-article .papeliz-md-view-callout[data-papeliz-callout-kind='error'],
+.papeliz-md-view-article .papeliz-md-view-callout[data-papeliz-callout-kind='failure'],
+.papeliz-md-view-article .papeliz-md-view-callout[data-papeliz-callout-kind='bug'] {
+  --papeliz-callout-ground: var(--color-papeliz-diff-removed);
+  --papeliz-callout-ink: var(--color-papeliz-diff-removed-ink);
+}
+
+.papeliz-md-view-article .papeliz-md-view-callout[data-papeliz-callout-kind='success'],
+.papeliz-md-view-article .papeliz-md-view-callout[data-papeliz-callout-kind='check'],
+.papeliz-md-view-article .papeliz-md-view-callout[data-papeliz-callout-kind='done'] {
+  --papeliz-callout-ground: var(--color-papeliz-diff-added);
+  --papeliz-callout-ink: var(--color-papeliz-diff-added-ink);
+}
+
+.papeliz-md-view-article .papeliz-md-view-callout[data-papeliz-callout-kind='quote'],
+.papeliz-md-view-article .papeliz-md-view-callout[data-papeliz-callout-kind='cite'] {
+  --papeliz-callout-ground: var(--color-papeliz-surface-gray);
+  --papeliz-callout-ink: var(--color-papeliz-ink-muted);
+}
+
+.papeliz-md-view-article .papeliz-md-view-callout[data-papeliz-callout-kind='abstract'],
+.papeliz-md-view-article .papeliz-md-view-callout[data-papeliz-callout-kind='summary'],
+.papeliz-md-view-article .papeliz-md-view-callout[data-papeliz-callout-kind='tldr'] {
+  --papeliz-callout-ground: var(--color-papeliz-callout-teal-ground);
+  --papeliz-callout-ink: var(--color-papeliz-callout-teal-ink);
+}
+
+.papeliz-md-view-article .papeliz-md-view-callout[data-papeliz-callout-kind='question'],
+.papeliz-md-view-article .papeliz-md-view-callout[data-papeliz-callout-kind='help'],
+.papeliz-md-view-article .papeliz-md-view-callout[data-papeliz-callout-kind='faq'] {
+  --papeliz-callout-ground: var(--color-papeliz-callout-yellow-ground);
+  --papeliz-callout-ink: var(--color-papeliz-callout-yellow-ink);
+}
+
+.papeliz-md-view-article .papeliz-md-view-callout[data-papeliz-callout-kind='example'] {
+  --papeliz-callout-ground: var(--color-papeliz-callout-purple-ground);
+  --papeliz-callout-ink: var(--color-papeliz-callout-purple-ink);
+}
+
+.papeliz-md-view-article .papeliz-md-view-callout[data-papeliz-callout-color='red'] {
+  --papeliz-callout-ground: var(--color-papeliz-callout-red-ground);
+  --papeliz-callout-ink: var(--color-papeliz-callout-red-ink);
+}
+
+.papeliz-md-view-article .papeliz-md-view-callout[data-papeliz-callout-color='orange'] {
+  --papeliz-callout-ground: var(--color-papeliz-callout-orange-ground);
+  --papeliz-callout-ink: var(--color-papeliz-callout-orange-ink);
+}
+
+.papeliz-md-view-article .papeliz-md-view-callout[data-papeliz-callout-color='yellow'] {
+  --papeliz-callout-ground: var(--color-papeliz-callout-yellow-ground);
+  --papeliz-callout-ink: var(--color-papeliz-callout-yellow-ink);
+}
+
+.papeliz-md-view-article .papeliz-md-view-callout[data-papeliz-callout-color='green'] {
+  --papeliz-callout-ground: var(--color-papeliz-callout-green-ground);
+  --papeliz-callout-ink: var(--color-papeliz-callout-green-ink);
+}
+
+.papeliz-md-view-article .papeliz-md-view-callout[data-papeliz-callout-color='teal'] {
+  --papeliz-callout-ground: var(--color-papeliz-callout-teal-ground);
+  --papeliz-callout-ink: var(--color-papeliz-callout-teal-ink);
+}
+
+.papeliz-md-view-article .papeliz-md-view-callout[data-papeliz-callout-color='blue'] {
+  --papeliz-callout-ground: var(--color-papeliz-callout-blue-ground);
+  --papeliz-callout-ink: var(--color-papeliz-callout-blue-ink);
+}
+
+.papeliz-md-view-article .papeliz-md-view-callout[data-papeliz-callout-color='purple'] {
+  --papeliz-callout-ground: var(--color-papeliz-callout-purple-ground);
+  --papeliz-callout-ink: var(--color-papeliz-callout-purple-ink);
+}
+
+.papeliz-md-view-article .papeliz-md-view-callout[data-papeliz-callout-color='pink'] {
+  --papeliz-callout-ground: var(--color-papeliz-callout-pink-ground);
+  --papeliz-callout-ink: var(--color-papeliz-callout-pink-ink);
+}
+
+.papeliz-md-view-article .papeliz-md-view-callout[data-papeliz-callout-color='gray'] {
+  --papeliz-callout-ground: var(--color-papeliz-callout-gray-ground);
+  --papeliz-callout-ink: var(--color-papeliz-callout-gray-ink);
+}
+
+.papeliz-md-view-article .papeliz-md-view-callout-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--papeliz-callout-ink);
+}
+
+.papeliz-md-view-article .papeliz-md-view-callout-body {
+  margin-top: 4px;
+}
+
+.papeliz-md-view-article .papeliz-md-view-callout-body > :last-child {
+  margin-bottom: 0;
+}
+
+.papeliz-md-view-article .papeliz-md-view-tag {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 9px;
+  border-radius: 9999px;
+  background: var(--color-papeliz-blue-soft);
+  color: var(--color-papeliz-blue);
+  font-size: 13px;
+  font-weight: 500;
+  vertical-align: 1px;
+}
+
+.papeliz-md-view-article code {
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+  background: var(--color-papeliz-surface-gray);
+  border-radius: 6px;
+  padding: 1px 5px;
+}
+
+.papeliz-md-view-article pre {
+  font: 13.5px/1.65 var(--font-mono);
+  background: var(--color-papeliz-surface-soft);
+  border: 1px solid var(--color-papeliz-line);
+  border-radius: 14px;
+  padding: 14px 16px;
+  overflow: auto;
+  margin: 6px 0 18px;
+}
+
+.papeliz-md-view-article pre code {
+  background: none;
+  padding: 0;
+  font-size: inherit;
+}
+
+.papeliz-md-view-article table {
+  width: max-content;
+  max-width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 14.5px;
+  margin: 6px 0 18px;
+  border: 1px solid var(--color-papeliz-line);
+  border-radius: 14px;
+  overflow: hidden;
+  display: block;
+  overflow-x: auto;
+}
+
+.papeliz-md-view-article th,
+.papeliz-md-view-article td {
+  padding: 9px 14px;
+  text-align: left;
+  border-bottom: 1px solid var(--color-papeliz-line);
+}
+
+.papeliz-md-view-article tr:last-child td {
+  border-bottom: 0;
+}
+
+.papeliz-md-view-article th {
+  background: var(--color-papeliz-surface-soft);
+  font-weight: 600;
+}
+
+.papeliz-md-view-article hr {
+  border: 0;
+  border-top: 1px solid var(--color-papeliz-line);
+  margin: 26px 0;
+}
+
+.papeliz-md-view-article img {
+  max-width: 100%;
+  border-radius: 12px;
+}
+
+.papeliz-md-view-article .papeliz-md-view-image-placeholder {
+  display: inline-flex;
+  padding: 2px 10px;
+  border-radius: 9999px;
+  background: var(--color-papeliz-surface-gray);
+  color: var(--color-papeliz-ink-muted);
+  font-size: 13px;
+}
+
+.papeliz-md-view-article .papeliz-md-view-properties,
+.papeliz-md-view .papeliz-md-view-properties {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 22px;
+  padding: 0;
+  list-style: none;
+}
+
+.papeliz-md-view-article .papeliz-md-view-property,
+.papeliz-md-view .papeliz-md-view-property {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  margin: 0;
+  padding: 2px 11px;
+  border-radius: 9999px;
+  background: var(--color-papeliz-surface-gray);
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--color-papeliz-ink-muted);
+}
+
+.papeliz-md-view-article .papeliz-md-view-property b,
+.papeliz-md-view .papeliz-md-view-property b {
+  color: var(--color-papeliz-ink);
+  font-weight: 500;
+}
+
+.papeliz-md-view-article .papeliz-md-view-empty-note {
+  color: var(--color-papeliz-ink-subtle);
+}
+
+.papeliz-md-view-article section[data-footnotes] {
+  margin-top: 30px;
+  font-size: 14px;
+  color: var(--color-papeliz-ink-muted);
+}
+
+@media (max-width: 767px) {
+  .papeliz-md-view-article {
+    font-size: calc(var(--papeliz-note-font-size) - 1px);
+  }
+
+  .papeliz-md-view-article h1 {
+    font-size: 1.9em;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0s !important;
+    animation-duration: 0s !important;
+  }
+}
+
+/* Recent vaults' Reload. Pressed, the button sinks quickly and springs back past its size; while
+   the list is read again, its icon turns and a ring turns over the list. */
+.papeliz-recent-vaults-reload-button {
+  transition:
+    background-color 150ms ease-out,
+    color 150ms ease-out,
+    scale 280ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.papeliz-recent-vaults-reload-button:active {
+  scale: 0.86;
+  transition-duration: 150ms, 150ms, 90ms;
+  transition-timing-function: ease-out;
+}
+
+.papeliz-recent-vaults-reload-icon-turning {
+  animation: papeliz-recent-vaults-reload-turn 700ms linear infinite;
+}
+
+.papeliz-recent-vaults-reload-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--color-papeliz-surface) 72%, transparent);
+  animation: papeliz-recent-vaults-reload-overlay-in 160ms ease-out both;
+}
+
+.papeliz-recent-vaults-reload-ring {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 3px solid color-mix(in srgb, var(--color-papeliz-ink) 14%, transparent);
+  border-top-color: var(--color-papeliz-blue);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--color-papeliz-blue) 35%, transparent);
+  animation: papeliz-recent-vaults-reload-turn 800ms linear infinite;
+}
+
+@keyframes papeliz-recent-vaults-reload-turn {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes papeliz-recent-vaults-reload-overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* The open-notes strip's scrollbar: a thin blue bar under the tabs, on the strip's line, there
+   only when the tabs don't fit. */
+.papeliz-note-tabs-scroller::-webkit-scrollbar {
+  height: 6px;
+}
+
+.papeliz-note-tabs-scroller::-webkit-scrollbar-track {
+  background: var(--color-papeliz-line);
+}
+
+.papeliz-note-tabs-scroller::-webkit-scrollbar-thumb {
+  border: 1px solid var(--color-papeliz-line);
+  border-radius: 999px;
+  background: var(--color-papeliz-blue);
+}
+
+.papeliz-note-tabs-scroller::-webkit-scrollbar-thumb:hover {
+  background-color: var(--color-papeliz-blue-hover);
+}
+
+@supports not selector(::-webkit-scrollbar) {
+  .papeliz-note-tabs-scroller {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-papeliz-blue) var(--color-papeliz-line);
+  }
+}
+
+/* While an open-note tab is dragged, the pointer shows it is held and text does not get selected. */
+:root[data-papeliz-note-tab-dragging='true'],
+:root[data-papeliz-note-tab-dragging='true'] * {
+  cursor: grabbing !important;
+  user-select: none !important;
+}
+
+/* A card in any color (`> [!note|#7c3aed]`): its ground and ink are mixed from that color and the
+   theme, so it reads in light and dark alike. */
+.papeliz-md-view .cm-papeliz-md-view-callout-line[data-papeliz-callout-color^='#'],
+.papeliz-md-view-article .papeliz-md-view-callout[data-papeliz-callout-color^='#'] {
+  --papeliz-callout-ground: color-mix(in oklab, var(--papeliz-callout-custom-color) 16%, var(--color-papeliz-surface));
+  --papeliz-callout-ink: color-mix(in oklab, var(--papeliz-callout-custom-color) 70%, var(--color-papeliz-ink));
+}
+
+/* The color picker's sliders: a rounded track painted by the picker (the hues, or the shades of
+   one hue) and a round thumb filled with the color it points at. */
+.papeliz-color-picker-slider {
+  height: 14px;
+  border-radius: 9999px;
+  appearance: none;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.08);
+}
+
+.papeliz-color-picker-slider:focus-visible {
+  outline: 2px solid var(--color-papeliz-blue);
+  outline-offset: 2px;
+}
+
+.papeliz-color-picker-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  border: 3px solid #fff;
+  background: var(--papeliz-color-picker-thumb);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.3);
+}
+
+.papeliz-color-picker-slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 9999px;
+  border: 3px solid #fff;
+  background: var(--papeliz-color-picker-thumb);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.3);
+}
+
+/* The color wheel on the context menu's "any color" buttons: every hue around the edge, fading
+   to white in the middle, like a paint program's color wheel. */
+.papeliz-custom-card-color-wheel {
+  background:
+    radial-gradient(circle closest-side, #fff 0%, rgb(255 255 255 / 0.85) 18%, rgb(255 255 255 / 0) 100%),
+    conic-gradient(from 90deg, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000);
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.12);
+}

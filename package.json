@@ -1,0 +1,26 @@
+{
+  "name": "papeliz",
+  "private": true,
+  "packageManager": "pnpm@10.34.7",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "site:dev": "pnpm --filter @papeliz/site dev",
+    "site:build": "pnpm --filter @papeliz/site build && node build_tools/site/papeliz-site-repair-windows-segment-files.mjs",
+    "site:typecheck": "pnpm --filter @papeliz/site typecheck",
+    "site:lint": "pnpm --filter @papeliz/site lint",
+    "site:verify": "pnpm --filter @papeliz/site verify",
+    "help:dev": "pnpm --filter @papeliz/help-site dev",
+    "help:build": "pnpm --filter @papeliz/help-site build && node build_tools/site/papeliz-site-repair-windows-segment-files.mjs site/help/out",
+    "help:typecheck": "pnpm --filter @papeliz/help-site typecheck",
+    "help:lint": "pnpm --filter @papeliz/help-site lint",
+    "help:verify": "pnpm --filter @papeliz/help-site verify",
+    "webapp:dev": "pnpm --filter @papeliz/webapp dev",
+    "webapp:build": "pnpm --filter @papeliz/webapp build",
+    "webapp:typecheck": "pnpm --filter @papeliz/webapp typecheck",
+    "webapp:test": "pnpm --filter @papeliz/webapp test",
+    "webapp:lint": "pnpm --filter @papeliz/webapp lint",
+    "deploy:assemble": "pnpm run site:build && pnpm run webapp:build && pnpm run help:build && node build_tools/shared/deploy-folder/papeliz-deploy-folder-assemble.mjs"
+  }
+}
