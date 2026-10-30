@@ -25,7 +25,7 @@ import {
   type PapelizRememberedVaultFolder,
 } from '../vault/papeliz-remembered-vault-folders'
 import { papelizSampleVaultFirstNoteRelativePath, papelizSampleVaultNotes } from '../vault/papeliz-sample-vault-notes'
-import { PapelizAccessibilityMenuButton } from './papeliz-accessibility-menu-button'
+import { PapelizSettingsGearButton } from './papeliz-settings-gear-button'
 import { usePapelizStartScreenEyePreviewStore, type PapelizStartScreenEyePreview } from './papeliz-start-screen-eye-preview-store'
 import { PapelizWorkspaceEyePreviewerSlot } from './papeliz-workspace-eye-previewer-slot'
 import { PapelizWorkspaceNotice } from './papeliz-workspace-notice'
@@ -415,7 +415,7 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
         <PapelizMark papelizMarkSize={26} papelizMarkTone="on-blue" />
         <span className="text-[15px] font-semibold tracking-[-0.01em]">Papeliz</span>
         <div className="ml-auto flex items-center gap-1.5">
-          <PapelizAccessibilityMenuButton isNoteDisplaySettingsShown={false} />
+          <PapelizSettingsGearButton settingsGearPlace="start-page" />
         </div>
       </header>
 

@@ -15,11 +15,12 @@ import {
   TriangleAlert,
   type LucideIcon,
 } from 'lucide-react'
-import { useMemo, type ComponentProps, type MouseEvent, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, type ComponentProps, type MouseEvent, type ReactNode } from 'react'
 import { Fragment, jsx, jsxs } from 'react/jsx-runtime'
 import type { PapelizWikilinkTargetResolver } from '../links/papeliz-wikilink-targets'
 import { PapelizNoteFrontmatterPropertyChips } from './papeliz-note-frontmatter-property-chips'
 import { readPapelizNoteFrontmatterProperties } from './papeliz-note-frontmatter-properties'
+import { mountPapelizMermaidDiagram, unmountPapelizMermaidDiagram } from './papeliz-md-view-mermaid-diagrams'
 import { renderPapelizMdViewNote } from './papeliz-md-view-render-pipeline'
 import { papelizMdViewCalloutTitleClassName } from './papeliz-remark-callouts'
 
@@ -67,14 +68,45 @@ function isExternalLinkHref(linkHref: string): boolean {
   return /^(https?:|mailto:)/i.test(linkHref)
 }
 
+function collectHastElementText(hastElement: HastElement): string {
+  return hastElement.children.map((hastChild) => (hastChild.type === 'text' ? hastChild.value : hastChild.type === 'element' ? collectHastElementText(hastChild) : '')).join('')
+}
+
+// The source of a ```mermaid block (`<pre><code class="language-mermaid">`), or null for other code.
+function readMermaidDiagramSource(hastPreElement: HastElement | undefined): string | null {
+  const hastCodeElement = hastPreElement?.children.find((hastChild): hastChild is HastElement => hastChild.type === 'element' && hastChild.tagName === 'code')
+  const codeClassNames = hastCodeElement?.properties['className']
+  if (hastCodeElement === undefined || !Array.isArray(codeClassNames) || !codeClassNames.includes('language-mermaid')) return null
+  return collectHastElementText(hastCodeElement).replace(/\n$/, '')
+}
+
+function PapelizMdViewMermaidDiagram({ mermaidDiagramSource }: { mermaidDiagramSource: string }) {
+  const mermaidDiagramElementRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const mermaidDiagramElement = mermaidDiagramElementRef.current
+    if (mermaidDiagramElement === null) return
+    mountPapelizMermaidDiagram(mermaidDiagramElement, mermaidDiagramSource)
+    return () => unmountPapelizMermaidDiagram(mermaidDiagramElement)
+  }, [mermaidDiagramSource])
+  return <div ref={mermaidDiagramElementRef} className="papeliz-mermaid-diagram" />
+}
+
 // Turns the sanitized tree into React elements. Wikilinks and links to other `.md` files open
-// inside Papeliz; web links open in a new tab. Also used for the assistant's answers.
+// inside Papeliz; web links open in a new tab. Also used for the assistant's answers, which keep
+// ```mermaid blocks as code (`drawsMermaidDiagrams` off): an answer still arriving is often not yet
+// a whole diagram.
 export function renderPapelizMdViewHastToReact(
   noteHastRoot: HastRoot,
   onWikilinkActivate: (wikilinkTargetNoteName: string) => void,
   onRelativeNoteLinkActivate: (linkHref: string) => void,
+  drawsMermaidDiagrams = false,
 ): ReactNode {
   const papelizMdViewRenderedPageComponents: Components = {
+    pre: ({ node: hastPreElement, children, ...preProps }: ComponentProps<'pre'> & { node?: HastElement }) => {
+      const mermaidDiagramSource = drawsMermaidDiagrams ? readMermaidDiagramSource(hastPreElement) : null
+      if (mermaidDiagramSource !== null) return <PapelizMdViewMermaidDiagram mermaidDiagramSource={mermaidDiagramSource} />
+      return <pre {...preProps}>{children}</pre>
+    },
     a: ({ node: hastAnchorElement, href, children, ...anchorProps }: ComponentProps<'a'> & { node?: HastElement }) => {
       const wikilinkTargetNoteName = getHastStringProperty(hastAnchorElement, 'dataPapelizWikilinkTarget')
       if (wikilinkTargetNoteName !== null) {
@@ -161,7 +193,7 @@ export function PapelizMdViewRenderedPage({
   )
 
   const renderedNoteBody = useMemo(
-    () => renderPapelizMdViewHastToReact(renderedNote.noteHastRoot, onWikilinkActivate, onRelativeNoteLinkActivate),
+    () => renderPapelizMdViewHastToReact(renderedNote.noteHastRoot, onWikilinkActivate, onRelativeNoteLinkActivate, true),
     [renderedNote.noteHastRoot, onWikilinkActivate, onRelativeNoteLinkActivate],
   )
 

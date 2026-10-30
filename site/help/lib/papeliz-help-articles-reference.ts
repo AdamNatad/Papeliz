@@ -83,6 +83,8 @@ export const papelizHelpReferenceArticles: readonly PapelizHelpArticle[] = [
           'YAML frontmatter, shown as properties.',
           'Cards from quotes that start with `[!kind]`, in any color.',
           'Colored and resized text, in one checked `<span>` form. See [[format-text]].',
+          'Diagrams: a code block marked `mermaid` shows as a Mermaid diagram in MD View, such as a flowchart or a sequence diagram. Click it to edit its source.',
+          'Wikilinks with a label inside a table cell: `[[Note|label]]` stays one cell.',
         ]),
       ]),
       helpSection('An example', [

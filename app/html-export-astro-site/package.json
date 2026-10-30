@@ -1,0 +1,15 @@
+{
+  "name": "@papeliz/html-export-astro-site",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "page-shell": "node scripts/papeliz-html-export-site-page-shell-write.mjs"
+  },
+  "devDependencies": {
+    "astro": "7.4.2"
+  }
+}

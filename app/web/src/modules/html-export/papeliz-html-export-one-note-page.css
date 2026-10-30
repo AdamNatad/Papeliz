@@ -1,0 +1,59 @@
+/* The page around an exported note: MD View's column on the app's surface, in the light or dark
+   theme the device asks for. MD View's own rules style the note itself. */
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-papeliz-surface);
+  color: var(--color-papeliz-ink);
+  font-family: var(--font-sans);
+}
+
+.papeliz-html-export-page {
+  box-sizing: border-box;
+  padding: 56px 32px 80px;
+}
+
+.papeliz-md-view-article .papeliz-html-export-icon {
+  flex: none;
+}
+
+/* A link to a note that isn't in the export keeps MD View's look and reads as text. */
+.papeliz-md-view-article a:not([href]) {
+  cursor: default;
+}
+
+.papeliz-md-view-article a:not([href]):hover {
+  text-decoration: none;
+}
+
+/* Each diagram is drawn in both themes; the page shows the one for its theme. */
+.papeliz-html-export-mermaid-dark {
+  display: none;
+}
+
+@media screen and (prefers-color-scheme: dark) {
+  .papeliz-html-export-mermaid-light {
+    display: none;
+  }
+
+  .papeliz-html-export-mermaid-dark {
+    display: block;
+  }
+}
+
+@media (max-width: 640px) {
+  .papeliz-html-export-page {
+    padding: 28px 18px 56px;
+  }
+}
+
+@media print {
+  .papeliz-html-export-page {
+    padding: 0;
+  }
+}

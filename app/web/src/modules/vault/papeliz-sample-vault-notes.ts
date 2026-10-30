@@ -45,6 +45,21 @@ MD View shows the note rendered — headings, lists, tables, task lists, code bl
 - \`[[Wikilinks]]\` between notes, with an optional label: [[Links between notes|how links work]]
 - Callouts such as \`> [!note]\`, described in [[Callouts]]
 - Tags like #reading and #markdown
+- Diagrams written in a \`mermaid\` code block
+
+## Tables and diagrams
+
+| You write | MD View shows |
+| --- | --- |
+| A table like this one | A real table, until you click into it |
+| A \`mermaid\` code block | The **diagram** it describes |
+
+\`\`\`mermaid
+flowchart LR
+  A[Write a block] --> B{Cursor inside it?}
+  B -- Yes --> C[Edit its Markdown]
+  B -- No --> D[See it drawn]
+\`\`\`
 
 ## Try it
 

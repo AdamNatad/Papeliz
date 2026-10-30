@@ -16,6 +16,7 @@ import {
   papelizMdViewCalloutTitleClassName,
   remarkPapelizCallouts,
 } from './papeliz-remark-callouts'
+import { escapePapelizWikilinkPipesInTableRows } from './papeliz-md-view-table-model'
 import { papelizMdViewTagClassName, remarkPapelizTags } from './papeliz-remark-tags'
 import { papelizMdViewStyledTextClassName, remarkPapelizTextStyles } from './papeliz-remark-text-styles'
 import { remarkPapelizUnderlines } from './papeliz-remark-underlines'
@@ -113,7 +114,7 @@ export function renderPapelizMdViewNote(vaultNoteText: string, renderOptions: Pa
     .use(rehypeSanitize, papelizMdViewSanitizeSchema)
     .use(rehypePapelizColorStyles)
 
-  const noteMdastRoot: MdastRoot = papelizMdViewProcessor.parse(vaultNoteText)
+  const noteMdastRoot: MdastRoot = papelizMdViewProcessor.parse(escapePapelizWikilinkPipesInTableRows(vaultNoteText))
   const firstMdastNode = noteMdastRoot.children[0]
   const noteFrontmatterText = firstMdastNode?.type === 'yaml' ? firstMdastNode.value : null
   const noteHastRoot = papelizMdViewProcessor.runSync(noteMdastRoot) as HastRoot

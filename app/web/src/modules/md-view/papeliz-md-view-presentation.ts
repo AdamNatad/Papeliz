@@ -12,6 +12,15 @@ import { papelizUnderlineCloseTag, papelizUnderlineOpenTag } from '../note-edito
 import { isPapelizKeyBindingPressed } from '../workspace/papeliz-key-bindings-store'
 import { PapelizNoteFrontmatterPropertyChips } from './papeliz-note-frontmatter-property-chips'
 import { readPapelizNoteFrontmatterProperties, type PapelizNoteFrontmatterProperty } from './papeliz-note-frontmatter-properties'
+import { mountPapelizMermaidDiagram, unmountPapelizMermaidDiagram } from './papeliz-md-view-mermaid-diagrams'
+import { findPapelizMdViewRenderedBlocks } from './papeliz-md-view-rendered-blocks'
+import {
+  collectPapelizMdViewTableWikilinkTargets,
+  readPapelizMdViewTableModel,
+  splitPapelizMarkdownTableRow,
+  type PapelizMdViewInlineContent,
+  type PapelizMdViewTableModel,
+} from './papeliz-md-view-table-model'
 
 type PapelizMdViewSyntaxNode = ReturnType<ReturnType<typeof syntaxTree>['resolveInner']>
 
@@ -63,6 +72,34 @@ const papelizMdViewSkippedForTagNodeNames = new Set([
   'HTMLTag',
 ])
 
+function createPapelizMdViewWikilinkAnchor(
+  wikilinkTargetNoteName: string,
+  wikilinkDisplayText: string,
+  isWikilinkTargetResolved: boolean,
+  wikilinkHandlers: { current: PapelizMdViewWikilinkHandlers },
+): HTMLAnchorElement {
+  const wikilinkAnchor = document.createElement('a')
+  wikilinkAnchor.href = '#'
+  wikilinkAnchor.className = isWikilinkTargetResolved ? 'cm-papeliz-md-view-wikilink' : 'cm-papeliz-md-view-wikilink cm-papeliz-md-view-wikilink-unresolved'
+  wikilinkAnchor.textContent = wikilinkDisplayText
+  wikilinkAnchor.title = isWikilinkTargetResolved ? `Open “${wikilinkTargetNoteName}”` : `Create “${wikilinkTargetNoteName}”`
+  wikilinkAnchor.addEventListener('click', (clickEvent) => {
+    clickEvent.preventDefault()
+    wikilinkHandlers.current.activateWikilinkTarget(wikilinkTargetNoteName)
+  })
+  return wikilinkAnchor
+}
+
+// Ctrl+click (Cmd+click) opens a web link in a new tab; a plain click places the cursor.
+function openPapelizMdViewWebLinkOnModifiedClick(clickEvent: MouseEvent): boolean {
+  if (!(clickEvent.ctrlKey || clickEvent.metaKey) || !(clickEvent.target instanceof Element)) return false
+  const linkHref = clickEvent.target.closest('[data-papeliz-link-href]')?.getAttribute('data-papeliz-link-href')
+  if (linkHref === null || linkHref === undefined) return false
+  window.open(linkHref, '_blank', 'noopener,noreferrer')
+  clickEvent.preventDefault()
+  return true
+}
+
 class PapelizMdViewWikilinkWidget extends WidgetType {
   constructor(
     readonly wikilinkTargetNoteName: string,
@@ -82,18 +119,7 @@ class PapelizMdViewWikilinkWidget extends WidgetType {
   }
 
   toDOM(): HTMLElement {
-    const wikilinkAnchor = document.createElement('a')
-    wikilinkAnchor.href = '#'
-    wikilinkAnchor.className = this.isWikilinkTargetResolved
-      ? 'cm-papeliz-md-view-wikilink'
-      : 'cm-papeliz-md-view-wikilink cm-papeliz-md-view-wikilink-unresolved'
-    wikilinkAnchor.textContent = this.wikilinkDisplayText
-    wikilinkAnchor.title = this.isWikilinkTargetResolved ? `Open “${this.wikilinkTargetNoteName}”` : `Create “${this.wikilinkTargetNoteName}”`
-    wikilinkAnchor.addEventListener('click', (clickEvent) => {
-      clickEvent.preventDefault()
-      this.wikilinkHandlers.current.activateWikilinkTarget(this.wikilinkTargetNoteName)
-    })
-    return wikilinkAnchor
+    return createPapelizMdViewWikilinkAnchor(this.wikilinkTargetNoteName, this.wikilinkDisplayText, this.isWikilinkTargetResolved, this.wikilinkHandlers)
   }
 
   override ignoreEvent(): boolean {
@@ -201,16 +227,198 @@ class PapelizMdViewFrontmatterPropertiesWidget extends WidgetType {
   }
 }
 
-// Whether the editor has focus, kept in the state so the frontmatter's chips (a block decoration,
-// which only a state field may provide) can show the raw text while the cursor is in it.
-const setPapelizMdViewEditorFocused = StateEffect.define<boolean>()
-
-interface PapelizMdViewFrontmatterState {
-  isMdViewEditorFocused: boolean
-  frontmatterPropertiesDecorations: DecorationSet
+// Puts the cursor on a line of a drawn block, so the block shows its Markdown to be edited there.
+function placeCursorInRenderedBlock(editorView: EditorView, renderedBlockElement: HTMLElement, blockLineIndex: number, cursorOffsetInLine: (blockLineText: string) => number): void {
+  const noteDocument = editorView.state.doc
+  const firstBlockLine = noteDocument.lineAt(editorView.posAtDOM(renderedBlockElement))
+  const cursorLine = noteDocument.line(Math.min(firstBlockLine.number + blockLineIndex, noteDocument.lines))
+  editorView.dispatch({ selection: { anchor: cursorLine.from + Math.min(cursorOffsetInLine(cursorLine.text), cursorLine.length) }, userEvent: 'select.pointer' })
+  editorView.focus()
 }
 
-function buildFrontmatterPropertiesDecorations(editorState: EditorState, isMdViewEditorFocused: boolean): DecorationSet {
+function appendPapelizMdViewInlineContents(
+  parentElement: HTMLElement,
+  inlineContents: readonly PapelizMdViewInlineContent[],
+  resolvedWikilinkTargetNoteNames: ReadonlySet<string>,
+  wikilinkHandlers: { current: PapelizMdViewWikilinkHandlers },
+): void {
+  for (const inlineContent of inlineContents) {
+    switch (inlineContent.inlineContentKind) {
+      case 'text': {
+        parentElement.append(inlineContent.inlineText)
+        break
+      }
+      case 'inline-code': {
+        const inlineCodeElement = document.createElement('code')
+        inlineCodeElement.className = 'cm-papeliz-md-view-inline-code'
+        inlineCodeElement.textContent = inlineContent.inlineText
+        parentElement.append(inlineCodeElement)
+        break
+      }
+      case 'strong':
+      case 'emphasis':
+      case 'strikethrough': {
+        const emphasisElement = document.createElement(inlineContent.inlineContentKind === 'strong' ? 'strong' : inlineContent.inlineContentKind === 'emphasis' ? 'em' : 's')
+        appendPapelizMdViewInlineContents(emphasisElement, inlineContent.inlineChildren, resolvedWikilinkTargetNoteNames, wikilinkHandlers)
+        parentElement.append(emphasisElement)
+        break
+      }
+      case 'link': {
+        // Drawn like links in the rest of MD View: Ctrl+click opens a web link.
+        const linkElement = document.createElement('span')
+        linkElement.className = 'cm-papeliz-md-view-link'
+        if (/^(https?:|mailto:)/i.test(inlineContent.linkHref)) {
+          linkElement.dataset['papelizLinkHref'] = inlineContent.linkHref
+          linkElement.title = `${inlineContent.linkHref} (Ctrl+click to open)`
+        }
+        appendPapelizMdViewInlineContents(linkElement, inlineContent.inlineChildren, resolvedWikilinkTargetNoteNames, wikilinkHandlers)
+        parentElement.append(linkElement)
+        break
+      }
+      case 'wikilink': {
+        parentElement.append(
+          createPapelizMdViewWikilinkAnchor(
+            inlineContent.wikilinkTargetNoteName,
+            inlineContent.wikilinkDisplayText,
+            resolvedWikilinkTargetNoteNames.has(inlineContent.wikilinkTargetNoteName),
+            wikilinkHandlers,
+          ),
+        )
+        break
+      }
+    }
+  }
+}
+
+// A GitHub-flavored table drawn as a real table. A click in it puts the cursor in the clicked cell's
+// Markdown; a wikilink in a cell opens its note, and Ctrl+click opens a web link.
+class PapelizMdViewTableWidget extends WidgetType {
+  constructor(
+    readonly tableMarkdownText: string,
+    readonly tableModel: PapelizMdViewTableModel,
+    readonly resolvedWikilinkTargetNoteNames: ReadonlySet<string>,
+    readonly wikilinkHandlers: { current: PapelizMdViewWikilinkHandlers },
+  ) {
+    super()
+  }
+
+  override eq(otherWidget: PapelizMdViewTableWidget): boolean {
+    return (
+      otherWidget.tableMarkdownText === this.tableMarkdownText &&
+      otherWidget.resolvedWikilinkTargetNoteNames.size === this.resolvedWikilinkTargetNoteNames.size &&
+      [...otherWidget.resolvedWikilinkTargetNoteNames].every((wikilinkTargetNoteName) => this.resolvedWikilinkTargetNoteNames.has(wikilinkTargetNoteName))
+    )
+  }
+
+  toDOM(editorView: EditorView): HTMLElement {
+    const tableBlockElement = document.createElement('div')
+    tableBlockElement.className = 'cm-papeliz-md-view-table-block'
+    const tableElement = document.createElement('table')
+    tableElement.className = 'cm-papeliz-md-view-table'
+    const appendTableRow = (rowGroupElement: HTMLElement, tableRowCells: PapelizMdViewInlineContent[][], tableCellTagName: 'th' | 'td', tableLineIndex: number) => {
+      const tableRowElement = document.createElement('tr')
+      tableRowElement.dataset['papelizTableLineIndex'] = String(tableLineIndex)
+      tableRowCells.forEach((tableCellContents, tableColumnIndex) => {
+        const tableCellElement = document.createElement(tableCellTagName)
+        tableCellElement.dataset['papelizTableColumnIndex'] = String(tableColumnIndex)
+        const tableColumnAlignment = this.tableModel.tableColumnAlignments[tableColumnIndex]
+        if (tableColumnAlignment !== null && tableColumnAlignment !== undefined) tableCellElement.dataset['papelizTableColumnAlignment'] = tableColumnAlignment
+        appendPapelizMdViewInlineContents(tableCellElement, tableCellContents, this.resolvedWikilinkTargetNoteNames, this.wikilinkHandlers)
+        tableRowElement.append(tableCellElement)
+      })
+      rowGroupElement.append(tableRowElement)
+    }
+    const tableHeadElement = document.createElement('thead')
+    appendTableRow(tableHeadElement, this.tableModel.tableHeaderCells, 'th', 0)
+    tableElement.append(tableHeadElement)
+    if (this.tableModel.tableBodyRows.length > 0) {
+      const tableBodyElement = document.createElement('tbody')
+      // Line 1 of the table is its `| --- |` row, so body rows start at line 2.
+      this.tableModel.tableBodyRows.forEach((tableBodyRowCells, tableBodyRowIndex) => appendTableRow(tableBodyElement, tableBodyRowCells, 'td', tableBodyRowIndex + 2))
+      tableElement.append(tableBodyElement)
+    }
+    tableBlockElement.append(tableElement)
+
+    tableBlockElement.addEventListener('mousedown', (mouseDownEvent) => {
+      if (mouseDownEvent.button !== 0 || !(mouseDownEvent.target instanceof Element)) return
+      const pressedElement = mouseDownEvent.target
+      // Links act on the click that follows.
+      if (pressedElement.closest('.cm-papeliz-md-view-wikilink') !== null) {
+        mouseDownEvent.preventDefault()
+        return
+      }
+      if ((mouseDownEvent.ctrlKey || mouseDownEvent.metaKey) && pressedElement.closest('[data-papeliz-link-href]') !== null) {
+        mouseDownEvent.preventDefault()
+        return
+      }
+      // The scroll bar under a wide table scrolls it.
+      if (pressedElement === tableBlockElement && mouseDownEvent.offsetY >= tableBlockElement.clientHeight) return
+      mouseDownEvent.preventDefault()
+      const pressedRowElement = pressedElement.closest<HTMLElement>('tr')
+      const pressedCellElement = pressedElement.closest<HTMLElement>('th, td')
+      const tableLineIndex = Number(pressedRowElement?.dataset['papelizTableLineIndex'] ?? 0)
+      const tableColumnIndex = pressedCellElement === null ? null : Number(pressedCellElement.dataset['papelizTableColumnIndex'])
+      placeCursorInRenderedBlock(editorView, tableBlockElement, tableLineIndex, (tableLineText) =>
+        tableColumnIndex === null ? tableLineText.length : (splitPapelizMarkdownTableRow(tableLineText)[tableColumnIndex]?.tableCellSourceTo ?? tableLineText.length),
+      )
+    })
+    tableBlockElement.addEventListener('click', (clickEvent) => openPapelizMdViewWebLinkOnModifiedClick(clickEvent))
+    return tableBlockElement
+  }
+
+  // The table handles its own clicks (above).
+  override ignoreEvent(): boolean {
+    return true
+  }
+}
+
+// A ```mermaid block drawn as its diagram. A click shows its source, with the cursor on its first line.
+class PapelizMdViewMermaidDiagramWidget extends WidgetType {
+  constructor(readonly mermaidDiagramSource: string) {
+    super()
+  }
+
+  override eq(otherWidget: PapelizMdViewMermaidDiagramWidget): boolean {
+    return otherWidget.mermaidDiagramSource === this.mermaidDiagramSource
+  }
+
+  toDOM(editorView: EditorView): HTMLElement {
+    const mermaidDiagramElement = document.createElement('div')
+    mermaidDiagramElement.className = 'cm-papeliz-md-view-mermaid-block papeliz-mermaid-diagram'
+    mermaidDiagramElement.title = 'Click to edit the diagram'
+    mermaidDiagramElement.addEventListener('mousedown', (mouseDownEvent) => {
+      if (mouseDownEvent.button !== 0) return
+      mouseDownEvent.preventDefault()
+      placeCursorInRenderedBlock(editorView, mermaidDiagramElement, 1, (diagramLineText) => diagramLineText.length)
+    })
+    // A drawn diagram is taller than its placeholder: the editor measures it again.
+    mountPapelizMermaidDiagram(mermaidDiagramElement, this.mermaidDiagramSource, () => editorView.requestMeasure())
+    return mermaidDiagramElement
+  }
+
+  override destroy(mermaidDiagramElement: HTMLElement): void {
+    unmountPapelizMermaidDiagram(mermaidDiagramElement)
+  }
+
+  override ignoreEvent(): boolean {
+    return true
+  }
+}
+
+// Whether the editor has focus, kept in the state so the block widgets (the frontmatter's chips,
+// tables and diagrams: block decorations, which only a state field may provide) can show the raw
+// text while the cursor is in them.
+const setPapelizMdViewEditorFocused = StateEffect.define<boolean>()
+
+interface PapelizMdViewBlockWidgetsState {
+  isMdViewEditorFocused: boolean
+  blockWidgetDecorations: DecorationSet
+}
+
+function buildFrontmatterPropertiesDecoration(
+  editorState: EditorState,
+  isCursorInBlock: (blockLineFrom: number, blockLineTo: number) => boolean,
+): Range<Decoration> | null {
   let frontmatterRange: { frontmatterFrom: number; frontmatterTo: number } | null = null
   syntaxTree(editorState).iterate({
     from: 0,
@@ -221,46 +429,114 @@ function buildFrontmatterPropertiesDecorations(editorState: EditorState, isMdVie
       return false
     },
   })
-  if (frontmatterRange === null) return Decoration.none
+  if (frontmatterRange === null) return null
   const { frontmatterFrom, frontmatterTo } = frontmatterRange
   const noteDocument = editorState.doc
   const firstFrontmatterLine = noteDocument.lineAt(frontmatterFrom)
   const lastFrontmatterLine = noteDocument.lineAt(frontmatterTo)
-  // The cursor in the frontmatter shows its raw text, to be edited.
-  const isCursorInFrontmatter =
-    isMdViewEditorFocused &&
-    editorState.selection.ranges.some((selectionRange) => selectionRange.from <= lastFrontmatterLine.to && selectionRange.to >= firstFrontmatterLine.from)
-  if (isCursorInFrontmatter || lastFrontmatterLine.number <= firstFrontmatterLine.number + 1) return Decoration.none
+  if (isCursorInBlock(firstFrontmatterLine.from, lastFrontmatterLine.to) || lastFrontmatterLine.number <= firstFrontmatterLine.number + 1) return null
   const frontmatterText = noteDocument.sliceString(noteDocument.line(firstFrontmatterLine.number + 1).from, noteDocument.line(lastFrontmatterLine.number - 1).to)
   const noteFrontmatterProperties = readPapelizNoteFrontmatterProperties(frontmatterText)
-  if (noteFrontmatterProperties.length === 0) return Decoration.none
-  return Decoration.set([
-    Decoration.replace({ widget: new PapelizMdViewFrontmatterPropertiesWidget(frontmatterText, noteFrontmatterProperties), block: true }).range(
-      firstFrontmatterLine.from,
-      lastFrontmatterLine.to,
-    ),
-  ])
+  if (noteFrontmatterProperties.length === 0) return null
+  return Decoration.replace({ widget: new PapelizMdViewFrontmatterPropertiesWidget(frontmatterText, noteFrontmatterProperties), block: true }).range(
+    firstFrontmatterLine.from,
+    lastFrontmatterLine.to,
+  )
 }
 
-const papelizMdViewFrontmatterField = StateField.define<PapelizMdViewFrontmatterState>({
-  create: (editorState) => ({ isMdViewEditorFocused: false, frontmatterPropertiesDecorations: buildFrontmatterPropertiesDecorations(editorState, false) }),
-  update: (frontmatterState, transaction) => {
-    let isMdViewEditorFocused = frontmatterState.isMdViewEditorFocused
-    for (const transactionEffect of transaction.effects) {
-      if (transactionEffect.is(setPapelizMdViewEditorFocused)) isMdViewEditorFocused = transactionEffect.value
+function buildPapelizMdViewBlockWidgetDecorations(
+  editorState: EditorState,
+  isMdViewEditorFocused: boolean,
+  wikilinkHandlers: { current: PapelizMdViewWikilinkHandlers },
+): DecorationSet {
+  const noteDocument = editorState.doc
+  const blockWidgetRanges: Range<Decoration>[] = []
+  // The cursor in a block shows its raw Markdown, to be edited.
+  const isCursorInBlock = (blockLineFrom: number, blockLineTo: number) =>
+    isMdViewEditorFocused && editorState.selection.ranges.some((selectionRange) => selectionRange.from <= blockLineTo && selectionRange.to >= blockLineFrom)
+
+  const frontmatterPropertiesDecoration = buildFrontmatterPropertiesDecoration(editorState, isCursorInBlock)
+  if (frontmatterPropertiesDecoration !== null) blockWidgetRanges.push(frontmatterPropertiesDecoration)
+
+  for (const renderedBlock of findPapelizMdViewRenderedBlocks(syntaxTree(editorState), (textFrom, textTo) => editorState.sliceDoc(textFrom, textTo))) {
+    const blockLineFrom = noteDocument.lineAt(renderedBlock.renderedBlockFrom).from
+    const blockLineTo = noteDocument.lineAt(renderedBlock.renderedBlockTo).to
+    if (isCursorInBlock(blockLineFrom, blockLineTo)) continue
+    if (renderedBlock.renderedBlockKind === 'mermaid-diagram') {
+      blockWidgetRanges.push(
+        Decoration.replace({ widget: new PapelizMdViewMermaidDiagramWidget(renderedBlock.mermaidDiagramSource), block: true }).range(blockLineFrom, blockLineTo),
+      )
+      continue
     }
-    if (
-      !transaction.docChanged &&
-      !transaction.selection &&
-      isMdViewEditorFocused === frontmatterState.isMdViewEditorFocused &&
-      syntaxTree(transaction.startState) === syntaxTree(transaction.state)
-    ) {
-      return frontmatterState
-    }
-    return { isMdViewEditorFocused, frontmatterPropertiesDecorations: buildFrontmatterPropertiesDecorations(transaction.state, isMdViewEditorFocused) }
-  },
-  provide: (frontmatterField) => EditorView.decorations.from(frontmatterField, (frontmatterState) => frontmatterState.frontmatterPropertiesDecorations),
-})
+    const tableMarkdownText = noteDocument.sliceString(blockLineFrom, blockLineTo)
+    const tableModel = readPapelizMdViewTableModel(tableMarkdownText)
+    if (tableModel === null) continue
+    const resolvedWikilinkTargetNoteNames = new Set(
+      collectPapelizMdViewTableWikilinkTargets(tableModel).filter((wikilinkTargetNoteName) =>
+        wikilinkHandlers.current.isWikilinkTargetResolved(wikilinkTargetNoteName),
+      ),
+    )
+    blockWidgetRanges.push(
+      Decoration.replace({
+        widget: new PapelizMdViewTableWidget(tableMarkdownText, tableModel, resolvedWikilinkTargetNoteNames, wikilinkHandlers),
+        block: true,
+      }).range(blockLineFrom, blockLineTo),
+    )
+  }
+  return Decoration.set(blockWidgetRanges, true)
+}
+
+// Up and Down step into a drawn block (properties, a table, a diagram) instead of over it, so it
+// shows its Markdown with the cursor on its first line (Down) or its last line (Up).
+function moveCursorIntoRenderedBlock(editorView: EditorView, blockWidgetsField: StateField<PapelizMdViewBlockWidgetsState>, isMovingDown: boolean): boolean {
+  const editorState = editorView.state
+  const mainSelection = editorState.selection.main
+  if (editorState.selection.ranges.length > 1 || !mainSelection.empty) return false
+  const cursorLine = editorState.doc.lineAt(mainSelection.head)
+  const defaultCursorTarget = editorView.moveVertically(mainSelection, isMovingDown).head
+  if (isMovingDown ? defaultCursorTarget <= cursorLine.to : defaultCursorTarget >= cursorLine.from) return false
+  let enteredBlockCursorPosition: number | null = null
+  editorState.field(blockWidgetsField).blockWidgetDecorations.between(
+    isMovingDown ? cursorLine.to + 1 : defaultCursorTarget,
+    isMovingDown ? defaultCursorTarget : cursorLine.from - 1,
+    (blockFrom, blockTo) => {
+      // The nearest block: the first one below, or the last one above.
+      if (isMovingDown && blockFrom > cursorLine.to) enteredBlockCursorPosition ??= blockFrom
+      if (!isMovingDown && blockTo < cursorLine.from) enteredBlockCursorPosition = editorState.doc.lineAt(blockTo).from
+    },
+  )
+  if (enteredBlockCursorPosition === null) return false
+  editorView.dispatch({ selection: { anchor: enteredBlockCursorPosition }, scrollIntoView: true, userEvent: 'select' })
+  return true
+}
+
+function createPapelizMdViewBlockWidgetsField(wikilinkHandlers: { current: PapelizMdViewWikilinkHandlers }) {
+  return StateField.define<PapelizMdViewBlockWidgetsState>({
+    create: (editorState) => ({
+      isMdViewEditorFocused: false,
+      blockWidgetDecorations: buildPapelizMdViewBlockWidgetDecorations(editorState, false, wikilinkHandlers),
+    }),
+    update: (blockWidgetsState, transaction) => {
+      let isMdViewEditorFocused = blockWidgetsState.isMdViewEditorFocused
+      for (const transactionEffect of transaction.effects) {
+        if (transactionEffect.is(setPapelizMdViewEditorFocused)) isMdViewEditorFocused = transactionEffect.value
+      }
+      if (
+        !transaction.docChanged &&
+        !transaction.selection &&
+        isMdViewEditorFocused === blockWidgetsState.isMdViewEditorFocused &&
+        syntaxTree(transaction.startState) === syntaxTree(transaction.state)
+      ) {
+        return blockWidgetsState
+      }
+      return {
+        isMdViewEditorFocused,
+        blockWidgetDecorations: buildPapelizMdViewBlockWidgetDecorations(transaction.state, isMdViewEditorFocused, wikilinkHandlers),
+      }
+    },
+    provide: (blockWidgetsField) => EditorView.decorations.from(blockWidgetsField, (blockWidgetsState) => blockWidgetsState.blockWidgetDecorations),
+  })
+}
 
 function buildPapelizMdViewDecorations(editorView: EditorView, wikilinkHandlers: { current: PapelizMdViewWikilinkHandlers }): PapelizMdViewDecorationSets {
   const editorState: EditorState = editorView.state
@@ -557,16 +833,17 @@ export function createPapelizMdViewPresentation(wikilinkHandlers: { current: Pap
     },
     { decorations: (decorationsPlugin) => decorationsPlugin.decorations },
   )
+  const papelizMdViewBlockWidgetsField = createPapelizMdViewBlockWidgetsField(wikilinkHandlers)
 
   return [
     syntaxHighlighting(papelizMdViewHighlightStyle),
     papelizMdViewTheme,
     EditorView.editorAttributes.of({ class: 'papeliz-md-view' }),
     papelizMdViewDecorationsPlugin,
-    papelizMdViewFrontmatterField,
+    papelizMdViewBlockWidgetsField,
     EditorView.focusChangeEffect.of((_editorState, isFocusing) => setPapelizMdViewEditorFocused.of(isFocusing)),
     EditorView.atomicRanges.of((editorView) => editorView.plugin(papelizMdViewDecorationsPlugin)?.colorTagHiddenDecorations ?? Decoration.none),
-    // Ctrl+Enter opens the `[[wikilink]]` under the cursor.
+    // Ctrl+Enter opens the `[[wikilink]]` under the cursor; Up and Down step into drawn blocks.
     Prec.high(
       keymap.of([
         {
@@ -579,18 +856,10 @@ export function createPapelizMdViewPresentation(wikilinkHandlers: { current: Pap
             return true
           },
         },
+        { key: 'ArrowDown', run: (editorView) => moveCursorIntoRenderedBlock(editorView, papelizMdViewBlockWidgetsField, true) },
+        { key: 'ArrowUp', run: (editorView) => moveCursorIntoRenderedBlock(editorView, papelizMdViewBlockWidgetsField, false) },
       ]),
     ),
-    // Ctrl+click (Cmd+click) opens a web link in a new tab; a plain click places the cursor.
-    EditorView.domEventHandlers({
-      click: (clickEvent) => {
-        if (!(clickEvent.ctrlKey || clickEvent.metaKey) || !(clickEvent.target instanceof Element)) return false
-        const linkHref = clickEvent.target.closest('[data-papeliz-link-href]')?.getAttribute('data-papeliz-link-href')
-        if (linkHref === null || linkHref === undefined) return false
-        window.open(linkHref, '_blank', 'noopener,noreferrer')
-        clickEvent.preventDefault()
-        return true
-      },
-    }),
+    EditorView.domEventHandlers({ click: openPapelizMdViewWebLinkOnModifiedClick }),
   ]
 }

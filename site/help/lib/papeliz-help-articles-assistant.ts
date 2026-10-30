@@ -30,12 +30,17 @@ export const papelizHelpAssistantArticles: readonly PapelizHelpArticle[] = [
           'Pick a provider, and its base URL fills in. See [[choose-a-provider]].',
           'Paste your API key. Servers running on your own computer usually don’t need one.',
           'Choose **Load models**, then pick a model from the provider’s list.',
-          'Choose **Test connection** to check that it works, then **Save and use**.',
+          'Choose **Test connection**, beside the API key, to check that the key and model work, then **Save**.',
         ]),
       ]),
       helpSection('Models come from the provider’s list', [
         helpParagraph(
           'For every preset except Custom, the model comes from the list the provider returns for your key, so a mistyped model name can’t be saved. Custom also takes a typed name.',
+        ),
+      ]),
+      helpSection('Model price', [
+        helpParagraph(
+          'Usage estimates what the assistant costs from each model’s listed price, taken from the provider’s price page. If you pay a different price, open **Model price** in the same dialog and type yours, per million input and output tokens. Leave both boxes empty to use the listed price. Papeliz itself is free; your provider bills you.',
         ),
       ]),
       helpSection('Change or remove a key', [
@@ -68,14 +73,13 @@ export const papelizHelpAssistantArticles: readonly PapelizHelpArticle[] = [
           '**OpenRouter**: many hosted models behind one key.',
           '**Groq**, **Together** and **Fireworks**: hosted open-weights models.',
           '**Google Gemini**, through Google’s OpenAI-compatible endpoint.',
-          '**Ollama Cloud**, **OpenCode Zen** and **OpenCode Go**: hosted models with a key from those services.',
           '**Ollama** and **LM Studio** running on your own computer, with no key.',
           '**Custom**: any other OpenAI-compatible base URL.',
         ]),
       ]),
       helpSection('Calls from the browser', [
         helpParagraph(
-          'Papeliz calls the provider from your browser, so the provider has to accept calls from a web page. That has been checked for the recommended preset and OpenAI. For the others, **Test connection** tells you.',
+          'Papeliz calls the provider from your browser, so the provider has to accept calls from a web page. Every hosted preset listed has been checked to accept them. Providers that refuse them, such as Ollama Cloud and OpenCode, aren’t offered in the web app. For Custom, **Test connection** tells you.',
         ),
       ]),
       helpSection('Models on your own computer', [

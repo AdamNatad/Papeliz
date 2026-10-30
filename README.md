@@ -47,6 +47,8 @@ with the sample vault. Nothing to install, no sign-up.
 
 - **MD Code and MD View behind one switch:** raw Markdown with syntax colors and line numbers, or
   the rendered note you can still type in.
+- **Tables and diagrams:** Markdown tables and Mermaid diagrams (flowcharts, sequence diagrams
+  and more) show drawn in MD View; click one to edit its source.
 - **Linked notes:** wikilinks (`[[note]]`), backlinks, an outline and full-text search.
 - **A file list you can make your own:** colors and icons for any note or folder.
 - **Focus mode** (`Ctrl+Shift+F`): only your note and a floating prompt box.
@@ -130,6 +132,7 @@ provider is subject to that provider's own terms and pricing.
 
 - [x] Open a folder of Markdown notes or a sample vault; create, rename and delete notes
 - [x] MD Code with autosave, and MD View, behind one switch
+- [x] Tables and Mermaid diagrams in MD View
 - [x] Wikilinks (`[[note]]`), backlinks, outline and full-text search
 - [x] Bring-your-own-key settings: Muse Spark preset first, then any OpenAI-compatible provider
 - [x] Assistant chat in Ask, Plan and Write modes, citing your notes as links
@@ -151,7 +154,7 @@ provider is subject to that provider's own terms and pricing.
 - [ ] Graph view and canvas
 - [ ] Passphrase lock for stored keys
 - [ ] Translations
-- [ ] Math, diagrams and code highlighting in MD View
+- [ ] Math and code highlighting in MD View
 - [ ] Firefox and Safari on the web
 
 ## Run it locally
@@ -180,6 +183,7 @@ Papeliz stands on these open-source projects:
 | [Tailwind CSS](https://tailwindcss.com) | Styling | MIT |
 | [CodeMirror](https://codemirror.net) | MD Code | MIT |
 | [unified](https://unifiedjs.com) (remark, rehype) | Parsing and rendering Markdown | MIT |
+| [Mermaid](https://mermaid.js.org) | Diagrams in MD View | MIT |
 | [MiniSearch](https://lucaong.github.io/minisearch/) | Full-text search | MIT |
 | [zustand](https://zustand.docs.pmnd.rs) | App state | MIT |
 | [Lucide](https://lucide.dev) | Icons | ISC |

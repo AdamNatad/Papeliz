@@ -110,6 +110,22 @@ describe('the MD View pipeline', () => {
     expect(tagElements.map((tagElement) => tagElement.properties['dataPapelizTagName'])).toEqual(['garden'])
   })
 
+  it('keeps a labelled wikilink in one table cell, and the column alignment', () => {
+    const { renderedElements } = renderTestNote('| Item | Cost |\n| --- | ---: |\n| [[Callouts|Two baristas]] | $4,400 |')
+    const bodyCellElements = renderedElements.filter((renderedElement) => renderedElement.tagName === 'td')
+    expect(bodyCellElements.map((bodyCellElement) => collectHastText(bodyCellElement))).toEqual(['Two baristas', '$4,400'])
+    expect(bodyCellElements[1]?.properties['align']).toBe('right')
+    const wikilinkElement = renderedElements.find((renderedElement) => renderedElement.properties['dataPapelizWikilinkTarget'] !== undefined)
+    expect(wikilinkElement?.properties['dataPapelizWikilinkTarget']).toBe('Callouts')
+  })
+
+  it('keeps a mermaid block as code marked language-mermaid, for the page to draw', () => {
+    const { renderedElements } = renderTestNote('```mermaid\nflowchart LR\n  A --> B\n```')
+    const codeElement = renderedElements.find((renderedElement) => renderedElement.tagName === 'code')
+    expect(codeElement?.properties['className']).toEqual(['language-mermaid'])
+    expect(collectHastText(codeElement as HastElement)).toBe('flowchart LR\n  A --> B\n')
+  })
+
   it('never renders script, raw HTML or javascript: links', () => {
     const { renderedElements } = renderTestNote(
       '<script>alert(1)</script>\n\n<img src=x onerror="alert(1)">\n\n[click](javascript:alert(1))\n\n<a href="#" onclick="alert(1)">x</a>',

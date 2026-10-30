@@ -1,9 +1,9 @@
-import { Code, Eye, FolderX, Minimize2, WandSparkles } from 'lucide-react'
+import { Code, Eye, Minimize2, WandSparkles } from 'lucide-react'
 import { PapelizIconButton, PapelizPillButton } from '../ui/papeliz-buttons'
 import { PapelizFileListToggleIcon } from '../ui/papeliz-file-list-toggle-icon'
 import { PapelizMark } from '../ui/papeliz-mark'
-import { PapelizAccessibilityMenuButton } from './papeliz-accessibility-menu-button'
 import { usePapelizKeyBindingShortcutLabel } from './papeliz-key-bindings-store'
+import { PapelizSettingsGearButton } from './papeliz-settings-gear-button'
 import { usePapelizWorkspaceStore, type PapelizNoteViewMode } from './papeliz-workspace-store'
 
 const papelizNoteViewChoices = [
@@ -41,9 +41,12 @@ function PapelizNoteViewSwitch() {
 }
 
 // The blue bar across the top of the workspace: the file list toggle, Papeliz and the vault's name
-// on the left, the view switch in the middle, the start page, Accessibility (theme, text, Lock and
-// focus mode) and the Assistant panel on the right. Its two sides share the leftover width equally,
-// so the switch stays centered in the window.
+// on the left, the view switch in the middle, the Assistant panel and then the Settings gear on the
+// right (in focus mode Exit focus takes the Assistant's place; the gear stays at the edge). Closing
+// the vault lives in the gear. Its two sides share the leftover width equally,
+// so the switch stays centered in the window. Below md the left side never gets narrower than the
+// toggle, the mark and the name, so on the narrowest phones the switch sits a few pixels right of
+// center rather than crowding the name.
 export function PapelizWorkspaceTopbar() {
   const openVault = usePapelizWorkspaceStore((workspaceState) => workspaceState.openVault)
   const isExplorerPanelOpen = usePapelizWorkspaceStore((workspaceState) => workspaceState.isExplorerPanelOpen)
@@ -52,11 +55,10 @@ export function PapelizWorkspaceTopbar() {
   const setExplorerPanelOpen = usePapelizWorkspaceStore((workspaceState) => workspaceState.setExplorerPanelOpen)
   const setAssistantPanelOpen = usePapelizWorkspaceStore((workspaceState) => workspaceState.setAssistantPanelOpen)
   const setFocusModeOn = usePapelizWorkspaceStore((workspaceState) => workspaceState.setFocusModeOn)
-  const setVaultCloseConfirmationShown = usePapelizWorkspaceStore((workspaceState) => workspaceState.setVaultCloseConfirmationShown)
 
   return (
-    <header className="grid h-12 flex-none grid-cols-[1fr_auto_1fr] items-center gap-2 bg-papeliz-topbar px-2 text-white sm:px-3">
-      <div className="flex min-w-0 items-center gap-1.5">
+    <header className="grid h-12 flex-none grid-cols-[1fr_auto_1fr] items-center gap-1 bg-papeliz-topbar px-2 text-white sm:gap-2 sm:px-3">
+      <div className="flex min-w-0 items-center gap-1 max-md:min-w-max max-sm:pr-1 sm:gap-1.5">
         {!isFocusModeOn && (
           <PapelizIconButton
             iconButtonLabel={isExplorerPanelOpen ? 'Hide the file list' : 'Show the file list'}
@@ -66,11 +68,11 @@ export function PapelizWorkspaceTopbar() {
             <PapelizFileListToggleIcon isFileListOpen={isExplorerPanelOpen} className="size-[18px]" />
           </PapelizIconButton>
         )}
-        <PapelizMark papelizMarkSize={26} papelizMarkTone="on-blue" className="ml-1 flex-none max-sm:hidden" />
-        <span className="text-[15px] font-semibold tracking-[-0.01em] max-lg:hidden">Papeliz</span>
+        <PapelizMark papelizMarkSize={26} papelizMarkTone="on-blue" className="flex-none sm:ml-1" />
+        <span className="text-[15px] font-semibold tracking-[-0.01em]">Papeliz</span>
         {openVault !== null && (
           <span className="min-w-0 truncate text-sm text-white/80 max-md:hidden">
-            <span className="mx-1.5 text-white/50 max-lg:hidden" aria-hidden="true">
+            <span className="mx-1.5 text-white/50" aria-hidden="true">
               /
             </span>
             {openVault.papelizVaultDisplayName}
@@ -81,17 +83,8 @@ export function PapelizWorkspaceTopbar() {
       <PapelizNoteViewSwitch />
 
       <div className="flex min-w-0 items-center justify-end gap-0.5">
-        <PapelizIconButton
-          iconButtonLabel="Start Page"
-          title="Start Page (Closes The Vault)"
-          iconButtonTone="topbar"
-          onClick={() => setVaultCloseConfirmationShown(true)}
-        >
-          <FolderX className="size-[18px]" aria-hidden="true" />
-        </PapelizIconButton>
-        <PapelizAccessibilityMenuButton isNoteDisplaySettingsShown />
         {isFocusModeOn ? (
-          <PapelizPillButton pillButtonVariant="on-topbar" pillButtonSize="small" className="ml-1" onClick={() => setFocusModeOn(false)} title="Exit focus (Esc)">
+          <PapelizPillButton pillButtonVariant="on-topbar" pillButtonSize="small" className="mr-1" onClick={() => setFocusModeOn(false)} title="Exit focus (Esc)">
             <Minimize2 className="size-[14px]" aria-hidden="true" />
             <span className="max-sm:sr-only">Exit focus</span>
           </PapelizPillButton>
@@ -105,6 +98,7 @@ export function PapelizWorkspaceTopbar() {
             <WandSparkles className="size-[18px]" aria-hidden="true" />
           </PapelizIconButton>
         )}
+        <PapelizSettingsGearButton settingsGearPlace="workspace" />
       </div>
     </header>
   )

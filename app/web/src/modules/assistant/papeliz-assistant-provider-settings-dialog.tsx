@@ -1,9 +1,19 @@
-import { ChevronRight, CircleAlert, CircleCheck, ExternalLink, Eye, EyeOff, KeyRound, LoaderCircle, RefreshCw, X } from 'lucide-react'
+import { ChevronRight, CircleAlert, CircleCheck, ExternalLink, Eye, EyeOff, KeyRound, LoaderCircle, PlugZap, RefreshCw, X } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
 import { PapelizIconButton, PapelizPillButton } from '../ui/papeliz-buttons'
 import { PapelizListboxSelect, type PapelizListboxSelectOption } from '../ui/papeliz-listbox-select'
-import { findPapelizAssistantModelPrice, papelizAssistantBuiltInModelPricesCheckedOn, usePapelizAssistantModelPricesStore } from './papeliz-assistant-model-prices'
-import { findPapelizAssistantProviderPreset, listPapelizOfferedAssistantProviderPresets, papelizCustomAssistantProviderId } from './papeliz-assistant-provider-presets'
+import {
+  findPapelizAssistantModelPrice,
+  formatPapelizAssistantModelPricePerMillionTokens,
+  papelizAssistantBuiltInModelPricesCheckedOnLabel,
+  usePapelizAssistantModelPricesStore,
+} from './papeliz-assistant-model-prices'
+import {
+  findPapelizAssistantProviderPreset,
+  listPapelizOfferedAssistantProviderPresets,
+  papelizCustomAssistantProviderId,
+  papelizRequestCostReportingAssistantProviderIds,
+} from './papeliz-assistant-provider-presets'
 import {
   createDefaultPapelizAssistantProviderSettings,
   usePapelizAssistantProviderSettingsStore,
@@ -11,11 +21,36 @@ import {
 } from './papeliz-assistant-provider-settings-store'
 import { listPapelizProviderModelNames, testPapelizProviderConnection } from './papeliz-openai-compatible-client'
 
+// Which check ran, so its answer shows under the field it belongs to: Test connection under the API
+// key, Load models under the model.
+type PapelizProviderCheckSubject = 'connection-test' | 'model-list'
+
 type PapelizProviderCheckState =
   | { providerCheckKind: 'idle' }
-  | { providerCheckKind: 'running'; providerCheckLabel: string }
-  | { providerCheckKind: 'passed'; providerCheckMessage: string }
-  | { providerCheckKind: 'failed'; providerCheckMessage: string }
+  | { providerCheckKind: 'running'; providerCheckSubject: PapelizProviderCheckSubject; providerCheckLabel: string }
+  | { providerCheckKind: 'passed'; providerCheckSubject: PapelizProviderCheckSubject; providerCheckMessage: string }
+  | { providerCheckKind: 'failed'; providerCheckSubject: PapelizProviderCheckSubject; providerCheckMessage: string }
+
+// A check's answer: a spinner while it runs, then green for passed or red for failed.
+function PapelizProviderCheckMessage({ providerCheckState }: { providerCheckState: Exclude<PapelizProviderCheckState, { providerCheckKind: 'idle' }> }) {
+  return (
+    <p
+      role={providerCheckState.providerCheckKind === 'failed' ? 'alert' : 'status'}
+      className={`mt-2 flex items-start gap-2 rounded-2xl px-4 py-2.5 text-[13px] ${
+        providerCheckState.providerCheckKind === 'failed'
+          ? 'bg-papeliz-diff-removed text-papeliz-diff-removed-ink'
+          : providerCheckState.providerCheckKind === 'passed'
+            ? 'bg-papeliz-diff-added text-papeliz-diff-added-ink'
+            : 'bg-papeliz-surface-gray text-papeliz-ink-muted'
+      }`}
+    >
+      {providerCheckState.providerCheckKind === 'running' && <LoaderCircle className="mt-0.5 size-4 flex-none animate-spin" aria-hidden="true" />}
+      {providerCheckState.providerCheckKind === 'passed' && <CircleCheck className="mt-0.5 size-4 flex-none" aria-hidden="true" />}
+      {providerCheckState.providerCheckKind === 'failed' && <CircleAlert className="mt-0.5 size-4 flex-none" aria-hidden="true" />}
+      <span>{providerCheckState.providerCheckKind === 'running' ? providerCheckState.providerCheckLabel : providerCheckState.providerCheckMessage}</span>
+    </p>
+  )
+}
 
 function describeProviderHost(providerBaseUrl: string): string {
   try {
@@ -61,7 +96,7 @@ export function PapelizAssistantProviderSettingsDialog({ onProviderSettingsDialo
   const [providerCheckState, setProviderCheckState] = useState<PapelizProviderCheckState>({ providerCheckKind: 'idle' })
   const userModelPrices = usePapelizAssistantModelPricesStore((modelPricesState) => modelPricesState.userModelPrices)
   const setUserModelPrice = usePapelizAssistantModelPricesStore((modelPricesState) => modelPricesState.setUserModelPrice)
-  // Advanced: the chosen model's price as typed, per model name; empty boxes mean Papeliz's price.
+  // Model price: the chosen model's price as typed, per model name; empty boxes mean the listed price.
   const [typedModelPricesByModelName, setTypedModelPricesByModelName] = useState<Record<string, { typedInputPriceText: string; typedOutputPriceText: string }>>({})
   const providerPreset = findPapelizAssistantProviderPreset(editedProviderSettings.papelizAssistantProviderId)
   const savedProviderSettings = providerSettingsByProviderId[editedProviderSettings.papelizAssistantProviderId]
@@ -99,12 +134,16 @@ export function PapelizAssistantProviderSettingsDialog({ onProviderSettingsDialo
     if (providerSettingChanges.providerBaseUrl !== undefined || providerSettingChanges.providerApiKey !== undefined) setLoadedProviderModelNames(null)
   }
 
-  const runProviderCheck = async (providerCheckLabel: string, providerCheck: () => Promise<string>) => {
-    setProviderCheckState({ providerCheckKind: 'running', providerCheckLabel })
+  const runProviderCheck = async (providerCheckSubject: PapelizProviderCheckSubject, providerCheckLabel: string, providerCheck: () => Promise<string>) => {
+    setProviderCheckState({ providerCheckKind: 'running', providerCheckSubject, providerCheckLabel })
     try {
-      setProviderCheckState({ providerCheckKind: 'passed', providerCheckMessage: await providerCheck() })
+      setProviderCheckState({ providerCheckKind: 'passed', providerCheckSubject, providerCheckMessage: await providerCheck() })
     } catch (providerCheckError) {
-      setProviderCheckState({ providerCheckKind: 'failed', providerCheckMessage: providerCheckError instanceof Error ? providerCheckError.message : 'The check failed.' })
+      setProviderCheckState({
+        providerCheckKind: 'failed',
+        providerCheckSubject,
+        providerCheckMessage: providerCheckError instanceof Error ? providerCheckError.message : 'The check failed.',
+      })
     }
   }
 
@@ -142,7 +181,7 @@ export function PapelizAssistantProviderSettingsDialog({ onProviderSettingsDialo
     const typedPrice = Number(typedPriceText.trim().replace(/^\$/, ''))
     return typedPriceText.trim().length > 0 && Number.isFinite(typedPrice) && typedPrice >= 0 ? typedPrice : null
   }
-  // Both boxes filled: that price is saved for the model. Both empty: Papeliz's price applies again.
+  // Both boxes filled: that price is saved for the model. Both empty: the listed price applies again.
   const saveTypedModelPrices = () => {
     for (const [typedModelName, typedPrice] of Object.entries(typedModelPricesByModelName)) {
       const typedInputPrice = readTypedPrice(typedPrice.typedInputPriceText)
@@ -160,7 +199,7 @@ export function PapelizAssistantProviderSettingsDialog({ onProviderSettingsDialo
     (typedModelPrice.typedOutputPriceText.trim().length > 0 && readTypedPrice(typedModelPrice.typedOutputPriceText) === null)
 
   const loadProviderModelNames = () =>
-    void runProviderCheck('Loading models…', async () => {
+    void runProviderCheck('model-list', 'Loading models…', async () => {
       const providerModelNames = await listPapelizProviderModelNames(providerConnection)
       setLoadedProviderModelNames(providerModelNames)
       if (isModelListRequired && !providerModelNames.includes(editedProviderSettings.providerModelName)) {
@@ -178,6 +217,39 @@ export function PapelizAssistantProviderSettingsDialog({ onProviderSettingsDialo
       return `${providerModelNames.length} ${providerModelNames.length === 1 ? 'model' : 'models'} loaded. Pick one in the Model field.`
     })
 
+  // Test connection sits by the API key, but it needs a model too: it sends one tiny request.
+  const isProviderModelMissing = editedProviderSettings.providerModelName.trim().length === 0
+  const testProviderConnection = () =>
+    void runProviderCheck('connection-test', 'Testing the connection…', async () => {
+      const providerReply = await testPapelizProviderConnection(providerConnection)
+      return `Connected. The model answered: “${providerReply.slice(0, 60) || '(empty)'}”`
+    })
+
+  // Model price, in a few words for the closed section's row: the price Usage will use.
+  const typedInputPrice = readTypedPrice(typedModelPrice.typedInputPriceText)
+  const typedOutputPrice = readTypedPrice(typedModelPrice.typedOutputPriceText)
+  const isTypedModelPriceComplete = typedInputPrice !== null && typedOutputPrice !== null
+  const describeModelPricePair = (inputUsdPerMillionTokens: number, outputUsdPerMillionTokens: number) =>
+    `$${formatPapelizAssistantModelPricePerMillionTokens(inputUsdPerMillionTokens)} in · $${formatPapelizAssistantModelPricePerMillionTokens(outputUsdPerMillionTokens)} out`
+  const modelPriceSummaryText =
+    chosenModelName.length === 0
+      ? ''
+      : isTypedModelPriceComplete
+        ? `Yours: ${describeModelPricePair(typedInputPrice, typedOutputPrice)}`
+        : papelizModelPrice !== null
+          ? describeModelPricePair(papelizModelPrice.modelPrice.inputUsdPerMillionTokens, papelizModelPrice.modelPrice.outputUsdPerMillionTokens)
+          : 'Not listed'
+  const isModelPriceSummaryAPrice = chosenModelName.length > 0 && (isTypedModelPriceComplete || papelizModelPrice !== null)
+  const isRequestCostReportedByProvider = papelizRequestCostReportingAssistantProviderIds.includes(editedProviderSettings.papelizAssistantProviderId)
+  const modelPriceHelpText = isTypedModelPriceHalfFilled
+    ? 'Fill in both prices, as numbers, or leave both empty.'
+    : isTypedModelPriceComplete
+      ? `Usage uses your price.${papelizModelPrice === null ? '' : ' Clear both boxes to go back to the listed price.'}`
+      : papelizModelPrice !== null
+        ? `Empty boxes use the listed price, from the provider’s price page (checked ${papelizAssistantBuiltInModelPricesCheckedOnLabel}).`
+        : chosenModelName.length === 0
+          ? 'Pick a model first.'
+          : 'Papeliz has no listed price for this model, so Usage shows no cost for it. Type the price from your provider’s price page.'
 
   return (
     <dialog
@@ -256,15 +328,32 @@ export function PapelizAssistantProviderSettingsDialog({ onProviderSettingsDialo
           </>
         )}
 
+        {/* Get a key sits beside the label; Test connection, the key's check, at the row's right end. */}
         <div className={papelizProviderFieldLabelRowClassName}>
-          <label className={papelizProviderFieldLabelClassName} htmlFor={`${providerFieldIdPrefix}-api-key`}>
-            API key {!providerPreset.isProviderApiKeyRequired && <span className="font-normal text-papeliz-ink-subtle">(not needed for most local servers)</span>}
-          </label>
-          {providerPreset.providerApiKeyHelpUrl !== null && (
-            <a href={providerPreset.providerApiKeyHelpUrl} target="_blank" rel="noopener noreferrer" className={papelizProviderFieldActionClassName}>
-              Get a key <ExternalLink className="size-3" aria-hidden="true" />
-            </a>
-          )}
+          <span className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1">
+            <label className={papelizProviderFieldLabelClassName} htmlFor={`${providerFieldIdPrefix}-api-key`}>
+              API key {!providerPreset.isProviderApiKeyRequired && <span className="font-normal text-papeliz-ink-subtle">(not needed for most local servers)</span>}
+            </label>
+            {providerPreset.providerApiKeyHelpUrl !== null && (
+              <a href={providerPreset.providerApiKeyHelpUrl} target="_blank" rel="noopener noreferrer" className={papelizProviderFieldActionClassName}>
+                Get a key <ExternalLink className="size-3" aria-hidden="true" />
+              </a>
+            )}
+          </span>
+          <button
+            type="button"
+            className={papelizProviderFieldActionClassName}
+            disabled={providerCheckState.providerCheckKind === 'running' || isProviderApiKeyMissing || isProviderModelMissing}
+            title={isProviderApiKeyMissing ? 'Paste the API key first' : isProviderModelMissing ? 'Pick a model first' : 'Send one tiny request with this key and model'}
+            onClick={testProviderConnection}
+          >
+            {providerCheckState.providerCheckKind === 'running' && providerCheckState.providerCheckSubject === 'connection-test' ? (
+              <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" />
+            ) : (
+              <PlugZap className="size-3.5" aria-hidden="true" />
+            )}
+            Test connection
+          </button>
         </div>
         {/* The show/hide eye sits inside the field, so the field is as wide as the others. */}
         <div className="relative mt-1.5">
@@ -287,6 +376,9 @@ export function PapelizAssistantProviderSettingsDialog({ onProviderSettingsDialo
             {isApiKeyShown ? <EyeOff className="size-4" aria-hidden="true" /> : <Eye className="size-4" aria-hidden="true" />}
           </PapelizIconButton>
         </div>
+        {providerCheckState.providerCheckKind !== 'idle' && providerCheckState.providerCheckSubject === 'connection-test' && (
+          <PapelizProviderCheckMessage providerCheckState={providerCheckState} />
+        )}
 
         <div className={papelizProviderFieldLabelRowClassName}>
           <label id={`${providerFieldIdPrefix}-model-label`} className={papelizProviderFieldLabelClassName} htmlFor={`${providerFieldIdPrefix}-model`}>
@@ -300,7 +392,7 @@ export function PapelizAssistantProviderSettingsDialog({ onProviderSettingsDialo
             onClick={loadProviderModelNames}
           >
             <RefreshCw
-              className={`size-3.5 ${providerCheckState.providerCheckKind === 'running' && providerCheckState.providerCheckLabel === 'Loading models…' ? 'animate-spin' : ''}`}
+              className={`size-3.5 ${providerCheckState.providerCheckKind === 'running' && providerCheckState.providerCheckSubject === 'model-list' ? 'animate-spin' : ''}`}
               aria-hidden="true"
             />
             {loadedProviderModelNames === null ? 'Load models' : 'Load again'}
@@ -340,43 +432,63 @@ export function PapelizAssistantProviderSettingsDialog({ onProviderSettingsDialo
         {isModelListRequired && (
           <p className={papelizProviderFieldHelpClassName}>Load the models this provider serves with your key, then pick one. Only listed models can be saved.</p>
         )}
+        {providerCheckState.providerCheckKind !== 'idle' && providerCheckState.providerCheckSubject === 'model-list' && (
+          <PapelizProviderCheckMessage providerCheckState={providerCheckState} />
+        )}
 
-        {/* Advanced: the model's price for Usage's Cost, only when Papeliz's own price is wrong or missing. */}
-        <details className="group/advanced mt-4 rounded-2xl border border-papeliz-line px-4 py-2.5" open={savedUserModelPrice !== undefined || undefined}>
+        {/* Model price: only for Usage's cost estimate, and only needed when the listed price is wrong or missing. */}
+        <details className="group/model-price mt-4 rounded-2xl border border-papeliz-line px-4 py-2.5" open={savedUserModelPrice !== undefined || undefined}>
           <summary className="flex cursor-pointer list-none items-center gap-1.5 text-[13px] font-semibold select-none [&::-webkit-details-marker]:hidden">
-            <ChevronRight className="size-3.5 transition-transform group-open/advanced:rotate-90" aria-hidden="true" />
-            Advanced settings
+            <ChevronRight className="size-3.5 flex-none transition-transform group-open/model-price:rotate-90" aria-hidden="true" />
+            <span className="whitespace-nowrap">Model price</span>
+            {/* On a phone only the prices show; "per 1M tokens" is under the boxes. */}
+            <span className="ml-auto min-w-0 truncate pl-3 text-[12.5px] font-normal text-papeliz-ink-muted tabular-nums">
+              {modelPriceSummaryText}
+              {isModelPriceSummaryAPrice && <span className="max-sm:hidden"> per 1M tokens</span>}
+            </span>
           </summary>
-          <p className="mt-2.5 text-[13px] font-medium">Price per million tokens{chosenModelName.length > 0 && <span className="font-normal text-papeliz-ink-muted"> · {chosenModelName}</span>}</p>
-          <div className="mt-1.5 flex gap-2">
+          <p className={papelizProviderFieldHelpClassName}>
+            Usage uses this price to estimate what the assistant costs you. Papeliz itself is free; your provider bills you.
+            {isRequestCostReportedByProvider && ` ${providerPreset.providerPresetDisplayName} reports what each request costs, and Usage uses that first.`}
+          </p>
+          <div className="mt-2.5 flex gap-2">
             {(
               [
                 ['Input', 'typedInputPriceText', papelizModelPrice?.modelPrice.inputUsdPerMillionTokens],
                 ['Output', 'typedOutputPriceText', papelizModelPrice?.modelPrice.outputUsdPerMillionTokens],
               ] as const
-            ).map(([priceBoxLabel, typedPriceField, papelizPrice]) => (
-              <label key={typedPriceField} className="flex min-w-0 flex-1 flex-col gap-1 text-[12px] font-medium text-papeliz-ink-muted">
-                {priceBoxLabel} (US $)
-                <input
-                  inputMode="decimal"
-                  disabled={chosenModelName.length === 0}
-                  placeholder={papelizPrice === undefined ? 'No price' : `${papelizPrice} (Papeliz)`}
-                  value={typedModelPrice[typedPriceField]}
-                  onChange={(changeEvent) =>
-                    setTypedModelPricesByModelName((currentTypedPrices) => ({
-                      ...currentTypedPrices,
-                      [chosenModelName]: { ...typedModelPrice, [typedPriceField]: changeEvent.target.value },
-                    }))
-                  }
-                  className={`${papelizProviderFieldClassName} text-sm tabular-nums`}
-                />
+            ).map(([priceBoxLabel, typedPriceField, listedPrice]) => (
+              <label key={typedPriceField} className="flex min-w-0 flex-1 flex-col gap-1 text-[12.5px] font-medium">
+                <span>
+                  {priceBoxLabel} <span className="font-normal text-papeliz-ink-muted">per 1M tokens</span>
+                </span>
+                {/* The dollar sign sits inside the field, so only the number is typed. */}
+                <span className="relative">
+                  <span className="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-sm text-papeliz-ink-muted" aria-hidden="true">
+                    $
+                  </span>
+                  <input
+                    inputMode="decimal"
+                    disabled={chosenModelName.length === 0}
+                    placeholder={listedPrice === undefined ? '0.00' : formatPapelizAssistantModelPricePerMillionTokens(listedPrice)}
+                    value={typedModelPrice[typedPriceField]}
+                    onChange={(changeEvent) =>
+                      setTypedModelPricesByModelName((currentTypedPrices) => ({
+                        ...currentTypedPrices,
+                        [chosenModelName]: { ...typedModelPrice, [typedPriceField]: changeEvent.target.value },
+                      }))
+                    }
+                    className={`${papelizProviderFieldClassName} pl-7 text-sm tabular-nums`}
+                  />
+                </span>
               </label>
             ))}
           </div>
-          <p className={papelizProviderFieldHelpClassName}>
-            {isTypedModelPriceHalfFilled
-              ? 'Fill in both prices, as numbers, or leave both empty.'
-              : `Leave both empty to use Papeliz’s price${papelizModelPrice === null ? ' (none for this model yet)' : ''}, from the provider’s own price page (checked ${papelizAssistantBuiltInModelPricesCheckedOn}). A provider that reports each request’s cost itself, like OpenRouter, is taken at its word.`}
+          <p
+            role={isTypedModelPriceHalfFilled ? 'alert' : undefined}
+            className={isTypedModelPriceHalfFilled ? 'mt-1.5 text-[12.5px] leading-snug text-papeliz-diff-removed-ink' : papelizProviderFieldHelpClassName}
+          >
+            {modelPriceHelpText}
           </p>
         </details>
 
@@ -386,39 +498,8 @@ export function PapelizAssistantProviderSettingsDialog({ onProviderSettingsDialo
           The notes the assistant reads are sent there too, and that provider’s terms apply.
         </div>
 
-        {providerCheckState.providerCheckKind !== 'idle' && (
-          <p
-            role={providerCheckState.providerCheckKind === 'failed' ? 'alert' : 'status'}
-            className={`mt-4 flex items-start gap-2 rounded-2xl px-4 py-2.5 text-[13px] ${
-              providerCheckState.providerCheckKind === 'failed'
-                ? 'bg-papeliz-diff-removed text-papeliz-diff-removed-ink'
-                : providerCheckState.providerCheckKind === 'passed'
-                  ? 'bg-papeliz-diff-added text-papeliz-diff-added-ink'
-                  : 'bg-papeliz-surface-gray text-papeliz-ink-muted'
-            }`}
-          >
-            {providerCheckState.providerCheckKind === 'running' && <LoaderCircle className="mt-0.5 size-4 flex-none animate-spin" aria-hidden="true" />}
-            {providerCheckState.providerCheckKind === 'passed' && <CircleCheck className="mt-0.5 size-4 flex-none" aria-hidden="true" />}
-            {providerCheckState.providerCheckKind === 'failed' && <CircleAlert className="mt-0.5 size-4 flex-none" aria-hidden="true" />}
-            <span>
-              {providerCheckState.providerCheckKind === 'running' ? providerCheckState.providerCheckLabel : providerCheckState.providerCheckMessage}
-            </span>
-          </p>
-        )}
-
+        {/* No Cancel: the close button and Esc leave without saving. */}
         <div className="mt-6 flex flex-wrap items-center gap-2">
-          <PapelizPillButton
-            pillButtonVariant="gray"
-            disabled={providerCheckState.providerCheckKind === 'running' || editedProviderSettings.providerModelName.trim().length === 0}
-            onClick={() =>
-              void runProviderCheck('Testing the connection…', async () => {
-                const providerReply = await testPapelizProviderConnection(providerConnection)
-                return `Connected. The model answered: “${providerReply.slice(0, 60) || '(empty)'}”`
-              })
-            }
-          >
-            Test connection
-          </PapelizPillButton>
           {isSavedProvider && (
             <PapelizPillButton
               pillButtonVariant="gray"
@@ -431,19 +512,15 @@ export function PapelizAssistantProviderSettingsDialog({ onProviderSettingsDialo
               Forget this key
             </PapelizPillButton>
           )}
-          <div className="ml-auto flex gap-2">
-            <PapelizPillButton pillButtonVariant="gray" onClick={onProviderSettingsDialogClose}>
-              Cancel
-            </PapelizPillButton>
-            <PapelizPillButton
-              type="submit"
-              pillButtonVariant="primary"
-              disabled={(isModelListRequired && !isChosenModelPickable) || isTypedModelPriceHalfFilled}
-              title={isModelListRequired && !isChosenModelPickable ? 'Load models and pick one first' : undefined}
-            >
-              Save and use
-            </PapelizPillButton>
-          </div>
+          <PapelizPillButton
+            type="submit"
+            pillButtonVariant="primary"
+            className="ml-auto"
+            disabled={(isModelListRequired && !isChosenModelPickable) || isTypedModelPriceHalfFilled}
+            title={isModelListRequired && !isChosenModelPickable ? 'Load models and pick one first' : undefined}
+          >
+            Save
+          </PapelizPillButton>
         </div>
       </form>
     </dialog>

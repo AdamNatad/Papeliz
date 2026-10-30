@@ -15,6 +15,16 @@ export interface PapelizAssistantModelPrice {
 // When Papeliz's own prices were last checked against each provider's price page.
 export const papelizAssistantBuiltInModelPricesCheckedOn = '2026-10-29'
 
+// The same date as people read it: "Oct 29, 2026".
+export const papelizAssistantBuiltInModelPricesCheckedOnLabel = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(
+  new Date(`${papelizAssistantBuiltInModelPricesCheckedOn}T12:00:00`),
+)
+
+// A price per million tokens in dollars, without the sign: "0.10", "0.075", "4.00".
+export function formatPapelizAssistantModelPricePerMillionTokens(usdPerMillionTokens: number): string {
+  return usdPerMillionTokens.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })
+}
+
 // Papeliz's own prices, in US dollars per million tokens, for prompts at each provider's standard
 // size and tier. Discounts for cached input, and the higher prices some models charge for very long
 // prompts, aren't counted. Models with no public price are left out.

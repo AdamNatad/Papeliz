@@ -18,6 +18,11 @@ from the plan to the launch. The website's Changelog page shows the same list.
 - Search results update when you edit a note, instead of showing text the note no longer has.
 - Bigger buttons on touch screens: a tab’s lock and close, and New note.
 - The sample vault is marked Temporary, and its notes read “Kept until reload”.
+- Provider settings: Test connection and Get a key sit by the API key, one Save button, and a
+  clearer Model price that shows the price Usage counts.
+- Usage shows only usage: the totals and each model. Your chats are in Sessions.
+- MD View draws tables and Mermaid diagrams; a diagram’s code loads only when a note has one.
+- The Papeliz logo and name stay in the top bar on phones.
 
 ## 2026-10-28 — More of the website, and a help site
 

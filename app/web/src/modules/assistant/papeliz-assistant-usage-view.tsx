@@ -1,6 +1,4 @@
-import { MessageSquare } from 'lucide-react'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { getVaultNoteTitle } from '../vault/papeliz-vault-relative-paths'
 import { usePapelizWorkspaceStore } from '../workspace/papeliz-workspace-store'
 import { isPapelizChatSessionNotePath } from './papeliz-assistant-chat-session-files'
 import { usePapelizAssistantConversationStore } from './papeliz-assistant-conversation-store'
@@ -8,12 +6,11 @@ import { usePapelizAssistantInlineEditUsageFileWriteStore } from './papeliz-assi
 import {
   findPapelizAssistantModelPrice,
   formatPapelizAssistantCostUsd,
-  papelizAssistantBuiltInModelPricesCheckedOn,
+  papelizAssistantBuiltInModelPricesCheckedOnLabel,
   usePapelizAssistantModelPricesStore,
   workOutPapelizAssistantModelCost,
   type PapelizAssistantModelCost,
 } from './papeliz-assistant-model-prices'
-import { usePapelizAssistantPanelUiStore } from './papeliz-assistant-panel-ui-store'
 import {
   formatPapelizAssistantTokenCountInFull,
   type PapelizAssistantModelTokenUsageTally,
@@ -24,13 +21,6 @@ import {
   summarizePapelizAssistantVaultTokenUsage,
   type PapelizAssistantVaultTokenUsageRecords,
 } from './papeliz-assistant-vault-token-usage'
-
-const papelizUsageViewSessionDateFormat = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
-
-function formatChatSessionUpdatedAt(chatSessionUpdatedAt: string): string {
-  const chatSessionUpdatedDate = new Date(chatSessionUpdatedAt)
-  return Number.isNaN(chatSessionUpdatedDate.getTime()) ? '' : papelizUsageViewSessionDateFormat.format(chatSessionUpdatedDate)
-}
 
 // "12,034 in · 2,210 out · 6 requests", with "about" in front when any figure is estimated.
 function describeAssistantTokenUsageTally(assistantTokenUsageTally: PapelizAssistantTokenUsageTally, isAtLineStart: boolean): string {
@@ -43,16 +33,12 @@ function describeAssistantTokenUsageTally(assistantTokenUsageTally: PapelizAssis
   return `${isAtLineStart ? 'About' : 'about'} ${tokenUsageDescription}`
 }
 
-const papelizBuiltInPricesCheckedOnLabel = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(
-  new Date(`${papelizAssistantBuiltInModelPricesCheckedOn}T12:00:00`),
-)
-
 // Where a model's cost came from, in a few words.
 function describeModelCostSource(modelCost: PapelizAssistantModelCost | null): string {
   if (modelCost === null) return 'No price'
   if (modelCost.modelCostSource === 'provider-reported') return 'Provider’s figure'
   if (modelCost.modelCostSource === 'typed-by-user') return 'Your price'
-  return 'Papeliz price'
+  return 'Listed price'
 }
 
 // What several models' requests cost together. Null when none of them has a cost; `isCostPartial`
@@ -73,7 +59,7 @@ function describeAddedUpCost(addedUpCost: { costUsd: number; isCostEstimated: bo
 }
 
 // One model under By model: its tokens, its cost and where the cost came from. Its price is set in
-// Provider settings, under Advanced.
+// Provider settings, under Model price.
 function PapelizUsageViewModelRow({ modelTokenUsageTally }: { modelTokenUsageTally: PapelizAssistantModelTokenUsageTally }) {
   const userModelPrices = usePapelizAssistantModelPricesStore((modelPricesState) => modelPricesState.userModelPrices)
   const modelCost = workOutPapelizAssistantModelCost(modelTokenUsageTally, findPapelizAssistantModelPrice(modelTokenUsageTally.providerModelName, userModelPrices))
@@ -109,16 +95,15 @@ function PapelizUsageViewTotalRow({ usageTotalLabel, usageTotalCount, isUsageTot
   )
 }
 
-// Usage: the tokens the assistant used in this vault, and what they cost, from the chat session notes
-// (and the inline edits' file), per model and per chat. A chat opens in the chat, as from Sessions.
+// Usage: the tokens the assistant used in this vault and what they cost, added up from the chat
+// session notes and the inline edits' file: the totals, then per model. Usage only, so the chats
+// themselves are listed in Sessions, not here.
 export function PapelizAssistantUsageView() {
   const openVault = usePapelizWorkspaceStore((workspaceState) => workspaceState.openVault)
   const vaultTreeEntries = usePapelizWorkspaceStore((workspaceState) => workspaceState.vaultTreeEntries)
   const chatVaultId = usePapelizAssistantConversationStore((conversationState) => conversationState.chatVaultId)
   const liveChatSessionVaultNoteRelativePath = usePapelizAssistantConversationStore((conversationState) => conversationState.chatSessionVaultNoteRelativePath)
   const liveChatSessionTokenUsage = usePapelizAssistantConversationStore((conversationState) => conversationState.chatSessionTokenUsage)
-  const openSavedChatSession = usePapelizAssistantConversationStore((conversationState) => conversationState.openSavedChatSession)
-  const setAssistantPanelTab = usePapelizAssistantPanelUiStore((panelUiState) => panelUiState.setAssistantPanelTab)
   const inlineEditUsageFileWriteCount = usePapelizAssistantInlineEditUsageFileWriteStore((writeState) => writeState.inlineEditUsageFileWriteCount)
   const userModelPrices = usePapelizAssistantModelPricesStore((modelPricesState) => modelPricesState.userModelPrices)
   // What a list of model rows cost together, at today's prices.
@@ -181,10 +166,9 @@ export function PapelizAssistantUsageView() {
     ) : null
   const usageFiguresNotice = (
     <p className="px-2 text-xs leading-relaxed text-papeliz-ink-subtle">
-      Tokens are your provider’s own counts, or estimates (marked “about”) where it gave none. Cost is the provider’s own figure where it gives one;
-      otherwise it is worked out from the tokens at Papeliz’s price for the model, from the provider’s own price page (checked{' '}
-      {papelizBuiltInPricesCheckedOnLabel}), or at the price set in Provider settings, under Advanced. Cached-input discounts aren’t counted, so your
-      provider’s bill is what counts.
+      Tokens are your provider’s own counts, or estimates (marked “about”) where it gave none. Cost is the provider’s own figure where it reports one;
+      otherwise it is the tokens at the model’s price: the listed price (checked {papelizAssistantBuiltInModelPricesCheckedOnLabel}), or yours, from
+      Provider settings under Model price. It is an estimate, so your provider’s bill is what counts.
     </p>
   )
 
@@ -198,8 +182,7 @@ export function PapelizAssistantUsageView() {
     )
   }
 
-  const { vaultTokenUsageTally, vaultModelTokenUsageTallies, inlineEditsTokenUsageTally, assistantUsageViewSessionRowsWithTokenUsage, inlineEditModelTokenUsageTallies } =
-    vaultTokenUsageSummary
+  const { vaultTokenUsageTally, vaultModelTokenUsageTallies, inlineEditsTokenUsageTally, inlineEditModelTokenUsageTallies } = vaultTokenUsageSummary
   const vaultAddedUpCost = addUpModelTokenUsageCosts(vaultModelTokenUsageTallies)
   const inlineEditsAddedUpCost = addUpModelTokenUsageCosts(inlineEditModelTokenUsageTallies)
   return (
@@ -236,43 +219,6 @@ export function PapelizAssistantUsageView() {
         </ul>
       </section>
 
-      <section aria-label="Chats">
-        <PapelizUsageViewSectionHeading>Chats</PapelizUsageViewSectionHeading>
-        {assistantUsageViewSessionRowsWithTokenUsage.length === 0 && <p className="px-2 py-1 text-sm text-papeliz-ink-subtle">No chats have recorded usage yet.</p>}
-        <ul className="flex flex-col gap-px">
-          {assistantUsageViewSessionRowsWithTokenUsage.map((assistantUsageViewSessionRow) => {
-            const chatSessionUpdatedAtLabel = formatChatSessionUpdatedAt(assistantUsageViewSessionRow.chatSessionUpdatedAt)
-            const chatSessionAddedUpCost = addUpModelTokenUsageCosts(assistantUsageViewSessionRow.chatSessionTokenUsage.chatSessionModelTokenUsageTallies)
-            return (
-              <li key={assistantUsageViewSessionRow.chatSessionVaultNoteRelativePath}>
-                <button
-                  type="button"
-                  aria-current={assistantUsageViewSessionRow.chatSessionVaultNoteRelativePath === liveChatSessionVaultNoteRelativePath ? 'true' : undefined}
-                  onClick={() => {
-                    setAssistantPanelTab('chat')
-                    void openSavedChatSession(assistantUsageViewSessionRow.chatSessionVaultNoteRelativePath)
-                  }}
-                  className="flex w-full items-center gap-2.5 rounded-2xl px-3 py-2 text-left transition-colors hover:bg-papeliz-hover"
-                >
-                  <MessageSquare className="size-4 flex-none text-papeliz-ink-subtle" aria-hidden="true" />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium">
-                      {assistantUsageViewSessionRow.chatSessionTitle || getVaultNoteTitle(assistantUsageViewSessionRow.chatSessionVaultNoteRelativePath)}
-                    </span>
-                    <span className="block text-xs text-papeliz-ink-subtle tabular-nums">
-                      {chatSessionUpdatedAtLabel.length > 0 && `${chatSessionUpdatedAtLabel} · `}
-                      {describeAssistantTokenUsageTally(assistantUsageViewSessionRow.chatSessionTokenUsage.chatSessionTokenUsageTally, chatSessionUpdatedAtLabel.length === 0)}
-                      {chatSessionAddedUpCost !== null && ` · ${describeAddedUpCost(chatSessionAddedUpCost)}`}
-                    </span>
-                  </span>
-                </button>
-              </li>
-            )
-          })}
-        </ul>
-        {olderChatSessionsNotice}
-      </section>
-
       {inlineEditsTokenUsageTally.assistantRequestCount > 0 && (
         <section aria-label="Inline edits">
           <PapelizUsageViewSectionHeading>Inline edits</PapelizUsageViewSectionHeading>
@@ -283,6 +229,7 @@ export function PapelizAssistantUsageView() {
         </section>
       )}
 
+      {olderChatSessionsNotice}
       {usageFiguresNotice}
     </div>
   )

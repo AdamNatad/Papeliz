@@ -45,6 +45,7 @@ export const papelizSiteFeatureGroups: PapelizSiteFeatureGroup[] = [
     papelizSiteFeatureGroupSummary: 'The rendered note, one switch away from MD Code.',
     papelizSiteFeatureGroupPoints: [
       { papelizSiteFeaturePointTitle: 'GitHub-flavored Markdown', papelizSiteFeaturePointBody: 'Tables, task lists, strikethrough and fenced code.' },
+      { papelizSiteFeaturePointTitle: 'Tables and diagrams', papelizSiteFeaturePointBody: 'Tables show as tables, and a mermaid code block as a diagram. Click either to edit its Markdown.' },
       { papelizSiteFeaturePointTitle: 'Wikilinks and tags', papelizSiteFeaturePointBody: '[[Links]] open the note they name, and #tags stand out.' },
       { papelizSiteFeaturePointTitle: 'Properties and callouts', papelizSiteFeaturePointBody: 'YAML frontmatter shows as property chips; > [!note] blocks show as callouts.' },
       { papelizSiteFeaturePointTitle: 'Safe by default', papelizSiteFeaturePointBody: 'Every note is sanitized before display, so a note can never run code in the page.' },
@@ -92,5 +93,5 @@ export const papelizSiteAfterLaunchFeatures = [
   'Firefox and Safari, with a vault stored in the browser',
   'A passphrase lock for your keys',
   'Translations',
-  'Math, diagrams and code highlighting in MD View',
+  'Math and code highlighting in MD View',
 ]

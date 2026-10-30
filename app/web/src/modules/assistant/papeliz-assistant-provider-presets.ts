@@ -159,6 +159,9 @@ export const papelizDefaultAssistantProviderId = papelizAssistantProviderPresets
 // them until they allow it; a desktop app, outside the browser, could offer them.
 export const papelizBrowserBlockedAssistantProviderIds: readonly string[] = ['ollama-cloud', 'opencode-zen', 'opencode-go']
 
+// Providers whose answers carry what each request cost, which Usage counts before any price.
+export const papelizRequestCostReportingAssistantProviderIds: readonly string[] = ['openrouter']
+
 // The providers settings offers: Muse Spark on Meta first, then every provider a web page can reach,
 // those on this computer and Custom (Adam, 2026-10-29: "remove ollama cloud for now", then
 // "Openrouter works or whatever works on the provider put it in"). A hidden one stays defined, so

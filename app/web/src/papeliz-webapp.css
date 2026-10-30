@@ -698,7 +698,8 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 0 12px;
+  /* Below 640px the labels are hidden: each choice is a round 30px icon. */
+  padding: 0 8px;
   border-radius: 9999px;
   font-size: 13px;
   font-weight: 600;
@@ -1307,6 +1308,130 @@
 .papeliz-md-view .cm-line.cm-papeliz-md-view-table-line {
   font-family: var(--font-mono);
   font-size: 14px;
+}
+
+/* A table drawn as a table while the cursor is elsewhere. It wraps its text down to the longest word,
+   then scrolls sideways inside the note. Padding, not margin: the editor measures block heights
+   without margins. */
+.papeliz-md-view .cm-papeliz-md-view-table-block,
+.papeliz-md-view .cm-papeliz-md-view-mermaid-block {
+  /* As wide as the note column, never wider: a wide table scrolls inside it instead of widening
+     the whole note. */
+  width: 0;
+  min-width: 100%;
+}
+
+.papeliz-md-view .cm-papeliz-md-view-table-block {
+  padding: 4px 0 14px;
+  overflow-x: auto;
+  cursor: text;
+}
+
+.papeliz-md-view .cm-papeliz-md-view-table {
+  width: max-content;
+  max-width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid var(--color-papeliz-line);
+  border-radius: 14px;
+  font-size: 14.5px;
+  line-height: 1.5;
+  white-space: normal;
+  /* Words stay whole (the editor's wrapping breaks anywhere), so a crowded table scrolls. */
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.papeliz-md-view .cm-papeliz-md-view-table th,
+.papeliz-md-view .cm-papeliz-md-view-table td {
+  padding: 9px 14px;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--color-papeliz-line);
+}
+
+.papeliz-md-view .cm-papeliz-md-view-table tbody tr:last-child td,
+.papeliz-md-view .cm-papeliz-md-view-table thead:last-child th {
+  border-bottom: 0;
+}
+
+.papeliz-md-view .cm-papeliz-md-view-table th {
+  background: var(--color-papeliz-surface-soft);
+  font-weight: 600;
+}
+
+.papeliz-md-view .cm-papeliz-md-view-table th:first-child {
+  border-top-left-radius: 13px;
+}
+
+.papeliz-md-view .cm-papeliz-md-view-table th:last-child {
+  border-top-right-radius: 13px;
+}
+
+.papeliz-md-view .cm-papeliz-md-view-table [data-papeliz-table-column-alignment='center'] {
+  text-align: center;
+}
+
+.papeliz-md-view .cm-papeliz-md-view-table [data-papeliz-table-column-alignment='right'] {
+  text-align: right;
+}
+
+/* ```mermaid diagrams, in the editable MD View and on the locked page. */
+.papeliz-mermaid-diagram {
+  overflow-x: auto;
+  text-align: center;
+  font-family: var(--papeliz-note-font-family);
+  line-height: 1.5;
+  white-space: normal;
+}
+
+.papeliz-mermaid-diagram svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.papeliz-md-view .cm-papeliz-md-view-mermaid-block {
+  padding: 6px 0 16px;
+  cursor: text;
+}
+
+.papeliz-md-view-article .papeliz-mermaid-diagram {
+  margin: 6px 0 18px;
+}
+
+.papeliz-mermaid-diagram .papeliz-mermaid-diagram-placeholder {
+  margin: 0;
+  padding: 28px 0;
+  border: 1px dashed var(--color-papeliz-line-strong);
+  border-radius: 14px;
+  color: var(--color-papeliz-ink-subtle);
+  font-size: 14px;
+}
+
+.papeliz-mermaid-diagram.papeliz-mermaid-diagram-has-error {
+  text-align: left;
+}
+
+.papeliz-mermaid-diagram .papeliz-mermaid-diagram-source {
+  margin: 0;
+  padding: 12px 16px;
+  font: 13.5px/1.65 var(--font-mono);
+  white-space: pre;
+  overflow-x: auto;
+  background: var(--color-papeliz-surface-soft);
+  border: 1px solid var(--color-papeliz-line);
+  border-radius: 14px 14px 0 0;
+}
+
+.papeliz-mermaid-diagram .papeliz-mermaid-diagram-error {
+  margin: 0;
+  padding: 8px 16px;
+  font-size: 13.5px;
+  color: var(--color-papeliz-error-notice-ink);
+  background: var(--color-papeliz-error-notice-ground);
+  border: 1px solid var(--color-papeliz-error-notice-line);
+  border-top: 0;
+  border-radius: 0 0 14px 14px;
 }
 
 .papeliz-md-view .cm-line.cm-papeliz-md-view-rule-line {
@@ -1949,4 +2074,124 @@
     radial-gradient(circle closest-side, #fff 0%, rgb(255 255 255 / 0.85) 18%, rgb(255 255 255 / 0) 100%),
     conic-gradient(from 90deg, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000);
   box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.12);
+}
+
+/* ---- Text size slider (papeliz-note-text-size-slider.tsx): the sliding choices' gray track, with
+   the white pill as the thumb, carrying the size, and a dot for each size. A see-through native
+   range input lies on top and takes the pointer and the keys; its thumb is as wide as the pill, so
+   a click lands exactly where the pill goes. ---- */
+
+.papeliz-note-text-size-slider {
+  --papeliz-note-text-size-inset: 4px;
+  --papeliz-note-text-size-thumb-width: 62px;
+  --papeliz-note-text-size-travel: calc(100% - 2 * var(--papeliz-note-text-size-inset) - var(--papeliz-note-text-size-thumb-width));
+  position: relative;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--color-papeliz-surface-gray);
+  box-shadow: inset 0 0 0 1px var(--color-papeliz-line);
+}
+
+/* On a touch screen it is as tall as the other choices there, with a wider pill to hold. */
+@media (pointer: coarse) {
+  .papeliz-note-text-size-slider {
+    --papeliz-note-text-size-thumb-width: 70px;
+    height: 48px;
+  }
+}
+
+.papeliz-note-text-size-slider:has(.papeliz-note-text-size-slider-input:focus-visible) {
+  outline: 2px solid var(--color-papeliz-blue);
+  outline-offset: 1px;
+}
+
+.papeliz-note-text-size-slider-fill {
+  position: absolute;
+  top: var(--papeliz-note-text-size-inset);
+  bottom: var(--papeliz-note-text-size-inset);
+  left: var(--papeliz-note-text-size-inset);
+  width: calc(var(--papeliz-note-text-size-fraction) * var(--papeliz-note-text-size-travel) + var(--papeliz-note-text-size-thumb-width) / 2);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--color-papeliz-blue) 16%, transparent);
+  pointer-events: none;
+}
+
+.papeliz-note-text-size-slider-stops {
+  position: absolute;
+  top: 50%;
+  left: calc(var(--papeliz-note-text-size-inset) + var(--papeliz-note-text-size-thumb-width) / 2);
+  right: calc(var(--papeliz-note-text-size-inset) + var(--papeliz-note-text-size-thumb-width) / 2);
+  display: flex;
+  justify-content: space-between;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.papeliz-note-text-size-slider-stops i {
+  width: 4px;
+  height: 4px;
+  margin: 0 -2px;
+  border-radius: 9999px;
+  background: var(--color-papeliz-line-strong);
+}
+
+.papeliz-note-text-size-slider-stops i[data-papeliz-note-text-size-stop-passed='true'] {
+  background: var(--color-papeliz-blue);
+  opacity: 0.55;
+}
+
+.papeliz-note-text-size-slider-pill {
+  position: absolute;
+  top: var(--papeliz-note-text-size-inset);
+  bottom: var(--papeliz-note-text-size-inset);
+  left: calc(var(--papeliz-note-text-size-inset) + var(--papeliz-note-text-size-fraction) * var(--papeliz-note-text-size-travel));
+  width: var(--papeliz-note-text-size-thumb-width);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border-radius: 9px;
+  background: var(--color-papeliz-surface);
+  color: var(--color-papeliz-blue);
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  box-shadow:
+    0 1px 2px rgb(17 17 18 / 0.12),
+    0 2px 8px rgb(17 17 18 / 0.08);
+  pointer-events: none;
+  transition: left 120ms var(--ease-papeliz-out);
+}
+
+.papeliz-note-text-size-slider-pill small {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--color-papeliz-ink-subtle);
+}
+
+.papeliz-note-text-size-slider-input {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--papeliz-note-text-size-inset);
+  width: calc(100% - 2 * var(--papeliz-note-text-size-inset));
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+}
+
+.papeliz-note-text-size-slider-input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: var(--papeliz-note-text-size-thumb-width);
+  height: 32px;
+}
+
+.papeliz-note-text-size-slider-input::-moz-range-thumb {
+  width: var(--papeliz-note-text-size-thumb-width);
+  height: 32px;
+  border: 0;
 }

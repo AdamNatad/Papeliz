@@ -36,6 +36,7 @@ export const papelizSiteRoadmapMilestones: PapelizSiteRoadmapMilestone[] = [
         papelizSiteRoadmapStepItems: [
           'Open a folder of Markdown notes, or try the sample vault',
           'MD Code and MD View behind one switch',
+          'Tables and Mermaid diagrams in MD View',
           'File explorer, tabs and wikilinks',
           'Autosave to plain .md files',
         ],
@@ -89,7 +90,7 @@ export const papelizSiteRoadmapMilestones: PapelizSiteRoadmapMilestone[] = [
           'Graph view and canvas',
           'A passphrase lock for your keys',
           'Translations',
-          'Math, diagrams and code highlighting in MD View',
+          'Math and code highlighting in MD View',
           'Firefox and Safari on the web',
         ],
       },

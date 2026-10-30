@@ -292,9 +292,11 @@ export function PapelizNoteTabsBar() {
       onClick={() =>
         void createVaultNoteInFolder(activeVaultNoteRelativePath === null ? '' : getVaultEntryParentFolderRelativePath(activeVaultNoteRelativePath))
       }
-      // A solid blue button with a white plus, so it is easy to see; larger on touch screens.
+      // A solid blue button with a white plus, so it is easy to see. On touch screens it keeps the
+      // same 28 px, centred on the tab row, with no shadow; an invisible 40 × 34 px area around it
+      // takes the tap.
       className={joinPapelizClassNames(
-        'grid size-7 flex-none place-items-center pointer-coarse:size-9 rounded-md bg-papeliz-gradient-start text-white shadow-papeliz-card transition-[filter,transform] duration-150 hover:brightness-[1.12] active:scale-[.94]',
+        'relative grid size-7 flex-none place-items-center rounded-md bg-papeliz-gradient-start text-white shadow-papeliz-card transition-[filter,transform] duration-150 hover:brightness-[1.12] active:scale-[.94] pointer-coarse:ml-2 pointer-coarse:shadow-none pointer-coarse:before:absolute pointer-coarse:before:-inset-x-1.5 pointer-coarse:before:-inset-y-[3px]',
         isNoteTabsStacked ? 'mx-0.5' : 'mx-1 mb-[3px] self-end',
       )}
     >
