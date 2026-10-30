@@ -61,15 +61,19 @@ async function readBrowserVaultNoteText(page: Page, papelizBrowserVaultName: str
 test('the start page offers browser vaults, and no folder actions that can’t work', async ({ page }) => {
   const isFolderVaultOffered = await isFolderOnDiskOffered(page)
   await expect(page.getByRole('button', { name: /^New Vault/ })).toContainText(isFolderVaultOffered ? 'On disk or in this browser.' : 'Kept in this browser.')
-  await expect(page.getByRole('button', { name: /^Import Vault/ })).toBeVisible()
+  // Importing happens inside an open vault, not from the start page.
+  await expect(page.getByRole('button', { name: /^Import Vault/ })).toHaveCount(0)
   await expect(page.getByRole('button', { name: /^Open Vault/ })).toHaveCount(isFolderVaultOffered ? 1 : 0)
 })
 
 test('a new browser vault keeps its notes across a reload', async ({ page }) => {
   await page.getByRole('button', { name: /^New Vault/ }).click()
-  if (await isFolderOnDiskOffered(page)) await page.getByRole('dialog').getByRole('radio', { name: 'In this browser' }).click()
-  await page.getByRole('dialog').getByLabel('Name').fill('Field Notes')
-  await page.getByRole('dialog').getByRole('button', { name: 'Create vault' }).click()
+  // New Vault's form takes Recent Vaults' place in the start card. Where folders work it starts on
+  // Folders on Disk; elsewhere that card is off and Browser Storage is chosen already.
+  const newVaultForm = page.getByRole('region', { name: 'New Vault' })
+  if (await isFolderOnDiskOffered(page)) await newVaultForm.getByRole('radio', { name: /^Browser Storage/ }).click()
+  await newVaultForm.getByLabel('Name').fill('Field Notes')
+  await newVaultForm.getByRole('button', { name: 'Create Vault' }).click()
   // The first note starts with its name ready to type.
   await page.waitForFunction(() => document.activeElement instanceof HTMLInputElement)
   await page.keyboard.press('Control+a')
@@ -130,10 +134,17 @@ test('a zip imports as a new browser vault, and Download backup saves it all as 
     )
     return [...new Uint8Array(await importZipBlob.arrayBuffer())]
   })
-  await page.getByRole('button', { name: /^Import Vault/ }).click()
-  await page.locator('dialog[open] input[type=file][accept]').setInputFiles({ name: 'Garden Club.zip', mimeType: 'application/zip', buffer: Buffer.from(importZipBytes) })
-  await expect(page.getByRole('dialog').getByLabel('Name')).toHaveValue('Garden Club')
-  await page.getByRole('dialog').getByRole('button', { name: 'Import' }).click()
+  // The start page has no import any more, so the zip goes in through the app's own import module, as
+  // the import inside an open vault will; the new vault is then opened from Recent Vaults.
+  const importedBrowserVaultName = await page.evaluate(async (importZipByteValues) => {
+    const { planPapelizBrowserVaultImportFromZip, importPapelizBrowserVault } = await import('/src/modules/vault/papeliz-browser-vault-import.ts')
+    const browserVaultImportPlan = await planPapelizBrowserVaultImportFromZip('Garden Club.zip', new Uint8Array(importZipByteValues))
+    const importedBrowserVaultRecord = await importPapelizBrowserVault(browserVaultImportPlan.suggestedBrowserVaultName, browserVaultImportPlan)
+    return importedBrowserVaultRecord.papelizVaultDisplayName
+  }, importZipBytes)
+  expect(importedBrowserVaultName).toBe('Garden Club')
+  await page.reload()
+  await page.getByRole('button', { name: /^Garden Club/ }).first().click()
   await expect(page.locator('footer')).toContainText('Garden Club')
   await expect(page.getByText('Plans', { exact: true }).first()).toBeVisible()
 

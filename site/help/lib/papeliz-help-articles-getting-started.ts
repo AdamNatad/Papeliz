@@ -72,18 +72,19 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
   },
   {
     papelizHelpArticleSlug: 'open-a-folder',
-    articleTitle: 'Start, open or import a vault',
-    articleSummary: 'Start a new vault, open a folder of notes you already have, or import notes into your browser.',
+    articleTitle: 'Start or open a vault',
+    articleSummary: 'Start a new vault on your disk or in your browser, or open a folder of notes you already have.',
     papelizHelpGroupSlug: 'getting-started',
     papelizHelpArticleAvailability: 'available',
     articleSections: [
       helpSection('Start a new vault', [
         helpNumberedSteps([
-          'On the start page, choose **New Vault**.',
-          'In Chrome and Edge on a computer, choose where to keep it under **Keep it**: **Folder on disk** or **In this browser**. Other browsers keep it in the browser without asking.',
-          'For a folder, choose **Pick folder**, pick or create an empty folder, and allow editing when the browser asks. For the browser, type a name and choose **Create vault**.',
+          'On the start page, choose **New Vault**. It opens where **Recent Vaults** was.',
+          'Choose where to keep it: **Folders on Disk** or **Browser Storage**. The table under them compares the two. In Firefox, Safari and phone browsers, **Folders on Disk** shows **Off in this browser** and **Browser Storage** is chosen.',
+          'For a folder, choose **Pick Folder**, pick or create an empty folder, and allow editing when the browser asks. For the browser, type a name and choose **Create Vault**.',
           'Papeliz starts your first note, named and ready to write in.',
         ]),
+        helpParagraph('**Cancel**, or Esc, goes back to **Recent Vaults**.'),
         helpParagraph('If the folder you pick already has notes, Papeliz opens it as it is instead of starting over.'),
         helpParagraph('A vault kept in the browser lives in the browser’s own storage, not in a folder you can see. See [[keep-a-vault-in-your-browser]].'),
       ]),
@@ -97,12 +98,7 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
           'The folder opens as it is. Papeliz shows its folders and `.md` notes and leaves everything else alone. See [[saving-and-hidden-folders]].',
         ),
         helpNote(
-          'Only Chrome and Edge on a computer open folders on your disk. Firefox, Safari and phone browsers show **New Vault**, **Import Vault** and **Try Sample**, without **Open Vault**. See [[browser-support]].',
-        ),
-      ]),
-      helpSection('Import a vault', [
-        helpParagraph(
-          '**Import Vault** makes a new vault in this browser from a `.zip`, such as a Papeliz backup, or from a folder. Nothing you already have is replaced. See [[keep-a-vault-in-your-browser]].',
+          'Only Chrome and Edge on a computer open folders on your disk. Firefox, Safari and phone browsers show **New Vault** and **Try Sample**, without **Open Vault**. See [[browser-support]].',
         ),
       ]),
       helpSection('Come back with Recent Vaults', [
@@ -151,33 +147,24 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
           'A browser vault keeps its notes in this browser’s own private storage on your device, not in a folder you can see. Inside, it’s laid out like a folder: the same `.md` notes and folders, with `.trash` and `.papeliz`. Nothing is uploaded.',
         ),
         helpParagraph(
-          'Chrome and Edge 103, Firefox 113 and Safari 16.4 and later keep browser vaults, on computers and phones. Only this browser sees the vault: to use it in another browser, download a backup and import it there.',
+          'Chrome and Edge 103, Firefox 113 and Safari 16.4 and later keep browser vaults, on computers and phones. Only this browser sees the vault; a backup is how you take it somewhere else.',
         ),
         helpNote('Clearing this browser’s data for Papeliz deletes every vault kept in it. A browser can also clear its storage by itself, so download a backup now and then.'),
       ]),
       helpSection('Start one', [
         helpNumberedSteps([
           'On the start page, choose **New Vault**.',
-          'In Chrome and Edge on a computer, choose **In this browser** under **Keep it**. Other browsers keep a new vault in the browser without asking.',
-          'Type a name and choose **Create vault**. Papeliz starts your first note.',
+          'Choose **Browser Storage**. In Firefox, Safari and phone browsers it’s already chosen.',
+          'Type a name and choose **Create Vault**. Papeliz starts your first note.',
         ]),
         helpParagraph(
           'Each browser vault needs a name of its own, and capitals don’t make a name different. Papeliz suggests a free one, such as **Notes** or **Notes 2**, and a taken name shows “Can’t use this name (Name Taken)”. The name must also work as a folder’s name, since a backup unzips into a folder of that name.',
         ),
         helpParagraph('In the status bar, a browser window icon comes before the vault’s name, and a saved note shows **Saved in browser**.'),
       ]),
-      helpSection('Import notes you have', [
-        helpNumberedSteps([
-          'On the start page, choose **Import Vault**.',
-          'Choose **A .zip file**, such as a Papeliz backup or any zip of notes, or **A folder**.',
-          'Papeliz counts the files and suggests a name. Change it if you like, then choose **Import**.',
-        ]),
+      helpSection('Notes you already have', [
         helpParagraph(
-          'An import always makes a new vault; it never changes one you have. Files go in as they are, hidden folders such as `.papeliz` and `.trash` included, so a backup comes back exactly. A `.git` folder and the leftovers other systems add (`__MACOSX`, `.DS_Store`, `Thumbs.db`, `desktop.ini`) stay out, and the count says how many were left out.',
-        ),
-        helpParagraph('**Stop** ends an import and keeps nothing. An import the browser has no room for stops before it starts, with “Not Enough Browser Storage”.'),
-        helpNote(
-          'A `.zip` is read into memory whole, so a very large one can fail on a phone. Encrypted zips, and zips of more than 65,535 files or 4 GB, can’t be imported.',
+          'Importing a `.zip` into the open vault, from the file list, is coming. Until then, in Chrome or Edge on a computer, unzip your notes and open the folder with **Open Vault**.',
         ),
       ]),
       helpSection('Download a backup', [
@@ -224,7 +211,7 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
           'Pick the unzipped folder named after the vault.',
         ]),
         helpParagraph(
-          'It opens as a folder vault, with its notes, `.trash` and `.papeliz` as they were. The browser vault stays until you delete it. To go the other way, **Import Vault** turns a folder or a backup into a browser vault.',
+          'It opens as a folder vault, with its notes, `.trash` and `.papeliz` as they were. The browser vault stays until you delete it.',
         ),
       ]),
       helpSection('Rename, hide and delete', [
@@ -258,10 +245,10 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
       ]),
       helpSection('Folders on your disk', [
         helpParagraph(
-          'Opening a real folder needs the File System Access API, which only Chrome and Edge on a computer support. There, **New Vault** asks whether to keep the vault as a **Folder on disk** or **In this browser**, and **Open Vault** opens a folder you already have.',
+          'Opening a real folder needs the File System Access API, which only Chrome and Edge on a computer support. There, **New Vault** offers **Folders on Disk** or **Browser Storage**, and **Open Vault** opens a folder you already have.',
         ),
         helpParagraph(
-          'Firefox, Safari and phone browsers can’t open a folder on your disk. Their start page offers **New Vault**, which keeps the vault in the browser, **Import Vault** and **Try Sample**, without **Open Vault**.',
+          'Firefox, Safari and phone browsers can’t open a folder on your disk. Their start page offers **New Vault**, which keeps the vault in the browser, and **Try Sample**, without **Open Vault**.',
         ),
       ]),
       helpSection('Off in this browser', [
@@ -300,12 +287,26 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
           '**Account**: coming soon.',
           '**Sync**: keep your vaults in sync across web, desktop and mobile, end-to-end encrypted. A paid add-on, coming soon.',
           '**Settings**: **Key Bindings**, the shortcuts you can change. See [[keyboard-shortcuts]]. In a vault kept in your browser, Settings has two tabs, **Key Bindings** and **Reminder**, for the backup reminder and **Download backup**. See [[keep-a-vault-in-your-browser]].',
-          '**Export**: tick the notes you want (the open note comes ticked) and export them as HTML: one note as a web page, several as a small website in one `.zip`, folders kept. PDF is coming soon.',
+          '**Export**: download notes as Word or HTML files. PDF is coming soon. See **Export** below.',
           '**Accessibility**: the theme, how your notes’ text looks, and how note tabs show. See [[text-settings-and-theme]].',
           '**Lock All Notes**: a switch that locks every note in the vault. See [[switch-views-and-lock]].',
           '**Focus Mode**: a switch for [[focus-mode|focus mode]].',
           '**Close Vault**, at the bottom: back to the start page. See [[open-a-folder]].',
         ]),
+      ]),
+      helpSection('Export', [
+        helpParagraph(
+          'Tick the notes you want. The open note comes ticked, and opening a folder lets you pick single notes inside it. Then pick a format and press **Export**. One note downloads as one file; several download as one `.zip`, folders kept.',
+        ),
+        helpBulletList([
+          '**Word**: an editable `.docx` for each note, with its headings, lists, tables, callouts, footnotes, pictures and diagrams. In a `.zip`, a link to another exported note opens that note’s file once the `.zip` is unpacked.',
+          '**PDF**: coming soon.',
+          '**HTML**: one note as a web page, several as a small website.',
+        ]),
+        helpParagraph('A Word file also opens in Google Docs (**File › Open › Upload**) and imports into Notion (**Import › Word**).'),
+        helpParagraph(
+          'Pictures and diagrams go inside the Word file, without the details a camera or editor adds, such as where a photo was taken. A picture whose website doesn’t share it shows as a line with its address, and the page says so when the export is done.',
+        ),
       ]),
       helpSection('On the start page', [
         helpParagraph('The start page has a gear too, with **Account**, **Sync** and **Accessibility**. With no vault open, Accessibility holds only the theme.'),

@@ -3,6 +3,21 @@
 What changed in Papeliz, newest first, in plain words. These entries record what has been built,
 from the plan to the launch. The website's Changelog page shows the same list.
 
+## 2026-10-31 — Word export, every Mermaid diagram, and a clearer New Vault
+
+- Export notes as Word: an editable .docx per note, with its headings, lists, tables, callouts,
+  footnotes, pictures and diagrams. Several notes come as one .zip whose links open each other.
+- A Word file also opens in Google Docs and imports into Notion.
+- Pictures go into a Word file without the details a camera or editor adds, such as where a photo
+  was taken.
+- The Export page lists Word, PDF and HTML as rows; PDF is coming soon.
+- Every Mermaid diagram type draws and reads well in light and dark, on phones, and in HTML and
+  Word exports. Wide diagrams scroll sideways instead of shrinking.
+- New Vault opens on the start page itself: choose Folders on Disk or Browser Storage, with a
+  table that compares them.
+- Import Vault leaves the start page. Importing a .zip into the open vault, from the file list,
+  comes next.
+
 ## 2026-10-30 — The Settings gear, HTML export, and vaults in every browser
 
 - One Settings gear in the top bar: Account, Sync, Settings with Key Bindings, Export, Accessibility

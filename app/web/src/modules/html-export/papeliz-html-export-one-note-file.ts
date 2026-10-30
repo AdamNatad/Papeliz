@@ -2,6 +2,7 @@ import type { Element as HastElement, ElementContent as HastElementContent, Root
 import { toHtml } from 'hast-util-to-html'
 import type { PapelizWikilinkTargetResolver } from '../links/papeliz-wikilink-targets'
 import { getVaultNoteTitle } from '../vault/papeliz-vault-relative-paths'
+import { getPapelizSafeFileNameStem } from '../workspace/papeliz-export-file-save'
 import type { PapelizNoteTypography } from '../workspace/papeliz-note-typography-store'
 import {
   buildPapelizHtmlExportFontFaceCss,
@@ -39,14 +40,8 @@ export interface PapelizHtmlExportFile {
   htmlExportFileText: string
 }
 
-// Characters a file name can't hold on Windows, macOS or Linux.
-const papelizFileNameUnsafeCharacterPattern = /[<>:"/\\|?*\p{Cc}]/gu
-
-// A name any computer accepts as a file name, before its extension.
-export function getPapelizSafeFileNameStem(fileNameText: string, fallbackFileNameStem: string): string {
-  const safeFileNameStem = fileNameText.replace(papelizFileNameUnsafeCharacterPattern, '-').replace(/[. ]+$/, '').trim()
-  return safeFileNameStem.length > 0 ? safeFileNameStem : fallbackFileNameStem
-}
+// Kept here too for the website export, which takes it from this file.
+export { getPapelizSafeFileNameStem }
 
 // "Projects/Launch plan.md" -> "Launch plan.html"
 export function getPapelizHtmlExportFileNameForNote(vaultNoteRelativePath: string): string {

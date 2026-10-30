@@ -1,5 +1,5 @@
-import { AppWindow, BookOpen, Code, Download, Eye, EyeOff, FolderOpen, FolderPlus, HardDrive, Pencil, RefreshCw, RotateCcw, Search, Trash2, Upload, type LucideIcon } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { AppWindow, BookOpen, Code, Download, Eye, EyeOff, FolderOpen, FolderPlus, HardDrive, Pencil, RefreshCw, RotateCcw, Search, Trash2, type LucideIcon } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState, type Ref } from 'react'
 import { PapelizIconButton } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { PapelizConfirmDialog } from '../ui/papeliz-confirm-dialog'
@@ -38,8 +38,8 @@ import { describePapelizVaultError } from '../vault/papeliz-vault-adapter'
 import { papelizSampleVaultFirstNoteRelativePath, papelizSampleVaultNotes } from '../vault/papeliz-sample-vault-notes'
 import { usePapelizBrowserStorageStore } from './papeliz-browser-storage-store'
 import { downloadPapelizBrowserVaultBackupFromClick } from './papeliz-browser-vault-backup-reminder-store'
-import { PapelizBrowserVaultImportDialog } from './papeliz-browser-vault-import-dialog'
-import { PapelizBrowserVaultNameDialog, type PapelizNewVaultPlace } from './papeliz-browser-vault-name-dialog'
+import { PapelizBrowserVaultNameDialog } from './papeliz-browser-vault-name-dialog'
+import { PapelizNewVaultForm, type PapelizNewVaultPlace } from './papeliz-new-vault-form'
 import { PapelizSettingsGearButton } from './papeliz-settings-gear-button'
 import { usePapelizStartScreenEyePreviewStore, type PapelizStartScreenEyePreview } from './papeliz-start-screen-eye-preview-store'
 import { PapelizWorkspaceEyePreviewerSlot } from './papeliz-workspace-eye-previewer-slot'
@@ -76,6 +76,9 @@ interface PapelizWelcomeActionProps {
   // Why the action is off in this browser. It then shows an "Off in this browser" badge, says why
   // on hover, and pressing it shows the reason as a toast instead of running.
   welcomeActionOffReasonText?: string | null
+  // Lit while its form shows in the start card (New Vault).
+  isWelcomeActionCurrent?: boolean
+  welcomeActionButtonRef?: Ref<HTMLButtonElement>
   onWelcomeActionSelect: () => void
 }
 
@@ -86,21 +89,26 @@ function PapelizWelcomeAction({
   welcomeActionDescription,
   isWelcomeActionDisabled,
   welcomeActionOffReasonText = null,
+  isWelcomeActionCurrent = false,
+  welcomeActionButtonRef,
   onWelcomeActionSelect,
 }: PapelizWelcomeActionProps) {
   const isWelcomeActionOff = welcomeActionOffReasonText !== null
   return (
     <div className="group/welcome-action relative">
       <button
+        ref={welcomeActionButtonRef}
         type="button"
         disabled={isWelcomeActionDisabled}
         aria-disabled={isWelcomeActionOff || undefined}
+        aria-current={isWelcomeActionCurrent || undefined}
         onClick={onWelcomeActionSelect}
         className={joinPapelizClassNames(
           'flex min-h-[42px] w-full min-w-0 items-center gap-2 rounded-[10px] border border-white/15 bg-white/[0.07] px-2 py-[7px] text-left text-white transition-[background-color,border-color,transform] duration-150 ease-out focus-visible:outline-white disabled:cursor-not-allowed disabled:opacity-50',
           isWelcomeActionOff
             ? 'cursor-not-allowed'
             : 'enabled:hover:-translate-y-px enabled:hover:border-white/30 enabled:hover:bg-white/[0.14] enabled:active:scale-[0.99]',
+          isWelcomeActionCurrent && 'border-white/45 bg-white/20 enabled:hover:border-white/45 enabled:hover:bg-white/20',
         )}
       >
         <span className={joinPapelizClassNames('grid size-6 flex-none place-items-center rounded-md bg-white/[0.14]', isWelcomeActionOff && 'opacity-55')}>
@@ -190,13 +198,12 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
     const firstPreviewHiddenRecentVault = previewHiddenRecentVaults[0]
     return firstPreviewHiddenRecentVault === undefined ? null : { recentVaultDeleteScope: 'one-vault', recentVault: firstPreviewHiddenRecentVault }
   })
-  // New vault's dialog (or Rename's, for a browser vault), while it is open.
-  const [browserVaultNameDialogRequest, setBrowserVaultNameDialogRequest] = useState<
-    | { browserVaultNameDialogPurpose: 'create'; suggestedBrowserVaultName: string }
-    | { browserVaultNameDialogPurpose: 'rename'; renamedBrowserVaultRecord: PapelizBrowserVaultRecord }
-    | null
-  >(null)
-  const [isBrowserVaultImportDialogShown, setBrowserVaultImportDialogShown] = useState(false)
+  // New Vault's form, shown in the start card in place of Recent Vaults, with the name it suggests.
+  const [newVaultFormRequest, setNewVaultFormRequest] = useState<{ suggestedBrowserVaultName: string } | null>(null)
+  // New Vault's button, where focus goes back when its form is cancelled.
+  const newVaultActionButtonRef = useRef<HTMLButtonElement>(null)
+  // Rename's dialog, for a browser vault, while it is open.
+  const [browserVaultNameDialogRequest, setBrowserVaultNameDialogRequest] = useState<{ renamedBrowserVaultRecord: PapelizBrowserVaultRecord } | null>(null)
   // What has been typed in the delete dialog: the vault's name, or for Delete All the count.
   const [typedVaultDeleteConfirmation, setTypedVaultDeleteConfirmation] = useState('')
   const [deletingPapelizVaultIds, setDeletingPapelizVaultIds] = useState<ReadonlySet<string> | null>(() =>
@@ -358,7 +365,7 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
     }
   }
 
-  // New Vault: a browser vault's name (and in Chrome and Edge, where to keep it) first; a folder
+  // New Vault: its form in the start card (where to keep it, and a browser vault's name); a folder
   // straight away where browser vaults are off.
   const startNewVault = () => {
     if (!isBrowserVaultOn) {
@@ -367,16 +374,20 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
       else void openFolderVault(true)
       return
     }
-    setBrowserVaultNameDialogRequest({
-      browserVaultNameDialogPurpose: 'create',
-      suggestedBrowserVaultName: pickFreePapelizBrowserVaultName('Notes', browserVaultRecords),
-    })
+    if (newVaultFormRequest !== null) return
+    setNewVaultFormRequest({ suggestedBrowserVaultName: pickFreePapelizBrowserVaultName('Notes', browserVaultRecords) })
   }
 
-  // New vault's dialog confirmed. Runs from its click: the folder window and Firefox's question about
+  // New Vault's form cancelled: Recent Vaults again, and focus back on New Vault.
+  const cancelNewVault = () => {
+    setNewVaultFormRequest(null)
+    newVaultActionButtonRef.current?.focus()
+  }
+
+  // New Vault's form confirmed. Runs from its click: the folder window and Firefox's question about
   // keeping storage need one.
   const finishNewVault = async (typedBrowserVaultName: string, chosenNewVaultPlace: PapelizNewVaultPlace) => {
-    setBrowserVaultNameDialogRequest(null)
+    setNewVaultFormRequest(null)
     if (chosenNewVaultPlace === 'folder-on-disk') {
       await openFolderVault(true)
       return
@@ -395,33 +406,6 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
       reloadRecentVaults()
     } finally {
       setIsOpeningVault(false)
-    }
-  }
-
-  // Import Vault: off with the browser vault's reason where browser vaults are.
-  const startBrowserVaultImport = () => {
-    if (browserVaultOffReasonText !== null) {
-      showWorkspaceNotice('error', browserVaultOffReasonText)
-      return
-    }
-    if (startScreenEyePreview !== null) {
-      showStartScreenPreviewOnlyNotice()
-      return
-    }
-    setBrowserVaultImportDialogShown(true)
-  }
-
-  const openImportedBrowserVault = async (importedBrowserVaultRecord: PapelizBrowserVaultRecord, importedFileCount: number) => {
-    setBrowserVaultImportDialogShown(false)
-    setIsOpeningVault(true)
-    try {
-      await finishOpeningVault(await openPapelizBrowserVault(importedBrowserVaultRecord), false)
-      usePapelizWorkspaceStore
-        .getState()
-        .showWorkspaceNotice('info', `Imported “${importedBrowserVaultRecord.papelizVaultDisplayName}” (${importedFileCount.toLocaleString()} ${importedFileCount === 1 ? 'file' : 'files'}).`)
-    } finally {
-      setIsOpeningVault(false)
-      reloadRecentVaults()
     }
   }
 
@@ -615,15 +599,9 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                 }
                 isWelcomeActionDisabled={isOpeningVault}
                 welcomeActionOffReasonText={isBrowserVaultOn ? null : folderAccessOffReason === 'unsupported' ? browserVaultOffReasonText : folderAccessOffReasonText}
+                isWelcomeActionCurrent={newVaultFormRequest !== null}
+                welcomeActionButtonRef={newVaultActionButtonRef}
                 onWelcomeActionSelect={startNewVault}
-              />
-              <PapelizWelcomeAction
-                WelcomeActionIcon={Upload}
-                welcomeActionTitle="Import Vault"
-                welcomeActionDescription="From a .zip or a folder."
-                isWelcomeActionDisabled={isOpeningVault}
-                welcomeActionOffReasonText={browserVaultOffReasonText}
-                onWelcomeActionSelect={startBrowserVaultImport}
               />
               {isOpenFolderVaultActionShown && (
                 <PapelizWelcomeAction
@@ -650,245 +628,259 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
             </p>
           </section>
 
-          <section aria-labelledby="papeliz-welcome-recent-heading" className="flex min-h-[280px] min-w-0 flex-1 flex-col p-2.5">
-            {/* Heading: the title on the left; Delete All (in the Hidden list), the eye previewer (development
-                builds only), the Hidden list's eye, Reload and the search box on the right. */}
-            <div className="flex flex-wrap items-center justify-between gap-2.5 px-3 pt-[11px] pb-1.5">
-              <h2 id="papeliz-welcome-recent-heading" className="text-[18px] font-semibold tracking-[-0.01em]">
-                {isHiddenVaultListShown ? 'Hidden Vaults' : 'Recent Vaults'}
-              </h2>
-              <div className="flex min-w-0 items-center gap-2 max-sm:w-full">
-                {isHiddenVaultListShown && hiddenRecentVaults.length > 0 && (
-                  <button
-                    type="button"
-                    disabled={deletingPapelizVaultIds !== null || !canDeleteEveryHiddenRecentVault}
-                    title={canDeleteEveryHiddenRecentVault ? 'Delete every hidden vault for good' : 'This browser can’t delete folders'}
-                    onClick={() => {
-                      setTypedVaultDeleteConfirmation('')
-                      setRecentVaultDeleteRequest({ recentVaultDeleteScope: 'all-hidden-vaults', recentVaults: hiddenRecentVaults })
-                    }}
-                    className={joinPapelizClassNames(papelizHiddenVaultActionButtonClassName, papelizHiddenVaultDeleteButtonClassName, 'h-8 px-3 text-[12.5px]')}
-                  >
-                    <Trash2 className="size-3.5" aria-hidden="true" />
-                    Delete All
-                  </button>
-                )}
-                <PapelizWorkspaceEyePreviewerSlot />
-                {/* The eye follows the view: crossed out on Recent Vaults (the vaults hidden from it), open in
-                    the Hidden list (they are showing). */}
-                <button
-                  type="button"
-                  aria-pressed={isHiddenVaultListShown}
-                  aria-label={isHiddenVaultListShown ? 'Back to Recent Vaults' : `Hidden Vaults (${hiddenRecentVaults.length})`}
-                  title={isHiddenVaultListShown ? 'Back to Recent Vaults' : `Hidden Vaults (${hiddenRecentVaults.length})`}
-                  onClick={() => {
-                    setHiddenVaultListShown(!isHiddenVaultListShown)
-                    setRecentVaultSearchText('')
-                  }}
-                  className="relative grid size-8 flex-none place-items-center rounded-full border border-papeliz-line text-papeliz-ink-muted transition-colors hover:bg-papeliz-hover hover:text-papeliz-ink aria-pressed:border-papeliz-blue-line aria-pressed:bg-papeliz-blue-soft aria-pressed:text-papeliz-blue"
-                >
-                  {isHiddenVaultListShown ? <Eye className="size-4" aria-hidden="true" /> : <EyeOff className="size-4" aria-hidden="true" />}
-                  {hiddenRecentVaults.length > 0 && (
-                    <span
-                      aria-hidden="true"
-                      className="absolute -top-1 -right-1 grid h-4 min-w-4 place-items-center rounded-full bg-[#C0524A] px-1 text-[9.5px] leading-none font-bold text-white"
+          <section aria-labelledby={newVaultFormRequest === null ? 'papeliz-welcome-recent-heading' : 'papeliz-new-vault-form-heading'} className="flex min-h-[280px] min-w-0 flex-1 flex-col p-2.5">
+            {/* New Vault takes Recent Vaults' place while its form shows. */}
+            {newVaultFormRequest !== null ? (
+              <PapelizNewVaultForm
+                newVaultFormHeadingId="papeliz-new-vault-form-heading"
+                folderAccessOffReasonText={folderAccessOffReasonText}
+                suggestedBrowserVaultName={newVaultFormRequest.suggestedBrowserVaultName}
+                existingBrowserVaultRecords={browserVaultRecords}
+                onNewVaultConfirm={(typedBrowserVaultName, chosenNewVaultPlace) => void finishNewVault(typedBrowserVaultName, chosenNewVaultPlace)}
+                onNewVaultCancel={cancelNewVault}
+              />
+            ) : (
+              <>
+                {/* Heading: the title on the left; Delete All (in the Hidden list), the eye previewer (development
+                    builds only), the Hidden list's eye, Reload and the search box on the right. */}
+                <div className="flex flex-wrap items-center justify-between gap-2.5 px-3 pt-[11px] pb-1.5">
+                  <h2 id="papeliz-welcome-recent-heading" className="text-[18px] font-semibold tracking-[-0.01em]">
+                    {isHiddenVaultListShown ? 'Hidden Vaults' : 'Recent Vaults'}
+                  </h2>
+                  <div className="flex min-w-0 items-center gap-2 max-sm:w-full">
+                    {isHiddenVaultListShown && hiddenRecentVaults.length > 0 && (
+                      <button
+                        type="button"
+                        disabled={deletingPapelizVaultIds !== null || !canDeleteEveryHiddenRecentVault}
+                        title={canDeleteEveryHiddenRecentVault ? 'Delete every hidden vault for good' : 'This browser can’t delete folders'}
+                        onClick={() => {
+                          setTypedVaultDeleteConfirmation('')
+                          setRecentVaultDeleteRequest({ recentVaultDeleteScope: 'all-hidden-vaults', recentVaults: hiddenRecentVaults })
+                        }}
+                        className={joinPapelizClassNames(papelizHiddenVaultActionButtonClassName, papelizHiddenVaultDeleteButtonClassName, 'h-8 px-3 text-[12.5px]')}
+                      >
+                        <Trash2 className="size-3.5" aria-hidden="true" />
+                        Delete All
+                      </button>
+                    )}
+                    <PapelizWorkspaceEyePreviewerSlot />
+                    {/* The eye follows the view: crossed out on Recent Vaults (the vaults hidden from it), open in
+                        the Hidden list (they are showing). */}
+                    <button
+                      type="button"
+                      aria-pressed={isHiddenVaultListShown}
+                      aria-label={isHiddenVaultListShown ? 'Back to Recent Vaults' : `Hidden Vaults (${hiddenRecentVaults.length})`}
+                      title={isHiddenVaultListShown ? 'Back to Recent Vaults' : `Hidden Vaults (${hiddenRecentVaults.length})`}
+                      onClick={() => {
+                        setHiddenVaultListShown(!isHiddenVaultListShown)
+                        setRecentVaultSearchText('')
+                      }}
+                      className="relative grid size-8 flex-none place-items-center rounded-full border border-papeliz-line text-papeliz-ink-muted transition-colors hover:bg-papeliz-hover hover:text-papeliz-ink aria-pressed:border-papeliz-blue-line aria-pressed:bg-papeliz-blue-soft aria-pressed:text-papeliz-blue"
                     >
-                      {hiddenRecentVaults.length}
-                    </span>
-                  )}
-                </button>
-                <button
-                  type="button"
-                  aria-label="Reload the list"
-                  title="Reload the list"
-                  aria-busy={isRecentVaultListReloading || undefined}
-                  onClick={reloadRecentVaultList}
-                  className="papeliz-recent-vaults-reload-button grid size-8 flex-none place-items-center rounded-full border border-papeliz-line text-papeliz-ink-muted hover:bg-papeliz-hover hover:text-papeliz-ink"
-                >
-                  <RefreshCw
-                    className={joinPapelizClassNames('size-4', isRecentVaultListReloading && 'papeliz-recent-vaults-reload-icon-turning')}
-                    aria-hidden="true"
-                  />
-                </button>
-                <label className="flex h-8 w-[min(300px,100%)] items-center gap-2 rounded-full border border-papeliz-line bg-papeliz-surface px-3 text-papeliz-ink-subtle focus-within:border-papeliz-blue-line focus-within:shadow-[0_0_0_3px_var(--color-papeliz-blue-soft)] max-sm:flex-1 sm:w-[180px]">
-                  <Search className="size-3.5 flex-none" aria-hidden="true" />
-                  <span className="sr-only">{isHiddenVaultListShown ? 'Find a hidden vault' : 'Find a recent vault'}</span>
-                  <input
-                    type="search"
-                    value={recentVaultSearchText}
-                    onChange={(changeEvent) => setRecentVaultSearchText(changeEvent.target.value)}
-                    placeholder={isHiddenVaultListShown ? 'Search hidden' : 'Search vaults'}
-                    className="min-w-0 flex-1 bg-transparent text-[12.5px] text-papeliz-ink placeholder:text-papeliz-ink-subtle focus:outline-none"
-                  />
-                </label>
-              </div>
-            </div>
-
-            {/* The list and, while it reloads, a ring turning over it. */}
-            <div className="relative flex min-h-0 flex-1 flex-col">
-              {isRecentVaultListReloading && (
-                <div role="status" className="papeliz-recent-vaults-reload-overlay">
-                  <span className="papeliz-recent-vaults-reload-ring" aria-hidden="true" />
-                  <span className="text-[12.5px] font-semibold text-papeliz-ink-muted">Reloading…</span>
-                </div>
-              )}
-              {listedRecentVaults.length === 0 ? (
-                <div className="flex flex-1 flex-col items-center justify-center px-4 py-8 text-center">
-                  <span className="grid size-11 place-items-center rounded-xl bg-papeliz-blue-soft text-papeliz-blue">
-                    {isHiddenVaultListShown ? <EyeOff className="size-5" aria-hidden="true" /> : <FolderOpen className="size-5" aria-hidden="true" />}
-                  </span>
-                  <p className="mt-3 text-[14px] font-semibold">{isHiddenVaultListShown ? 'Nothing is hidden' : 'No recent vaults yet'}</p>
-                  <p className="mt-1 max-w-[300px] text-[12.5px] text-papeliz-ink-muted">
-                    {isHiddenVaultListShown
-                      ? 'Right-click a vault and choose Hide.'
-                      : isBrowserVaultOn
-                        ? `Vaults you make or ${isFolderVaultOn ? 'open' : 'import'} show up here, so you can come back to them in one click.`
-                        : (folderAccessOffReasonText ?? 'Folders you open show up here, so you can come back to them in one click.')}
-                  </p>
-                </div>
-              ) : (
-                <ul className="mt-1.5 flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto px-3 pb-1">
-                  {shownRecentVaults.length === 0 && (
-                    <li className="px-1 py-6 text-center text-[12.5px] text-papeliz-ink-muted">
-                      {isHiddenVaultListShown ? 'No hidden vault matches' : 'No recent vault matches'} “{recentVaultSearchText.trim()}”.
-                    </li>
-                  )}
-                  {isHiddenVaultListShown
-                    ? shownRecentVaults.map((recentVault) => {
-                        const isThisVaultDeleting = deletingPapelizVaultIds?.has(recentVault.papelizVaultId) === true
-                        return (
-                          // A hidden vault's row: the same card, not clickable, with Restore and Delete (Delete
-                          // asks first).
-                          <li
-                            key={recentVault.papelizVaultId}
-                            aria-label={recentVault.papelizVaultDisplayName}
-                            className="flex items-center gap-3 rounded-xl border border-papeliz-line bg-papeliz-surface px-2.5 py-2"
-                          >
-                            <span
-                              aria-hidden="true"
-                              className="grid size-9 flex-none place-items-center rounded-lg bg-papeliz-hover text-[15px] font-semibold text-papeliz-ink-muted"
-                            >
-                              {recentVault.papelizVaultDisplayName.trim().charAt(0).toUpperCase() || '·'}
-                            </span>
-                            <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                              <span className="truncate text-[13.5px] font-semibold">{recentVault.papelizVaultDisplayName}</span>
-                              <span className="text-[11.5px] text-papeliz-ink-subtle">
-                                Hidden {describeTimeSince(recentVault.papelizVaultHiddenAt ?? recentVault.papelizVaultLastOpenedAt).toLowerCase()}
-                              </span>
-                            </span>
-                            {/* Restore and Delete stack at the far right, hanging from a zero-height column centred on
-                                the row, so the row keeps the Recent Vaults height. */}
-                            <span className="flex h-0 flex-none flex-col justify-center gap-1 self-center">
-                              <button
-                                type="button"
-                                disabled={deletingPapelizVaultIds !== null}
-                                onClick={() => setRecentVaultHidden(recentVault, false)}
-                                className={joinPapelizClassNames(
-                                  papelizHiddenVaultActionButtonClassName,
-                                  papelizHiddenVaultRestoreButtonClassName,
-                                  'h-6 px-2.5 text-[11.5px]',
-                                )}
-                              >
-                                <RotateCcw className="size-3" aria-hidden="true" />
-                                Restore
-                              </button>
-                              <button
-                                type="button"
-                                disabled={deletingPapelizVaultIds !== null || !canDeleteRecentVault(recentVault)}
-                                title={
-                                  !canDeleteRecentVault(recentVault)
-                                    ? 'This browser can’t delete folders'
-                                    : recentVault.papelizRecentVaultKind === 'browser-vault-in-opfs'
-                                      ? `Delete “${recentVault.papelizVaultDisplayName}” and its notes from this browser`
-                                      : `Delete “${recentVault.papelizVaultDisplayName}” and its notes from your disk`
-                                }
-                                onClick={() => {
-                                  setTypedVaultDeleteConfirmation('')
-                                  setRecentVaultDeleteRequest({ recentVaultDeleteScope: 'one-vault', recentVault })
-                                }}
-                                className={joinPapelizClassNames(
-                                  papelizHiddenVaultActionButtonClassName,
-                                  papelizHiddenVaultDeleteButtonClassName,
-                                  'h-6 px-2.5 text-[11.5px]',
-                                )}
-                              >
-                                <Trash2 className="size-3" aria-hidden="true" />
-                                {isThisVaultDeleting ? 'Deleting…' : 'Delete'}
-                              </button>
-                            </span>
-                          </li>
-                        )
-                      })
-                    : shownRecentVaults.map((recentVault) => (
-                        <li
-                          key={recentVault.papelizVaultId}
-                          onContextMenu={(contextMenuEvent) => {
-                            contextMenuEvent.preventDefault()
-                            setRecentVaultMenu({
-                              recentVault,
-                              recentVaultMenuPosition: { menuAnchorLeft: contextMenuEvent.clientX, menuAnchorTop: contextMenuEvent.clientY },
-                            })
-                          }}
-                          className="group flex items-center rounded-xl border border-papeliz-line bg-papeliz-surface transition-[border-color,background-color,box-shadow] duration-150 hover:border-papeliz-blue-line hover:bg-papeliz-blue-soft/40 hover:shadow-papeliz-card"
+                      {isHiddenVaultListShown ? <Eye className="size-4" aria-hidden="true" /> : <EyeOff className="size-4" aria-hidden="true" />}
+                      {hiddenRecentVaults.length > 0 && (
+                        <span
+                          aria-hidden="true"
+                          className="absolute -top-1 -right-1 grid h-4 min-w-4 place-items-center rounded-full bg-[#C0524A] px-1 text-[9.5px] leading-none font-bold text-white"
                         >
-                          <button
-                            type="button"
-                            disabled={isOpeningVault}
-                            onClick={() => void reopenRecentVault(recentVault)}
-                            className="flex min-w-0 flex-1 items-center gap-3 rounded-xl px-2.5 py-2 text-left"
-                          >
-                            <span
-                              aria-hidden="true"
-                              className="grid size-9 flex-none place-items-center rounded-lg bg-papeliz-blue-soft text-[15px] font-semibold text-papeliz-blue"
-                            >
-                              {recentVault.papelizVaultDisplayName.trim().charAt(0).toUpperCase() || '·'}
-                            </span>
-                            <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                              <span className="truncate text-[13.5px] font-semibold">{recentVault.papelizVaultDisplayName}</span>
-                              <span className="flex items-center gap-1 text-[11.5px] text-papeliz-ink-subtle">
-                                {recentVault.papelizRecentVaultKind === 'browser-vault-in-opfs' ? (
-                                  <>
-                                    <AppWindow className="size-3 flex-none" aria-hidden="true" />
-                                    In this browser
-                                  </>
-                                ) : (
-                                  <>
-                                    <HardDrive className="size-3 flex-none" aria-hidden="true" />
-                                    Folder on this device
-                                  </>
-                                )}
-                              </span>
-                            </span>
-                            <span className="flex-none text-[11.5px] text-papeliz-ink-subtle">{describeTimeSince(recentVault.papelizVaultLastOpenedAt)}</span>
-                          </button>
-                          <PapelizIconButton
-                            iconButtonLabel={`Hide ${recentVault.papelizVaultDisplayName}`}
-                            iconButtonSize="small"
-                            className="mr-2.5 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 max-md:opacity-100"
-                            onClick={() => setRecentVaultHidden(recentVault, true)}
-                          >
-                            <EyeOff className="size-[15px]" aria-hidden="true" />
-                          </PapelizIconButton>
-                        </li>
-                      ))}
-                </ul>
-              )}
-            </div>
+                          {hiddenRecentVaults.length}
+                        </span>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Reload the list"
+                      title="Reload the list"
+                      aria-busy={isRecentVaultListReloading || undefined}
+                      onClick={reloadRecentVaultList}
+                      className="papeliz-recent-vaults-reload-button grid size-8 flex-none place-items-center rounded-full border border-papeliz-line text-papeliz-ink-muted hover:bg-papeliz-hover hover:text-papeliz-ink"
+                    >
+                      <RefreshCw
+                        className={joinPapelizClassNames('size-4', isRecentVaultListReloading && 'papeliz-recent-vaults-reload-icon-turning')}
+                        aria-hidden="true"
+                      />
+                    </button>
+                    <label className="flex h-8 w-[min(300px,100%)] items-center gap-2 rounded-full border border-papeliz-line bg-papeliz-surface px-3 text-papeliz-ink-subtle focus-within:border-papeliz-blue-line focus-within:shadow-[0_0_0_3px_var(--color-papeliz-blue-soft)] max-sm:flex-1 sm:w-[180px]">
+                      <Search className="size-3.5 flex-none" aria-hidden="true" />
+                      <span className="sr-only">{isHiddenVaultListShown ? 'Find a hidden vault' : 'Find a recent vault'}</span>
+                      <input
+                        type="search"
+                        value={recentVaultSearchText}
+                        onChange={(changeEvent) => setRecentVaultSearchText(changeEvent.target.value)}
+                        placeholder={isHiddenVaultListShown ? 'Search hidden' : 'Search vaults'}
+                        className="min-w-0 flex-1 bg-transparent text-[12.5px] text-papeliz-ink placeholder:text-papeliz-ink-subtle focus:outline-none"
+                      />
+                    </label>
+                  </div>
+                </div>
 
-            {listedRecentVaults.length > 0 && (
-              <p className="mt-2 px-3 text-[11px] text-papeliz-ink-subtle">
-                {isHiddenVaultListShown
-                  ? isBrowserVaultListed
-                    ? isFolderVaultListed
-                      ? 'Delete erases a folder from your disk, or a browser vault from this browser, with every note in it. It can’t be undone.'
-                      : 'Delete erases the vault and every note in it from this browser. It can’t be undone.'
-                    : 'Delete erases the folder and every note in it from your disk. It doesn’t go to the Recycle Bin.'
-                  : isBrowserVaultListed
-                    ? isFolderVaultListed
-                      ? 'Folders stay on your disk and browser vaults in this browser. Hide only takes one off this list.'
-                      : 'Browser vaults stay in this browser. Hide only takes one off this list.'
-                    : 'The folders stay on your disk. Hide only takes one off this list.'}
-              </p>
+                {/* The list and, while it reloads, a ring turning over it. */}
+                <div className="relative flex min-h-0 flex-1 flex-col">
+                  {isRecentVaultListReloading && (
+                    <div role="status" className="papeliz-recent-vaults-reload-overlay">
+                      <span className="papeliz-recent-vaults-reload-ring" aria-hidden="true" />
+                      <span className="text-[12.5px] font-semibold text-papeliz-ink-muted">Reloading…</span>
+                    </div>
+                  )}
+                  {listedRecentVaults.length === 0 ? (
+                    <div className="flex flex-1 flex-col items-center justify-center px-4 py-8 text-center">
+                      <span className="grid size-11 place-items-center rounded-xl bg-papeliz-blue-soft text-papeliz-blue">
+                        {isHiddenVaultListShown ? <EyeOff className="size-5" aria-hidden="true" /> : <FolderOpen className="size-5" aria-hidden="true" />}
+                      </span>
+                      <p className="mt-3 text-[14px] font-semibold">{isHiddenVaultListShown ? 'Nothing is hidden' : 'No recent vaults yet'}</p>
+                      <p className="mt-1 max-w-[300px] text-[12.5px] text-papeliz-ink-muted">
+                        {isHiddenVaultListShown
+                          ? 'Right-click a vault and choose Hide.'
+                          : isBrowserVaultOn
+                            ? `Vaults you make or ${isFolderVaultOn ? 'open' : 'import'} show up here, so you can come back to them in one click.`
+                            : (folderAccessOffReasonText ?? 'Folders you open show up here, so you can come back to them in one click.')}
+                      </p>
+                    </div>
+                  ) : (
+                    <ul className="mt-1.5 flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto px-3 pb-1">
+                      {shownRecentVaults.length === 0 && (
+                        <li className="px-1 py-6 text-center text-[12.5px] text-papeliz-ink-muted">
+                          {isHiddenVaultListShown ? 'No hidden vault matches' : 'No recent vault matches'} “{recentVaultSearchText.trim()}”.
+                        </li>
+                      )}
+                      {isHiddenVaultListShown
+                        ? shownRecentVaults.map((recentVault) => {
+                            const isThisVaultDeleting = deletingPapelizVaultIds?.has(recentVault.papelizVaultId) === true
+                            return (
+                              // A hidden vault's row: the same card, not clickable, with Restore and Delete (Delete
+                              // asks first).
+                              <li
+                                key={recentVault.papelizVaultId}
+                                aria-label={recentVault.papelizVaultDisplayName}
+                                className="flex items-center gap-3 rounded-xl border border-papeliz-line bg-papeliz-surface px-2.5 py-2"
+                              >
+                                <span
+                                  aria-hidden="true"
+                                  className="grid size-9 flex-none place-items-center rounded-lg bg-papeliz-hover text-[15px] font-semibold text-papeliz-ink-muted"
+                                >
+                                  {recentVault.papelizVaultDisplayName.trim().charAt(0).toUpperCase() || '·'}
+                                </span>
+                                <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                                  <span className="truncate text-[13.5px] font-semibold">{recentVault.papelizVaultDisplayName}</span>
+                                  <span className="text-[11.5px] text-papeliz-ink-subtle">
+                                    Hidden {describeTimeSince(recentVault.papelizVaultHiddenAt ?? recentVault.papelizVaultLastOpenedAt).toLowerCase()}
+                                  </span>
+                                </span>
+                                {/* Restore and Delete stack at the far right, hanging from a zero-height column centred on
+                                    the row, so the row keeps the Recent Vaults height. */}
+                                <span className="flex h-0 flex-none flex-col justify-center gap-1 self-center">
+                                  <button
+                                    type="button"
+                                    disabled={deletingPapelizVaultIds !== null}
+                                    onClick={() => setRecentVaultHidden(recentVault, false)}
+                                    className={joinPapelizClassNames(
+                                      papelizHiddenVaultActionButtonClassName,
+                                      papelizHiddenVaultRestoreButtonClassName,
+                                      'h-6 px-2.5 text-[11.5px]',
+                                    )}
+                                  >
+                                    <RotateCcw className="size-3" aria-hidden="true" />
+                                    Restore
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={deletingPapelizVaultIds !== null || !canDeleteRecentVault(recentVault)}
+                                    title={
+                                      !canDeleteRecentVault(recentVault)
+                                        ? 'This browser can’t delete folders'
+                                        : recentVault.papelizRecentVaultKind === 'browser-vault-in-opfs'
+                                          ? `Delete “${recentVault.papelizVaultDisplayName}” and its notes from this browser`
+                                          : `Delete “${recentVault.papelizVaultDisplayName}” and its notes from your disk`
+                                    }
+                                    onClick={() => {
+                                      setTypedVaultDeleteConfirmation('')
+                                      setRecentVaultDeleteRequest({ recentVaultDeleteScope: 'one-vault', recentVault })
+                                    }}
+                                    className={joinPapelizClassNames(
+                                      papelizHiddenVaultActionButtonClassName,
+                                      papelizHiddenVaultDeleteButtonClassName,
+                                      'h-6 px-2.5 text-[11.5px]',
+                                    )}
+                                  >
+                                    <Trash2 className="size-3" aria-hidden="true" />
+                                    {isThisVaultDeleting ? 'Deleting…' : 'Delete'}
+                                  </button>
+                                </span>
+                              </li>
+                            )
+                          })
+                        : shownRecentVaults.map((recentVault) => (
+                            <li
+                              key={recentVault.papelizVaultId}
+                              onContextMenu={(contextMenuEvent) => {
+                                contextMenuEvent.preventDefault()
+                                setRecentVaultMenu({
+                                  recentVault,
+                                  recentVaultMenuPosition: { menuAnchorLeft: contextMenuEvent.clientX, menuAnchorTop: contextMenuEvent.clientY },
+                                })
+                              }}
+                              className="group flex items-center rounded-xl border border-papeliz-line bg-papeliz-surface transition-[border-color,background-color,box-shadow] duration-150 hover:border-papeliz-blue-line hover:bg-papeliz-blue-soft/40 hover:shadow-papeliz-card"
+                            >
+                              <button
+                                type="button"
+                                disabled={isOpeningVault}
+                                onClick={() => void reopenRecentVault(recentVault)}
+                                className="flex min-w-0 flex-1 items-center gap-3 rounded-xl px-2.5 py-2 text-left"
+                              >
+                                <span
+                                  aria-hidden="true"
+                                  className="grid size-9 flex-none place-items-center rounded-lg bg-papeliz-blue-soft text-[15px] font-semibold text-papeliz-blue"
+                                >
+                                  {recentVault.papelizVaultDisplayName.trim().charAt(0).toUpperCase() || '·'}
+                                </span>
+                                <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                                  <span className="truncate text-[13.5px] font-semibold">{recentVault.papelizVaultDisplayName}</span>
+                                  <span className="flex items-center gap-1 text-[11.5px] text-papeliz-ink-subtle">
+                                    {recentVault.papelizRecentVaultKind === 'browser-vault-in-opfs' ? (
+                                      <>
+                                        <AppWindow className="size-3 flex-none" aria-hidden="true" />
+                                        In this browser
+                                      </>
+                                    ) : (
+                                      <>
+                                        <HardDrive className="size-3 flex-none" aria-hidden="true" />
+                                        Folder on this device
+                                      </>
+                                    )}
+                                  </span>
+                                </span>
+                                <span className="flex-none text-[11.5px] text-papeliz-ink-subtle">{describeTimeSince(recentVault.papelizVaultLastOpenedAt)}</span>
+                              </button>
+                              <PapelizIconButton
+                                iconButtonLabel={`Hide ${recentVault.papelizVaultDisplayName}`}
+                                iconButtonSize="small"
+                                className="mr-2.5 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 max-md:opacity-100"
+                                onClick={() => setRecentVaultHidden(recentVault, true)}
+                              >
+                                <EyeOff className="size-[15px]" aria-hidden="true" />
+                              </PapelizIconButton>
+                            </li>
+                          ))}
+                    </ul>
+                  )}
+                </div>
+
+                {listedRecentVaults.length > 0 && (
+                  <p className="mt-2 px-3 text-[11px] text-papeliz-ink-subtle">
+                    {isHiddenVaultListShown
+                      ? isBrowserVaultListed
+                        ? isFolderVaultListed
+                          ? 'Delete erases a folder from your disk, or a browser vault from this browser, with every note in it. It can’t be undone.'
+                          : 'Delete erases the vault and every note in it from this browser. It can’t be undone.'
+                        : 'Delete erases the folder and every note in it from your disk. It doesn’t go to the Recycle Bin.'
+                      : isBrowserVaultListed
+                        ? isFolderVaultListed
+                          ? 'Folders stay on your disk and browser vaults in this browser. Hide only takes one off this list.'
+                          : 'Browser vaults stay in this browser. Hide only takes one off this list.'
+                        : 'The folders stay on your disk. Hide only takes one off this list.'}
+                  </p>
+                )}
+              </>
             )}
 
             {recentVaultMenu !== null && (
@@ -912,7 +904,7 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                           onMenuItemSelect: () => {
                             const renamedRecentVault = recentVaultMenu.recentVault
                             if (renamedRecentVault.papelizRecentVaultKind === 'browser-vault-in-opfs') {
-                              setBrowserVaultNameDialogRequest({ browserVaultNameDialogPurpose: 'rename', renamedBrowserVaultRecord: renamedRecentVault })
+                              setBrowserVaultNameDialogRequest({ renamedBrowserVaultRecord: renamedRecentVault })
                             }
                           },
                         },
@@ -938,37 +930,14 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
               />
             )}
 
-            {isBrowserVaultImportDialogShown && (
-              <PapelizBrowserVaultImportDialog
-                existingBrowserVaultRecords={browserVaultRecords}
-                onBrowserVaultImported={(importedBrowserVaultRecord, importedFileCount) => void openImportedBrowserVault(importedBrowserVaultRecord, importedFileCount)}
-                onBrowserVaultImportClose={(wasImportStopped) => {
-                  setBrowserVaultImportDialogShown(false)
-                  if (wasImportStopped) showWorkspaceNotice('info', 'Import stopped. Nothing was kept.')
-                  reloadRecentVaults()
-                }}
-              />
-            )}
-
             {browserVaultNameDialogRequest !== null && (
               <PapelizBrowserVaultNameDialog
-                browserVaultNameDialogPurpose={browserVaultNameDialogRequest.browserVaultNameDialogPurpose}
-                renamedBrowserVaultRecord={
-                  browserVaultNameDialogRequest.browserVaultNameDialogPurpose === 'rename' ? browserVaultNameDialogRequest.renamedBrowserVaultRecord : undefined
-                }
-                isNewVaultPlaceChoiceShown={browserVaultNameDialogRequest.browserVaultNameDialogPurpose === 'create' && isNewVaultPlaceChoiceShown}
-                suggestedBrowserVaultName={
-                  browserVaultNameDialogRequest.browserVaultNameDialogPurpose === 'create'
-                    ? browserVaultNameDialogRequest.suggestedBrowserVaultName
-                    : browserVaultNameDialogRequest.renamedBrowserVaultRecord.papelizVaultDisplayName
-                }
+                renamedBrowserVaultRecord={browserVaultNameDialogRequest.renamedBrowserVaultRecord}
                 existingBrowserVaultRecords={browserVaultRecords}
-                onBrowserVaultNameConfirm={(typedBrowserVaultName, chosenNewVaultPlace) =>
-                  browserVaultNameDialogRequest.browserVaultNameDialogPurpose === 'create'
-                    ? void finishNewVault(typedBrowserVaultName, chosenNewVaultPlace)
-                    : void finishBrowserVaultRename(browserVaultNameDialogRequest.renamedBrowserVaultRecord, typedBrowserVaultName)
+                onBrowserVaultRenameConfirm={(typedBrowserVaultName) =>
+                  void finishBrowserVaultRename(browserVaultNameDialogRequest.renamedBrowserVaultRecord, typedBrowserVaultName)
                 }
-                onBrowserVaultNameCancel={() => setBrowserVaultNameDialogRequest(null)}
+                onBrowserVaultRenameCancel={() => setBrowserVaultNameDialogRequest(null)}
               />
             )}
 

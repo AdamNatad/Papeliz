@@ -169,7 +169,7 @@ Three raised beds this year. See [[Reading list]] #garden
       ]),
       helpSection('Safari clears a browser vault', [
         helpParagraph(
-          'Safari may clear a site’s storage when your disk runs low, or after 7 days of using Safari without opening Papeliz. That erases its browser vaults. Open Papeliz at least once a week, and keep a recent backup. If a vault is gone, bring it back from its backup with **Import Vault**. See [[keep-a-vault-in-your-browser]].',
+          'Safari may clear a site’s storage when your disk runs low, or after 7 days of using Safari without opening Papeliz. That erases its browser vaults. Open Papeliz at least once a week, and keep a recent backup. If a vault is gone, its backup still has every note: in Chrome or Edge on a computer, unzip it and open the folder with **Open Vault**. See [[keep-a-vault-in-your-browser]].',
         ),
       ]),
       helpSection('Open In Another Tab', [

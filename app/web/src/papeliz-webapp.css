@@ -1390,6 +1390,19 @@
   height: auto;
 }
 
+/* A wide diagram keeps a smallest size on screen and scrolls (papeliz-md-view-mermaid-diagrams.ts);
+   paper doesn't scroll, so a printed page fits it to the column. */
+@media print {
+  .papeliz-mermaid-diagram svg {
+    min-width: 0 !important;
+  }
+}
+
+/* A Wardley map writes its anchor's label in black, with no style Mermaid's theme can reach. */
+.papeliz-mermaid-diagram .wardley-node-label[fill='#000'] {
+  fill: var(--color-papeliz-ink);
+}
+
 .papeliz-md-view .cm-papeliz-md-view-mermaid-block {
   padding: 6px 0 16px;
   cursor: text;

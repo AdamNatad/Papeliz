@@ -40,6 +40,7 @@ export const papelizSiteRoadmapMilestones: PapelizSiteRoadmapMilestone[] = [
           'Tables and Mermaid diagrams in MD View',
           'File explorer, tabs and wikilinks',
           'Autosave to plain .md files',
+          'Export as Word: one note as a .docx, or several in a .zip',
           'Export as HTML: one note as a page, or several as a website',
         ],
       },

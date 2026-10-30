@@ -18,7 +18,7 @@ function normalizePapelizSiteFooterPath(papelizSiteFooterPath: string) {
   return papelizSiteFooterPath !== '/' ? papelizSiteFooterPath.replace(/\/+$/, '') : '/'
 }
 
-// The footer, laid out as on Adam's other site and in Papeliz blue (Adam, 2026-10-28): on the left the mark, the
+// The footer, in Papeliz blue (Adam, 2026-10-28): on the left the mark, the
 // description and the community buttons; on the right "Made with ❤️" over every page's link and the copyright. Text
 // stays at 90% white or more, so it keeps WCAG AA on the light theme's blue.
 export function PapelizSiteFooter() {

@@ -1,6 +1,15 @@
 // Saving an export where the person chooses. Chrome and Edge show their save dialog, but only right
 // after a click, so the place is chosen first and the file written when the export is done. Other
-// browsers download it.
+// browsers download it. Also the safe names every export's files get.
+
+// Characters a file name can't hold on Windows, macOS or Linux.
+const papelizFileNameUnsafeCharacterPattern = /[<>:"/\\|?*\p{Cc}]/gu
+
+// A name any computer accepts as a file name, before its extension.
+export function getPapelizSafeFileNameStem(fileNameText: string, fallbackFileNameStem: string): string {
+  const safeFileNameStem = fileNameText.replace(papelizFileNameUnsafeCharacterPattern, '-').replace(/[. ]+$/, '').trim()
+  return safeFileNameStem.length > 0 ? safeFileNameStem : fallbackFileNameStem
+}
 
 export type PapelizExportFileDestination = { exportFileDestinationKind: 'chosen-file'; exportFileHandle: FileSystemFileHandle } | { exportFileDestinationKind: 'download' }
 

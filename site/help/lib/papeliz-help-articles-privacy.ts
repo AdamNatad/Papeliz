@@ -10,7 +10,7 @@ export const papelizHelpPrivacyArticles: readonly PapelizHelpArticle[] = [
     articleSections: [
       helpSection('On your disk', [
         helpParagraph(
-          'A vault you open with **Open Vault**, or start as a **Folder on disk**, is a folder on your computer. Papeliz reads and writes it inside your browser, and nothing is uploaded to Papeliz: there is no Papeliz server, account or cloud storage.',
+          'A vault you open with **Open Vault**, or start in **Folders on Disk**, is a folder on your computer. Papeliz reads and writes it inside your browser, and nothing is uploaded to Papeliz: there is no Papeliz server, account or cloud storage.',
         ),
       ]),
       helpSection('In your browser', [

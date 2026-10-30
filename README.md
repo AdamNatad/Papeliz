@@ -48,11 +48,14 @@ vault in your browser, or start with the sample vault. Nothing to install, no si
 
 - **MD Code and MD View behind one switch:** raw Markdown with syntax colors and line numbers, or
   the rendered note you can still type in.
-- **Tables and diagrams:** Markdown tables and Mermaid diagrams (flowcharts, sequence diagrams
-  and more) show drawn in MD View; click one to edit its source.
+- **Tables and diagrams:** Markdown tables and every Mermaid diagram type (flowcharts, sequence
+  diagrams, charts and more) show drawn in MD View, in light and dark; click one to edit its source.
 - **Linked notes:** wikilinks (`[[note]]`), backlinks, an outline and full-text search.
 - **A file list you can make your own:** colors and icons for any note or folder.
 - **Focus mode** (`Ctrl+Shift+F`): only your note and a floating prompt box.
+- **Export as Word:** an editable `.docx` per note, with its tables, callouts, footnotes, pictures
+  and diagrams; several notes come as one `.zip` whose links open each other. Google Docs and
+  Notion open the same file.
 - **Export as HTML:** one note as a single web page, or several as a small website in a `.zip`,
   with a Markdown twin of every page and the site's Astro project to change and rebuild.
 - **One Settings gear:** accessibility, key bindings, export, locking, focus mode and closing the
@@ -77,8 +80,7 @@ vault in your browser, or start with the sample vault. Nothing to install, no si
 - **Nothing lost:** unsaved typing is kept in the browser until the note is saved, so a closed tab
   or a failed save can be recovered.
 - **Vaults in any browser:** in Firefox, Safari and on phones, a vault lives in the browser's own
-  storage. Import one from a `.zip` or a folder, download a backup any time, and get a reminder
-  when there are changes to back up.
+  storage. Download a backup any time, and get a reminder when there are changes to back up.
 
 ## Bring your own AI provider
 
@@ -132,14 +134,15 @@ provider is subject to that provider's own terms and pricing.
 | Browser | Support |
 | --- | --- |
 | Chrome, Edge (103 and later) | Open real folders on your disk, or keep a vault in the browser |
-| Firefox (113 and later), Safari (16.4 and later), phones | Keep vaults in the browser, with `.zip` import and backup |
+| Firefox (113 and later), Safari (16.4 and later), phones | Keep vaults in the browser, with backups |
 
 ## Roadmap
 
 **Available now: Papeliz 1.0**
 
 - [x] Open a folder of Markdown notes or a sample vault; create, rename and delete notes
-- [x] Vaults kept in the browser for Firefox, Safari and phones, with `.zip` import and backup
+- [x] Vaults kept in the browser for Firefox, Safari and phones, with backups
+- [x] Export as Word: one note as a `.docx`, or several in a `.zip`
 - [x] Export as HTML: one note as a page, or several as a website
 - [x] MD Code with autosave, and MD View, behind one switch
 - [x] Tables and Mermaid diagrams in MD View
@@ -193,6 +196,7 @@ Papeliz stands on these open-source projects:
 | [CodeMirror](https://codemirror.net) | MD Code | MIT |
 | [unified](https://unifiedjs.com) (remark, rehype) | Parsing and rendering Markdown | MIT |
 | [Mermaid](https://mermaid.js.org) | Diagrams in MD View | MIT |
+| [docx](https://docx.js.org) | Word export | MIT |
 | [MiniSearch](https://lucaong.github.io/minisearch/) | Full-text search | MIT |
 | [zustand](https://zustand.docs.pmnd.rs) | App state | MIT |
 | [Lucide](https://lucide.dev) | Icons | ISC |

@@ -58,7 +58,7 @@ export default function PapelizSiteHomePage() {
         dangerouslySetInnerHTML={{ __html: serializePapelizSiteJsonLd({ '@context': 'https://schema.org', ...createPapelizSiteSoftwareJsonLd() }) }}
       />
       <section className="relative overflow-hidden">
-        {/* The badge sits as close under the header and over the title as on Adam's other site (Adam, 2026-10-28):
+        {/* The badge sits close under the header and over the title (Adam, 2026-10-28):
             62 px from the header on phones and 76 px from 640 px up, then 16 px to the title. */}
         <div className="mx-auto flex max-w-6xl flex-col items-center px-4 pt-15.5 pb-20 text-center sm:px-6 sm:pt-19">
           <PapelizSiteIntroducingBadge className="mb-4">Introducing Papeliz</PapelizSiteIntroducingBadge>

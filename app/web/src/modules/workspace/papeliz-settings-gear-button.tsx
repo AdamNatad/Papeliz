@@ -6,12 +6,8 @@ import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { usePapelizMediaQuery } from '../ui/papeliz-media-query'
 import { subscribeToPapelizWindowWidthChange } from '../ui/papeliz-window-width-change'
 import { usePapelizKeyBindingShortcutLabel } from './papeliz-key-bindings-store'
-import {
-  PapelizSettingsGearAccessibilityPage,
-  PapelizSettingsGearExportPage,
-  PapelizSettingsGearSettingsPage,
-  PapelizSettingsGearTeaserPage,
-} from './papeliz-settings-gear-pages'
+import { PapelizSettingsGearExportPage } from './papeliz-settings-gear-export-page'
+import { PapelizSettingsGearAccessibilityPage, PapelizSettingsGearSettingsPage, PapelizSettingsGearTeaserPage } from './papeliz-settings-gear-pages'
 import { usePapelizWorkspaceStore } from './papeliz-workspace-store'
 
 type PapelizSettingsGearPage = 'account' | 'sync' | 'settings' | 'export' | 'accessibility'

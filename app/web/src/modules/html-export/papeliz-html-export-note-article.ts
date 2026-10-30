@@ -64,7 +64,7 @@ export function getPapelizHtmlExportNoteLanguageTag(noteFrontmatterProperties: r
 }
 
 // The icon MD View shows for each callout kind (papeliz-md-view-rendered-page.tsx).
-const papelizHtmlExportCalloutIconNamesByKind: Readonly<Record<string, PapelizHtmlExportIconName>> = {
+export const papelizHtmlExportCalloutIconNamesByKind: Readonly<Record<string, PapelizHtmlExportIconName>> = {
   note: 'Info',
   info: 'Info',
   abstract: 'BookOpen',
