@@ -43,6 +43,12 @@ export type PapelizSyncFakeEngineScenario =
   | 'over-storage'
   | 'subscription-ended'
   | 'to-settle'
+  // A new device: signed out, and once signed in, locked, with three synced vaults on the account and
+  // none of them here (Fetch from Sync on the start screen).
+  | 'new-device'
+  // Signed in and unlocked with the same three vaults; a download stops halfway once, as if the
+  // connection dropped, and goes on when tried again.
+  | 'download-stops'
 
 export const papelizSyncFakeEngineScenarios: readonly PapelizSyncFakeEngineScenario[] = [
   'signed-out',
@@ -54,6 +60,8 @@ export const papelizSyncFakeEngineScenarios: readonly PapelizSyncFakeEngineScena
   'over-storage',
   'subscription-ended',
   'to-settle',
+  'new-device',
+  'download-stops',
 ]
 
 export function isPapelizSyncFakeEngineScenario(fakeEngineScenarioText: string): fakeEngineScenarioText is PapelizSyncFakeEngineScenario {
@@ -114,6 +122,32 @@ interface PapelizSyncFakeAttachedVault {
   papelizVaultDisplayName: string
 }
 
+// A synced vault on the fake account that no vault on this device syncs with yet.
+interface PapelizSyncFakeAccountOnlyVault {
+  papelizSyncVaultId: string
+  syncVaultName: string
+  syncVaultFileCount: number
+  syncVaultStoredByteLength: number
+  syncVaultCreatedDaysAgo: number
+}
+
+const papelizSyncFakeEngineNewDeviceAccountVaults: readonly PapelizSyncFakeAccountOnlyVault[] = [
+  { papelizSyncVaultId: 'pzvault_dddddddddddddddddddddddddd', syncVaultName: 'Research notes', syncVaultFileCount: 1482, syncVaultStoredByteLength: 310e6, syncVaultCreatedDaysAgo: 60 },
+  { papelizSyncVaultId: 'pzvault_eeeeeeeeeeeeeeeeeeeeeeeeee', syncVaultName: 'Work', syncVaultFileCount: 2140, syncVaultStoredByteLength: 1.2e9, syncVaultCreatedDaysAgo: 45 },
+  { papelizSyncVaultId: 'pzvault_ffffffffffffffffffffffffff', syncVaultName: 'Recipes', syncVaultFileCount: 64, syncVaultStoredByteLength: 3.1e6, syncVaultCreatedDaysAgo: 12 },
+]
+
+function listPapelizSyncFakeAccountOnlyVaults(fakeEngineScenario: PapelizSyncFakeEngineScenario): PapelizSyncFakeAccountOnlyVault[] {
+  if (fakeEngineScenario === 'new-device' || fakeEngineScenario === 'download-stops') return [...papelizSyncFakeEngineNewDeviceAccountVaults]
+  // The Sync page's locked state lists one vault to connect once unlocked.
+  if (fakeEngineScenario === 'locked') return papelizSyncFakeEngineNewDeviceAccountVaults.slice(0, 1)
+  return []
+}
+
+function isPapelizSyncFakeNewDeviceScenario(fakeEngineScenario: PapelizSyncFakeEngineScenario): boolean {
+  return fakeEngineScenario === 'new-device' || fakeEngineScenario === 'download-stops'
+}
+
 function createFakeDoneOutcome<SyncActionDoneValue>(syncActionDoneValue: SyncActionDoneValue): PapelizSyncActionOutcome<SyncActionDoneValue> {
   return { syncActionOutcome: 'done', syncActionDoneValue }
 }
@@ -147,13 +181,19 @@ export class PapelizSyncFakeEngine implements PapelizSyncEngine {
   private fakeKeyDraftCount = 0
   private fakeThisDeviceName: string | null = null
   private fakeRemovedDeviceIds = new Set<string>()
+  private readonly fakeAccountOnlyVaults: PapelizSyncFakeAccountOnlyVault[]
+  // A synced vault downloaded here, by its synced vault: the vault on this device that syncs with it.
+  private readonly fakeDownloadedPapelizVaultIdsBySyncVaultId = new Map<string, string>()
+  // `download-stops` stops one download halfway, once.
+  private isFakeDownloadStopUsed = false
 
   constructor({ fakeEngineScenario, fakeCallDelayMilliseconds = 0, fakeOtherTabFinishMilliseconds = null, fakeCurrentTime = () => Date.now() }: PapelizSyncFakeEngineOptions) {
     this.fakeEngineScenario = fakeEngineScenario
     this.fakeCallDelayMilliseconds = fakeCallDelayMilliseconds
     this.fakeOtherTabFinishMilliseconds = fakeOtherTabFinishMilliseconds
     this.fakeCurrentTime = fakeCurrentTime
-    const isSignedIn = fakeEngineScenario !== 'signed-out'
+    this.fakeAccountOnlyVaults = listPapelizSyncFakeAccountOnlyVaults(fakeEngineScenario)
+    const isSignedIn = fakeEngineScenario !== 'signed-out' && fakeEngineScenario !== 'new-device'
     const hasKeys = !['signed-out', 'not-subscribed', 'set-up-unfinished'].includes(fakeEngineScenario)
     this.fakeSyncPassphrase = hasKeys ? papelizSyncFakeEnginePassphrase : null
     this.fakeSyncRecoveryKeyText = hasKeys ? papelizSyncFakeEngineRecoveryKeyText : null
@@ -280,7 +320,8 @@ export class PapelizSyncFakeEngine implements PapelizSyncEngine {
           syncSignInEmailAddress: 'you@example.com',
           syncSignInMethod: 'email-code',
         },
-        syncAccount: wasSignedInBefore ? this.fakeEngineSnapshot.syncAccount : this.buildFakeAccountReading(null),
+        // A new device signs in to an account that already has a plan and keys.
+        syncAccount: wasSignedInBefore ? this.fakeEngineSnapshot.syncAccount : this.buildFakeAccountReading(this.fakeEngineScenario === 'new-device' ? 'plus' : null),
         syncAccountKeyState: this.fakeSyncPassphrase === null ? 'not-set-up' : this.fakeEngineSnapshot.syncAccountKeyState === 'unlocked' ? 'unlocked' : 'locked',
       })
       for (const fakeEventListener of [...this.fakeEventListeners]) fakeEventListener({ syncEngineEventKind: 'signed-in' })
@@ -549,11 +590,19 @@ export class PapelizSyncFakeEngine implements PapelizSyncEngine {
     this.fakeEngineCallNames.push('attachSyncToOpenVault')
     const { papelizVaultId, papelizVaultDisplayName } = openLocalVault
     this.fakeAttachedVaultsById.set(papelizVaultId, { papelizVaultId, papelizVaultDisplayName })
-    // The scenarios past set-up start with this device already syncing whatever vault it opens.
-    const isSyncedInScenario = this.fakeEngineSnapshot.syncAccountKeyState === 'unlocked' || this.fakeEngineSnapshot.syncAccountKeyState === 'locked'
-    if (isSyncedInScenario && !this.fakeEngineSnapshot.syncLocalVaults.some((syncLocalVault) => syncLocalVault.papelizVaultId === papelizVaultId)) {
+    // The scenarios past set-up start with this device already syncing whatever vault it opens; a new
+    // device syncs only what it downloads.
+    const isSyncedInScenario =
+      (this.fakeEngineSnapshot.syncAccountKeyState === 'unlocked' || this.fakeEngineSnapshot.syncAccountKeyState === 'locked') && !isPapelizSyncFakeNewDeviceScenario(this.fakeEngineScenario)
+    const attachedLocalVault = this.fakeEngineSnapshot.syncLocalVaults.find((syncLocalVault) => syncLocalVault.papelizVaultId === papelizVaultId)
+    if (isSyncedInScenario && attachedLocalVault === undefined) {
       this.addFakeLocalVault(papelizVaultId, null)
       if (this.fakeEngineScenario === 'to-settle' && this.fakeEngineSnapshot.syncNoteClashesToSettle.length === 0) this.addFakeSyncNoteClash(papelizVaultId, 'Welcome.md')
+    }
+    // A download that stopped goes on when its vault is attached again, as the real engine's does.
+    const stoppedTransferProgress = attachedLocalVault?.syncVaultStatus.syncStatusKind === 'offline' ? attachedLocalVault.syncVaultTransferProgress : null
+    if (stoppedTransferProgress !== null && stoppedTransferProgress !== undefined) {
+      this.runFakeFirstTransfer(papelizVaultId, stoppedTransferProgress.syncVaultTransferKind, stoppedTransferProgress.syncTransferFileCount, stoppedTransferProgress.syncTransferredFileCount)
     }
     return () => {
       this.fakeEngineCallNames.push('detachSyncFromOpenVault')
@@ -566,38 +615,57 @@ export class PapelizSyncFakeEngine implements PapelizSyncEngine {
     if (!this.isFakeSignedIn()) return createFakeFailedOutcome('signed-out')
     const isLocked = this.fakeEngineSnapshot.syncAccountKeyState !== 'unlocked'
     const currentTime = this.fakeCurrentTime()
-    const fakeAccountVaults: PapelizSyncAccountVaultReading[] = this.fakeEngineSnapshot.syncLocalVaults.map((syncLocalVault) => ({
-      papelizSyncVaultId: syncLocalVault.papelizSyncVaultId,
-      syncVaultName: isLocked ? null : (this.fakeAttachedVaultsById.get(syncLocalVault.papelizVaultId)?.papelizVaultDisplayName ?? 'Synced vault'),
-      syncVaultFileCount: 128,
-      syncVaultStoredByteLength: 42e6,
-      syncVaultCreatedAt: currentTime - 30 * 24 * 60 * 60_000,
-      papelizVaultIdOnThisDevice: syncLocalVault.papelizVaultId,
-    }))
-    if (this.fakeEngineScenario === 'locked') {
+    const downloadedPapelizVaultIds = new Set(this.fakeDownloadedPapelizVaultIdsBySyncVaultId.values())
+    const fakeAccountVaults: PapelizSyncAccountVaultReading[] = this.fakeEngineSnapshot.syncLocalVaults
+      .filter((syncLocalVault) => !downloadedPapelizVaultIds.has(syncLocalVault.papelizVaultId))
+      .map((syncLocalVault) => ({
+        papelizSyncVaultId: syncLocalVault.papelizSyncVaultId,
+        syncVaultName: isLocked ? null : (this.fakeAttachedVaultsById.get(syncLocalVault.papelizVaultId)?.papelizVaultDisplayName ?? 'Synced vault'),
+        syncVaultFileCount: 128,
+        syncVaultStoredByteLength: 42e6,
+        syncVaultCreatedAt: currentTime - 30 * 24 * 60 * 60_000,
+        papelizVaultIdOnThisDevice: syncLocalVault.papelizVaultId,
+      }))
+    for (const fakeAccountOnlyVault of this.fakeAccountOnlyVaults) {
       fakeAccountVaults.push({
-        papelizSyncVaultId: 'pzvault_dddddddddddddddddddddddddd',
-        syncVaultName: isLocked ? null : 'Research notes',
-        syncVaultFileCount: 1482,
-        syncVaultStoredByteLength: 310e6,
-        syncVaultCreatedAt: currentTime - 60 * 24 * 60 * 60_000,
-        papelizVaultIdOnThisDevice: null,
+        papelizSyncVaultId: fakeAccountOnlyVault.papelizSyncVaultId,
+        syncVaultName: isLocked ? null : fakeAccountOnlyVault.syncVaultName,
+        syncVaultFileCount: fakeAccountOnlyVault.syncVaultFileCount,
+        syncVaultStoredByteLength: fakeAccountOnlyVault.syncVaultStoredByteLength,
+        syncVaultCreatedAt: currentTime - fakeAccountOnlyVault.syncVaultCreatedDaysAgo * 24 * 60 * 60_000,
+        papelizVaultIdOnThisDevice: this.fakeDownloadedPapelizVaultIdsBySyncVaultId.get(fakeAccountOnlyVault.papelizSyncVaultId) ?? null,
       })
     }
     return createFakeDoneOutcome(fakeAccountVaults)
   }
 
-  // The fake's first upload: the progress counts up in the dev server, or finishes at once in tests.
-  private runFakeFirstTransfer(papelizVaultId: string, syncVaultTransferKind: 'first-upload' | 'first-download' | 'connect'): void {
-    const syncTransferFileCount = 40
+  // The fake's first upload or download: the progress counts up in the dev server (ten steps), or
+  // finishes at once in tests. `download-stops` stops one download halfway, offline, once.
+  private runFakeFirstTransfer(
+    papelizVaultId: string,
+    syncVaultTransferKind: 'first-upload' | 'first-download' | 'connect',
+    syncTransferFileCount = 40,
+    syncAlreadyTransferredFileCount = 0,
+  ): void {
     if (this.fakeCallDelayMilliseconds === 0) {
       this.addFakeLocalVault(papelizVaultId, null)
       return
     }
-    this.addFakeLocalVault(papelizVaultId, { syncVaultTransferKind, syncTransferredFileCount: 0, syncTransferFileCount })
-    let syncTransferredFileCount = 0
+    this.addFakeLocalVault(papelizVaultId, { syncVaultTransferKind, syncTransferredFileCount: syncAlreadyTransferredFileCount, syncTransferFileCount })
+    let syncTransferredFileCount = syncAlreadyTransferredFileCount
+    const syncTransferStepFileCount = Math.max(4, Math.ceil(syncTransferFileCount / 10))
     const fakeTransferTimer = setInterval(() => {
-      syncTransferredFileCount = Math.min(syncTransferFileCount, syncTransferredFileCount + 4)
+      syncTransferredFileCount = Math.min(syncTransferFileCount, syncTransferredFileCount + syncTransferStepFileCount)
+      if (this.fakeEngineScenario === 'download-stops' && !this.isFakeDownloadStopUsed && syncTransferredFileCount >= syncTransferFileCount / 2) {
+        this.isFakeDownloadStopUsed = true
+        clearInterval(fakeTransferTimer)
+        this.setFakeSyncVaultStatus(
+          papelizVaultId,
+          { syncStatusKind: 'offline', syncWaitingFileCount: syncTransferFileCount - syncTransferredFileCount },
+          { syncVaultTransferKind, syncTransferredFileCount, syncTransferFileCount },
+        )
+        return
+      }
       if (syncTransferredFileCount >= syncTransferFileCount) {
         clearInterval(fakeTransferTimer)
         this.setFakeSyncVaultStatus(papelizVaultId, this.readFakeSteadySyncVaultStatus(), null)
@@ -622,9 +690,13 @@ export class PapelizSyncFakeEngine implements PapelizSyncEngine {
     return createFakeDoneOutcome({ papelizSyncVaultId: syncLocalVault?.papelizSyncVaultId ?? '' })
   }
 
-  async downloadSyncedVaultInto(_papelizSyncVaultId: string, papelizVaultId: string): Promise<PapelizSyncActionOutcome> {
+  async downloadSyncedVaultInto(papelizSyncVaultId: string, papelizVaultId: string): Promise<PapelizSyncActionOutcome> {
     await this.waitForFakeCall('downloadSyncedVaultInto')
-    this.runFakeFirstTransfer(papelizVaultId, 'first-download')
+    if (!this.isFakeSignedIn()) return createFakeFailedOutcome('signed-out')
+    if (this.fakeEngineSnapshot.syncAccountKeyState !== 'unlocked') return createFakeFailedOutcome('locked')
+    const fakeAccountOnlyVault = this.fakeAccountOnlyVaults.find((accountOnlyVault) => accountOnlyVault.papelizSyncVaultId === papelizSyncVaultId)
+    if (fakeAccountOnlyVault !== undefined) this.fakeDownloadedPapelizVaultIdsBySyncVaultId.set(papelizSyncVaultId, papelizVaultId)
+    this.runFakeFirstTransfer(papelizVaultId, 'first-download', fakeAccountOnlyVault?.syncVaultFileCount)
     return createFakeDoneOutcome(null)
   }
 
@@ -637,6 +709,9 @@ export class PapelizSyncFakeEngine implements PapelizSyncEngine {
 
   async turnSyncOffForVault(papelizVaultId: string): Promise<PapelizSyncActionOutcome> {
     await this.waitForFakeCall('turnSyncOffForVault')
+    for (const [papelizSyncVaultId, downloadedPapelizVaultId] of this.fakeDownloadedPapelizVaultIdsBySyncVaultId) {
+      if (downloadedPapelizVaultId === papelizVaultId) this.fakeDownloadedPapelizVaultIdsBySyncVaultId.delete(papelizSyncVaultId)
+    }
     this.changeFakeSnapshot({ syncLocalVaults: this.fakeEngineSnapshot.syncLocalVaults.filter((syncLocalVault) => syncLocalVault.papelizVaultId !== papelizVaultId) })
     this.changeFakeAccount({ syncedVaultCount: this.fakeEngineSnapshot.syncLocalVaults.length })
     return createFakeDoneOutcome(null)

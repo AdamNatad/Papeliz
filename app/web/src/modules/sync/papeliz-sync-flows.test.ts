@@ -12,6 +12,7 @@ import {
   resetPapelizSyncFlowsForTests,
   showPapelizSyncNoteClash,
   startPapelizSyncSignInFromClick,
+  startPapelizSyncSignInFromClickBeforeEngineLoads,
   usePapelizSyncFlowStore,
   choosePapelizSyncStoragePlace,
 } from './papeliz-sync-flow-store'
@@ -213,5 +214,32 @@ describe('the open vault’s files, as Sync reads them', () => {
     expect((await vaultAdapter.listVaultTreeEntries()).map((vaultTreeEntry) => vaultTreeEntry.vaultEntryRelativePath)).toContain('Plans/Plan.md')
     expect(await syncLocalVaultFiles.moveVaultFileToTrash('Plans/Plan.md')).toMatch(/^\.trash\//)
     await expect(syncLocalVaultFiles.listSyncableVaultFileStats()).rejects.toThrow('Not Supported Yet')
+  })
+})
+
+describe('signing in from Fetch from Sync, before the engine has loaded', () => {
+  it('opens a blank tab from the click, then sends it to the sign-in page', async () => {
+    const papelizSyncFakeEngine = createPapelizSyncFakeEngine({ fakeEngineScenario: 'new-device' })
+    const signInFromClick = startPapelizSyncSignInFromClickBeforeEngineLoads(async () => papelizSyncFakeEngine)
+    expect(papelizSyncTestTabs).toHaveLength(1)
+    expect(papelizSyncTestTabs[0]?.openedUrl).toBe('about:blank')
+    expect(papelizSyncTestTabs[0]?.opener).toBeNull()
+    await settleFakeCalls()
+    expect(papelizSyncTestTabs[0]?.replacedUrl).toBe('about:blank#papeliz-sync-fake-sign-in')
+    papelizSyncFakeEngine.finishFakeSyncSignIn()
+    expect(await signInFromClick).toEqual({ syncSignInOutcome: 'signed-in' })
+  })
+
+  it('closes the tab when the engine doesn’t load, or this device is signed in already', async () => {
+    expect(await startPapelizSyncSignInFromClickBeforeEngineLoads(async () => null)).toMatchObject({ syncSignInOutcome: 'failed' })
+    expect(papelizSyncTestTabs[0]?.isClosed).toBe(true)
+    const signedInFakeEngine = createPapelizSyncFakeEngine({ fakeEngineScenario: 'on' })
+    expect(await startPapelizSyncSignInFromClickBeforeEngineLoads(async () => signedInFakeEngine)).toEqual({ syncSignInOutcome: 'signed-in' })
+    expect(papelizSyncTestTabs[1]?.isClosed).toBe(true)
+  })
+
+  it('says so when the browser blocks the tab', async () => {
+    isPapelizSyncTestTabBlocked = true
+    expect(await startPapelizSyncSignInFromClickBeforeEngineLoads(async () => null)).toEqual({ syncSignInOutcome: 'blocked' })
   })
 })

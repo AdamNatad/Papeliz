@@ -90,6 +90,33 @@ export function cancelPapelizSyncSignIn(): void {
   currentSyncSignInAttempt = null
 }
 
+// The same from a click made before the engine has loaded (Fetch from Sync on the start screen): a
+// blank tab opens from the click, then goes to the sign-in page once the engine is there. The tab
+// closes again when the engine doesn't load, or finds this device signed in already.
+export async function startPapelizSyncSignInFromClickBeforeEngineLoads(
+  loadPapelizSyncEngine: () => Promise<PapelizSyncEngine | null>,
+): Promise<PapelizSyncSignInFromClickOutcome> {
+  const syncSignInTab = window.open('about:blank', '_blank')
+  if (syncSignInTab === null) return { syncSignInOutcome: 'blocked' }
+  syncSignInTab.opener = null
+  const papelizSyncEngine = await loadPapelizSyncEngine()
+  if (papelizSyncEngine === null) {
+    syncSignInTab.close()
+    return { syncSignInOutcome: 'failed', syncSignInFailureMessage: 'Papeliz Sync didn’t load. Check your connection, then try again.' }
+  }
+  if (papelizSyncEngine.getSyncEngineSnapshot().syncSignIn.syncSignInKind === 'signed-in') {
+    syncSignInTab.close()
+    return { syncSignInOutcome: 'signed-in' }
+  }
+  currentSyncSignInAttempt?.cancelSyncSignIn()
+  const syncSignInAttempt = papelizSyncEngine.startSyncSignIn({ papelizSyncStoragePlaceForNewAccount: null })
+  currentSyncSignInAttempt = syncSignInAttempt
+  syncSignInTab.location.replace(syncSignInAttempt.syncSignInPageUrl)
+  return syncSignInAttempt.syncSignInOutcome.finally(() => {
+    if (currentSyncSignInAttempt === syncSignInAttempt) currentSyncSignInAttempt = null
+  })
+}
+
 export function describePapelizSyncSignInFromClickFailure(signInFromClickOutcome: PapelizSyncSignInFromClickOutcome): string | null {
   if (signInFromClickOutcome.syncSignInOutcome === 'blocked') return papelizSyncBlockedNewTabWords
   if (signInFromClickOutcome.syncSignInOutcome === 'failed') return `Signing in didn’t finish: ${signInFromClickOutcome.syncSignInFailureMessage}`

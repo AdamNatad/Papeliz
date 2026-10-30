@@ -7,3 +7,9 @@ declare module 'virtual:papeliz-sync-engine' {
 
   export function loadPapelizSyncEngine(): Promise<PapelizSyncEngineLoadResult>
 }
+
+// Whether this build has the Sync engine, switched on, read at build time without loading the
+// engine (the same plugin). The start screen shows Fetch from Sync only then.
+declare module 'virtual:papeliz-sync-engine-availability' {
+  export const isPapelizSyncEngineInThisBuild: boolean
+}

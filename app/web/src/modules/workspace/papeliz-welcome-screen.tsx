@@ -1,5 +1,14 @@
-import { AppWindow, BookOpen, Code, Download, Eye, EyeOff, FolderOpen, FolderPlus, HardDrive, Pencil, RefreshCw, RotateCcw, Search, Trash2, type LucideIcon } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState, type Ref } from 'react'
+import { AppWindow, BookOpen, CloudDownload, Code, Download, Eye, EyeOff, FolderOpen, FolderPlus, HardDrive, Pencil, RefreshCw, RotateCcw, Search, Trash2, TriangleAlert, type LucideIcon } from 'lucide-react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type Ref } from 'react'
+import { isPapelizSyncEngineInThisBuild } from 'virtual:papeliz-sync-engine-availability'
+import { isPapelizSyncUsedOnThisDevice, readPapelizSyncDevFakeEngineScenarioText, usePapelizSyncEngineStore } from '../sync/papeliz-sync-engine-store'
+import {
+  describePapelizSyncSignInFromClickFailure,
+  startPapelizSyncSignInFromClick,
+  startPapelizSyncSignInFromClickBeforeEngineLoads,
+  type PapelizSyncSignInFromClickOutcome,
+} from '../sync/papeliz-sync-flow-store'
+import { retryPapelizSyncStartScreenDownload, usePapelizSyncStartScreenDownloadStore } from '../sync/papeliz-sync-start-screen-download-store'
 import { PapelizIconButton } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { PapelizConfirmDialog } from '../ui/papeliz-confirm-dialog'
@@ -46,6 +55,11 @@ import { PapelizWorkspaceEyePreviewerSlot } from './papeliz-workspace-eye-previe
 import { PapelizWorkspaceNotice } from './papeliz-workspace-notice'
 import { usePapelizWorkspaceStore } from './papeliz-workspace-store'
 
+// Fetch from Sync's page loads with the rest of Sync's screens, only once it's pressed.
+const PapelizSyncFetchFromSyncPage = lazy(() =>
+  import('../sync/papeliz-sync-fetch-from-sync-page').then((fetchFromSyncPageModule) => ({ default: fetchFromSyncPageModule.PapelizSyncFetchFromSyncPage })),
+)
+
 const papelizRelativeTimeFormat = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' })
 // The reload's ring stays at least this long, so a quick reload is still seen to happen.
 const papelizRecentVaultListReloadMinimumMilliseconds = 600
@@ -78,6 +92,9 @@ interface PapelizWelcomeActionProps {
   welcomeActionOffReasonText?: string | null
   // Lit while its form shows in the start card (New Vault).
   isWelcomeActionCurrent?: boolean
+  // `white-highlight`: a white card that stands out on the blue panel (Fetch from Sync). Pale blue
+  // in the dark theme.
+  welcomeActionLook?: 'on-blue' | 'white-highlight'
   welcomeActionButtonRef?: Ref<HTMLButtonElement>
   onWelcomeActionSelect: () => void
 }
@@ -90,10 +107,12 @@ function PapelizWelcomeAction({
   isWelcomeActionDisabled,
   welcomeActionOffReasonText = null,
   isWelcomeActionCurrent = false,
+  welcomeActionLook = 'on-blue',
   welcomeActionButtonRef,
   onWelcomeActionSelect,
 }: PapelizWelcomeActionProps) {
   const isWelcomeActionOff = welcomeActionOffReasonText !== null
+  const isWelcomeActionWhite = welcomeActionLook === 'white-highlight'
   return (
     <div className="group/welcome-action relative">
       <button
@@ -104,24 +123,40 @@ function PapelizWelcomeAction({
         aria-current={isWelcomeActionCurrent || undefined}
         onClick={onWelcomeActionSelect}
         className={joinPapelizClassNames(
-          'flex min-h-[42px] w-full min-w-0 items-center gap-2 rounded-[10px] border border-white/15 bg-white/[0.07] px-2 py-[7px] text-left text-white transition-[background-color,border-color,transform] duration-150 ease-out focus-visible:outline-white disabled:cursor-not-allowed disabled:opacity-50',
+          'flex min-h-[42px] w-full min-w-0 items-center gap-2 rounded-[10px] border px-2 py-[7px] text-left transition-[background-color,border-color,transform,box-shadow] duration-150 ease-out focus-visible:outline-white disabled:cursor-not-allowed disabled:opacity-50',
+          isWelcomeActionWhite ? 'border-transparent bg-papeliz-welcome-action-white-ground text-[#111112]' : 'border-white/15 bg-white/[0.07] text-white',
           isWelcomeActionOff
             ? 'cursor-not-allowed'
-            : 'enabled:hover:-translate-y-px enabled:hover:border-white/30 enabled:hover:bg-white/[0.14] enabled:active:scale-[0.99]',
-          isWelcomeActionCurrent && 'border-white/45 bg-white/20 enabled:hover:border-white/45 enabled:hover:bg-white/20',
+            : isWelcomeActionWhite
+              ? 'enabled:hover:-translate-y-px enabled:hover:brightness-[.97] enabled:active:scale-[0.99]'
+              : 'enabled:hover:-translate-y-px enabled:hover:border-white/30 enabled:hover:bg-white/[0.14] enabled:active:scale-[0.99]',
+          isWelcomeActionCurrent &&
+            (isWelcomeActionWhite
+              ? 'shadow-[0_0_0_2px_var(--color-papeliz-topbar),0_0_0_4px_rgb(255_255_255/0.55)]'
+              : 'border-white/45 bg-white/20 enabled:hover:border-white/45 enabled:hover:bg-white/20'),
         )}
       >
-        <span className={joinPapelizClassNames('grid size-6 flex-none place-items-center rounded-md bg-white/[0.14]', isWelcomeActionOff && 'opacity-55')}>
+        <span
+          className={joinPapelizClassNames(
+            'grid size-6 flex-none place-items-center rounded-md',
+            isWelcomeActionWhite ? 'bg-papeliz-welcome-action-white-tile text-[#0064d4]' : 'bg-white/[0.14]',
+            isWelcomeActionOff && 'opacity-55',
+          )}
+        >
           <WelcomeActionIcon className="size-3.5" aria-hidden="true" />
         </span>
         <span className="flex min-w-0 flex-col items-start leading-tight">
-          <span className={joinPapelizClassNames('truncate text-[12px] font-semibold', isWelcomeActionOff && 'opacity-55')}>{welcomeActionTitle}</span>
+          <span className={joinPapelizClassNames('truncate text-[12px] font-semibold', isWelcomeActionWhite && 'text-[#0057ba]', isWelcomeActionOff && 'opacity-55')}>
+            {welcomeActionTitle}
+          </span>
           {isWelcomeActionOff ? (
             <span className="mt-0.5 rounded-full border border-papeliz-diff-removed-ink/30 bg-papeliz-diff-removed px-1.5 py-px text-[9.5px] leading-snug font-semibold text-papeliz-diff-removed-ink">
               Off in this browser
             </span>
           ) : (
-            <span className="mt-px text-[10px] leading-snug text-white/75">{welcomeActionDescription}</span>
+            <span className={joinPapelizClassNames('mt-px text-[10px] leading-snug', isWelcomeActionWhite ? 'text-[#55595f]' : 'text-white/75')}>
+              {welcomeActionDescription}
+            </span>
           )}
         </span>
       </button>
@@ -156,8 +191,9 @@ function describeRecentVaultDeleteRequest(recentVaultDeleteRequest: PapelizRecen
     : 'This deletes every vault in the Hidden list: each folder and every note and file in it, from your disk. It doesn’t go to the Recycle Bin, and it can’t be undone.'
 }
 
-// The start screen, shown when no vault is open: on the blue panel, Papeliz, the ways in (a new
-// vault, an import into this browser, a folder already in use, the sample vault) and who made it; beside it, the vaults opened
+// The start screen, shown when no vault is open: on the blue panel, Papeliz, the ways in (Fetch from
+// Sync first, in white, where the build has Sync; a new vault, an import into this browser, a folder
+// already in use, the sample vault) and who made it; beside it, the vaults opened
 // before, to come back to in one click, and the Hidden list. A new vault is a folder on the disk or a
 // browser vault: Chrome and Edge ask which, other browsers keep it in the browser. Hide only takes a
 // vault off Recent vaults; Delete in the Hidden list erases it, from the disk or from this browser,
@@ -200,6 +236,10 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
   })
   // New Vault's form, shown in the start card in place of Recent Vaults, with the name it suggests.
   const [newVaultFormRequest, setNewVaultFormRequest] = useState<{ suggestedBrowserVaultName: string } | null>(null)
+  // Fetch from Sync's page, shown there instead, and why the sign-in its button started didn't happen.
+  const [isFetchFromSyncPageShown, setFetchFromSyncPageShown] = useState(false)
+  const [fetchFromSyncSignInFailureWords, setFetchFromSyncSignInFailureWords] = useState<string | null>(null)
+  const syncStartScreenDownloadsByVaultId = usePapelizSyncStartScreenDownloadStore((syncStartScreenDownloadState) => syncStartScreenDownloadState.syncStartScreenDownloadsByVaultId)
   // New Vault's button, where focus goes back when its form is cancelled.
   const newVaultActionButtonRef = useRef<HTMLButtonElement>(null)
   // Rename's dialog, for a browser vault, while it is open.
@@ -365,9 +405,53 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
     }
   }
 
+  // Fetch from Sync, first on the panel, only in a build with Sync's engine switched on (and in
+  // development builds on the fake engine). It needs somewhere to put a vault.
+  const isFetchFromSyncActionShown = useMemo(() => isPapelizSyncEngineInThisBuild || readPapelizSyncDevFakeEngineScenarioText() !== null, [])
+  const fetchFromSyncOffReasonText = isFolderVaultOn || isBrowserVaultOn ? null : (browserVaultOffReasonText ?? folderAccessOffReasonText)
+
+  // A device signed in to Sync before (or the dev fake engine) loads the engine now, so Fetch from
+  // Sync's click can open the sign-in tab itself when the sign-in has lapsed.
+  const loadPapelizSyncEngine = usePapelizSyncEngineStore((syncEngineState) => syncEngineState.loadPapelizSyncEngine)
+  useEffect(() => {
+    if (!isFetchFromSyncActionShown || startScreenEyePreview !== null) return
+    if (isPapelizSyncUsedOnThisDevice() || readPapelizSyncDevFakeEngineScenarioText() !== null) void loadPapelizSyncEngine()
+  }, [isFetchFromSyncActionShown, startScreenEyePreview, loadPapelizSyncEngine])
+
+  // Fetch from Sync: its page in the start card, and, signed out, the sign-in page in a new tab from
+  // this click (before the engine has loaded, a blank tab that goes there once it has).
+  const startFetchFromSync = () => {
+    if (startScreenEyePreview !== null) {
+      showStartScreenPreviewOnlyNotice()
+      return
+    }
+    setNewVaultFormRequest(null)
+    setFetchFromSyncSignInFailureWords(null)
+    setFetchFromSyncPageShown(true)
+    const followSignInFromClick = (signInFromClick: Promise<PapelizSyncSignInFromClickOutcome>) =>
+      void signInFromClick.then((signInFromClickOutcome) => setFetchFromSyncSignInFailureWords(describePapelizSyncSignInFromClickFailure(signInFromClickOutcome)))
+    const { papelizSyncEngine } = usePapelizSyncEngineStore.getState()
+    if (papelizSyncEngine !== null) {
+      const syncSignInKind = papelizSyncEngine.getSyncEngineSnapshot().syncSignIn.syncSignInKind
+      if (syncSignInKind === 'signed-out' || syncSignInKind === 'device-removed') followSignInFromClick(startPapelizSyncSignInFromClick(papelizSyncEngine, null))
+      return
+    }
+    if (isPapelizSyncUsedOnThisDevice() || readPapelizSyncDevFakeEngineScenarioText() !== null) {
+      void loadPapelizSyncEngine()
+      return
+    }
+    followSignInFromClick(startPapelizSyncSignInFromClickBeforeEngineLoads(loadPapelizSyncEngine))
+  }
+
+  const closeFetchFromSync = () => {
+    setFetchFromSyncPageShown(false)
+    setFetchFromSyncSignInFailureWords(null)
+  }
+
   // New Vault: its form in the start card (where to keep it, and a browser vault's name); a folder
   // straight away where browser vaults are off.
   const startNewVault = () => {
+    setFetchFromSyncPageShown(false)
     if (!isBrowserVaultOn) {
       // Neither kind works here: the browser vault's reason says what to do.
       if (folderAccessOffReason === 'unsupported' && browserVaultOffReasonText !== null) showWorkspaceNotice('error', browserVaultOffReasonText)
@@ -591,6 +675,20 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
             </p>
 
             <div className="mt-4 grid grid-cols-1 gap-[7px]">
+              {isFetchFromSyncActionShown && (
+                <div className="mb-1">
+                  <PapelizWelcomeAction
+                    WelcomeActionIcon={CloudDownload}
+                    welcomeActionTitle="Fetch from Sync"
+                    welcomeActionDescription="Get your synced vaults."
+                    isWelcomeActionDisabled={isOpeningVault}
+                    welcomeActionOffReasonText={fetchFromSyncOffReasonText}
+                    isWelcomeActionCurrent={isFetchFromSyncPageShown}
+                    welcomeActionLook="white-highlight"
+                    onWelcomeActionSelect={startFetchFromSync}
+                  />
+                </div>
+              )}
               <PapelizWelcomeAction
                 WelcomeActionIcon={FolderPlus}
                 welcomeActionTitle="New Vault"
@@ -628,9 +726,29 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
             </p>
           </section>
 
-          <section aria-labelledby={newVaultFormRequest === null ? 'papeliz-welcome-recent-heading' : 'papeliz-new-vault-form-heading'} className="flex min-h-[280px] min-w-0 flex-1 flex-col p-2.5">
-            {/* New Vault takes Recent Vaults' place while its form shows. */}
-            {newVaultFormRequest !== null ? (
+          <section
+            aria-labelledby={
+              isFetchFromSyncPageShown ? 'papeliz-fetch-from-sync-heading' : newVaultFormRequest === null ? 'papeliz-welcome-recent-heading' : 'papeliz-new-vault-form-heading'
+            }
+            className="flex min-h-[280px] min-w-0 flex-1 flex-col p-2.5"
+          >
+            {/* New Vault, or Fetch from Sync, takes Recent Vaults' place while its page shows. */}
+            {isFetchFromSyncPageShown ? (
+              <Suspense fallback={null}>
+                <PapelizSyncFetchFromSyncPage
+                  fetchFromSyncPageHeadingId="papeliz-fetch-from-sync-heading"
+                  isFolderStorageOn={isFolderVaultOn}
+                  isBrowserStorageOn={isBrowserVaultOn}
+                  existingBrowserVaultRecords={browserVaultRecords}
+                  fetchFromSyncSignInFailureWords={fetchFromSyncSignInFailureWords}
+                  onFetchFromSyncPageClose={closeFetchFromSync}
+                  onSyncDownloadStarted={() => {
+                    closeFetchFromSync()
+                    reloadRecentVaults()
+                  }}
+                />
+              </Suspense>
+            ) : newVaultFormRequest !== null ? (
               <PapelizNewVaultForm
                 newVaultFormHeadingId="papeliz-new-vault-form-heading"
                 folderAccessOffReasonText={folderAccessOffReasonText}
@@ -809,58 +927,117 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                               </li>
                             )
                           })
-                        : shownRecentVaults.map((recentVault) => (
-                            <li
-                              key={recentVault.papelizVaultId}
-                              onContextMenu={(contextMenuEvent) => {
-                                contextMenuEvent.preventDefault()
-                                setRecentVaultMenu({
-                                  recentVault,
-                                  recentVaultMenuPosition: { menuAnchorLeft: contextMenuEvent.clientX, menuAnchorTop: contextMenuEvent.clientY },
-                                })
-                              }}
-                              className="group flex items-center rounded-xl border border-papeliz-line bg-papeliz-surface transition-[border-color,background-color,box-shadow] duration-150 hover:border-papeliz-blue-line hover:bg-papeliz-blue-soft/40 hover:shadow-papeliz-card"
-                            >
-                              <button
-                                type="button"
-                                disabled={isOpeningVault}
-                                onClick={() => void reopenRecentVault(recentVault)}
-                                className="flex min-w-0 flex-1 items-center gap-3 rounded-xl px-2.5 py-2 text-left"
+                        : shownRecentVaults.map((recentVault) => {
+                            // A vault Fetch from Sync is filling: how far it is, or where it stopped. It opens once it's all here.
+                            const syncStartScreenDownload = syncStartScreenDownloadsByVaultId[recentVault.papelizVaultId]
+                            const isSyncDownloadStopped = syncStartScreenDownload?.syncStartScreenDownloadStage === 'stopped'
+                            const syncDownloadFileCountWords =
+                              syncStartScreenDownload?.syncTransferredFileCount == null || syncStartScreenDownload.syncTransferFileCount === null
+                                ? null
+                                : `${syncStartScreenDownload.syncTransferredFileCount.toLocaleString('en-US')} of ${syncStartScreenDownload.syncTransferFileCount.toLocaleString('en-US')} files`
+                            const syncDownloadPercent =
+                              syncStartScreenDownload?.syncTransferredFileCount == null || !syncStartScreenDownload.syncTransferFileCount
+                                ? null
+                                : Math.floor((100 * syncStartScreenDownload.syncTransferredFileCount) / syncStartScreenDownload.syncTransferFileCount)
+                            return (
+                              <li
+                                key={recentVault.papelizVaultId}
+                                onContextMenu={(contextMenuEvent) => {
+                                  contextMenuEvent.preventDefault()
+                                  if (syncStartScreenDownload !== undefined) return
+                                  setRecentVaultMenu({
+                                    recentVault,
+                                    recentVaultMenuPosition: { menuAnchorLeft: contextMenuEvent.clientX, menuAnchorTop: contextMenuEvent.clientY },
+                                  })
+                                }}
+                                className={joinPapelizClassNames(
+                                  'group flex items-center rounded-xl border bg-papeliz-surface transition-[border-color,background-color,box-shadow] duration-150',
+                                  syncStartScreenDownload === undefined
+                                    ? 'border-papeliz-line hover:border-papeliz-blue-line hover:bg-papeliz-blue-soft/40 hover:shadow-papeliz-card'
+                                    : isSyncDownloadStopped
+                                      ? 'border-papeliz-diff-removed-ink/35'
+                                      : 'border-papeliz-blue-line',
+                                )}
                               >
-                                <span
-                                  aria-hidden="true"
-                                  className="grid size-9 flex-none place-items-center rounded-lg bg-papeliz-blue-soft text-[15px] font-semibold text-papeliz-blue"
+                                <button
+                                  type="button"
+                                  disabled={isOpeningVault || syncStartScreenDownload !== undefined}
+                                  onClick={() => void reopenRecentVault(recentVault)}
+                                  className="flex min-w-0 flex-1 items-center gap-3 rounded-xl px-2.5 py-2 text-left disabled:cursor-default"
                                 >
-                                  {recentVault.papelizVaultDisplayName.trim().charAt(0).toUpperCase() || '·'}
-                                </span>
-                                <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                                  <span className="truncate text-[13.5px] font-semibold">{recentVault.papelizVaultDisplayName}</span>
-                                  <span className="flex items-center gap-1 text-[11.5px] text-papeliz-ink-subtle">
-                                    {recentVault.papelizRecentVaultKind === 'browser-vault-in-opfs' ? (
-                                      <>
-                                        <AppWindow className="size-3 flex-none" aria-hidden="true" />
-                                        In this browser
-                                      </>
+                                  <span
+                                    aria-hidden="true"
+                                    className="grid size-9 flex-none place-items-center rounded-lg bg-papeliz-blue-soft text-[15px] font-semibold text-papeliz-blue"
+                                  >
+                                    {recentVault.papelizVaultDisplayName.trim().charAt(0).toUpperCase() || '·'}
+                                  </span>
+                                  <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                                    <span className="truncate text-[13.5px] font-semibold">{recentVault.papelizVaultDisplayName}</span>
+                                    {syncStartScreenDownload === undefined ? (
+                                      <span className="flex items-center gap-1 text-[11.5px] text-papeliz-ink-subtle">
+                                        {recentVault.papelizRecentVaultKind === 'browser-vault-in-opfs' ? (
+                                          <>
+                                            <AppWindow className="size-3 flex-none" aria-hidden="true" />
+                                            In this browser
+                                          </>
+                                        ) : (
+                                          <>
+                                            <HardDrive className="size-3 flex-none" aria-hidden="true" />
+                                            Folder on this device
+                                          </>
+                                        )}
+                                      </span>
+                                    ) : isSyncDownloadStopped ? (
+                                      <span role="status" className="flex min-w-0 items-center gap-1 text-[11.5px] text-papeliz-diff-removed-ink">
+                                        <TriangleAlert className="size-3 flex-none" aria-hidden="true" />
+                                        <span className="truncate">
+                                          {syncDownloadFileCountWords === null ? '' : `Stopped at ${syncDownloadFileCountWords}. `}
+                                          {syncStartScreenDownload.syncStartScreenDownloadStopWords}
+                                        </span>
+                                      </span>
                                     ) : (
                                       <>
-                                        <HardDrive className="size-3 flex-none" aria-hidden="true" />
-                                        Folder on this device
+                                        <span role="status" className="flex items-center gap-1 text-[11.5px] text-papeliz-ink-subtle tabular-nums">
+                                          <CloudDownload className="size-3 flex-none" aria-hidden="true" />
+                                          {syncDownloadFileCountWords === null ? 'Getting ready to download…' : `Downloading ${syncDownloadFileCountWords}`}
+                                        </span>
+                                        <span aria-hidden="true" className="mt-0.5 h-1 overflow-hidden rounded-full bg-papeliz-surface-gray">
+                                          <span className="block h-full rounded-full bg-papeliz-blue transition-[width] duration-300" style={{ width: `${syncDownloadPercent ?? 0}%` }} />
+                                        </span>
                                       </>
                                     )}
                                   </span>
-                                </span>
-                                <span className="flex-none text-[11.5px] text-papeliz-ink-subtle">{describeTimeSince(recentVault.papelizVaultLastOpenedAt)}</span>
-                              </button>
-                              <PapelizIconButton
-                                iconButtonLabel={`Hide ${recentVault.papelizVaultDisplayName}`}
-                                iconButtonSize="small"
-                                className="mr-2.5 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 max-md:opacity-100"
-                                onClick={() => setRecentVaultHidden(recentVault, true)}
-                              >
-                                <EyeOff className="size-[15px]" aria-hidden="true" />
-                              </PapelizIconButton>
-                            </li>
-                          ))}
+                                  {syncStartScreenDownload === undefined ? (
+                                    <span className="flex-none text-[11.5px] text-papeliz-ink-subtle">{describeTimeSince(recentVault.papelizVaultLastOpenedAt)}</span>
+                                  ) : (
+                                    !isSyncDownloadStopped &&
+                                    syncDownloadPercent !== null && <span className="flex-none text-[11.5px] text-papeliz-ink-subtle tabular-nums">{syncDownloadPercent}%</span>
+                                  )}
+                                </button>
+                                {isSyncDownloadStopped ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => void retryPapelizSyncStartScreenDownload(recentVault.papelizVaultId)}
+                                    className="mr-2.5 inline-flex h-7 flex-none items-center gap-1.5 rounded-full border border-papeliz-line-strong px-3 text-[12.5px] font-semibold text-papeliz-ink hover:bg-papeliz-hover"
+                                  >
+                                    <RotateCcw className="size-3.5" aria-hidden="true" />
+                                    Try again
+                                  </button>
+                                ) : (
+                                  syncStartScreenDownload === undefined && (
+                                    <PapelizIconButton
+                                      iconButtonLabel={`Hide ${recentVault.papelizVaultDisplayName}`}
+                                      iconButtonSize="small"
+                                      className="mr-2.5 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 max-md:opacity-100"
+                                      onClick={() => setRecentVaultHidden(recentVault, true)}
+                                    >
+                                      <EyeOff className="size-[15px]" aria-hidden="true" />
+                                    </PapelizIconButton>
+                                  )
+                                )}
+                              </li>
+                            )
+                          })}
                     </ul>
                   )}
                 </div>

@@ -134,8 +134,9 @@ const papelizNewVaultPlaceComparisonRows: readonly PapelizNewVaultPlaceCompariso
   },
 ]
 
-// Cancel and the action: flat, square-cornered and one width (the footer's ref sets it).
-const newVaultFormFooterButtonClassName =
+// Cancel and the action: flat, square-cornered and one width (the footer's ref sets it). Fetch from
+// Sync's page uses the same.
+export const newVaultFormFooterButtonClassName =
   'inline-flex h-8 flex-none items-center justify-center gap-1.5 rounded-md border border-black/10 px-3 text-[13px] font-medium whitespace-nowrap text-white transition-[filter,transform] duration-150 ease-out hover:brightness-[.94] active:scale-[.99] disabled:pointer-events-none disabled:opacity-50'
 
 interface PapelizNewVaultFormProps {
