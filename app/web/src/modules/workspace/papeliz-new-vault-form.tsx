@@ -121,9 +121,10 @@ const papelizNewVaultPlaceComparisonRows: readonly PapelizNewVaultPlaceCompariso
         ],
       },
       'browser-vault-in-opfs': {
-        comparisonCellText: 'Most browsers and phones',
+        comparisonCellText: 'Most browsers, incl. non-Chromium',
         comparisonCellInfoTipTitle: 'Works almost everywhere',
         comparisonCellInfoTipLines: [
+          'Chromium-based browsers like Chrome, Edge and Brave, and non-Chromium based browsers like Firefox and Safari.',
           'Chrome and Edge 103, Firefox 113 and Safari 16.4 or later, on computers and phones.',
           'Each browser keeps its own vaults: another browser on this device can’t see them.',
         ],
