@@ -66,22 +66,22 @@ interface PapelizNewVaultPlaceComparisonRow {
 // that explains it.
 const papelizNewVaultPlaceComparisonRows: readonly PapelizNewVaultPlaceComparisonRow[] = [
   {
-    comparisonRowLabel: 'Your files',
+    comparisonRowLabel: 'Saved in',
     comparisonRowCellByPlace: {
       'folder-on-disk': {
-        comparisonCellText: 'Open in any Markdown app',
-        comparisonCellInfoTipTitle: 'Plain Markdown files',
+        comparisonCellText: 'A folder on your computer',
+        comparisonCellInfoTipTitle: 'A folder you choose',
         comparisonCellInfoTipLines: [
-          'Each note is a .md file in the folder you pick.',
-          'Any Markdown app, sync service or backup tool can use them too.',
+          'Each note is saved as a file in that folder.',
+          'You can see, copy and back up the folder like any other.',
         ],
       },
       'browser-vault-in-opfs': {
-        comparisonCellText: 'Only inside Papeliz',
-        comparisonCellInfoTipTitle: 'Private to this browser',
+        comparisonCellText: 'This browser',
+        comparisonCellInfoTipTitle: 'Inside this browser',
         comparisonCellInfoTipLines: [
-          'Notes are stored in this browser’s private storage for Papeliz, not in a folder you can see.',
-          'To use them anywhere else, download a backup: a .zip of your Markdown files.',
+          'Your notes are kept in this browser’s own storage, not in a folder you can see.',
+          'Only this browser on this device has them.',
         ],
       },
     },
