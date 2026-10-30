@@ -29,7 +29,7 @@ const papelizNewVaultPlaceDescriptions: readonly PapelizNewVaultPlaceDescription
   {
     newVaultPlace: 'folder-on-disk',
     NewVaultPlaceIcon: FolderOpen,
-    newVaultPlaceTitle: 'Folders on Disk',
+    newVaultPlaceTitle: 'Folder Storage',
     newVaultPlaceBadgeText: 'Recommended',
     newVaultPlaceBadgeTone: 'recommended',
     newVaultPlaceLine: 'Stores your notes in a folder on your machine',

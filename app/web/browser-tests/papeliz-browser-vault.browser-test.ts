@@ -69,7 +69,7 @@ test('the start page offers browser vaults, and no folder actions that can’t w
 test('a new browser vault keeps its notes across a reload', async ({ page }) => {
   await page.getByRole('button', { name: /^New Vault/ }).click()
   // New Vault's form takes Recent Vaults' place in the start card. Where folders work it starts on
-  // Folders on Disk; elsewhere that card is off and Browser Storage is chosen already.
+  // Folder Storage; elsewhere that card is off and Browser Storage is chosen already.
   const newVaultForm = page.getByRole('region', { name: 'New Vault' })
   if (await isFolderOnDiskOffered(page)) await newVaultForm.getByRole('radio', { name: /^Browser Storage/ }).click()
   await newVaultForm.getByLabel('Name').fill('Field Notes')

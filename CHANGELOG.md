@@ -13,7 +13,7 @@ from the plan to the launch. The website's Changelog page shows the same list.
 - The Export page lists Word, PDF and HTML as rows; PDF is coming soon.
 - Every Mermaid diagram type draws and reads well in light and dark, on phones, and in HTML and
   Word exports. Wide diagrams scroll sideways instead of shrinking.
-- New Vault opens on the start page itself: choose Folders on Disk or Browser Storage, with a
+- New Vault opens on the start page itself: choose Folder Storage or Browser Storage, with a
   table that compares them.
 - Import Vault leaves the start page. Importing a .zip into the open vault, from the file list,
   comes next.

@@ -80,7 +80,7 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
       helpSection('Start a new vault', [
         helpNumberedSteps([
           'On the start page, choose **New Vault**. It opens where **Recent Vaults** was.',
-          'Choose where to keep it: **Folders on Disk** or **Browser Storage**. The table under them compares the two. In Firefox, Safari and phone browsers, **Folders on Disk** shows **Off in this browser** and **Browser Storage** is chosen.',
+          'Choose where to keep it: **Folder Storage** or **Browser Storage**. The table under them compares the two. In Firefox, Safari and phone browsers, **Folder Storage** shows **Off in this browser** and **Browser Storage** is chosen.',
           'For a folder, choose **Pick Folder**, pick or create an empty folder, and allow editing when the browser asks. For the browser, type a name and choose **Create Vault**.',
           'Papeliz starts your first note, named and ready to write in.',
         ]),
@@ -245,7 +245,7 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
       ]),
       helpSection('Folders on your disk', [
         helpParagraph(
-          'Opening a real folder needs the File System Access API, which only Chrome and Edge on a computer support. There, **New Vault** offers **Folders on Disk** or **Browser Storage**, and **Open Vault** opens a folder you already have.',
+          'Opening a real folder needs the File System Access API, which only Chrome and Edge on a computer support. There, **New Vault** offers **Folder Storage** or **Browser Storage**, and **Open Vault** opens a folder you already have.',
         ),
         helpParagraph(
           'Firefox, Safari and phone browsers can’t open a folder on your disk. Their start page offers **New Vault**, which keeps the vault in the browser, and **Try Sample**, without **Open Vault**.',
