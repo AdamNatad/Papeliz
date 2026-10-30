@@ -122,9 +122,9 @@ const papelizNewVaultPlaceComparisonRows: readonly PapelizNewVaultPlaceCompariso
       },
       'browser-vault-in-opfs': {
         comparisonCellText: 'Most Browsers',
-        comparisonCellInfoTipTitle: 'Works almost everywhere',
+        comparisonCellInfoTipTitle: 'Made for Non-Chromium Based Browsers',
         comparisonCellInfoTipLines: [
-          'Chromium-based browsers like Chrome, Edge and Brave, and Non-Chromium Based browsers like Firefox and Safari.',
+          'Non-Chromium Based Browsers like Firefox and Safari can’t open folders, so they keep vaults here. Chrome, Edge and Brave can use it too.',
           'It uses OPFS (Origin Private File System): a private storage area the browser gives each website. Only Papeliz can read it, and it doesn’t show up as a folder on your computer.',
           'Chrome and Edge 103, Firefox 113 and Safari 16.4 or later, on computers and phones.',
           'Each browser keeps its own vaults: another browser on this device can’t see them.',
