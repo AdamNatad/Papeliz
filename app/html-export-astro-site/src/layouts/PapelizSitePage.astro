@@ -1,0 +1,85 @@
+---
+// The page every note of the website uses, and its home page. Papeliz fills this same page in the
+// browser when it exports a website, so a site you build here looks like the one Papeliz made.
+//
+// Everything the page loads sits in public/papeliz-site/ and is linked with relative paths
+// (siteRootHref is "../" once per folder), and every script is a plain script: the site then works
+// opened straight from disk, and on any web host, at any address.
+interface Props {
+  pageLanguage: string
+  // The browser tab's title.
+  pageTitle: string
+  siteName: string
+  // From this page to the site's root folder: "" on the home page, "../" one folder down.
+  siteRootHref: string
+  // This page's path from the root ("projects/launch-plan.html"), so the folder list can mark it.
+  sitePagePath: string
+  // This page as Markdown ("launch-plan.md"), for search engines and AI tools.
+  markdownTwinHref: string
+  // The note, as HTML Papeliz rendered from it.
+  pageArticleHtml: string
+}
+
+const { pageLanguage, pageTitle, siteName, siteRootHref, sitePagePath, markdownTwinHref, pageArticleHtml } = Astro.props
+---
+
+<!doctype html>
+<html lang={pageLanguage} data-papeliz-site-root-href={siteRootHref} data-papeliz-site-page-path={sitePagePath}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="generator" content="Papeliz" />
+    <title>{pageTitle}</title>
+    <link rel="alternate" type="text/markdown" href={markdownTwinHref} />
+    <link rel="stylesheet" href={`${siteRootHref}papeliz-site/papeliz-md-view.css`} />
+    <link rel="stylesheet" href={`${siteRootHref}papeliz-site/papeliz-site.css`} />
+    <script is:inline src={`${siteRootHref}papeliz-site/papeliz-site-theme-boot.js`}></script>
+  </head>
+  <body>
+    <a class="papeliz-site-skip-link" href="#papeliz-site-main">Skip to the note</a>
+    <header class="papeliz-site-topbar">
+      <button class="papeliz-site-menu-button" type="button" aria-label="Notes" aria-controls="papeliz-site-navigation" aria-expanded="false" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16"></path><path d="M4 12h16"></path><path d="M4 19h16"></path></svg>
+      </button>
+      <a class="papeliz-site-name" href={`${siteRootHref}index.html`}>{siteName}</a>
+      <div class="papeliz-site-search" role="search" hidden>
+        <svg class="papeliz-site-search-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21 21-4.34-4.34"></path><circle cx="11" cy="11" r="8"></circle></svg>
+        <input
+          class="papeliz-site-search-field"
+          type="search"
+          placeholder="Search notes"
+          aria-label="Search notes"
+          autocomplete="off"
+          spellcheck="false"
+          role="combobox"
+          aria-expanded="false"
+          aria-controls="papeliz-site-search-results"
+          aria-autocomplete="list"
+        />
+        <div id="papeliz-site-search-results" class="papeliz-site-search-results" role="listbox" aria-label="Search results" hidden></div>
+      </div>
+      <div class="papeliz-site-theme-switch" role="group" aria-label="Theme" hidden>
+        <button type="button" data-papeliz-site-theme-choice="light" aria-label="Light" title="Light" aria-pressed="false">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2"></path><path d="M12 20v2"></path><path d="m4.93 4.93 1.41 1.41"></path><path d="m17.66 17.66 1.41 1.41"></path><path d="M2 12h2"></path><path d="M20 12h2"></path><path d="m6.34 17.66-1.41 1.41"></path><path d="m19.07 4.93-1.41 1.41"></path></svg>
+        </button>
+        <button type="button" data-papeliz-site-theme-choice="dark" aria-label="Dark" title="Dark" aria-pressed="false">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"></path></svg>
+        </button>
+        <button type="button" data-papeliz-site-theme-choice="device" aria-label="Match this device" title="Match this device" aria-pressed="false">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="14" x="2" y="3" rx="2"></rect><line x1="8" x2="16" y1="21" y2="21"></line><line x1="12" x2="12" y1="17" y2="21"></line></svg>
+        </button>
+      </div>
+    </header>
+    <div class="papeliz-site-layout">
+      <nav id="papeliz-site-navigation" class="papeliz-site-navigation" aria-label="Notes">
+        <a class="papeliz-site-navigation-home" href={`${siteRootHref}index.html`}>All notes</a>
+      </nav>
+      <main id="papeliz-site-main" class="papeliz-site-main">
+        <Fragment set:html={pageArticleHtml} />
+      </main>
+    </div>
+    <footer class="papeliz-site-footer">Made with <a href="https://papeliz.com" rel="noopener">Papeliz</a></footer>
+    <script is:inline src={`${siteRootHref}papeliz-site/papeliz-site-navigation.js`}></script>
+    <script is:inline src={`${siteRootHref}papeliz-site/papeliz-site.js`}></script>
+  </body>
+</html>

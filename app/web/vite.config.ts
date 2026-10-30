@@ -1,7 +1,8 @@
 /// <reference types="vitest/config" />
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
-import { defineConfig, type Plugin } from 'vite'
+import { build as buildWithVite, defineConfig, type Plugin } from 'vite'
+import { papelizHtmlExportCorePlugin } from '../../build_tools/webapp/papeliz-html-export-core-vite-plugin.mjs'
 
 // The built app's Content-Security-Policy. The user's API keys live in this origin, so: scripts only
 // from the app itself, no plugins or frames. Network calls go to the app, to any https host (the
@@ -43,15 +44,15 @@ function papelizContentSecurityPolicyPlugin(): Plugin {
 export default defineConfig(({ command }) => ({
   base: command === 'build' ? '/app/' : '/',
   build: { outDir: 'dist/app' },
-  plugins: [react(), tailwindcss(), papelizContentSecurityPolicyPlugin()],
+  plugins: [react(), tailwindcss(), papelizContentSecurityPolicyPlugin(), papelizHtmlExportCorePlugin(buildWithVite)],
   server: {
     host: '127.0.0.1',
     port: 14201,
     strictPort: true,
   },
-  // The HTML export reads two stylesheets as text (`?raw`): MD View's look and the exported page's
-  // own. Vitest blanks stylesheets unless they are listed here.
+  // The HTML export reads stylesheets as text (`?raw`): MD View's look, the export's own and the
+  // exported website's. Vitest blanks stylesheets unless they are listed here.
   test: {
-    css: { include: [/papeliz-webapp\.css/, /papeliz-html-export-one-note-page\.css/] },
+    css: { include: [/papeliz-webapp\.css/, /papeliz-html-export-[\w-]+\.css/, /papeliz-site\.css/] },
   },
 }))

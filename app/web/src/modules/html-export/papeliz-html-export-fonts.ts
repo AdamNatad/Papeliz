@@ -10,16 +10,20 @@ import jetBrainsMonoLatinExtended400NormalFontFileUrl from '@fontsource/jetbrain
 import jetBrainsMonoLatinExtended700NormalFontFileUrl from '@fontsource/jetbrains-mono/files/jetbrains-mono-latin-ext-700-normal.woff2?url'
 import type { PapelizNoteFontFamily } from '../workspace/papeliz-note-typography-store'
 
-// The app's own typefaces, carried inside an exported page so it reads as MD View does on any
-// computer: Figtree for Sans notes, JetBrains Mono for Mono notes and for code. Both are SIL OFL
-// 1.1, which allows this. Serif notes use the computer's serif, as MD View does. The browser takes
-// each file only for the characters in its range, as with the app's own font files.
+// The app's own typefaces, carried with an exported page so it reads as MD View does on any
+// computer: Figtree for Sans notes (and a website's own bar and lists), JetBrains Mono for Mono notes
+// and for code. Both are SIL OFL 1.1, which allows this. Serif notes use the computer's serif, as MD
+// View does. The browser takes each file only for the characters in its range, as with the app's
+// own font files.
 
 export interface PapelizHtmlExportFontFace {
   fontFamilyName: 'Figtree' | 'JetBrains Mono'
   fontWeight: 400 | 500 | 600 | 700
   fontUnicodeRange: string
+  // Where the app has the file (a build may have made a small one a `data:` URL).
   fontFileUrl: string
+  // Its name in an exported website's fonts folder.
+  fontFileName: string
 }
 
 // The ranges the font files cover, as their own stylesheets give them.
@@ -34,9 +38,16 @@ function createFontFacePair(
   latinFontFileUrl: string,
   latinExtendedFontFileUrl: string,
 ): PapelizHtmlExportFontFace[] {
+  const fontFileNamePrefix = fontFamilyName.toLowerCase().replace(/ /g, '-')
   return [
-    { fontFamilyName, fontWeight, fontUnicodeRange: papelizLatinFontUnicodeRange, fontFileUrl: latinFontFileUrl },
-    { fontFamilyName, fontWeight, fontUnicodeRange: papelizLatinExtendedFontUnicodeRange, fontFileUrl: latinExtendedFontFileUrl },
+    { fontFamilyName, fontWeight, fontUnicodeRange: papelizLatinFontUnicodeRange, fontFileUrl: latinFontFileUrl, fontFileName: `${fontFileNamePrefix}-latin-${fontWeight}.woff2` },
+    {
+      fontFamilyName,
+      fontWeight,
+      fontUnicodeRange: papelizLatinExtendedFontUnicodeRange,
+      fontFileUrl: latinExtendedFontFileUrl,
+      fontFileName: `${fontFileNamePrefix}-latin-ext-${fontWeight}.woff2`,
+    },
   ]
 }
 
@@ -49,13 +60,19 @@ const papelizFigtreeFontFaces = [
 const papelizJetBrainsMonoRegularFontFaces = createFontFacePair('JetBrains Mono', 400, jetBrainsMonoLatin400NormalFontFileUrl, jetBrainsMonoLatinExtended400NormalFontFileUrl)
 const papelizJetBrainsMonoBoldFontFaces = createFontFacePair('JetBrains Mono', 700, jetBrainsMonoLatin700NormalFontFileUrl, jetBrainsMonoLatinExtended700NormalFontFileUrl)
 
-export function choosePapelizHtmlExportFontFaces(noteFontFamily: PapelizNoteFontFamily, hasCodeText: boolean): PapelizHtmlExportFontFace[] {
-  if (noteFontFamily === 'mono') return [...papelizJetBrainsMonoRegularFontFaces, ...papelizJetBrainsMonoBoldFontFaces]
-  const noteFontFaces = noteFontFamily === 'sans' ? papelizFigtreeFontFaces : []
-  return hasCodeText ? [...noteFontFaces, ...papelizJetBrainsMonoRegularFontFaces] : noteFontFaces
+export interface PapelizHtmlExportFontNeeds {
+  hasCodeText: boolean
+  // A website's bar, lists and search are set in Figtree whatever the note font.
+  hasSiteChrome: boolean
 }
 
-export type PapelizHtmlExportFontFileDataUrlReader = (fontFileUrl: string) => Promise<string>
+export function choosePapelizHtmlExportFontFaces(noteFontFamily: PapelizNoteFontFamily, { hasCodeText, hasSiteChrome }: PapelizHtmlExportFontNeeds): PapelizHtmlExportFontFace[] {
+  const figtreeFontFaces = noteFontFamily === 'sans' || hasSiteChrome ? papelizFigtreeFontFaces : []
+  if (noteFontFamily === 'mono') return [...figtreeFontFaces, ...papelizJetBrainsMonoRegularFontFaces, ...papelizJetBrainsMonoBoldFontFaces]
+  return hasCodeText ? [...figtreeFontFaces, ...papelizJetBrainsMonoRegularFontFaces] : figtreeFontFaces
+}
+
+export type PapelizHtmlExportFontFileReader = (fontFileUrl: string) => Promise<Uint8Array>
 
 export function encodePapelizBytesAsBase64(fileBytes: Uint8Array): string {
   const base64ChunkByteCount = 0x8000
@@ -66,34 +83,36 @@ export function encodePapelizBytesAsBase64(fileBytes: Uint8Array): string {
   return btoa(binaryText)
 }
 
-// In the app: the same font files its own stylesheet loads, so they usually come from the cache.
-// The build may already have made a small file a `data:` URL.
-export async function readPapelizHtmlExportFontFileDataUrl(fontFileUrl: string): Promise<string> {
-  if (fontFileUrl.startsWith('data:')) return fontFileUrl
+// In the app: the same font files its own stylesheet loads, so they usually come from the cache. A
+// file the build made a `data:` URL is decoded here, since the app's Content-Security-Policy keeps
+// `fetch` from reading `data:` URLs.
+export async function readPapelizHtmlExportFontFileBytes(fontFileUrl: string): Promise<Uint8Array> {
+  if (fontFileUrl.startsWith('data:')) {
+    return Uint8Array.from(atob(fontFileUrl.slice(fontFileUrl.indexOf(',') + 1)), (binaryCharacter) => binaryCharacter.charCodeAt(0))
+  }
   const fontFileResponse = await fetch(fontFileUrl)
   if (!fontFileResponse.ok) throw new Error(`The font file ${fontFileUrl} could not be read (${fontFileResponse.status}).`)
-  return `data:font/woff2;base64,${encodePapelizBytesAsBase64(new Uint8Array(await fontFileResponse.arrayBuffer()))}`
+  return new Uint8Array(await fontFileResponse.arrayBuffer())
 }
 
-export async function buildPapelizHtmlExportFontFaceCss(
+// `@font-face` rules, each pointing at the address `getFontFaceSourceUrl` gives its file: a `data:`
+// URL inside a one-note page, or `fonts/…` in a website.
+export function buildPapelizHtmlExportFontFaceCss(
   htmlExportFontFaces: readonly PapelizHtmlExportFontFace[],
-  readHtmlExportFontFileDataUrl: PapelizHtmlExportFontFileDataUrlReader,
-): Promise<string> {
-  const fontFaceRules: string[] = []
-  for (const htmlExportFontFace of htmlExportFontFaces) {
-    const fontFileDataUrl = await readHtmlExportFontFileDataUrl(htmlExportFontFace.fontFileUrl)
-    fontFaceRules.push(
+  getFontFaceSourceUrl: (htmlExportFontFace: PapelizHtmlExportFontFace) => string,
+): string {
+  return htmlExportFontFaces
+    .map((htmlExportFontFace) =>
       [
         '@font-face {',
         `  font-family: '${htmlExportFontFace.fontFamilyName}';`,
         '  font-style: normal;',
         '  font-display: swap;',
         `  font-weight: ${htmlExportFontFace.fontWeight};`,
-        `  src: url(${fontFileDataUrl}) format('woff2');`,
+        `  src: url(${getFontFaceSourceUrl(htmlExportFontFace)}) format('woff2');`,
         `  unicode-range: ${htmlExportFontFace.fontUnicodeRange};`,
         '}',
       ].join('\n'),
     )
-  }
-  return fontFaceRules.join('\n\n')
+    .join('\n\n')
 }

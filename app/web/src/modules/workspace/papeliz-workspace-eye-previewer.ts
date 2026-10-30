@@ -124,6 +124,12 @@ class PapelizWorkspaceEyePreviewerVaultAdapter implements PapelizVaultAdapter {
   createVaultAttachmentFile(vaultAttachmentFileRelativePath: string, vaultAttachmentFileBlob: Blob) {
     return this.inMemoryVaultAdapter.createVaultAttachmentFile(vaultAttachmentFileRelativePath, vaultAttachmentFileBlob)
   }
+  listVaultAttachmentFileRelativePaths() {
+    return this.inMemoryVaultAdapter.listVaultAttachmentFileRelativePaths()
+  }
+  readVaultAttachmentFileBlob(vaultAttachmentFileRelativePath: string) {
+    return this.inMemoryVaultAdapter.readVaultAttachmentFileBlob(vaultAttachmentFileRelativePath)
+  }
   renameVaultEntry(fromVaultEntryRelativePath: string, toVaultEntryRelativePath: string) {
     return this.inMemoryVaultAdapter.renameVaultEntry(fromVaultEntryRelativePath, toVaultEntryRelativePath)
   }

@@ -1,0 +1,10 @@
+---
+// The home page: the site's name and every note, folder by folder.
+import PapelizSitePage from '../layouts/PapelizSitePage.astro'
+import { loadPapelizSiteContent } from '../papeliz/papeliz-site-content.mjs'
+
+const papelizSiteContent = await loadPapelizSiteContent()
+const homeSitePageFile = papelizSiteContent.sitePageFiles.find((sitePageFile) => sitePageFile.sitePageFilePath === 'index.html')
+---
+
+<PapelizSitePage {...homeSitePageFile.sitePageValues} />

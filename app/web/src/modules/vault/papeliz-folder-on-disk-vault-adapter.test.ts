@@ -136,4 +136,11 @@ describe('a folder on disk', () => {
     expect(vaultFolderContents['Ideas/sketch.png']).toBe('png bytes')
     expect(Object.keys(vaultFolderContents).some((vaultRelativePath) => vaultRelativePath.startsWith('Projects'))).toBe(false)
   })
+
+  it('lists and reads the files that aren’t notes, leaving out hidden folders', async () => {
+    const { folderVaultAdapter } = await createTestFolderVault()
+    expect(await folderVaultAdapter.listVaultAttachmentFileRelativePaths()).toEqual(['Ideas/sketch.png'])
+    expect(await (await folderVaultAdapter.readVaultAttachmentFileBlob('Ideas/sketch.png')).text()).toBe('png bytes')
+    await expect(folderVaultAdapter.readVaultAttachmentFileBlob('Ideas/missing.png')).rejects.toThrow()
+  })
 })

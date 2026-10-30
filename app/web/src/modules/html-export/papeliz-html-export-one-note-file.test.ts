@@ -6,8 +6,8 @@ import { buildPapelizOneNoteHtmlExportFile, getPapelizHtmlExportFileNameForNote,
 
 const sampleVaultResolveWikilinkTarget = createPapelizWikilinkTargetResolver(papelizSampleVaultNotes.map((sampleVaultNote) => sampleVaultNote.vaultNoteRelativePath))
 
-// Stands in for the browser's font files: each file's data URL names the file it came from.
-const readTestFontFileDataUrl = async (fontFileUrl: string) => `data:font/woff2;base64,${btoa(fontFileUrl.split('/').pop() ?? '')}`
+// Stands in for the browser's font files: each file's bytes are the name of the file they came from.
+const readTestFontFileBytes = async (fontFileUrl: string) => new TextEncoder().encode(fontFileUrl.split('/').pop() ?? '')
 
 function exportTestNote(vaultNoteRelativePath: string, vaultNoteText: string, exportOptionChanges: Partial<PapelizOneNoteHtmlExportOptions> = {}) {
   return buildPapelizOneNoteHtmlExportFile({
@@ -16,7 +16,9 @@ function exportTestNote(vaultNoteRelativePath: string, vaultNoteText: string, ex
     resolveWikilinkTarget: sampleVaultResolveWikilinkTarget,
     htmlExportNoteTypography: papelizDefaultNoteTypography,
     drawHtmlExportMermaidDiagramSvg: async (_mermaidDiagramSource, htmlExportTheme) => ({ mermaidDiagramSvgText: `<svg id="test-${htmlExportTheme}"></svg>` }),
-    readHtmlExportFontFileDataUrl: readTestFontFileDataUrl,
+    readHtmlExportFontFileBytes: readTestFontFileBytes,
+    htmlExportVaultAttachmentFileRelativePaths: ['Projects/plan.png', 'files/brief.pdf'],
+    readHtmlExportVaultFileBytes: async (vaultFileRelativePath) => new TextEncoder().encode(`bytes of ${vaultFileRelativePath}`),
     ...exportOptionChanges,
   })
 }
@@ -63,6 +65,20 @@ describe('a one-note HTML export', () => {
     })
     expect(serifExport.htmlExportFileText).toContain('--papeliz-note-font-family: var(--font-serif);\n  --papeliz-note-font-size: 20px;\n  --papeliz-note-column-width: 100%;')
     expect(readEmbeddedFontFileNames(serifExport.htmlExportFileText)).toEqual([])
+  })
+
+  it('carries the vault’s pictures inside the page, and leaves links to other files as text', async () => {
+    const { htmlExportFileText } = await exportTestNote('Projects/Launch plan.md', '![[plan.png|200]] ![Plan](plan.png) [[brief.pdf]]')
+    const pictureDataUrl = `data:image/png;base64,${btoa('bytes of Projects/plan.png')}`
+    expect(htmlExportFileText).toContain(`<img src="${pictureDataUrl}" alt="plan.png" loading="lazy" width="200">`)
+    expect(htmlExportFileText).toContain(`<img src="${pictureDataUrl}" alt="Plan" loading="lazy">`)
+    expect(htmlExportFileText).toContain('title="“brief.pdf” isn’t in this export">brief.pdf</a>')
+    const unreadableExport = await exportTestNote('Projects/Launch plan.md', '![Plan](plan.png)', {
+      readHtmlExportVaultFileBytes: async () => {
+        throw new Error('gone')
+      },
+    })
+    expect(unreadableExport.htmlExportFileText).toContain('<span class="papeliz-md-view-image-placeholder">Image: Plan</span>')
   })
 
   it('takes the page language from the note’s lang property', async () => {

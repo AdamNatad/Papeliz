@@ -4,10 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "astro dev",
-    "build": "astro build",
-    "preview": "astro preview",
-    "page-shell": "node scripts/papeliz-html-export-site-page-shell-write.mjs"
+    "page-shell": "node scripts/papeliz-html-export-site-page-shell-write.mjs",
+    "parity-check": "node scripts/papeliz-html-export-parity-check.mjs"
   },
   "devDependencies": {
     "astro": "7.4.2"

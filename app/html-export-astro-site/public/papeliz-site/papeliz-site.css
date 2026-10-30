@@ -1,0 +1,475 @@
+/* The website around the notes: a blue top bar with the site's name, search and theme switch, the
+   folder list on the left (a drawer on phones), and the note in MD View's column. Colors come from
+   papeliz-md-view.css, the same tokens Papeliz uses, in the light and dark themes. */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  scroll-padding-top: 72px;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-papeliz-surface);
+  color: var(--color-papeliz-ink);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-papeliz-blue);
+  outline-offset: 2px;
+}
+
+.papeliz-site-skip-link {
+  position: absolute;
+  left: 12px;
+  top: -48px;
+  z-index: 30;
+  padding: 8px 14px;
+  border-radius: 9999px;
+  background: var(--color-papeliz-surface);
+  color: var(--color-papeliz-blue);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.papeliz-site-skip-link:focus {
+  top: 10px;
+}
+
+/* The top bar */
+
+.papeliz-site-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 56px;
+  padding: 0 16px 0 20px;
+  background: var(--color-papeliz-topbar);
+  color: #ffffff;
+}
+
+.papeliz-site-topbar :focus-visible {
+  outline-color: #ffffff;
+}
+
+.papeliz-site-name {
+  flex: none;
+  max-width: 40vw;
+  overflow: hidden;
+  color: #ffffff;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.papeliz-site-name:hover {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.papeliz-site-menu-button {
+  flex: none;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  margin-left: -8px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.papeliz-site-menu-button:hover {
+  background: rgb(255 255 255 / 0.14);
+}
+
+.papeliz-site-search {
+  position: relative;
+  flex: 1;
+  max-width: 440px;
+  margin-left: auto;
+}
+
+.papeliz-site-search[hidden],
+.papeliz-site-theme-switch[hidden] {
+  display: none;
+}
+
+.papeliz-site-search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-papeliz-ink-subtle);
+  pointer-events: none;
+}
+
+.papeliz-site-search-field {
+  width: 100%;
+  height: 36px;
+  padding: 0 12px 0 36px;
+  border: 0;
+  border-radius: 9999px;
+  background: var(--color-papeliz-surface);
+  color: var(--color-papeliz-ink);
+  font: inherit;
+  font-size: 14px;
+}
+
+.papeliz-site-search-field::placeholder {
+  color: var(--color-papeliz-ink-subtle);
+}
+
+.papeliz-site-search-field::-webkit-search-cancel-button {
+  cursor: pointer;
+}
+
+.papeliz-site-search-results {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  min-width: min(420px, calc(100vw - 32px));
+  max-height: min(70vh, 520px);
+  overflow-y: auto;
+  padding: 6px;
+  border: 1px solid var(--color-papeliz-line);
+  border-radius: 16px;
+  background: var(--color-papeliz-surface);
+  box-shadow: var(--shadow-papeliz-pop);
+  color: var(--color-papeliz-ink);
+}
+
+.papeliz-site-search-result {
+  display: block;
+  padding: 9px 12px;
+  border-radius: 10px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.papeliz-site-search-result:hover,
+.papeliz-site-search-result[aria-selected='true'] {
+  background: var(--color-papeliz-chosen-row-ground);
+}
+
+.papeliz-site-search-result-title {
+  display: block;
+  font-weight: 600;
+}
+
+.papeliz-site-search-result-folder {
+  display: block;
+  color: var(--color-papeliz-ink-subtle);
+  font-size: 12.5px;
+}
+
+.papeliz-site-search-result-snippet {
+  display: block;
+  margin-top: 2px;
+  color: var(--color-papeliz-ink-muted);
+  font-size: 13px;
+}
+
+.papeliz-site-search-result mark {
+  border-radius: 3px;
+  background: var(--color-papeliz-search-match);
+  color: inherit;
+}
+
+.papeliz-site-search-empty {
+  margin: 0;
+  padding: 12px;
+  color: var(--color-papeliz-ink-muted);
+  font-size: 14px;
+}
+
+.papeliz-site-theme-switch {
+  flex: none;
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 9999px;
+  background: rgb(255 255 255 / 0.14);
+}
+
+.papeliz-site-theme-switch button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 9999px;
+  background: transparent;
+  color: rgb(255 255 255 / 0.9);
+  cursor: pointer;
+}
+
+.papeliz-site-theme-switch button:hover {
+  background: rgb(255 255 255 / 0.14);
+}
+
+.papeliz-site-theme-switch button[aria-pressed='true'] {
+  background: #ffffff;
+  color: var(--color-papeliz-topbar);
+}
+
+/* The folder list and the note */
+
+.papeliz-site-layout {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+}
+
+.papeliz-site-navigation {
+  position: sticky;
+  top: 56px;
+  align-self: start;
+  height: calc(100vh - 56px);
+  overflow-y: auto;
+  padding: 18px 12px 32px;
+  border-right: 1px solid var(--color-papeliz-line);
+  background: var(--color-papeliz-surface-soft);
+  font-size: 14px;
+}
+
+.papeliz-site-navigation-home {
+  display: block;
+  padding: 6px 10px;
+  border-radius: 9px;
+  color: var(--color-papeliz-ink);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.papeliz-site-navigation-home:hover,
+.papeliz-site-tree a:hover,
+.papeliz-site-tree summary:hover {
+  background: var(--color-papeliz-hover);
+}
+
+.papeliz-site-navigation-home[aria-current='page'],
+.papeliz-site-tree a[aria-current='page'] {
+  background: var(--color-papeliz-chosen-row-ground);
+  color: var(--color-papeliz-chosen-row-ink);
+  font-weight: 600;
+}
+
+.papeliz-site-tree,
+.papeliz-site-tree ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.papeliz-site-tree {
+  margin-top: 6px;
+}
+
+.papeliz-site-tree ul {
+  margin-left: 14px;
+  padding-left: 8px;
+  border-left: 1px solid var(--color-papeliz-line);
+}
+
+.papeliz-site-tree a,
+.papeliz-site-tree summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 4px 10px;
+  border-radius: 9px;
+  color: var(--color-papeliz-ink-muted);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.papeliz-site-tree summary {
+  color: var(--color-papeliz-ink);
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+
+.papeliz-site-tree summary::-webkit-details-marker {
+  display: none;
+}
+
+.papeliz-site-tree summary svg {
+  flex: none;
+  color: var(--color-papeliz-ink-subtle);
+  transition: transform 150ms var(--ease-papeliz-out);
+}
+
+.papeliz-site-tree details[open] > summary svg {
+  transform: rotate(90deg);
+}
+
+.papeliz-site-main {
+  min-width: 0;
+  padding: 48px 32px 80px;
+}
+
+.papeliz-site-page-folder {
+  max-width: var(--papeliz-note-column-width);
+  margin: 0 auto 10px;
+  color: var(--color-papeliz-ink-subtle);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.papeliz-site-index-count {
+  color: var(--color-papeliz-ink-muted);
+}
+
+.papeliz-site-footer {
+  padding: 18px 20px;
+  border-top: 1px solid var(--color-papeliz-line);
+  color: var(--color-papeliz-ink-subtle);
+  font-size: 13px;
+  text-align: center;
+}
+
+.papeliz-site-footer a {
+  color: var(--color-papeliz-blue);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.papeliz-site-footer a:hover {
+  text-decoration: underline;
+}
+
+/* Each diagram is drawn in both themes; the page shows the one for its theme. */
+.papeliz-html-export-mermaid-dark,
+:root[data-papeliz-site-theme='dark'] .papeliz-html-export-mermaid-light {
+  display: none;
+}
+
+:root[data-papeliz-site-theme='dark'] .papeliz-html-export-mermaid-dark {
+  display: block;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-papeliz-site-theme]) .papeliz-html-export-mermaid-light {
+    display: none;
+  }
+
+  :root:not([data-papeliz-site-theme]) .papeliz-html-export-mermaid-dark {
+    display: block;
+  }
+}
+
+/* Phones and narrow windows: the folder list is a drawer under the Notes button. */
+@media (max-width: 899px) {
+  .papeliz-site-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .papeliz-site-menu-button {
+    display: flex;
+  }
+
+  .papeliz-site-menu-button[hidden] {
+    display: none;
+  }
+
+  /* With the script on, the list becomes a drawer; without it, it stays above the note. */
+  .papeliz-site-has-drawer .papeliz-site-navigation {
+    position: fixed;
+    top: 56px;
+    left: 0;
+    bottom: 0;
+    z-index: 15;
+    width: min(320px, 86vw);
+    height: auto;
+    /* Browsers align fixed boxes too: the desktop list's `start` would shrink the drawer. */
+    align-self: stretch;
+    transform: translateX(-100%);
+    visibility: hidden;
+    transition:
+      transform 200ms var(--ease-papeliz-out),
+      visibility 200ms;
+    box-shadow: var(--shadow-papeliz-pop);
+  }
+
+  .papeliz-site-has-drawer.papeliz-site-drawer-open .papeliz-site-navigation {
+    transform: none;
+    visibility: visible;
+  }
+
+  .papeliz-site-navigation {
+    position: static;
+    height: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--color-papeliz-line);
+  }
+
+  .papeliz-site-main {
+    padding: 28px 18px 56px;
+  }
+}
+
+@media (max-width: 559px) {
+  .papeliz-site-topbar {
+    gap: 8px;
+    padding: 0 10px 0 16px;
+  }
+
+  .papeliz-site-name {
+    max-width: 28vw;
+    font-size: 16px;
+  }
+
+  .papeliz-site-theme-switch button {
+    width: 28px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .papeliz-site-navigation,
+  .papeliz-site-tree summary svg {
+    transition: none !important;
+  }
+}
+
+@media print {
+  .papeliz-site-topbar,
+  .papeliz-site-navigation,
+  .papeliz-site-footer,
+  .papeliz-site-skip-link {
+    display: none;
+  }
+
+  .papeliz-site-layout {
+    display: block;
+  }
+
+  .papeliz-site-main {
+    padding: 0;
+  }
+}

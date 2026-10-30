@@ -3,6 +3,7 @@ import {
   isPapelizVaultSettingsFileName,
   getVaultEntryName,
   getVaultEntryParentFolderRelativePath,
+  isVaultRelativePathHidden,
   isVaultRelativePathInsideFolder,
   isVaultRelativePathWritableByPapeliz,
   joinVaultRelativePath,
@@ -92,6 +93,16 @@ export class PapelizInMemoryVaultAdapter implements PapelizVaultAdapter {
   // A file written with `createVaultAttachmentFile`, or null.
   readVaultAttachmentFile(vaultAttachmentFileRelativePath: string): Blob | null {
     return this.vaultAttachmentFileBlobsByRelativePath.get(vaultAttachmentFileRelativePath) ?? null
+  }
+
+  async listVaultAttachmentFileRelativePaths(): Promise<string[]> {
+    return [...this.vaultAttachmentFileBlobsByRelativePath.keys()].filter((vaultAttachmentFileRelativePath) => !isVaultRelativePathHidden(vaultAttachmentFileRelativePath))
+  }
+
+  async readVaultAttachmentFileBlob(vaultAttachmentFileRelativePath: string): Promise<Blob> {
+    const vaultAttachmentFileBlob = this.vaultAttachmentFileBlobsByRelativePath.get(vaultAttachmentFileRelativePath)
+    if (vaultAttachmentFileBlob === undefined) throw new PapelizVaultOperationError('Not In Vault')
+    return vaultAttachmentFileBlob
   }
 
   async createVaultFolder(vaultFolderRelativePath: string): Promise<void> {

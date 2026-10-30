@@ -43,7 +43,12 @@ function readPapelizThemeColor(papelizColorVariableName: string, fallbackColor: 
   return getComputedStyle(document.documentElement).getPropertyValue(papelizColorVariableName).trim() || fallbackColor
 }
 
-function describePapelizMermaidSettings(shownTheme: PapelizShownTheme): Parameters<PapelizMermaidApi['initialize']>[0] {
+// `readThemeColor` gives a color token's value, or the fallback: the page's own colors on screen,
+// or a theme's colors for an export (drawPapelizMermaidDiagramSvgForExport).
+function describePapelizMermaidSettings(
+  shownTheme: PapelizShownTheme,
+  readThemeColor: (papelizColorVariableName: string, fallbackColor: string) => string = readPapelizThemeColor,
+): Parameters<PapelizMermaidApi['initialize']>[0] {
   const noteFontFamily = getComputedStyle(document.documentElement).getPropertyValue('--papeliz-note-font-family').trim() || 'sans-serif'
   const isDarkTheme = shownTheme === 'dark'
   return {
@@ -61,15 +66,15 @@ function describePapelizMermaidSettings(shownTheme: PapelizShownTheme): Paramete
       darkMode: isDarkTheme,
       fontFamily: noteFontFamily,
       fontSize: '15px',
-      background: readPapelizThemeColor('--color-papeliz-surface', isDarkTheme ? '#15161a' : '#ffffff'),
-      primaryColor: readPapelizThemeColor('--color-papeliz-blue-soft', isDarkTheme ? '#172a45' : '#eaf2fe'),
-      primaryBorderColor: readPapelizThemeColor('--color-papeliz-blue', isDarkTheme ? '#5ea2ff' : '#0064d4'),
-      primaryTextColor: readPapelizThemeColor('--color-papeliz-ink', isDarkTheme ? '#ececef' : '#111112'),
-      secondaryColor: readPapelizThemeColor('--color-papeliz-surface-gray', isDarkTheme ? '#282b31' : '#e8ebf0'),
-      tertiaryColor: readPapelizThemeColor('--color-papeliz-surface-soft', isDarkTheme ? '#1d1f24' : '#f2f4f7'),
-      lineColor: readPapelizThemeColor('--color-papeliz-ink-subtle', isDarkTheme ? '#959aa3' : '#686c73'),
-      edgeLabelBackground: readPapelizThemeColor('--color-papeliz-surface', isDarkTheme ? '#15161a' : '#ffffff'),
-      textColor: readPapelizThemeColor('--color-papeliz-ink', isDarkTheme ? '#ececef' : '#111112'),
+      background: readThemeColor('--color-papeliz-surface', isDarkTheme ? '#15161a' : '#ffffff'),
+      primaryColor: readThemeColor('--color-papeliz-blue-soft', isDarkTheme ? '#172a45' : '#eaf2fe'),
+      primaryBorderColor: readThemeColor('--color-papeliz-blue', isDarkTheme ? '#5ea2ff' : '#0064d4'),
+      primaryTextColor: readThemeColor('--color-papeliz-ink', isDarkTheme ? '#ececef' : '#111112'),
+      secondaryColor: readThemeColor('--color-papeliz-surface-gray', isDarkTheme ? '#282b31' : '#e8ebf0'),
+      tertiaryColor: readThemeColor('--color-papeliz-surface-soft', isDarkTheme ? '#1d1f24' : '#f2f4f7'),
+      lineColor: readThemeColor('--color-papeliz-ink-subtle', isDarkTheme ? '#959aa3' : '#686c73'),
+      edgeLabelBackground: readThemeColor('--color-papeliz-surface', isDarkTheme ? '#15161a' : '#ffffff'),
+      textColor: readThemeColor('--color-papeliz-ink', isDarkTheme ? '#ececef' : '#111112'),
     },
   }
 }
@@ -86,10 +91,8 @@ function shortenMermaidErrorMessage(mermaidError: unknown): string {
   return firstErrorLine.length > 160 ? `${firstErrorLine.slice(0, 157)}…` : firstErrorLine
 }
 
-function drawPapelizMermaidDiagramSvg(mermaidDiagramSource: string, shownTheme: PapelizShownTheme): Promise<PapelizMermaidDrawResult> {
-  const drawCacheKey = `${shownTheme}\n${mermaidDiagramSource}`
-  const cachedDrawResult = papelizMermaidDrawResultsByThemeAndSource.get(drawCacheKey)
-  if (cachedDrawResult !== undefined) return Promise.resolve(cachedDrawResult)
+// One draw, after every draw before it: Mermaid's settings are global.
+function queuePapelizMermaidDraw(mermaidDiagramSource: string, describeMermaidSettings: () => Parameters<PapelizMermaidApi['initialize']>[0]): Promise<PapelizMermaidDrawResult> {
   const queuedDraw = papelizMermaidDrawQueue.then(async (): Promise<PapelizMermaidDrawResult> => {
     let papelizMermaidApi: PapelizMermaidApi
     try {
@@ -100,7 +103,7 @@ function drawPapelizMermaidDiagramSvg(mermaidDiagramSource: string, shownTheme: 
     papelizMermaidDiagramCount += 1
     const mermaidDiagramElementId = `papeliz-mermaid-diagram-${papelizMermaidDiagramCount}`
     try {
-      papelizMermaidApi.initialize(describePapelizMermaidSettings(shownTheme))
+      papelizMermaidApi.initialize(describeMermaidSettings())
       const { svg: mermaidDiagramSvgText } = await papelizMermaidApi.render(mermaidDiagramElementId, mermaidDiagramSource)
       return { mermaidDiagramSvgText }
     } catch (mermaidError) {
@@ -110,7 +113,26 @@ function drawPapelizMermaidDiagramSvg(mermaidDiagramSource: string, shownTheme: 
     }
   })
   papelizMermaidDrawQueue = queuedDraw
-  return queuedDraw.then((drawResult) => {
+  return queuedDraw
+}
+
+// Draws a diagram for an exported page in a theme's colors, whatever the app shows; `readExportThemeColor`
+// gives a color token's value in that theme. Not kept in the on-screen cache.
+export function drawPapelizMermaidDiagramSvgForExport(
+  mermaidDiagramSource: string,
+  exportTheme: PapelizShownTheme,
+  readExportThemeColor: (papelizColorVariableName: string) => string | null,
+): Promise<PapelizMermaidDrawResult> {
+  return queuePapelizMermaidDraw(mermaidDiagramSource, () =>
+    describePapelizMermaidSettings(exportTheme, (papelizColorVariableName, fallbackColor) => readExportThemeColor(papelizColorVariableName) ?? fallbackColor),
+  )
+}
+
+function drawPapelizMermaidDiagramSvg(mermaidDiagramSource: string, shownTheme: PapelizShownTheme): Promise<PapelizMermaidDrawResult> {
+  const drawCacheKey = `${shownTheme}\n${mermaidDiagramSource}`
+  const cachedDrawResult = papelizMermaidDrawResultsByThemeAndSource.get(drawCacheKey)
+  if (cachedDrawResult !== undefined) return Promise.resolve(cachedDrawResult)
+  return queuePapelizMermaidDraw(mermaidDiagramSource, () => describePapelizMermaidSettings(shownTheme)).then((drawResult) => {
     if (papelizMermaidDrawResultsByThemeAndSource.size >= papelizMermaidDrawResultCacheLimit) {
       const oldestDrawCacheKey = papelizMermaidDrawResultsByThemeAndSource.keys().next().value
       if (oldestDrawCacheKey !== undefined) papelizMermaidDrawResultsByThemeAndSource.delete(oldestDrawCacheKey)

@@ -10,6 +10,7 @@ coverage/
 *.tsbuildinfo
 *.tgz
 /deploy/
+/app/html-export-astro-site/.papeliz-parity-check/
 
 # Tool caches
 .cache/

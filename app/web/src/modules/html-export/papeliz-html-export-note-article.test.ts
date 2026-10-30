@@ -1,6 +1,7 @@
 import { toHtml } from 'hast-util-to-html'
 import { describe, expect, it } from 'vitest'
 import { createPapelizWikilinkTargetResolver } from '../links/papeliz-wikilink-targets'
+import { createPapelizHtmlExportVaultFileResolver } from './papeliz-html-export-vault-files'
 import {
   buildPapelizHtmlExportNoteArticle,
   type PapelizHtmlExportMermaidDiagramDrawer,
@@ -26,6 +27,7 @@ async function exportTestNoteArticle(vaultNoteText: string, articleOptionChanges
     resolveWikilinkTarget: createPapelizWikilinkTargetResolver(testVaultNoteRelativePaths),
     getHtmlExportNotePageHref: (targetVaultNoteRelativePath) => testExportedPageHrefsByVaultNoteRelativePath.get(targetVaultNoteRelativePath) ?? null,
     drawHtmlExportMermaidDiagramSvg: drawTestMermaidDiagram,
+    htmlExportVaultFiles: null,
     ...articleOptionChanges,
   })
   return { ...noteArticle, noteArticleHtml: toHtml(noteArticle.noteArticleHastElement, { allowDangerousHtml: true }) }
@@ -49,6 +51,39 @@ describe('an exported note’s article', () => {
     expect(noteArticleHtml).toContain(
       '<a class="papeliz-md-view-wikilink papeliz-md-view-wikilink-unresolved" data-papeliz-wikilink-target="Someday" title="“Someday” isn’t a note yet">Someday</a>',
     )
+  })
+
+  it('links a wikilink to a part of a page with that heading’s id', async () => {
+    const { noteArticleHtml } = await exportTestNoteArticle('See [[Budget#This year]] and [[#Goals]].')
+    expect(noteArticleHtml).toContain('href="budget.html#this-year">Budget › This year</a>')
+    expect(noteArticleHtml).toContain('href="#goals">Goals</a>')
+  })
+
+  it('shows pictures kept in the vault and links other files to their copies', async () => {
+    const testVaultFiles = {
+      resolveVaultFileReference: createPapelizHtmlExportVaultFileResolver(['Projects/pictures/plan.png', 'files/brief.pdf', 'Garden/beds.JPG']),
+      getVaultFileSource: async (vaultFileRelativePath: string, vaultFileUse: string) => `copies/${vaultFileRelativePath}?${vaultFileUse}`,
+    }
+    const { noteArticleHtml } = await exportTestNoteArticle(
+      '![[plan.png]] ![[plan.png|300]] ![[beds.jpg|Raised beds]] [[brief.pdf]] ![[brief.pdf]]\n\n![The plan](pictures/plan.png) ![Up](../files/brief.pdf) ![Gone](pictures/missing.png)',
+      { htmlExportVaultFiles: testVaultFiles },
+    )
+    expect(noteArticleHtml).toContain('<img src="copies/Projects/pictures/plan.png?shown" alt="plan.png" loading="lazy">')
+    expect(noteArticleHtml).toContain('<img src="copies/Projects/pictures/plan.png?shown" alt="plan.png" loading="lazy" width="300">')
+    expect(noteArticleHtml).toContain('<img src="copies/Garden/beds.JPG?shown" alt="Raised beds" loading="lazy">')
+    expect(noteArticleHtml).toContain('data-papeliz-wikilink-target="brief.pdf" href="copies/files/brief.pdf?linked">brief.pdf</a>')
+    expect(noteArticleHtml).toContain('data-papeliz-wikilink-embed="true" href="copies/files/brief.pdf?linked">brief.pdf</a>')
+    expect(noteArticleHtml).toContain('<img src="copies/Projects/pictures/plan.png?shown" alt="The plan" loading="lazy">')
+    expect(noteArticleHtml).toContain('<a href="copies/files/brief.pdf?linked">Up</a>')
+    expect(noteArticleHtml).toContain('<span class="papeliz-md-view-image-placeholder">Image: Gone</span>')
+  })
+
+  it('leaves a file that can’t go with the page as MD View shows it', async () => {
+    const { noteArticleHtml } = await exportTestNoteArticle('[[brief.pdf]] ![Plan](pictures/plan.png)', {
+      htmlExportVaultFiles: { resolveVaultFileReference: createPapelizHtmlExportVaultFileResolver(['files/brief.pdf', 'Projects/pictures/plan.png']), getVaultFileSource: async () => null },
+    })
+    expect(noteArticleHtml).toContain('title="“brief.pdf” isn’t in this export">brief.pdf</a>')
+    expect(noteArticleHtml).toContain('<span class="papeliz-md-view-image-placeholder">Image: Plan</span>')
   })
 
   it('points a link to the note itself at the top of its page', async () => {
@@ -87,7 +122,7 @@ describe('an exported note’s article', () => {
     const { noteArticleHtml, noteFrontmatterProperties } = await exportTestNoteArticle('---\ntags: [garden, plan]\nstatus: draft\n---\nBody.')
     expect(noteFrontmatterProperties.map((noteFrontmatterProperty) => noteFrontmatterProperty.frontmatterPropertyName)).toEqual(['tags', 'status'])
     expect(noteArticleHtml).toMatch(/^<article class="papeliz-md-view-article"><ul class="papeliz-md-view-properties" aria-label="Note properties">/)
-    expect(noteArticleHtml).toMatch(/<li class="papeliz-md-view-property"><svg [^>]*width="14"[^>]*><line x1="4" x2="20" y1="9" y2="9"><\/line>.*<\/svg><b>tags<\/b><span>garden, plan<\/span><\/li>/)
+    expect(noteArticleHtml).toMatch(/<li class="papeliz-md-view-property"><svg [^>]*width="14"[^>]*><line x1="4" x2="20" y1="9" y2="9"><\/line>.*<\/svg><b>tags<\/b> <span>garden, plan<\/span><\/li>/)
   })
 
   it('keeps web pictures as MD View shows them, and marks vault pictures', async () => {

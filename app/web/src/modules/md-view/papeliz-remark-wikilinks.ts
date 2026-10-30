@@ -50,6 +50,16 @@ export function createPapelizWikilinkMdastNode(
     wikilinkParts.wikilinkTargetNoteName,
     wikilinkOptions.fromVaultNoteRelativePath,
   )
+  const wikilinkHastProperties: Record<string, string | string[]> = {
+    className:
+      wikilinkTargetVaultNoteRelativePath === null
+        ? [papelizMdViewWikilinkClassName, papelizMdViewUnresolvedWikilinkClassName]
+        : [papelizMdViewWikilinkClassName],
+    dataPapelizWikilinkTarget: wikilinkParts.wikilinkTargetNoteName,
+  }
+  // For an export: the part of the note a link points to, and whether `![[…]]` shows the target.
+  if (wikilinkParts.wikilinkTargetHeading !== null) wikilinkHastProperties['dataPapelizWikilinkHeading'] = wikilinkParts.wikilinkTargetHeading
+  if (isWikilinkEmbed) wikilinkHastProperties['dataPapelizWikilinkEmbed'] = 'true'
   return {
     type: 'papelizWikilink',
     ...wikilinkParts,
@@ -57,13 +67,7 @@ export function createPapelizWikilinkMdastNode(
     isWikilinkEmbed,
     data: {
       hName: 'a',
-      hProperties: {
-        className:
-          wikilinkTargetVaultNoteRelativePath === null
-            ? [papelizMdViewWikilinkClassName, papelizMdViewUnresolvedWikilinkClassName]
-            : [papelizMdViewWikilinkClassName],
-        dataPapelizWikilinkTarget: wikilinkParts.wikilinkTargetNoteName,
-      },
+      hProperties: wikilinkHastProperties,
       hChildren: [{ type: 'text', value: getPapelizWikilinkDisplayText(wikilinkParts) }],
     },
   }

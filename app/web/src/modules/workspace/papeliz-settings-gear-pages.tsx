@@ -1,9 +1,11 @@
-import { ChevronDown, ChevronRight, Download, FileText, Folder, Monitor, Moon, RefreshCw, RotateCcw, Search, Sun, User } from 'lucide-react'
-import { useMemo, useState, type ReactNode } from 'react'
+import { ChevronDown, ChevronRight, Download, FileText, Folder, LoaderCircle, Monitor, Moon, RefreshCw, RotateCcw, Search, Sun, User } from 'lucide-react'
+import { useMemo, useRef, useState, type ReactNode } from 'react'
 import { PapelizPillButton } from '../ui/papeliz-buttons'
 import { PapelizSlidingChoiceGroup } from '../ui/papeliz-sliding-choice-group'
 import { usePapelizThemeStore, type PapelizThemePreference } from '../ui/papeliz-theme'
+import { describePapelizVaultError } from '../vault/papeliz-vault-adapter'
 import { getVaultEntryParentFolderRelativePath } from '../vault/papeliz-vault-relative-paths'
+import { choosePapelizExportFileDestination, writePapelizExportFile } from './papeliz-export-file-save'
 import { PapelizKeyBindingsList } from './papeliz-key-bindings-list'
 import { PapelizNoteTextSizeSlider } from './papeliz-note-text-size-slider'
 import { usePapelizNoteTabsLayoutStore, type PapelizNoteTabsLayout } from './papeliz-note-tabs-layout-store'
@@ -200,6 +202,14 @@ const papelizExportFormatChoices: ReadonlyArray<{ exportFormat: PapelizExportFor
   { exportFormat: 'html', exportFormatLabel: 'HTML' },
 ]
 
+// Where an export stands, for the line under the Export button.
+type PapelizExportRunState =
+  | { exportRunKind: 'idle' }
+  | { exportRunKind: 'running'; exportedNoteCount: number; exportNoteCount: number }
+  | { exportRunKind: 'saved'; savedExportFileName: string; isDownloaded: boolean }
+  | { exportRunKind: 'cancelled' }
+  | { exportRunKind: 'failed'; exportFailureMessage: string }
+
 // The folders above a note, so the page opens with the open note's folder already open.
 function listVaultFolderRelativePathsAbove(vaultNoteRelativePath: string): string[] {
   const vaultFolderRelativePathsAbove: string[] = []
@@ -270,13 +280,19 @@ function PapelizExportTreeRow({
 }
 
 // Export: tick notes in the vault's folder tree (open a folder to pick single notes inside it), then
-// PDF or HTML. One note downloads as one file; several as one .zip, folders kept. The button waits
-// for the PDF and HTML engines.
+// PDF or HTML. One note downloads as one file; several as one .zip, folders kept. HTML is Papeliz's
+// HTML export (html-export/), loaded when someone exports; PDF waits for the PDF engine.
 export function PapelizSettingsGearExportPage() {
   const openVault = usePapelizWorkspaceStore((workspaceState) => workspaceState.openVault)
   const vaultTreeEntries = usePapelizWorkspaceStore((workspaceState) => workspaceState.vaultTreeEntries)
   const vaultEntryOrder = usePapelizWorkspaceStore((workspaceState) => workspaceState.vaultEntryOrder)
   const activeVaultNoteRelativePath = usePapelizWorkspaceStore((workspaceState) => workspaceState.activeVaultNoteRelativePath)
+  const saveAllVaultNotesNow = usePapelizWorkspaceStore((workspaceState) => workspaceState.saveAllVaultNotesNow)
+  const noteFontFamily = usePapelizNoteTypographyStore((typographyState) => typographyState.noteFontFamily)
+  const noteFontSize = usePapelizNoteTypographyStore((typographyState) => typographyState.noteFontSize)
+  const noteColumnWidth = usePapelizNoteTypographyStore((typographyState) => typographyState.noteColumnWidth)
+  const [exportRunState, setExportRunState] = useState<PapelizExportRunState>({ exportRunKind: 'idle' })
+  const exportAbortControllerRef = useRef<AbortController | null>(null)
   const exportNoteTree = useMemo(() => buildPapelizExportNoteTree(vaultTreeEntries, vaultEntryOrder), [vaultTreeEntries, vaultEntryOrder])
   const everyExportNoteRelativePath = useMemo(() => listExportNoteRelativePaths(exportNoteTree), [exportNoteTree])
   // The open note comes ticked, with its folders open so it shows.
@@ -287,7 +303,8 @@ export function PapelizSettingsGearExportPage() {
     () => new Set(activeVaultNoteRelativePath === null ? [] : listVaultFolderRelativePathsAbove(activeVaultNoteRelativePath)),
   )
   const [exportNoteSearchText, setExportNoteSearchText] = useState('')
-  const [chosenExportFormat, setChosenExportFormat] = useState<PapelizExportFormat>('pdf')
+  // HTML first while the PDF engine is still to come, so the button works when the page opens.
+  const [chosenExportFormat, setChosenExportFormat] = useState<PapelizExportFormat>('html')
 
   // Ticks that still name a note in the vault (one may have been renamed or trashed meanwhile).
   const tickedExportNoteCount = everyExportNoteRelativePath.filter((exportNoteRelativePath) => tickedVaultNoteRelativePaths.has(exportNoteRelativePath)).length
@@ -308,6 +325,63 @@ export function PapelizSettingsGearExportPage() {
         : tickedExportNoteCount === 1
           ? '1 note ticked.'
           : `${tickedExportNoteCount} notes ticked. They download as one .zip, folders kept.`
+
+  const isExportRunning = exportRunState.exportRunKind === 'running'
+  const canExport = chosenExportFormat === 'html' && tickedExportNoteCount > 0 && openVault !== null && !isExportRunning
+
+  const exportTickedNotesAsHtml = async () => {
+    if (openVault === null) return
+    const exportVaultNoteRelativePaths = everyExportNoteRelativePath.filter((exportNoteRelativePath) => tickedVaultNoteRelativePaths.has(exportNoteRelativePath))
+    const htmlExportModule = await import('../html-export/papeliz-html-export-from-vault')
+    const htmlExportFileKind = htmlExportModule.describePapelizVaultHtmlExportFile(openVault.papelizVaultDisplayName, exportVaultNoteRelativePaths)
+    // Where to save is asked first: the browser's save dialog opens only right after the click.
+    const exportFileDestination = await choosePapelizExportFileDestination(htmlExportFileKind.htmlExportFileName, {
+      exportFileDescription: htmlExportFileKind.htmlExportFileDescription,
+      exportFileMediaType: htmlExportFileKind.htmlExportFileMediaType,
+      exportFileExtension: htmlExportFileKind.htmlExportFileExtension,
+    })
+    if (exportFileDestination === null) return
+    const exportAbortController = new AbortController()
+    exportAbortControllerRef.current = exportAbortController
+    setExportRunState({ exportRunKind: 'running', exportedNoteCount: 0, exportNoteCount: exportVaultNoteRelativePaths.length })
+    try {
+      // Edits still waiting for autosave go into the export too.
+      await saveAllVaultNotesNow()
+      const { htmlExportFileBlob } = await htmlExportModule.exportPapelizVaultNotesAsHtml({
+        vaultAdapter: openVault.papelizVaultAdapter,
+        vaultDisplayName: openVault.papelizVaultDisplayName,
+        exportVaultNoteRelativePaths,
+        everyVaultNoteRelativePath: everyExportNoteRelativePath,
+        htmlExportNoteTypography: { noteFontFamily, noteFontSize, noteColumnWidth },
+        onHtmlExportProgress: (exportedNoteCount, exportNoteCount) => setExportRunState({ exportRunKind: 'running', exportedNoteCount, exportNoteCount }),
+        htmlExportAbortSignal: exportAbortController.signal,
+      })
+      exportAbortController.signal.throwIfAborted()
+      await writePapelizExportFile(exportFileDestination, htmlExportFileKind.htmlExportFileName, htmlExportFileBlob)
+      setExportRunState({
+        exportRunKind: 'saved',
+        savedExportFileName: htmlExportFileKind.htmlExportFileName,
+        isDownloaded: exportFileDestination.exportFileDestinationKind === 'download',
+      })
+    } catch (exportError) {
+      setExportRunState(
+        exportAbortController.signal.aborted ? { exportRunKind: 'cancelled' } : { exportRunKind: 'failed', exportFailureMessage: describePapelizVaultError(exportError) },
+      )
+    } finally {
+      if (exportAbortControllerRef.current === exportAbortController) exportAbortControllerRef.current = null
+    }
+  }
+
+  const exportRunLine =
+    chosenExportFormat === 'pdf'
+      ? 'PDF export is coming soon.'
+      : exportRunState.exportRunKind === 'saved'
+        ? `${exportRunState.isDownloaded ? 'Downloaded' : 'Saved'} “${exportRunState.savedExportFileName}”.`
+        : exportRunState.exportRunKind === 'cancelled'
+          ? 'Export cancelled.'
+          : exportRunState.exportRunKind === 'failed'
+            ? `The export stopped: ${exportRunState.exportFailureMessage}.`
+            : null
 
   const toggleExportTreeNode = (exportTreeNode: PapelizExportTreeNode) =>
     setTickedVaultNoteRelativePaths((currentTickedPaths) => toggleExportTreeNodeTick(exportTreeNode, currentTickedPaths))
@@ -401,11 +475,23 @@ export function PapelizSettingsGearExportPage() {
         }))}
       />
 
-      <PapelizPillButton pillButtonVariant="primary" pillButtonSize="small" disabled className="mt-3 w-full">
-        <Download className="size-3.5" aria-hidden="true" />
-        {exportButtonLabel}
+      <PapelizPillButton pillButtonVariant="primary" pillButtonSize="small" disabled={!canExport} onClick={() => void exportTickedNotesAsHtml()} className="mt-3 w-full">
+        {isExportRunning ? <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" /> : <Download className="size-3.5" aria-hidden="true" />}
+        {exportRunState.exportRunKind === 'running'
+          ? exportRunState.exportNoteCount > 1
+            ? `Exporting ${exportRunState.exportedNoteCount} of ${exportRunState.exportNoteCount}…`
+            : 'Exporting…'
+          : exportButtonLabel}
       </PapelizPillButton>
-      <p className="mt-1.5 text-center text-[11.5px] text-papeliz-ink-subtle">Coming soon: the PDF and HTML engines are being built.</p>
+      <div role="status" className="mt-1.5 text-center text-[11.5px] text-papeliz-ink-subtle">
+        {isExportRunning ? (
+          <button type="button" onClick={() => exportAbortControllerRef.current?.abort()} className="font-semibold text-papeliz-blue hover:underline">
+            Cancel
+          </button>
+        ) : (
+          exportRunLine !== null && <p className={exportRunState.exportRunKind === 'failed' && chosenExportFormat === 'html' ? 'text-papeliz-error-notice-ink' : ''}>{exportRunLine}</p>
+        )}
+      </div>
     </div>
   )
 }

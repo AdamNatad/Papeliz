@@ -1,0 +1,19 @@
+---
+// One page per note, in the vault's folders: "projects/launch-plan.html".
+import PapelizSitePage from '../layouts/PapelizSitePage.astro'
+import { loadPapelizSiteContent } from '../papeliz/papeliz-site-content.mjs'
+
+export async function getStaticPaths() {
+  const papelizSiteContent = await loadPapelizSiteContent()
+  return papelizSiteContent.sitePageFiles
+    .filter((sitePageFile) => sitePageFile.sitePageFilePath !== 'index.html')
+    .map((sitePageFile) => ({
+      params: { papelizSitePagePath: sitePageFile.sitePageFilePath.replace(/\.html$/, '') },
+      props: { sitePageValues: sitePageFile.sitePageValues },
+    }))
+}
+
+const { sitePageValues } = Astro.props
+---
+
+<PapelizSitePage {...sitePageValues} />

@@ -56,7 +56,7 @@ const papelizMdViewSanitizeSchema: PapelizSanitizeSchema = {
     a: allowPapelizAttributes(
       defaultSchema.attributes?.['a'],
       [papelizMdViewWikilinkClassName, papelizMdViewUnresolvedWikilinkClassName],
-      ['dataPapelizWikilinkTarget'],
+      ['dataPapelizWikilinkTarget', 'dataPapelizWikilinkHeading', 'dataPapelizWikilinkEmbed'],
     ),
     span: allowPapelizAttributes(
       defaultSchema.attributes?.['span'],

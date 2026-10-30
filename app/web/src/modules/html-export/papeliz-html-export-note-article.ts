@@ -4,8 +4,10 @@ import type { PapelizWikilinkTargetResolver } from '../links/papeliz-wikilink-ta
 import { renderPapelizMdViewNote } from '../md-view/papeliz-md-view-render-pipeline'
 import { readPapelizNoteFrontmatterProperties, type PapelizNoteFrontmatterProperty } from '../md-view/papeliz-note-frontmatter-properties'
 import { papelizMdViewCalloutTitleClassName } from '../md-view/papeliz-remark-callouts'
+import { getVaultEntryName } from '../vault/papeliz-vault-relative-paths'
 import { createPapelizHtmlExportHeadingIdMaker } from './papeliz-html-export-heading-ids'
 import { createPapelizHtmlExportIconHastElement, type PapelizHtmlExportIconName } from './papeliz-html-export-icons'
+import { getPapelizHtmlExportPictureMediaType, type PapelizHtmlExportVaultFileResolver } from './papeliz-html-export-vault-files'
 
 // A note as an exported page's `<article>`: the same sanitized tree MD View's locked page draws
 // (`renderPapelizMdViewNote`), with the steps a page outside Papeliz needs. Links between notes
@@ -31,6 +33,18 @@ export interface PapelizHtmlExportNoteArticleOptions {
   getHtmlExportNotePageHref: (targetVaultNoteRelativePath: string) => string | null
   // Draws a mermaid block in a theme's colors; null keeps diagrams as their code.
   drawHtmlExportMermaidDiagramSvg: PapelizHtmlExportMermaidDiagramDrawer | null
+  // Pictures and other files the note shows or links to; null leaves them as MD View shows them.
+  htmlExportVaultFiles: PapelizHtmlExportVaultFiles | null
+}
+
+// How a page shows a file: a picture in it ('shown'), or a link to it ('linked').
+export type PapelizHtmlExportVaultFileUse = 'shown' | 'linked'
+
+export interface PapelizHtmlExportVaultFiles {
+  resolveVaultFileReference: PapelizHtmlExportVaultFileResolver
+  // Where the page finds a file: a `data:` URL inside a one-note page, a relative path in a
+  // website. Null when the file can't go with the page.
+  getVaultFileSource: (vaultFileRelativePath: string, vaultFileUse: PapelizHtmlExportVaultFileUse) => Promise<string | null>
 }
 
 export interface PapelizHtmlExportNoteArticle {
@@ -38,6 +52,15 @@ export interface PapelizHtmlExportNoteArticle {
   noteFrontmatterProperties: PapelizNoteFrontmatterProperty[]
   // Whether any text is set in the code font, so the page knows to carry it.
   hasCodeText: boolean
+}
+
+const papelizHtmlExportLanguageTagPattern = /^[a-z]{2,3}(-[a-z0-9]{2,8})*$/i
+
+// A page's language: the note's `lang` property when it is a language tag, else English.
+export function getPapelizHtmlExportNoteLanguageTag(noteFrontmatterProperties: readonly PapelizNoteFrontmatterProperty[]): string {
+  const noteLanguageProperty = noteFrontmatterProperties.find((noteFrontmatterProperty) => noteFrontmatterProperty.frontmatterPropertyName.toLowerCase() === 'lang')
+  const noteLanguageTag = noteLanguageProperty?.frontmatterPropertyValues[0] ?? ''
+  return papelizHtmlExportLanguageTagPattern.test(noteLanguageTag) ? noteLanguageTag : 'en'
 }
 
 // The icon MD View shows for each callout kind (papeliz-md-view-rendered-page.tsx).
@@ -189,14 +212,10 @@ function leaveLinkWithoutTarget(hastAnchorElement: HastElement, linkTitle: strin
 function pointLinkAtExportedNote(
   hastAnchorElement: HastElement,
   linkTargetNoteName: string,
+  targetVaultNoteRelativePath: string,
   linkHrefFragment: string,
   articleOptions: PapelizHtmlExportNoteArticleOptions,
 ): void {
-  const targetVaultNoteRelativePath = articleOptions.resolveWikilinkTarget(linkTargetNoteName, articleOptions.vaultNoteRelativePath)
-  if (targetVaultNoteRelativePath === null) {
-    leaveLinkWithoutTarget(hastAnchorElement, `“${linkTargetNoteName}” isn’t a note yet`)
-    return
-  }
   if (targetVaultNoteRelativePath === articleOptions.vaultNoteRelativePath) {
     hastAnchorElement.properties['href'] = linkHrefFragment === '' ? '#' : linkHrefFragment
     return
@@ -209,25 +228,93 @@ function pointLinkAtExportedNote(
   hastAnchorElement.properties['href'] = `${targetNotePageHref}${linkHrefFragment}`
 }
 
-function prepareExportedLink(hastAnchorElement: HastElement, articleOptions: PapelizHtmlExportNoteArticleOptions): void {
+// A step that needs a file read, run after the tree is walked: it replaces one node in its parent.
+type PapelizHtmlExportPendingStep = () => Promise<void>
+
+interface PapelizHtmlExportNodePlace {
+  hastParent: HastRoot | HastElement
+  hastChildIndex: number
+}
+
+// "300" or "300x200" after the bar in `![[plan.png|300]]`: the picture's size, as notes write it.
+const papelizHtmlExportPictureSizePattern = /^(\d{1,5})(?:x(\d{1,5}))?$/
+
+function createVaultPictureHastElement(pictureSource: string, pictureLabelText: string, vaultFileRelativePath: string): HastElement {
+  const pictureSizeMatch = papelizHtmlExportPictureSizePattern.exec(pictureLabelText.trim())
+  const pictureProperties: HastElement['properties'] = { src: pictureSource, alt: pictureSizeMatch === null ? pictureLabelText : getVaultEntryName(vaultFileRelativePath), loading: 'lazy' }
+  if (pictureSizeMatch !== null) {
+    pictureProperties['width'] = pictureSizeMatch[1]
+    if (pictureSizeMatch[2] !== undefined) pictureProperties['height'] = pictureSizeMatch[2]
+  }
+  return createHastElement('img', pictureProperties, [])
+}
+
+// A link or embed whose target is a vault file, not a note: an embedded picture shows, anything
+// else links to the file's copy; a file that can't go with the page reads as text.
+function pointAtVaultFile(
+  hastAnchorElement: HastElement,
+  nodePlace: PapelizHtmlExportNodePlace,
+  vaultFileRelativePath: string,
+  isWikilinkEmbed: boolean,
+  htmlExportVaultFiles: PapelizHtmlExportVaultFiles,
+): PapelizHtmlExportPendingStep {
+  return async () => {
+    const isShownPicture = isWikilinkEmbed && getPapelizHtmlExportPictureMediaType(vaultFileRelativePath) !== null
+    const vaultFileSource = await htmlExportVaultFiles.getVaultFileSource(vaultFileRelativePath, isShownPicture ? 'shown' : 'linked')
+    if (vaultFileSource === null) {
+      leaveLinkWithoutTarget(hastAnchorElement, `“${getVaultEntryName(vaultFileRelativePath)}” isn’t in this export`)
+      return
+    }
+    if (isShownPicture) {
+      nodePlace.hastParent.children[nodePlace.hastChildIndex] = createVaultPictureHastElement(vaultFileSource, collectHastText(hastAnchorElement), vaultFileRelativePath)
+      return
+    }
+    hastAnchorElement.properties['href'] = vaultFileSource
+  }
+}
+
+// Wikilinks and links to vault files: a note first, as MD View opens them, then a file that isn't
+// a note. Gives back a step when a file has to be read.
+function prepareExportedLink(
+  hastAnchorElement: HastElement,
+  nodePlace: PapelizHtmlExportNodePlace | null,
+  articleOptions: PapelizHtmlExportNoteArticleOptions,
+): PapelizHtmlExportPendingStep | null {
+  let linkTargetName: string
+  let linkHrefFragment: string
+  let isWikilinkEmbed = false
   const wikilinkTargetNoteName = getHastStringProperty(hastAnchorElement, 'dataPapelizWikilinkTarget')
   if (wikilinkTargetNoteName !== null) {
-    pointLinkAtExportedNote(hastAnchorElement, wikilinkTargetNoteName, '', articleOptions)
-    return
+    const wikilinkTargetHeading = getHastStringProperty(hastAnchorElement, 'dataPapelizWikilinkHeading')
+    linkTargetName = wikilinkTargetNoteName
+    linkHrefFragment = wikilinkTargetHeading === null ? '' : `#${createPapelizHtmlExportHeadingIdMaker()(wikilinkTargetHeading)}`
+    isWikilinkEmbed = getHastStringProperty(hastAnchorElement, 'dataPapelizWikilinkEmbed') === 'true'
+  } else {
+    const linkHref = getHastStringProperty(hastAnchorElement, 'href')
+    if (linkHref === null || linkHref.startsWith('#')) return null
+    if (isExternalLinkHref(linkHref)) {
+      hastAnchorElement.properties['target'] = '_blank'
+      hastAnchorElement.properties['rel'] = ['noopener', 'noreferrer']
+      return null
+    }
+    // A link to another file in the vault, `[text](Other note.md#part)`: MD View opens it as it
+    // opens a wikilink to the same name.
+    const linkHrefFragmentIndex = linkHref.indexOf('#')
+    linkTargetName = decodeLinkHrefPart(linkHrefFragmentIndex === -1 ? linkHref : linkHref.slice(0, linkHrefFragmentIndex))
+    linkHrefFragment = linkHrefFragmentIndex === -1 ? '' : linkHref.slice(linkHrefFragmentIndex)
   }
-  const linkHref = getHastStringProperty(hastAnchorElement, 'href')
-  if (linkHref === null || linkHref.startsWith('#')) return
-  if (isExternalLinkHref(linkHref)) {
-    hastAnchorElement.properties['target'] = '_blank'
-    hastAnchorElement.properties['rel'] = ['noopener', 'noreferrer']
-    return
+  const targetVaultNoteRelativePath = articleOptions.resolveWikilinkTarget(linkTargetName, articleOptions.vaultNoteRelativePath)
+  if (targetVaultNoteRelativePath !== null) {
+    pointLinkAtExportedNote(hastAnchorElement, linkTargetName, targetVaultNoteRelativePath, linkHrefFragment, articleOptions)
+    return null
   }
-  // A link to another file in the vault, `[text](Other note.md#part)`: MD View opens it as it opens
-  // a wikilink to the same name.
-  const linkHrefFragmentIndex = linkHref.indexOf('#')
-  const linkHrefPath = linkHrefFragmentIndex === -1 ? linkHref : linkHref.slice(0, linkHrefFragmentIndex)
-  const linkHrefFragment = linkHrefFragmentIndex === -1 ? '' : linkHref.slice(linkHrefFragmentIndex)
-  pointLinkAtExportedNote(hastAnchorElement, decodeLinkHrefPart(linkHrefPath), linkHrefFragment, articleOptions)
+  const htmlExportVaultFiles = articleOptions.htmlExportVaultFiles
+  const targetVaultFileRelativePath = htmlExportVaultFiles?.resolveVaultFileReference(linkTargetName, articleOptions.vaultNoteRelativePath) ?? null
+  if (htmlExportVaultFiles !== null && targetVaultFileRelativePath !== null && nodePlace !== null) {
+    return pointAtVaultFile(hastAnchorElement, nodePlace, targetVaultFileRelativePath, isWikilinkEmbed, htmlExportVaultFiles)
+  }
+  leaveLinkWithoutTarget(hastAnchorElement, `“${linkTargetName}” isn’t a note yet`)
+  return null
 }
 
 function addCalloutIcon(hastCalloutTitleElement: HastElement): void {
@@ -239,16 +326,33 @@ function addCalloutIcon(hastCalloutTitleElement: HastElement): void {
   ]
 }
 
-// MD View shows `https:` pictures; pictures kept in the vault show as a placeholder for now.
-function preparePicture(hastImageElement: HastElement): HastElement {
+function createPicturePlaceholderHastElement(pictureAltText: string | null, pictureSource: string | null): HastElement {
+  return createHastElement('span', { className: ['papeliz-md-view-image-placeholder'] }, [createHastText(`Image: ${pictureAltText || pictureSource || 'untitled'}`)])
+}
+
+// `![alt](…)`: `https:` pictures show as MD View shows them; a picture kept in the vault shows from
+// its copy, and another kind of file (`![](brief.pdf)`) links to its copy. Anything else stays
+// MD View's placeholder. Gives back a step when a file has to be read.
+function preparePicture(hastImageElement: HastElement, nodePlace: PapelizHtmlExportNodePlace, articleOptions: PapelizHtmlExportNoteArticleOptions): PapelizHtmlExportPendingStep | null {
   const pictureSource = getHastStringProperty(hastImageElement, 'src')
   const pictureAltText = getHastStringProperty(hastImageElement, 'alt')
   if (pictureSource !== null && /^https:/i.test(pictureSource)) {
-    return createHastElement('img', { src: pictureSource, alt: pictureAltText ?? '', loading: 'lazy', referrerPolicy: 'no-referrer' }, [])
+    nodePlace.hastParent.children[nodePlace.hastChildIndex] = createHastElement('img', { src: pictureSource, alt: pictureAltText ?? '', loading: 'lazy', referrerPolicy: 'no-referrer' }, [])
+    return null
   }
-  return createHastElement('span', { className: ['papeliz-md-view-image-placeholder'] }, [
-    createHastText(`Image: ${pictureAltText || pictureSource || 'untitled'}`),
-  ])
+  nodePlace.hastParent.children[nodePlace.hastChildIndex] = createPicturePlaceholderHastElement(pictureAltText, pictureSource)
+  const htmlExportVaultFiles = articleOptions.htmlExportVaultFiles
+  if (htmlExportVaultFiles === null || pictureSource === null) return null
+  const vaultFileRelativePath = htmlExportVaultFiles.resolveVaultFileReference(decodeLinkHrefPart(pictureSource.replace(/[?#].*$/, '')), articleOptions.vaultNoteRelativePath)
+  if (vaultFileRelativePath === null) return null
+  return async () => {
+    const isPicture = getPapelizHtmlExportPictureMediaType(vaultFileRelativePath) !== null
+    const vaultFileSource = await htmlExportVaultFiles.getVaultFileSource(vaultFileRelativePath, isPicture ? 'shown' : 'linked')
+    if (vaultFileSource === null) return
+    nodePlace.hastParent.children[nodePlace.hastChildIndex] = isPicture
+      ? createHastElement('img', { src: vaultFileSource, alt: pictureAltText ?? '', loading: 'lazy' }, [])
+      : createHastElement('a', { href: vaultFileSource }, [createHastText(pictureAltText || getVaultEntryName(vaultFileRelativePath))])
+  }
 }
 
 function createPropertyChipsHastElement(noteFrontmatterProperties: readonly PapelizNoteFrontmatterProperty[]): HastElement {
@@ -259,6 +363,9 @@ function createPropertyChipsHastElement(noteFrontmatterProperties: readonly Pape
       createHastElement('li', { className: ['papeliz-md-view-property'] }, [
         createPapelizHtmlExportIconHastElement(getPapelizHtmlExportPropertyIconName(noteFrontmatterProperty.frontmatterPropertyName), papelizHtmlExportPropertyIconSizePixels),
         createHastElement('b', {}, [createHastText(noteFrontmatterProperty.frontmatterPropertyName)]),
+        // The chip is a flex row, so this space shows nothing; it keeps the name and values apart
+        // when the text is copied or searched.
+        createHastText(' '),
         createHastElement('span', {}, [createHastText(noteFrontmatterProperty.frontmatterPropertyValues.join(', '))]),
       ]),
     ),
@@ -274,18 +381,25 @@ export async function buildPapelizHtmlExportNoteArticle(articleOptions: PapelizH
 
   let hasCodeText = false
   const makeHeadingId = createPapelizHtmlExportHeadingIdMaker()
+  const pendingSteps: PapelizHtmlExportPendingStep[] = []
   visit(noteHastRoot, 'element', (hastElement: HastElement, hastChildIndex, hastParent) => {
+    const nodePlace = hastChildIndex !== undefined && (hastParent?.type === 'element' || hastParent?.type === 'root') ? { hastParent, hastChildIndex } : null
     if (hastElement.tagName === 'code') hasCodeText = true
-    if (hastElement.tagName === 'a') prepareExportedLink(hastElement, articleOptions)
-    else if (papelizHeadingTagNames.has(hastElement.tagName) && hastElement.properties['id'] === undefined) {
+    if (hastElement.tagName === 'a') {
+      const pendingStep = prepareExportedLink(hastElement, nodePlace, articleOptions)
+      if (pendingStep !== null) pendingSteps.push(pendingStep)
+    } else if (papelizHeadingTagNames.has(hastElement.tagName) && hastElement.properties['id'] === undefined) {
       const headingId = makeHeadingId(collectHastText(hastElement))
       if (headingId.length > 0) hastElement.properties['id'] = headingId
     } else if (hastElement.tagName === 'div' && hasHastClassName(hastElement, papelizMdViewCalloutTitleClassName)) addCalloutIcon(hastElement)
-    else if (hastElement.tagName === 'img' && hastParent !== undefined && hastChildIndex !== undefined) {
-      hastParent.children[hastChildIndex] = preparePicture(hastElement)
+    else if (hastElement.tagName === 'img' && nodePlace !== null) {
+      const pendingStep = preparePicture(hastElement, nodePlace, articleOptions)
+      if (pendingStep !== null) pendingSteps.push(pendingStep)
       return SKIP
     }
   })
+  // Files are read one at a time, in the note's order.
+  for (const pendingStep of pendingSteps) await pendingStep()
   if (articleOptions.drawHtmlExportMermaidDiagramSvg !== null) await drawMermaidDiagrams(noteHastRoot, articleOptions.drawHtmlExportMermaidDiagramSvg)
 
   const noteFrontmatterProperties = noteFrontmatterText === null ? [] : readPapelizNoteFrontmatterProperties(noteFrontmatterText)

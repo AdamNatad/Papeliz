@@ -2,17 +2,18 @@ import type { Element as HastElement, ElementContent as HastElementContent, Root
 import { toHtml } from 'hast-util-to-html'
 import type { PapelizWikilinkTargetResolver } from '../links/papeliz-wikilink-targets'
 import { getVaultNoteTitle } from '../vault/papeliz-vault-relative-paths'
-import type { PapelizNoteColumnWidth, PapelizNoteFontFamily, PapelizNoteTypography } from '../workspace/papeliz-note-typography-store'
-import papelizWebappStylesheetText from '../../papeliz-webapp.css?raw'
+import type { PapelizNoteTypography } from '../workspace/papeliz-note-typography-store'
 import {
   buildPapelizHtmlExportFontFaceCss,
   choosePapelizHtmlExportFontFaces,
-  readPapelizHtmlExportFontFileDataUrl,
-  type PapelizHtmlExportFontFileDataUrlReader,
+  encodePapelizBytesAsBase64,
+  readPapelizHtmlExportFontFileBytes,
+  type PapelizHtmlExportFontFileReader,
 } from './papeliz-html-export-fonts'
-import { readPapelizHtmlExportMdViewStyles } from './papeliz-html-export-md-view-styles'
-import { buildPapelizHtmlExportNoteArticle, type PapelizHtmlExportMermaidDiagramDrawer } from './papeliz-html-export-note-article'
+import { buildPapelizHtmlExportNoteArticle, getPapelizHtmlExportNoteLanguageTag, type PapelizHtmlExportMermaidDiagramDrawer } from './papeliz-html-export-note-article'
+import { buildPapelizHtmlExportNoteStylesheet } from './papeliz-html-export-note-stylesheet'
 import papelizHtmlExportOneNotePageStylesheetText from './papeliz-html-export-one-note-page.css?raw'
+import { createPapelizHtmlExportVaultFileResolver, getPapelizHtmlExportPictureMediaType } from './papeliz-html-export-vault-files'
 
 // Export › one note › HTML: a single `.html` file that holds everything it shows: MD View's styles
 // in the light and dark themes, the fonts, and the diagrams as SVG. It has no script, so it opens
@@ -25,51 +26,35 @@ export interface PapelizOneNoteHtmlExportOptions {
   // The note's text settings at export time (font, size, width), as MD View shows them.
   htmlExportNoteTypography: PapelizNoteTypography
   drawHtmlExportMermaidDiagramSvg: PapelizHtmlExportMermaidDiagramDrawer | null
-  readHtmlExportFontFileDataUrl?: PapelizHtmlExportFontFileDataUrlReader
+  readHtmlExportFontFileBytes?: PapelizHtmlExportFontFileReader
+  // The vault's files that aren't notes: a picture the note shows goes inside the page.
+  htmlExportVaultAttachmentFileRelativePaths: readonly string[]
+  readHtmlExportVaultFileBytes: PapelizHtmlExportVaultFileReader
 }
+
+export type PapelizHtmlExportVaultFileReader = (vaultFileRelativePath: string) => Promise<Uint8Array>
 
 export interface PapelizHtmlExportFile {
   htmlExportFileName: string
   htmlExportFileText: string
 }
 
-// The same values the note text settings give MD View (papeliz-note-typography-store.ts), at 100%.
-const papelizHtmlExportNoteFontFamilyValues: Readonly<Record<PapelizNoteFontFamily, string>> = {
-  sans: 'var(--font-sans)',
-  serif: 'var(--font-serif)',
-  mono: 'var(--font-mono)',
-}
-const papelizHtmlExportNoteColumnWidthValues: Readonly<Record<PapelizNoteColumnWidth, string>> = {
-  narrow: '600px',
-  normal: '720px',
-  wide: '900px',
-  full: '100%',
-}
-
-const papelizHtmlExportLanguageTagPattern = /^[a-z]{2,3}(-[a-z0-9]{2,8})*$/i
 // Characters a file name can't hold on Windows, macOS or Linux.
 const papelizFileNameUnsafeCharacterPattern = /[<>:"/\\|?*\p{Cc}]/gu
 
+// A name any computer accepts as a file name, before its extension.
+export function getPapelizSafeFileNameStem(fileNameText: string, fallbackFileNameStem: string): string {
+  const safeFileNameStem = fileNameText.replace(papelizFileNameUnsafeCharacterPattern, '-').replace(/[. ]+$/, '').trim()
+  return safeFileNameStem.length > 0 ? safeFileNameStem : fallbackFileNameStem
+}
+
 // "Projects/Launch plan.md" -> "Launch plan.html"
 export function getPapelizHtmlExportFileNameForNote(vaultNoteRelativePath: string): string {
-  const safeNoteTitle = getVaultNoteTitle(vaultNoteRelativePath).replace(papelizFileNameUnsafeCharacterPattern, '-').replace(/[. ]+$/, '').trim()
-  return `${safeNoteTitle.length > 0 ? safeNoteTitle : 'Note'}.html`
+  return `${getPapelizSafeFileNameStem(getVaultNoteTitle(vaultNoteRelativePath), 'Note')}.html`
 }
 
 function createHastElement(tagName: string, properties: HastElement['properties'], children: HastElementContent[]): HastElement {
   return { type: 'element', tagName, properties, children }
-}
-
-function formatCssRule(cssSelector: string, cssDeclarations: readonly string[]): string {
-  return `${cssSelector} {\n${cssDeclarations.map((cssDeclaration) => `  ${cssDeclaration};`).join('\n')}\n}`
-}
-
-function describeNoteTypographyDeclarations({ noteFontFamily, noteFontSize, noteColumnWidth }: PapelizNoteTypography): string[] {
-  return [
-    `--papeliz-note-font-family: ${papelizHtmlExportNoteFontFamilyValues[noteFontFamily]}`,
-    `--papeliz-note-font-size: ${noteFontSize}px`,
-    `--papeliz-note-column-width: ${papelizHtmlExportNoteColumnWidthValues[noteColumnWidth]}`,
-  ]
 }
 
 export async function buildPapelizOneNoteHtmlExportFile(oneNoteExportOptions: PapelizOneNoteHtmlExportOptions): Promise<PapelizHtmlExportFile> {
@@ -80,31 +65,43 @@ export async function buildPapelizOneNoteHtmlExportFile(oneNoteExportOptions: Pa
     // A one-note file has no other pages: links to other notes read as text.
     getHtmlExportNotePageHref: () => null,
     drawHtmlExportMermaidDiagramSvg: oneNoteExportOptions.drawHtmlExportMermaidDiagramSvg,
+    // Pictures go inside the page as `data:` URLs. A link to a file can't come along: browsers don't
+    // open a `data:` link as a page, so it reads as text.
+    htmlExportVaultFiles: {
+      resolveVaultFileReference: createPapelizHtmlExportVaultFileResolver(oneNoteExportOptions.htmlExportVaultAttachmentFileRelativePaths),
+      getVaultFileSource: async (vaultFileRelativePath, vaultFileUse) => {
+        const pictureMediaType = getPapelizHtmlExportPictureMediaType(vaultFileRelativePath)
+        if (vaultFileUse !== 'shown' || pictureMediaType === null) return null
+        try {
+          return `data:${pictureMediaType};base64,${encodePapelizBytesAsBase64(await oneNoteExportOptions.readHtmlExportVaultFileBytes(vaultFileRelativePath))}`
+        } catch {
+          return null
+        }
+      },
+    },
   })
 
-  const mdViewStyles = readPapelizHtmlExportMdViewStyles(papelizWebappStylesheetText)
-  const fontFaceCss = await buildPapelizHtmlExportFontFaceCss(
-    choosePapelizHtmlExportFontFaces(oneNoteExportOptions.htmlExportNoteTypography.noteFontFamily, hasCodeText),
-    oneNoteExportOptions.readHtmlExportFontFileDataUrl ?? readPapelizHtmlExportFontFileDataUrl,
-  )
+  const readHtmlExportFontFileBytes = oneNoteExportOptions.readHtmlExportFontFileBytes ?? readPapelizHtmlExportFontFileBytes
+  const htmlExportFontFaces = choosePapelizHtmlExportFontFaces(oneNoteExportOptions.htmlExportNoteTypography.noteFontFamily, { hasCodeText, hasSiteChrome: false })
+  const fontFileDataUrlsByFileName = new Map<string, string>()
+  for (const htmlExportFontFace of htmlExportFontFaces) {
+    const fontFileBytes = await readHtmlExportFontFileBytes(htmlExportFontFace.fontFileUrl)
+    fontFileDataUrlsByFileName.set(htmlExportFontFace.fontFileName, `data:font/woff2;base64,${encodePapelizBytesAsBase64(fontFileBytes)}`)
+  }
   const pageStylesheetText = [
-    fontFaceCss,
-    formatCssRule(':root', ['color-scheme: light', ...mdViewStyles.lightThemeTokenDeclarations, ...describeNoteTypographyDeclarations(oneNoteExportOptions.htmlExportNoteTypography)]),
-    // Paper is white: the dark theme is for screens only.
-    `@media screen and (prefers-color-scheme: dark) {\n${formatCssRule(':root', ['color-scheme: dark', ...mdViewStyles.darkThemeTokenDeclarations]).replace(/^/gm, '  ')}\n}`,
-    mdViewStyles.mdViewRulesCssText,
+    buildPapelizHtmlExportNoteStylesheet({
+      htmlExportThemeChoice: 'follow-device',
+      htmlExportNoteTypography: oneNoteExportOptions.htmlExportNoteTypography,
+      fontFaceCss: buildPapelizHtmlExportFontFaceCss(htmlExportFontFaces, (htmlExportFontFace) => fontFileDataUrlsByFileName.get(htmlExportFontFace.fontFileName) ?? ''),
+    }),
     papelizHtmlExportOneNotePageStylesheetText.trim(),
-  ]
-    .filter((stylesheetPart) => stylesheetPart.length > 0)
-    .join('\n\n')
+  ].join('\n\n')
 
-  const noteLanguageProperty = noteFrontmatterProperties.find((noteFrontmatterProperty) => noteFrontmatterProperty.frontmatterPropertyName.toLowerCase() === 'lang')
-  const noteLanguageTag = noteLanguageProperty?.frontmatterPropertyValues[0] ?? ''
   const htmlExportDocument: HastRoot = {
     type: 'root',
     children: [
       { type: 'doctype' },
-      createHastElement('html', { lang: papelizHtmlExportLanguageTagPattern.test(noteLanguageTag) ? noteLanguageTag : 'en' }, [
+      createHastElement('html', { lang: getPapelizHtmlExportNoteLanguageTag(noteFrontmatterProperties) }, [
         createHastElement('head', {}, [
           createHastElement('meta', { charSet: 'utf-8' }, []),
           createHastElement('meta', { name: 'viewport', content: 'width=device-width, initial-scale=1' }, []),

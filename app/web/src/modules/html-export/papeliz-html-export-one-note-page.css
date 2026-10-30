@@ -18,19 +18,6 @@ body {
   padding: 56px 32px 80px;
 }
 
-.papeliz-md-view-article .papeliz-html-export-icon {
-  flex: none;
-}
-
-/* A link to a note that isn't in the export keeps MD View's look and reads as text. */
-.papeliz-md-view-article a:not([href]) {
-  cursor: default;
-}
-
-.papeliz-md-view-article a:not([href]):hover {
-  text-decoration: none;
-}
-
 /* Each diagram is drawn in both themes; the page shows the one for its theme. */
 .papeliz-html-export-mermaid-dark {
   display: none;

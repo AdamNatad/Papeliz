@@ -49,4 +49,13 @@ describe('the in-memory vault', () => {
     const testVault = createTestVault()
     await expect(testVault.writeVaultNoteText('.other-app/app.md', 'x')).rejects.toThrow()
   })
+
+  it('lists and reads the files that aren’t notes, leaving out hidden ones', async () => {
+    const testVault = createTestVault()
+    await testVault.createVaultAttachmentFile('Ideas/sketch.png', new Blob(['png bytes']))
+    await testVault.createVaultAttachmentFile('.csessions/chat-picture.png', new Blob(['chat']))
+    expect(await testVault.listVaultAttachmentFileRelativePaths()).toEqual(['Ideas/sketch.png'])
+    expect(await (await testVault.readVaultAttachmentFileBlob('Ideas/sketch.png')).text()).toBe('png bytes')
+    await expect(testVault.readVaultAttachmentFileBlob('Ideas/missing.png')).rejects.toThrow('Not In Vault')
+  })
 })

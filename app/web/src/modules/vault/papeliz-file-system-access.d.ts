@@ -24,6 +24,12 @@ interface FileSystemHandle {
   remove?(handleRemoveOptions?: PapelizFileSystemHandleRemoveOptions): Promise<void>
 }
 
+interface PapelizSaveFilePickerOptions {
+  suggestedName?: string
+  types?: Array<{ description?: string; accept: Record<string, string[]> }>
+}
+
 interface Window {
   showDirectoryPicker?: (directoryPickerOptions?: PapelizDirectoryPickerOptions) => Promise<FileSystemDirectoryHandle>
+  showSaveFilePicker?: (saveFilePickerOptions?: PapelizSaveFilePickerOptions) => Promise<FileSystemFileHandle>
 }

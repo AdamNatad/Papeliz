@@ -1,0 +1,14 @@
+/* What an exported note needs beyond MD View's own rules, on a one-note page and on a website. */
+
+.papeliz-md-view-article .papeliz-html-export-icon {
+  flex: none;
+}
+
+/* A link to a note that isn't in the export keeps MD View's look and reads as text. */
+.papeliz-md-view-article a:not([href]) {
+  cursor: default;
+}
+
+.papeliz-md-view-article a:not([href]):hover {
+  text-decoration: none;
+}

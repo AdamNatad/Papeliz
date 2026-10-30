@@ -106,6 +106,27 @@ export class PapelizFolderOnDiskVaultAdapter implements PapelizVaultAdapter {
     await writeVaultFileContents(vaultAttachmentFileHandle, vaultAttachmentFileBlob)
   }
 
+  async listVaultAttachmentFileRelativePaths(): Promise<string[]> {
+    const vaultAttachmentFileRelativePaths: string[] = []
+    const collectVaultFolderAttachmentFiles = async (vaultFolderHandle: FileSystemDirectoryHandle, vaultFolderRelativePath: string) => {
+      for await (const [vaultEntryName, listedVaultEntryHandle] of vaultFolderHandle.entries()) {
+        if (vaultEntryName.startsWith('.')) continue
+        const vaultEntryRelativePath = joinVaultRelativePath(vaultFolderRelativePath, vaultEntryName)
+        const vaultEntryHandle = asPapelizVaultEntryHandle(listedVaultEntryHandle)
+        if (vaultEntryHandle.kind === 'directory') await collectVaultFolderAttachmentFiles(vaultEntryHandle, vaultEntryRelativePath)
+        else if (!isVaultNoteFileName(vaultEntryName)) vaultAttachmentFileRelativePaths.push(vaultEntryRelativePath)
+      }
+    }
+    await collectVaultFolderAttachmentFiles(this.vaultRootFolderHandle, papelizVaultRootFolderRelativePath)
+    return vaultAttachmentFileRelativePaths
+  }
+
+  async readVaultAttachmentFileBlob(vaultAttachmentFileRelativePath: string): Promise<Blob> {
+    const vaultParentFolderHandle = await this.getVaultFolderHandle(getVaultEntryParentFolderRelativePath(vaultAttachmentFileRelativePath))
+    const vaultAttachmentFileHandle = await vaultParentFolderHandle.getFileHandle(getVaultEntryName(vaultAttachmentFileRelativePath))
+    return vaultAttachmentFileHandle.getFile()
+  }
+
   async createVaultFolder(vaultFolderRelativePath: string): Promise<void> {
     assertVaultPathWritableByPapeliz(vaultFolderRelativePath)
     const vaultFolderName = getVaultEntryName(vaultFolderRelativePath)

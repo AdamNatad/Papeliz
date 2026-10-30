@@ -30,6 +30,11 @@ export interface PapelizVaultAdapter {
   // A file that isn't a note (a picture added to an AI Assistant chat), written whole. Its folder
   // must be there already, and its name free.
   createVaultAttachmentFile(vaultAttachmentFileRelativePath: string, vaultAttachmentFileBlob: Blob): Promise<void>
+  // Every file that isn't a note (pictures, PDFs and the like), for an export to find what notes
+  // show or link to. Hidden folders and files are left out.
+  listVaultAttachmentFileRelativePaths(): Promise<string[]>
+  // A file that isn't a note, whole. Fails when it isn't there.
+  readVaultAttachmentFileBlob(vaultAttachmentFileRelativePath: string): Promise<Blob>
   // Renames or moves a note or a whole folder. Fails when the target name is taken.
   renameVaultEntry(fromVaultEntryRelativePath: string, toVaultEntryRelativePath: string): Promise<void>
   // Copies a note, or a folder with everything in it, to a new path. Fails when the target name is
