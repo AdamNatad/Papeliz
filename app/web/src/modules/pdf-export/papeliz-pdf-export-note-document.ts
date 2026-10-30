@@ -1,4 +1,5 @@
 import type { PapelizNoteFontFamily } from '../workspace/papeliz-note-typography-store'
+import type { PapelizPdfExportIconName, PapelizPdfExportVectorDrawing } from './papeliz-pdf-export-vector-drawing'
 
 // A note as the PDF worker receives it: plain data, built on the main thread from the sanitized tree
 // MD View's locked page draws (papeliz-pdf-export-note-document-from-hast.ts). Colors are print
@@ -65,6 +66,17 @@ export type PapelizPdfExportInlineRun =
       textRunDestinationName: string | null
     }
   | { inlineRunKind: 'icon'; inlineIconName: PapelizPdfExportInlineIconName; textRunLook: PapelizPdfExportTextRunLook; textRunLink: PapelizPdfExportTextRunLink | null }
+  // A picture in the line, at the size MD View shows it in CSS pixels; the layout fits it to its place.
+  // The look is its chip's, should the worker's check refuse the picture.
+  | {
+      inlineRunKind: 'picture'
+      notePictureIndex: number
+      pictureShownPixelWidth: number
+      pictureShownPixelHeight: number
+      pictureAlternateText: string
+      textRunLook: PapelizPdfExportTextRunLook
+      textRunLink: PapelizPdfExportTextRunLink | null
+    }
   | { inlineRunKind: 'line-break' }
 
 export type PapelizPdfExportHeadingLevel = 1 | 2 | 3 | 4 | 5 | 6
@@ -89,6 +101,18 @@ export interface PapelizPdfExportFootnote {
   footnoteBlocks: PapelizPdfExportNoteBlock[]
 }
 
+export type PapelizPdfExportTableCellAlignment = 'left' | 'center' | 'right'
+
+export interface PapelizPdfExportTableCell {
+  tableCellInlineRuns: PapelizPdfExportInlineRun[]
+  tableCellAlignment: PapelizPdfExportTableCellAlignment
+}
+
+export interface PapelizPdfExportTableRow {
+  isTableHeaderRow: boolean
+  tableCells: PapelizPdfExportTableCell[]
+}
+
 export type PapelizPdfExportNoteBlock =
   | {
       noteBlockKind: 'heading'
@@ -107,7 +131,18 @@ export type PapelizPdfExportNoteBlock =
     }
   // Monospace text in MD View's code box: a code block, or a block the PDF doesn't draw yet, as its
   // Markdown source, so nothing is left out.
-  | { noteBlockKind: 'code-box'; codeBoxText: string }
+  // A diagram Mermaid can't draw is its source with MD View's error line under it.
+  | { noteBlockKind: 'code-box'; codeBoxText: string; codeBoxErrorText: string | null }
+  // A ```mermaid diagram, centered, its Mermaid source as its alternate text: as vectors when the page
+  // could walk its drawing, else as its picture.
+  | {
+      noteBlockKind: 'diagram'
+      notePictureIndex: number
+      pictureShownPixelWidth: number
+      pictureShownPixelHeight: number
+      diagramAlternateText: string
+      diagramVectorDrawing: PapelizPdfExportVectorDrawing | null
+    }
   | { noteBlockKind: 'list'; listKind: PapelizPdfExportListKind; listStartNumber: number; listItems: PapelizPdfExportListItem[] }
   | { noteBlockKind: 'quote'; quoteBlocks: PapelizPdfExportNoteBlock[] }
   | { noteBlockKind: 'rule' }
@@ -115,6 +150,17 @@ export type PapelizPdfExportNoteBlock =
   | { noteBlockKind: 'properties'; noteProperties: PapelizPdfExportNoteProperty[] }
   // The footnotes at the note's end, each with its number and a way back to its reference.
   | { noteBlockKind: 'footnotes'; noteFootnotes: PapelizPdfExportFootnote[] }
+  // MD View's card: its kind's (or its own) ground and ink, the kind's icon, a title and a body.
+  | {
+      noteBlockKind: 'callout'
+      calloutGroundColor: string
+      calloutInkColor: string
+      calloutIconName: PapelizPdfExportIconName
+      calloutTitleInlineRuns: PapelizPdfExportInlineRun[]
+      calloutBlocks: PapelizPdfExportNoteBlock[]
+    }
+  // A Markdown table: its rows in order, the header row first.
+  | { noteBlockKind: 'table'; tableRows: PapelizPdfExportTableRow[] }
 
 export interface PapelizPdfExportNoteDocument {
   noteFontFamily: PapelizNoteFontFamily
@@ -135,15 +181,28 @@ export function visitPapelizPdfExportNoteBlocks(noteBlocks: readonly PapelizPdfE
       case 'footnotes':
         for (const noteFootnote of noteBlock.noteFootnotes) visitPapelizPdfExportNoteBlocks(noteFootnote.footnoteBlocks, visitNoteBlock)
         break
+      case 'callout':
+        visitPapelizPdfExportNoteBlocks(noteBlock.calloutBlocks, visitNoteBlock)
+        break
       default:
         break
     }
   }
 }
 
-// A heading's or a paragraph's runs; none for other blocks.
+// A block's own runs: a heading's or a paragraph's, a callout's title, a table's cells in order;
+// none for other blocks.
 export function listPapelizPdfExportNoteBlockInlineRuns(noteBlock: PapelizPdfExportNoteBlock): PapelizPdfExportInlineRun[] {
-  if (noteBlock.noteBlockKind === 'heading') return noteBlock.headingInlineRuns
-  if (noteBlock.noteBlockKind === 'paragraph') return noteBlock.paragraphInlineRuns
-  return []
+  switch (noteBlock.noteBlockKind) {
+    case 'heading':
+      return noteBlock.headingInlineRuns
+    case 'paragraph':
+      return noteBlock.paragraphInlineRuns
+    case 'callout':
+      return noteBlock.calloutTitleInlineRuns
+    case 'table':
+      return noteBlock.tableRows.flatMap((tableRow) => tableRow.tableCells.flatMap((tableCell) => tableCell.tableCellInlineRuns))
+    default:
+      return []
+  }
 }

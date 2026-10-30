@@ -287,7 +287,7 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
           '**Account**: coming soon.',
           '**Sync**: keep your vaults in sync across web, desktop and mobile, end-to-end encrypted. A paid add-on, coming soon.',
           '**Settings**: **Key Bindings**, the shortcuts you can change. See [[keyboard-shortcuts]]. In a vault kept in your browser, Settings has two tabs, **Key Bindings** and **Reminder**, for the backup reminder and **Download backup**. See [[keep-a-vault-in-your-browser]].',
-          '**Export**: download notes as Word or HTML files. PDF is coming soon. See **Export** below.',
+          '**Export**: download notes as Word, PDF or HTML files. See **Export** below.',
           '**Accessibility**: the theme, how your notes’ text looks, and how note tabs show. See [[text-settings-and-theme]].',
           '**Lock All Notes**: a switch that locks every note in the vault. See [[switch-views-and-lock]].',
           '**Focus Mode**: a switch for [[focus-mode|focus mode]].',
@@ -298,14 +298,18 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
         helpParagraph(
           'Tick the notes you want. The open note comes ticked, and opening a folder lets you pick single notes inside it. Then pick a format and press **Export**. One note downloads as one file; several download as one `.zip`, folders kept.',
         ),
+        helpParagraph('For Word and PDF, pick the **Paper**: Letter or A4. Papeliz starts with your region’s paper and remembers the one you pick.'),
         helpBulletList([
           '**Word**: an editable `.docx` for each note, with its headings, lists, tables, callouts, footnotes, pictures and diagrams. In a `.zip`, a link to another exported note opens that note’s file once the `.zip` is unpacked.',
-          '**PDF**: coming soon.',
+          '**PDF**: pages for printing and sharing, written by Papeliz itself, with no print window. Text stays text you can search and copy, links work, and headings become bookmarks. Several notes download as one `.zip` of `.pdf` files.',
           '**HTML**: one note as a web page, several as a small website.',
         ]),
         helpParagraph('A Word file also opens in Google Docs (**File › Open › Upload**) and imports into Notion (**Import › Word**).'),
         helpParagraph(
-          'Pictures and diagrams go inside the Word file, without the details a camera or editor adds, such as where a photo was taken. A picture whose website doesn’t share it shows as a line with its address, and the page says so when the export is done.',
+          'Text in other scripts prints as text too. Papeliz brings fonts for Latin, Cyrillic, Greek and Vietnamese. For Chinese, Japanese, Korean, Thai, Arabic, Hebrew and others, Chrome and Edge can use the fonts on your computer: the first time a note needs them, the Export page asks, and nothing leaves your computer. Otherwise, and always for emoji, those characters print as pictures with the text kept underneath, so it still copies and searches.',
+        ),
+        helpParagraph(
+          'Pictures and diagrams go inside the Word or PDF file, without the details a camera or editor adds, such as where a photo was taken. In a PDF, most diagrams are sharp drawings with real text; a few kinds print as pictures. A picture whose website doesn’t share it shows as a line with its address, and the page says so when the export is done.',
         ),
       ]),
       helpSection('On the start page', [

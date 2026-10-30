@@ -30,6 +30,8 @@ export const papelizFileListThisNoteSectionSettingName = 'papelizFileListThisNot
 export const papelizAssistantRunOptionsSettingName = 'papelizAssistantRunOptions'
 // Prices per model that the user typed over Papeliz's own (papeliz-assistant-model-prices.ts).
 export const papelizAssistantModelPricesSettingName = 'papelizAssistantModelPrices'
+// The paper Word and PDF exports print on, Letter or A4 (papeliz-settings-gear-export-page.tsx).
+export const papelizExportPaperSizeSettingName = 'papelizExportPaperSize'
 
 const papelizUserSettingReadTimeoutMilliseconds = 400
 

@@ -8,7 +8,7 @@ import {
   getPapelizPdfExportZipEntryPaths,
 } from './papeliz-pdf-export'
 import { PapelizPdfExportError } from './papeliz-pdf-export-errors'
-import { choosePapelizPdfExportFontWeight, splitPapelizPdfExportTextBySubset } from './papeliz-pdf-export-fonts'
+import { choosePapelizPdfExportFontWeight, splitPapelizPdfExportTextByBundledFontFile, type PapelizPdfExportFontStyle } from './papeliz-pdf-export-fonts'
 import { resolvePapelizPdfExportLimits } from './papeliz-pdf-export-limits'
 import { planPapelizPdfExportNotePages, writePapelizPdfExportNotePdf } from './papeliz-pdf-export-note-pdf'
 import type { PapelizPdfExportPageLayoutPlan, PapelizPdfExportTextRunOperation } from './papeliz-pdf-export-page-layout-plan'
@@ -50,6 +50,10 @@ function summarizePageLayoutPlan(pageLayoutPlan: PapelizPdfExportPageLayoutPlan)
         }
         case 'destination':
           return `place ${pageOperation.destinationName} at ${pageOperation.destinationTopPoints}`
+        case 'picture':
+          return `picture ${pageOperation.pictureLeftPoints},${pageOperation.pictureTopPoints} ${pageOperation.pictureWidthPoints}x${pageOperation.pictureHeightPoints}`
+        case 'vector-drawing':
+          return `drawing ${pageOperation.drawingLeftPoints},${pageOperation.drawingTopPoints} ×${pageOperation.drawingScale} ${pageOperation.vectorDrawing.vectorShapes.length} shapes`
       }
     }),
   )
@@ -81,13 +85,17 @@ describe('PDF export', () => {
       // Characters no bundled font has print as boxes until they get pictures, and a box reads back
       // as U+0000, so only what the fonts print is compared, and the notice is checked.
       const expectedNoteText = collectPapelizPdfExportNoteDocumentText(notePdfJob.pdfExportNoteDocument)
+      const sansTextFontStyle: PapelizPdfExportFontStyle = { fontFamilyName: 'figtree', fontWeight: 400, isFontItalic: false }
       const keepPrintedCharacters = (comparedText: string) =>
-        splitPapelizPdfExportTextBySubset(removePapelizPdfExportTestWhitespace(comparedText).replace(/\p{Cc}/gu, ''))
-          .filter((textSubsetSegment) => textSubsetSegment.fontSubsetName !== null)
-          .map((textSubsetSegment) => textSubsetSegment.segmentText)
+        splitPapelizPdfExportTextByBundledFontFile(removePapelizPdfExportTestWhitespace(comparedText).replace(/\p{Cc}/gu, ''), sansTextFontStyle)
+          .filter((bundledFontSegment) => bundledFontSegment.fontFaceKey !== null)
+          .map((bundledFontSegment) => bundledFontSegment.segmentText)
           .join('')
-      const hasUnprintedCharacters = splitPapelizPdfExportTextBySubset(expectedNoteText).some((textSubsetSegment) => textSubsetSegment.fontSubsetName === null)
-      expect(pdfExportNoteNotices.length > 0, vaultNoteRelativePath).toBe(hasUnprintedCharacters)
+      const hasUnprintedCharacters = splitPapelizPdfExportTextByBundledFontFile(expectedNoteText, sansTextFontStyle).some((bundledFontSegment) => bundledFontSegment.fontFaceKey === null)
+      expect(
+        pdfExportNoteNotices.some((pdfExportNoteNotice) => /no font/.test(pdfExportNoteNotice)),
+        vaultNoteRelativePath,
+      ).toBe(hasUnprintedCharacters)
       expect(keepPrintedCharacters(readPapelizPdfExportBodyText(pdfJsReading)), vaultNoteRelativePath).toBe(keepPrintedCharacters(expectedNoteText))
     }
   }, 60_000)
@@ -197,16 +205,37 @@ describe('PDF export', () => {
 })
 
 describe('PDF export fonts', () => {
-  it('gives each character the file whose range holds it', () => {
-    expect(splitPapelizPdfExportTextBySubset('Łódź café 😀')).toEqual([
-      { segmentText: 'Ł', fontSubsetName: 'latin-ext' },
-      { segmentText: 'ód', fontSubsetName: 'latin' },
-      { segmentText: 'ź', fontSubsetName: 'latin-ext' },
-      { segmentText: ' café ', fontSubsetName: 'latin' },
-      { segmentText: '😀', fontSubsetName: null },
+  it('gives each character the file whose range holds it, the family first and Noto Sans after', () => {
+    const sansTextFontStyle: PapelizPdfExportFontStyle = { fontFamilyName: 'figtree', fontWeight: 400, isFontItalic: false }
+    expect(splitPapelizPdfExportTextByBundledFontFile('Łódź café 😀', sansTextFontStyle)).toEqual([
+      { segmentText: 'Ł', fontFaceKey: 'figtree-latin-ext-400-normal' },
+      { segmentText: 'ód', fontFaceKey: 'figtree-latin-400-normal' },
+      { segmentText: 'ź', fontFaceKey: 'figtree-latin-ext-400-normal' },
+      { segmentText: ' café ', fontFaceKey: 'figtree-latin-400-normal' },
+      { segmentText: '😀', fontFaceKey: null },
     ])
     // "e" with a separate accent is printed as the one character "é".
-    expect(splitPapelizPdfExportTextBySubset('e\u0301')).toEqual([{ segmentText: 'é', fontSubsetName: 'latin' }])
+    expect(splitPapelizPdfExportTextByBundledFontFile('e\u0301', sansTextFontStyle)).toEqual([{ segmentText: 'é', fontFaceKey: 'figtree-latin-400-normal' }])
+    // Figtree has no Cyrillic, Greek or Vietnamese: Noto Sans draws them, in the run's weight.
+    expect(splitPapelizPdfExportTextByBundledFontFile('Да Ωμέγα Việt', { ...sansTextFontStyle, fontWeight: 600, isFontItalic: true })).toEqual([
+      { segmentText: 'Да', fontFaceKey: 'noto-sans-cyrillic-600-italic' },
+      { segmentText: ' ', fontFaceKey: 'figtree-latin-600-italic' },
+      { segmentText: 'Ωμέγα', fontFaceKey: 'noto-sans-greek-600-italic' },
+      { segmentText: ' Vi', fontFaceKey: 'figtree-latin-600-italic' },
+      { segmentText: 'ệ', fontFaceKey: 'noto-sans-vietnamese-600-italic' },
+      { segmentText: 't', fontFaceKey: 'figtree-latin-600-italic' },
+    ])
+    // Charis SIL and JetBrains Mono have their own Cyrillic; JetBrains Mono its own Greek too.
+    expect(splitPapelizPdfExportTextByBundledFontFile('Да Ωμέγα', { fontFamilyName: 'charis-sil', fontWeight: 700, isFontItalic: false })).toEqual([
+      { segmentText: 'Да', fontFaceKey: 'charis-sil-cyrillic-700-normal' },
+      { segmentText: ' ', fontFaceKey: 'charis-sil-latin-700-normal' },
+      { segmentText: 'Ωμέγα', fontFaceKey: 'noto-sans-greek-700-normal' },
+    ])
+    expect(splitPapelizPdfExportTextByBundledFontFile('Да Ωμέγα', { fontFamilyName: 'jetbrains-mono', fontWeight: 400, isFontItalic: false })).toEqual([
+      { segmentText: 'Да', fontFaceKey: 'jetbrains-mono-cyrillic-400-normal' },
+      { segmentText: ' ', fontFaceKey: 'jetbrains-mono-latin-400-normal' },
+      { segmentText: 'Ωμέγα', fontFaceKey: 'jetbrains-mono-greek-400-normal' },
+    ])
   })
 
   it('picks the weight a browser would when a family lacks one', () => {

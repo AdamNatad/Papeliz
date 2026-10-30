@@ -7,6 +7,7 @@ export const papelizPdfExportLimits = Object.freeze({
   maximumPdfZipByteCount: 1024 * 1024 * 1024,
   maximumPageOperationCount: 10_000,
   maximumTextRunCodeUnitCount: 64 * 1024,
+  maximumCharacterPictureCount: 4_096,
 })
 
 export type PapelizPdfExportLimits = { readonly [pdfExportLimitName in keyof typeof papelizPdfExportLimits]: number }

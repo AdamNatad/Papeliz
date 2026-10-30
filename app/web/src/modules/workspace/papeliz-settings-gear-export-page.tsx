@@ -1,7 +1,10 @@
 import { ChevronDown, ChevronRight, Download, FilePen, FileText, Folder, Globe, LoaderCircle, Printer, Search } from 'lucide-react'
-import { useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
-import { choosePapelizExportDefaultPageSize } from '../export-print-style/papeliz-export-print-style'
+import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { choosePapelizExportDefaultPageSize, type PapelizExportPageSize } from '../export-print-style/papeliz-export-print-style'
+import type { PapelizPdfExportLocalFontData } from '../pdf-export/papeliz-pdf-export-computer-fonts'
+import { papelizExportPaperSizeSettingName, readPapelizUserSetting, writePapelizUserSetting } from '../settings/papeliz-user-settings'
 import { PapelizPillButton } from '../ui/papeliz-buttons'
+import { PapelizSlidingChoiceGroup } from '../ui/papeliz-sliding-choice-group'
 import { describePapelizVaultError, PapelizVaultOperationError } from '../vault/papeliz-vault-adapter'
 import { getVaultEntryParentFolderRelativePath } from '../vault/papeliz-vault-relative-paths'
 import { choosePapelizExportFileDestination, writePapelizExportFile, type PapelizExportFileKind } from './papeliz-export-file-save'
@@ -57,6 +60,22 @@ interface PapelizSettingsGearPreparedExport {
 
 // The notices shown under a saved export; the rest are counted.
 const papelizSettingsGearShownExportNoticeCount = 3
+
+// The paper Word and PDF print on; HTML has no pages.
+const papelizSettingsGearExportPaperChoices: ReadonlyArray<{ exportPaperSize: PapelizExportPageSize; exportPaperLabel: string }> = [
+  { exportPaperSize: 'letter', exportPaperLabel: 'Letter' },
+  { exportPaperSize: 'a4', exportPaperLabel: 'A4' },
+]
+
+function isPapelizExportPageSize(storedExportPaperSize: unknown): storedExportPaperSize is PapelizExportPageSize {
+  return storedExportPaperSize === 'letter' || storedExportPaperSize === 'a4'
+}
+
+// A PDF export waits on this while the page asks whether it may use the computer's fonts.
+interface PapelizSettingsGearComputerFontsQuestion {
+  pdfExportNoteName: string
+  answerComputerFontsQuestion: (localFonts: readonly PapelizPdfExportLocalFontData[] | null) => void
+}
 
 // The folders above a note, so the page opens with the open note's folder already open.
 function listVaultFolderRelativePathsAbove(vaultNoteRelativePath: string): string[] {
@@ -232,6 +251,24 @@ export function PapelizSettingsGearExportPage() {
   )
   const [exportNoteSearchText, setExportNoteSearchText] = useState('')
   const [chosenExportFormat, setChosenExportFormat] = useState<PapelizSettingsGearExportFormat>('word')
+  const [computerFontsQuestion, setComputerFontsQuestion] = useState<PapelizSettingsGearComputerFontsQuestion | null>(null)
+  // The region's paper until the person picks one, which is then remembered.
+  const [exportPaperSize, setExportPaperSize] = useState<PapelizExportPageSize>(() => choosePapelizExportDefaultPageSize(navigator.languages))
+  const hasChosenExportPaperSizeRef = useRef(false)
+  useEffect(() => {
+    let isPaperSettingWanted = true
+    void readPapelizUserSetting<unknown>(papelizExportPaperSizeSettingName, null).then((storedExportPaperSize) => {
+      if (isPaperSettingWanted && !hasChosenExportPaperSizeRef.current && isPapelizExportPageSize(storedExportPaperSize)) setExportPaperSize(storedExportPaperSize)
+    })
+    return () => {
+      isPaperSettingWanted = false
+    }
+  }, [])
+  const chooseExportPaperSize = (chosenExportPaperSize: PapelizExportPageSize) => {
+    hasChosenExportPaperSizeRef.current = true
+    setExportPaperSize(chosenExportPaperSize)
+    void writePapelizUserSetting(papelizExportPaperSizeSettingName, chosenExportPaperSize)
+  }
 
   // Ticks that still name a note in the vault (one may have been renamed or trashed meanwhile).
   const tickedExportNoteCount = everyExportNoteRelativePath.filter((exportNoteRelativePath) => tickedVaultNoteRelativePaths.has(exportNoteRelativePath)).length
@@ -278,7 +315,7 @@ export function PapelizSettingsGearExportPage() {
             docxExportVault: { vaultAdapter: papelizVaultAdapter, vaultDisplayName: papelizVaultDisplayName },
             docxExportVaultNoteRelativePaths: exportVaultNoteRelativePaths,
             docxExportEveryVaultNoteRelativePath: everyExportNoteRelativePath,
-            docxExportPageSize: choosePapelizExportDefaultPageSize(navigator.languages),
+            docxExportPageSize: exportPaperSize,
             docxExportNoteFontFamily: noteFontFamily,
             onDocxExportProgress: onExportProgress,
             docxExportAbortSignal: exportAbortSignal,
@@ -303,10 +340,20 @@ export function PapelizSettingsGearExportPage() {
               pdfExportVault: { vaultAdapter: papelizVaultAdapter, vaultDisplayName: papelizVaultDisplayName },
               pdfExportVaultNoteRelativePaths: exportVaultNoteRelativePaths,
               pdfExportEveryVaultNoteRelativePath: everyExportNoteRelativePath,
-              pdfExportPageSize: choosePapelizExportDefaultPageSize(navigator.languages),
+              pdfExportPageSize: exportPaperSize,
               pdfExportNoteFontFamily: noteFontFamily,
               onPdfExportProgress: onExportProgress,
               pdfExportAbortSignal: exportAbortSignal,
+              // Asked once per export, and only for a note with characters Papeliz's fonts lack.
+              askPdfExportComputerFonts: (pdfExportNoteName) =>
+                new Promise((resolveComputerFonts) => {
+                  const answerComputerFontsQuestion = (localFonts: readonly PapelizPdfExportLocalFontData[] | null) => {
+                    setComputerFontsQuestion(null)
+                    resolveComputerFonts(localFonts)
+                  }
+                  exportAbortSignal.addEventListener('abort', () => answerComputerFontsQuestion(null), { once: true })
+                  setComputerFontsQuestion({ pdfExportNoteName, answerComputerFontsQuestion })
+                }),
             })
             return { exportFileBlob: pdfExportFileBlob, exportNotices: pdfExportNotices }
           } catch (pdfExportError) {
@@ -375,6 +422,17 @@ export function PapelizSettingsGearExportPage() {
       )
     } finally {
       if (exportAbortControllerRef.current === exportAbortController) exportAbortControllerRef.current = null
+    }
+  }
+
+  // The browser asks for its own permission only right after a click, so the fonts are listed here.
+  const answerWithComputerFonts = async () => {
+    if (computerFontsQuestion === null) return
+    const pageWithLocalFonts = window as Window & { queryLocalFonts?: () => Promise<readonly PapelizPdfExportLocalFontData[]> }
+    try {
+      computerFontsQuestion.answerComputerFontsQuestion((await pageWithLocalFonts.queryLocalFonts?.()) ?? null)
+    } catch {
+      computerFontsQuestion.answerComputerFontsQuestion(null)
     }
   }
 
@@ -473,6 +531,22 @@ export function PapelizSettingsGearExportPage() {
       <p className="mt-3 mb-1.5 text-[12px] font-medium text-papeliz-ink-subtle">Format</p>
       <PapelizSettingsGearExportFormatList chosenExportFormat={chosenExportFormat} onExportFormatSelect={setChosenExportFormat} />
 
+      {chosenExportFormat !== 'html' && (
+        <>
+          <p className="mt-3 mb-1.5 text-[12px] font-medium text-papeliz-ink-subtle">Paper</p>
+          <PapelizSlidingChoiceGroup
+            slidingChoiceGroupLabel="Paper"
+            slidingChoiceGroupRole="radiogroup"
+            chosenSlidingChoiceValue={exportPaperSize}
+            onSlidingChoiceSelect={chooseExportPaperSize}
+            slidingChoices={papelizSettingsGearExportPaperChoices.map(({ exportPaperSize: paperChoiceSize, exportPaperLabel }) => ({
+              slidingChoiceValue: paperChoiceSize,
+              slidingChoiceContent: exportPaperLabel,
+            }))}
+          />
+        </>
+      )}
+
       <PapelizPillButton pillButtonVariant="primary" pillButtonSize="small" disabled={!canExport} onClick={() => void exportTickedNotes()} className="mt-3 w-full pointer-coarse:h-10">
         {isExportRunning ? <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" /> : <Download className="size-3.5" aria-hidden="true" />}
         {exportRunState.exportRunKind === 'running'
@@ -481,6 +555,22 @@ export function PapelizSettingsGearExportPage() {
             : 'Exporting…'
           : exportButtonLabel}
       </PapelizPillButton>
+      {isExportRunning && computerFontsQuestion !== null && (
+        <div className="mt-2 rounded-xl border border-papeliz-line bg-papeliz-surface p-2.5 text-[12px] leading-[1.45] text-papeliz-ink-muted">
+          <p>
+            “{computerFontsQuestion.pdfExportNoteName}” has characters Papeliz’s own fonts don’t have. To put these characters in the PDF as text, Papeliz can use fonts on
+            this computer. Nothing leaves your computer.
+          </p>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            <PapelizPillButton pillButtonVariant="primary" pillButtonSize="small" onClick={() => void answerWithComputerFonts()} className="pointer-coarse:h-10">
+              Use this computer’s fonts
+            </PapelizPillButton>
+            <PapelizPillButton pillButtonVariant="line" pillButtonSize="small" onClick={() => computerFontsQuestion.answerComputerFontsQuestion(null)} className="pointer-coarse:h-10">
+              Print them as pictures
+            </PapelizPillButton>
+          </div>
+        </div>
+      )}
       <div role="status" className="mt-1.5 text-center text-[11.5px] text-papeliz-ink-subtle">
         {isExportRunning ? (
           <button type="button" onClick={() => exportAbortControllerRef.current?.abort()} className="font-semibold text-papeliz-blue hover:underline">

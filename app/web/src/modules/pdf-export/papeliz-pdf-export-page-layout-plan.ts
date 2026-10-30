@@ -2,6 +2,7 @@ import { PapelizPdfExportError } from './papeliz-pdf-export-errors'
 import type { PapelizPdfExportLimits } from './papeliz-pdf-export-limits'
 import { checkPapelizPdfExportWebLinkAddress, papelizPdfExportDestinationNamePattern } from './papeliz-pdf-export-links'
 import type { PapelizPdfExportLinkTarget } from './papeliz-pdf-export-note-document'
+import { findPapelizPdfExportVectorDrawingProblem, type PapelizPdfExportVectorDrawing } from './papeliz-pdf-export-vector-drawing'
 
 // The pages as plain data: what the layout produces and the only thing the writer draws. Positions
 // are in points from the page's top left, rounded to 0.001 pt, so the same note always gives the same
@@ -33,7 +34,16 @@ export interface PapelizPdfExportTextRunOperation {
   textBaselinePoints: number
   // As measured with the font that draws it.
   textWidthPoints: number
+  // A computer font's upright face standing in for its italic or bold: slanted, thickened.
+  textSynthesis: PapelizPdfExportTextSynthesis | null
   operationTagging: PapelizPdfExportOperationTagging
+}
+
+export interface PapelizPdfExportTextSynthesis {
+  // 12 for italic, 0 for upright.
+  textSlantDegrees: number
+  // Its outline stroked this wide too, for bold; 0 for none.
+  textStrokeWidthPoints: number
 }
 
 export interface PapelizPdfExportRectangleOperation {
@@ -88,6 +98,34 @@ export interface PapelizPdfExportLinkAreaOperation {
   structureElementKey: string
 }
 
+// A drawing made of SVG paths (an icon, later a diagram), placed at its top left and scaled from its
+// own units to points. Its labels are drawn in the face each names.
+export interface PapelizPdfExportVectorDrawingOperation {
+  pageOperationKind: 'vector-drawing'
+  vectorDrawing: PapelizPdfExportVectorDrawing
+  // The face key of each label, in the drawing's order.
+  vectorTextRunFontFaceKeys: string[]
+  drawingLeftPoints: number
+  drawingTopPoints: number
+  drawingScale: number
+  operationTagging: PapelizPdfExportOperationTagging
+}
+
+// A picture: one of the note's (by its place in the job's list) or a picture of a character (by its
+// key), drawn into its box with rounded corners when MD View rounds them.
+export type PapelizPdfExportPictureSource = { pictureSourceKind: 'note-picture'; notePictureIndex: number } | { pictureSourceKind: 'character-picture'; characterPictureKey: string }
+
+export interface PapelizPdfExportPictureOperation {
+  pageOperationKind: 'picture'
+  pictureSource: PapelizPdfExportPictureSource
+  pictureLeftPoints: number
+  pictureTopPoints: number
+  pictureWidthPoints: number
+  pictureHeightPoints: number
+  pictureCornerRadiusPoints: number
+  operationTagging: PapelizPdfExportOperationTagging
+}
+
 // A named place links and bookmarks lead to: the page, and how far down it the view opens.
 export interface PapelizPdfExportDestinationOperation {
   pageOperationKind: 'destination'
@@ -100,6 +138,8 @@ export type PapelizPdfExportPageOperation =
   | PapelizPdfExportRectangleOperation
   | PapelizPdfExportLineOperation
   | PapelizPdfExportPathOperation
+  | PapelizPdfExportVectorDrawingOperation
+  | PapelizPdfExportPictureOperation
   | PapelizPdfExportLinkAreaOperation
   | PapelizPdfExportDestinationOperation
 
@@ -107,13 +147,36 @@ export interface PapelizPdfExportPagePlan {
   pageOperations: PapelizPdfExportPageOperation[]
 }
 
-export type PapelizPdfExportStructureRole = 'H1' | 'H2' | 'H3' | 'H4' | 'H5' | 'H6' | 'P' | 'Code' | 'L' | 'LI' | 'Lbl' | 'LBody' | 'BlockQuote' | 'Link' | 'Note'
+export type PapelizPdfExportStructureRole =
+  | 'H1'
+  | 'H2'
+  | 'H3'
+  | 'H4'
+  | 'H5'
+  | 'H6'
+  | 'P'
+  | 'Code'
+  | 'L'
+  | 'LI'
+  | 'Lbl'
+  | 'LBody'
+  | 'BlockQuote'
+  | 'Link'
+  | 'Note'
+  | 'Div'
+  | 'Table'
+  | 'TR'
+  | 'TH'
+  | 'TD'
+  | 'Figure'
 
 export interface PapelizPdfExportStructureElement {
   structureElementKey: string
   structureRole: PapelizPdfExportStructureRole
   // A list item in its list, a link in its paragraph; null for a child of the document.
   parentStructureElementKey: string | null
+  // A figure's description: a picture's alt text, a diagram's Mermaid source.
+  structureAlternateText: string | null
 }
 
 // One heading's bookmark: its plain text, its depth in the outline (a skipped heading level hangs
@@ -135,6 +198,9 @@ export interface PapelizPdfExportPageLayoutPlan {
   pdfExportPages: PapelizPdfExportPagePlan[]
   // In the note's order.
   pdfExportBookmarks: PapelizPdfExportBookmark[]
+  // How many of the note's pictures the job holds, and the keys of its pictures of characters.
+  pdfExportNotePictureCount: number
+  pdfExportCharacterPictureKeys: string[]
 }
 
 export function roundPapelizPdfExportPoints(pointsValue: number): number {
@@ -185,6 +251,7 @@ export function checkPapelizPdfExportPageLayoutPlan(pageLayoutPlan: PapelizPdfEx
   }
   const destinationNames = new Set<string>()
   const linkedDestinationNames = new Set<string>()
+  const characterPictureKeys = new Set(pageLayoutPlan.pdfExportCharacterPictureKeys)
   pageLayoutPlan.pdfExportPages.forEach((pagePlan, pageIndex) => {
     const pageName = `page ${pageIndex + 1}`
     if (pagePlan.pageOperations.length > pdfExportLimits.maximumPageOperationCount) {
@@ -204,6 +271,10 @@ export function checkPapelizPdfExportPageLayoutPlan(pageLayoutPlan: PapelizPdfEx
           checkPlanNumber(pageOperation.textLeftPoints + pageOperation.textWidthPoints, `A text's right edge on ${pageName}`, 0, pageWidthPoints)
           checkPlanNumber(pageOperation.textBaselinePoints, `A text's baseline on ${pageName}`, 0, pageHeightPoints)
           checkPlanColor(pageOperation.textColor, `A text color on ${pageName}`)
+          if (pageOperation.textSynthesis !== null) {
+            checkPlanNumber(pageOperation.textSynthesis.textSlantDegrees, `A text's slant on ${pageName}`, 0, 20)
+            checkPlanNumber(pageOperation.textSynthesis.textStrokeWidthPoints, `A text's thickening on ${pageName}`, 0, 5)
+          }
           break
         case 'rectangle':
           checkPlanNumber(pageOperation.rectangleLeftPoints, `A box's left edge on ${pageName}`, 0, pageWidthPoints)
@@ -232,6 +303,44 @@ export function checkPapelizPdfExportPageLayoutPlan(pageLayoutPlan: PapelizPdfEx
           checkPlanColor(pageOperation.pathFillColor, `A shape's color on ${pageName}`)
           checkPlanColor(pageOperation.pathStrokeColor, `A shape's line color on ${pageName}`)
           break
+        case 'vector-drawing': {
+          const vectorDrawingProblem = findPapelizPdfExportVectorDrawingProblem(pageOperation.vectorDrawing)
+          if (vectorDrawingProblem !== null) failPapelizPdfExportPlanCheck(`a drawing on ${pageName} can't be drawn: ${vectorDrawingProblem}`)
+          checkPlanNumber(pageOperation.drawingScale, `A drawing's scale on ${pageName}`, 0.0001, 100)
+          checkPlanNumber(pageOperation.drawingLeftPoints, `A drawing's left edge on ${pageName}`, 0, pageWidthPoints)
+          checkPlanNumber(pageOperation.drawingTopPoints, `A drawing's top edge on ${pageName}`, 0, pageHeightPoints)
+          checkPlanNumber(pageOperation.drawingLeftPoints + pageOperation.vectorDrawing.vectorDrawingWidth * pageOperation.drawingScale, `A drawing's right edge on ${pageName}`, 0, pageWidthPoints)
+          checkPlanNumber(pageOperation.drawingTopPoints + pageOperation.vectorDrawing.vectorDrawingHeight * pageOperation.drawingScale, `A drawing's bottom edge on ${pageName}`, 0, pageHeightPoints)
+          if (pageOperation.vectorTextRunFontFaceKeys.length !== pageOperation.vectorDrawing.vectorTextRuns.length) failPapelizPdfExportPlanCheck(`a drawing's labels on ${pageName} have no faces`)
+          for (const vectorTextRunFontFaceKey of pageOperation.vectorTextRunFontFaceKeys) {
+            if (!registeredFontFaceKeys.has(vectorTextRunFontFaceKey)) failPapelizPdfExportPlanCheck(`a drawing's label on ${pageName} uses the unregistered font ${vectorTextRunFontFaceKey}`)
+          }
+          const { operationTagging } = pageOperation
+          if (operationTagging.operationTaggingKind === 'structure' && !structureElementKeys.has(operationTagging.structureElementKey)) {
+            failPapelizPdfExportPlanCheck(`a drawing on ${pageName} belongs to the unknown structure element ${operationTagging.structureElementKey}`)
+          }
+          break
+        }
+        case 'picture': {
+          const { pictureSource } = pageOperation
+          const isKnownPicture =
+            pictureSource.pictureSourceKind === 'note-picture'
+              ? Number.isSafeInteger(pictureSource.notePictureIndex) && pictureSource.notePictureIndex >= 0 && pictureSource.notePictureIndex < pageLayoutPlan.pdfExportNotePictureCount
+              : characterPictureKeys.has(pictureSource.characterPictureKey)
+          if (!isKnownPicture) failPapelizPdfExportPlanCheck(`a picture on ${pageName} isn't one the job holds`)
+          checkPlanNumber(pageOperation.pictureLeftPoints, `A picture's left edge on ${pageName}`, 0, pageWidthPoints)
+          checkPlanNumber(pageOperation.pictureTopPoints, `A picture's top edge on ${pageName}`, 0, pageHeightPoints)
+          checkPlanNumber(pageOperation.pictureLeftPoints + pageOperation.pictureWidthPoints, `A picture's right edge on ${pageName}`, 0, pageWidthPoints)
+          checkPlanNumber(pageOperation.pictureTopPoints + pageOperation.pictureHeightPoints, `A picture's bottom edge on ${pageName}`, 0, pageHeightPoints)
+          checkPlanNumber(pageOperation.pictureWidthPoints, `A picture's width on ${pageName}`, 0.01, pageWidthPoints)
+          checkPlanNumber(pageOperation.pictureHeightPoints, `A picture's height on ${pageName}`, 0.01, pageHeightPoints)
+          checkPlanNumber(pageOperation.pictureCornerRadiusPoints, `A picture's corners on ${pageName}`, 0, pageWidthPoints)
+          const { operationTagging } = pageOperation
+          if (operationTagging.operationTaggingKind === 'structure' && !structureElementKeys.has(operationTagging.structureElementKey)) {
+            failPapelizPdfExportPlanCheck(`a picture on ${pageName} belongs to the unknown structure element ${operationTagging.structureElementKey}`)
+          }
+          break
+        }
         case 'link-area': {
           checkPlanNumber(pageOperation.linkAreaLeftPoints, `A link's left edge on ${pageName}`, 0, pageWidthPoints)
           checkPlanNumber(pageOperation.linkAreaTopPoints, `A link's top edge on ${pageName}`, 0, pageHeightPoints)

@@ -3,6 +3,20 @@
 What changed in Papeliz, newest first, in plain words. These entries record what has been built,
 from the plan to the launch. The website's Changelog page shows the same list.
 
+## 2026-10-31 — PDF export
+
+- Export notes as PDF, written by Papeliz itself with no print window. Text stays text you can
+  search and copy, links work, and headings become bookmarks.
+- A PDF keeps MD View's look: lists, task lists, quotes, callouts, tables with their header on every
+  page, footnotes, properties, pictures and diagrams.
+- Most Mermaid diagrams print as sharp drawings with real text; a few kinds print as pictures.
+- Text in other scripts prints too. Papeliz brings fonts for Latin, Cyrillic, Greek and Vietnamese,
+  and in Chrome and Edge it can use your computer's fonts for Chinese, Japanese, Korean, Thai,
+  Arabic, Hebrew and more, after asking. Emoji print as pictures that still copy as emoji.
+- PDFs carry the note's language, reading order, picture descriptions and table headers for screen
+  readers.
+- Pick the paper for Word and PDF: Letter or A4. Several notes come as one .zip of PDF files.
+
 ## 2026-10-31 — Word export, every Mermaid diagram, and a clearer New Vault
 
 - Export notes as Word: an editable .docx per note, with its headings, lists, tables, callouts,

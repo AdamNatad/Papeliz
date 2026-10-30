@@ -10,6 +10,19 @@ export const papelizSiteChangelogEntries: PapelizSiteChangelogEntry[] = [
   {
     papelizSiteChangelogDate: '2026-10-31',
     papelizSiteChangelogMilestone: '0.2',
+    papelizSiteChangelogTitle: 'PDF export',
+    papelizSiteChangelogChanges: [
+      'Export notes as PDF, written by Papeliz itself with no print window. Text stays text you can search and copy, links work, and headings become bookmarks.',
+      'A PDF keeps MD View’s look: lists, task lists, quotes, callouts, tables with their header on every page, footnotes, properties, pictures and diagrams.',
+      'Most Mermaid diagrams print as sharp drawings with real text; a few kinds print as pictures.',
+      'Text in other scripts prints too. Papeliz brings fonts for Latin, Cyrillic, Greek and Vietnamese, and in Chrome and Edge it can use your computer’s fonts for Chinese, Japanese, Korean, Thai, Arabic, Hebrew and more, after asking. Emoji print as pictures that still copy as emoji.',
+      'PDFs carry the note’s language, reading order, picture descriptions and table headers for screen readers.',
+      'Pick the paper for Word and PDF: Letter or A4. Several notes come as one .zip of PDF files.',
+    ],
+  },
+  {
+    papelizSiteChangelogDate: '2026-10-31',
+    papelizSiteChangelogMilestone: '0.2',
     papelizSiteChangelogTitle: 'Word export, every Mermaid diagram, and a clearer New Vault',
     papelizSiteChangelogChanges: [
       'Export notes as Word: an editable .docx per note, with its headings, lists, tables, callouts, footnotes, pictures and diagrams. Several notes come as one .zip whose links open each other.',

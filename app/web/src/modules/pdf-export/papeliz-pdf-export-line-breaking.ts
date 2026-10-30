@@ -1,24 +1,34 @@
+import bidiFactory from 'bidi-js'
 import LineBreaker from 'linebreak'
+import { getPapelizPdfExportLatinFontFaceKey, type PapelizPdfExportFontStyle } from './papeliz-pdf-export-fonts'
 import {
-  getPapelizPdfExportFontFaceKey,
-  splitPapelizPdfExportTextBySubset,
-  type PapelizPdfExportFontStyle,
-} from './papeliz-pdf-export-fonts'
+  getPapelizPdfExportGlyphlessText,
+  isPapelizPdfExportWordPictureGrapheme,
+  papelizPdfExportCharacterPictureFontFaceKey,
+  papelizPdfExportRightToLeftTextPattern,
+  splitPapelizPdfExportTextIntoPictureUnits,
+} from './papeliz-pdf-export-character-pictures'
 import type { PapelizPdfExportInlineIconName, PapelizPdfExportLinkTarget } from './papeliz-pdf-export-note-document'
 import {
   roundPapelizPdfExportPoints,
   type PapelizPdfExportOpenTypeFeatureSet,
   type PapelizPdfExportLinkAreaOperation,
+  type PapelizPdfExportOperationTagging,
   type PapelizPdfExportPageOperation,
+  type PapelizPdfExportRectangleOperation,
 } from './papeliz-pdf-export-page-layout-plan'
 import type { PapelizPdfExportTextMeasurer } from './papeliz-pdf-export-text-measuring'
+import type { PapelizPdfExportCharacterPicture } from './papeliz-pdf-export-character-pictures'
 
 // Lines from styled text, as a browser sets them: break opportunities from Unicode's line-break
 // rules (UAX #14), never inside a character cluster, no hyphenation, left aligned. A word longer than
-// the line breaks between characters, as MD View's `overflow-wrap: break-word`. Lines take the CSS
-// inline box heights, so a larger run makes its line taller. A link gets a clickable area over each
-// of its line pieces. Each line's drawing is placed from its own top left; the pagination moves it
-// onto the page.
+// the line breaks between characters, as MD View's `overflow-wrap: break-word`. Each line is then put
+// in display order by Unicode's bidirectional algorithm (UAX #9, bidi-js) with a left-to-right base, as
+// MD View sets it: a right-to-left run's words go right to left, each word shaped by its font, and
+// its brackets mirrored. Its text is still written in reading order, so it copies and reads aloud in
+// order. Lines take the CSS inline box heights, so a larger run makes its line taller. A link gets a
+// clickable area over each of its line pieces. Each line's drawing is placed from its own top left;
+// the pagination moves it onto the page.
 
 export interface PapelizPdfExportTextChipLook {
   chipGroundColor: string
@@ -41,6 +51,16 @@ export interface PapelizPdfExportInlineIconLook {
   inlineIconName: PapelizPdfExportInlineIconName
 }
 
+// One of the note's pictures in a line, its bottom on the baseline, at the size the layout fitted it to.
+export interface PapelizPdfExportInlinePictureLook {
+  notePictureIndex: number
+  pictureWidthPoints: number
+  pictureHeightPoints: number
+  pictureCornerRadiusPoints: number
+  // Its Figure, which holds its description.
+  figureStructureElementKey: string
+}
+
 export interface PapelizPdfExportResolvedTextStyle {
   textFontStyle: PapelizPdfExportFontStyle
   textSizePoints: number
@@ -56,6 +76,7 @@ export interface PapelizPdfExportResolvedTextStyle {
   // A named place at the piece's start.
   textDestinationName: string | null
   textInlineIcon: PapelizPdfExportInlineIconLook | null
+  textInlinePicture: PapelizPdfExportInlinePictureLook | null
 }
 
 export type PapelizPdfExportStyledTextPiece = { styledPieceKind: 'text'; pieceText: string; pieceStyle: PapelizPdfExportResolvedTextStyle } | { styledPieceKind: 'line-break' }
@@ -81,6 +102,9 @@ export interface PapelizPdfExportLaidOutLine {
   lineHeightPoints: number
   // From the line's top: where a list item's bullet or number sits.
   lineBaselinePoints: number
+  // How far its drawing reaches from the line's left, wrapped-line indent included (to center or
+  // right-align a table cell's lines).
+  lineContentWidthPoints: number
   // Placed from the line's own top left.
   lineOperations: PapelizPdfExportPageOperation[]
   missingCharacterCount: number
@@ -130,17 +154,174 @@ function getPieceStyle(styledTextPieces: readonly PapelizPdfExportStyledTextPiec
   return styledTextPiece?.styledPieceKind === 'text' ? styledTextPiece.pieceStyle : null
 }
 
-// Text in one style, split by the font file that has each character, measured as drawn. An icon is
-// as wide as its box.
+export interface PapelizPdfExportTextRunStyle {
+  textFontStyle: PapelizPdfExportFontStyle
+  textSizePoints: number
+  textColor: string
+  characterSpacingPoints: number
+  openTypeFeatureSet: PapelizPdfExportOpenTypeFeatureSet
+}
+
+export interface PapelizPdfExportStyledTextOperations {
+  textOperations: PapelizPdfExportPageOperation[]
+  // Pictures of characters, drawn under their text.
+  pictureOperations: PapelizPdfExportPageOperation[]
+  textWidthPoints: number
+  missingCharacterCount: number
+}
+
+// A computer font's upright face drawn as its bold is stroked as wide as browsers thicken it: a 24th
+// of the size up to 9 pt, a 32nd from 36 pt, in between in proportion.
+export function getPapelizPdfExportThickenedStrokeWidthPoints(textSizePoints: number): number {
+  const sizeShare = Math.min(1, Math.max(0, (textSizePoints - 9) / (36 - 9)))
+  return textSizePoints * (1 / 24 + sizeShare * (1 / 32 - 1 / 24))
+}
+
+// The slant browsers give an upright face drawn as its italic.
+const papelizPdfExportSlantDegrees = 12
+
+// Text in one style as page operations from its left edge on its baseline: each piece in the font
+// that has it (a bundled file, else a computer font); text no font has as its picture, with the text
+// written over it in the outline-free font; without a picture, the `latin` file's empty box. Measured
+// as drawn.
+export function createPapelizPdfExportStyledTextOperations(
+  styledText: string,
+  textRunStyle: PapelizPdfExportTextRunStyle,
+  textLeftPoints: number,
+  textBaselinePoints: number,
+  operationTagging: PapelizPdfExportOperationTagging,
+  textMeasurer: PapelizPdfExportTextMeasurer,
+): PapelizPdfExportStyledTextOperations {
+  const { textFontStyle, textSizePoints, textColor, characterSpacingPoints } = textRunStyle
+  const textOperations: PapelizPdfExportPageOperation[] = []
+  const pictureOperations: PapelizPdfExportPageOperation[] = []
+  let missingCharacterCount = 0
+  let penLeftPoints = textLeftPoints
+  const pushFontText = (fontText: string, fontFaceKey: string, isFontSlanted: boolean, isFontThickened: boolean) => {
+    const openTypeFeatureSet = textMeasurer.chooseOpenTypeFeatureSet(fontText, fontFaceKey, textRunStyle.openTypeFeatureSet)
+    const fontTextWidthPoints = textMeasurer.measureTextWidthPoints(fontText, fontFaceKey, textSizePoints, characterSpacingPoints, openTypeFeatureSet)
+    missingCharacterCount += textMeasurer.countMissingCharacters(fontText, fontFaceKey)
+    // A right-to-left word goes into the PDF in display order: the font's layout turns it, or, in a
+    // font without layout tables (which shapes nothing), it is given turned.
+    const isTurnedHere = papelizPdfExportRightToLeftTextPattern.test(fontText) && !textMeasurer.hasFontLayoutTables(fontFaceKey)
+    textOperations.push({
+      pageOperationKind: 'text-run',
+      textRunText: isTurnedHere ? Array.from(fontText).reverse().join('') : fontText,
+      fontFaceKey,
+      textSizePoints: roundPapelizPdfExportPoints(textSizePoints),
+      textColor,
+      characterSpacingPoints: roundPapelizPdfExportPoints(characterSpacingPoints),
+      openTypeFeatureSet,
+      textLeftPoints: roundPapelizPdfExportPoints(penLeftPoints),
+      textBaselinePoints: roundPapelizPdfExportPoints(textBaselinePoints),
+      textWidthPoints: roundPapelizPdfExportPoints(fontTextWidthPoints),
+      textSynthesis:
+        isFontSlanted || isFontThickened
+          ? {
+              textSlantDegrees: isFontSlanted ? papelizPdfExportSlantDegrees : 0,
+              textStrokeWidthPoints: isFontThickened ? roundPapelizPdfExportPoints(getPapelizPdfExportThickenedStrokeWidthPoints(textSizePoints)) : 0,
+            }
+          : null,
+      operationTagging,
+    })
+    penLeftPoints += fontTextWidthPoints + characterSpacingPoints
+  }
+  const pushPictureText = (pictureCharactersText: string, characterPicture: PapelizPdfExportCharacterPicture) => {
+    const advancePoints = characterPicture.advanceEm * textSizePoints
+    const pictureHeightPoints = characterPicture.heightEm * textSizePoints
+    const { picturePixelWidth, picturePixelHeight } = characterPicture.pictureFile
+    pictureOperations.push({
+      pageOperationKind: 'picture',
+      pictureSource: { pictureSourceKind: 'character-picture', characterPictureKey: characterPicture.characterPictureKey },
+      pictureLeftPoints: roundPapelizPdfExportPoints(penLeftPoints),
+      pictureTopPoints: roundPapelizPdfExportPoints(textBaselinePoints - characterPicture.topAboveBaselineEm * textSizePoints),
+      pictureWidthPoints: roundPapelizPdfExportPoints((pictureHeightPoints * picturePixelWidth) / picturePixelHeight),
+      pictureHeightPoints: roundPapelizPdfExportPoints(pictureHeightPoints),
+      pictureCornerRadiusPoints: 0,
+      operationTagging: { operationTaggingKind: 'artifact', artifactType: 'Layout' },
+    })
+    textOperations.push({
+      pageOperationKind: 'text-run',
+      textRunText: getPapelizPdfExportGlyphlessText(pictureCharactersText),
+      fontFaceKey: papelizPdfExportCharacterPictureFontFaceKey,
+      textSizePoints: roundPapelizPdfExportPoints(textSizePoints),
+      textColor,
+      characterSpacingPoints: 0,
+      openTypeFeatureSet: 'no-ligatures',
+      textLeftPoints: roundPapelizPdfExportPoints(penLeftPoints),
+      textBaselinePoints: roundPapelizPdfExportPoints(textBaselinePoints),
+      textWidthPoints: roundPapelizPdfExportPoints(advancePoints),
+      textSynthesis: null,
+      operationTagging,
+    })
+    penLeftPoints += advancePoints + characterSpacingPoints
+  }
+  const latinFontFaceKey = getPapelizPdfExportLatinFontFaceKey(textFontStyle)
+  for (const fontPiece of textMeasurer.splitTextIntoFontPieces(styledText, textFontStyle)) {
+    if (fontPiece.fontFaceKey !== null) {
+      pushFontText(fontPiece.fontPieceText, fontPiece.fontFaceKey, fontPiece.isFontPieceSlanted, fontPiece.isFontPieceThickened)
+      continue
+    }
+    let unpicturedText = ''
+    const pushUnpicturedText = () => {
+      if (unpicturedText.length > 0) pushFontText(unpicturedText, latinFontFaceKey, false, false)
+      unpicturedText = ''
+    }
+    for (const pictureUnit of splitPapelizPdfExportTextIntoPictureUnits(fontPiece.fontPieceText)) {
+      // A word drawn as one picture; failing that, its characters one by one.
+      const unitCharacterPicture = textMeasurer.getCharacterPicture(pictureUnit, textColor, textFontStyle)
+      const pictureTexts = unitCharacterPicture === null ? Array.from(papelizPdfExportTextGraphemeSegmenter.segment(pictureUnit), ({ segment }) => segment) : [pictureUnit]
+      for (const pictureText of pictureTexts) {
+        const characterPicture = unitCharacterPicture ?? textMeasurer.getCharacterPicture(pictureText, textColor, textFontStyle)
+        if (characterPicture === null) {
+          unpicturedText += pictureText
+          continue
+        }
+        pushUnpicturedText()
+        pushPictureText(pictureText, characterPicture)
+      }
+    }
+    pushUnpicturedText()
+  }
+  return { textOperations, pictureOperations, textWidthPoints: penLeftPoints - textLeftPoints, missingCharacterCount }
+}
+
+// Text in one style on one line, in display order (a footer's note name).
+export function createPapelizPdfExportDisplayTextOperations(
+  displayText: string,
+  textRunStyle: PapelizPdfExportTextRunStyle,
+  textLeftPoints: number,
+  textBaselinePoints: number,
+  operationTagging: PapelizPdfExportOperationTagging,
+  textMeasurer: PapelizPdfExportTextMeasurer,
+): PapelizPdfExportStyledTextOperations {
+  const displayFragments = orderLineFragmentsForDisplay([{ styledPieceIndex: 0, fragmentText: displayText, isStyledPieceStart: true, isStyledPieceEnd: true }])
+  const orderedTextOperations: Array<{ logicalFragmentOrder: number; textOperations: PapelizPdfExportPageOperation[] }> = []
+  const pictureOperations: PapelizPdfExportPageOperation[] = []
+  let missingCharacterCount = 0
+  let penLeftPoints = textLeftPoints
+  for (const displayFragment of displayFragments) {
+    const fragmentOperations = createPapelizPdfExportStyledTextOperations(displayFragment.fragmentText, textRunStyle, penLeftPoints, textBaselinePoints, operationTagging, textMeasurer)
+    orderedTextOperations.push({ logicalFragmentOrder: displayFragment.logicalFragmentOrder, textOperations: fragmentOperations.textOperations })
+    pictureOperations.push(...fragmentOperations.pictureOperations)
+    missingCharacterCount += fragmentOperations.missingCharacterCount
+    penLeftPoints += fragmentOperations.textWidthPoints
+  }
+  return {
+    textOperations: orderedTextOperations
+      .sort((firstOrderedOperations, secondOrderedOperations) => firstOrderedOperations.logicalFragmentOrder - secondOrderedOperations.logicalFragmentOrder)
+      .flatMap(({ textOperations }) => textOperations),
+    pictureOperations,
+    textWidthPoints: penLeftPoints - textLeftPoints,
+    missingCharacterCount,
+  }
+}
+
+// Text in one style, measured as drawn. An icon or a picture is as wide as its box.
 function measureStyledTextWidthPoints(styledText: string, textStyle: PapelizPdfExportResolvedTextStyle, textMeasurer: PapelizPdfExportTextMeasurer): number {
   if (textStyle.textInlineIcon !== null) return getPapelizPdfExportInlineIconWidthPoints(textStyle.textInlineIcon, textStyle.textSizePoints)
-  let styledTextWidthPoints = 0
-  for (const { segmentText, fontSubsetName } of splitPapelizPdfExportTextBySubset(styledText)) {
-    const fontFaceKey = getPapelizPdfExportFontFaceKey({ ...textStyle.textFontStyle, fontSubsetName: fontSubsetName ?? 'latin' })
-    styledTextWidthPoints +=
-      textMeasurer.measureTextWidthPoints(segmentText, fontFaceKey, textStyle.textSizePoints, textStyle.characterSpacingPoints, textStyle.openTypeFeatureSet) + textStyle.characterSpacingPoints
-  }
-  return styledTextWidthPoints
+  if (textStyle.textInlinePicture !== null) return textStyle.textInlinePicture.pictureWidthPoints
+  return createPapelizPdfExportStyledTextOperations(styledText, textStyle, 0, 0, { operationTaggingKind: 'artifact', artifactType: 'Layout' }, textMeasurer).textWidthPoints
 }
 
 function measureTokenPiecesWidthPoints(tokenPieces: readonly PapelizTextTokenPiece[], textLinesOptions: PapelizPdfExportTextLinesOptions): number {
@@ -275,6 +456,104 @@ function buildLineFragments(lineTokens: readonly PapelizTextToken[]): PapelizLin
   return lineFragments.filter((lineFragment) => lineFragment.fragmentText.length > 0)
 }
 
+// A line fragment placed in display order: a piece of one style at one bidirectional level.
+interface PapelizDisplayLineFragment extends PapelizLineFragment {
+  // Its place in reading order, in which its text is written.
+  logicalFragmentOrder: number
+  // A chip's padding goes on the outer edges of its displayed pieces.
+  hasLeftChipPadding: boolean
+  hasRightChipPadding: boolean
+}
+
+interface PapelizBidiLineChunk extends PapelizDisplayLineFragment {
+  bidiLevel: number
+  isWordChunk: boolean
+}
+
+let papelizPdfExportBidi: ReturnType<typeof bidiFactory> | null = null
+
+// A line's fragments in the order they show; a line without right-to-left text keeps its order.
+// Left-to-right text keeps one chunk per fragment and
+// level; right-to-left text splits into its words and its other characters, each mirrored where it
+// has a mirror ("(" for ")"). Then the runs at each level from the highest down to the lowest odd one
+// are reversed (UAX #9 rule L2).
+function orderLineFragmentsForDisplay(lineFragments: readonly PapelizLineFragment[]): PapelizDisplayLineFragment[] {
+  const lineText = lineFragments.map((lineFragment) => lineFragment.fragmentText).join('')
+  if (!papelizPdfExportRightToLeftTextPattern.test(lineText)) {
+    return lineFragments.map((lineFragment, lineFragmentIndex) => ({
+      ...lineFragment,
+      logicalFragmentOrder: lineFragmentIndex,
+      hasLeftChipPadding: lineFragment.isStyledPieceStart,
+      hasRightChipPadding: lineFragment.isStyledPieceEnd,
+    }))
+  }
+  papelizPdfExportBidi ??= bidiFactory()
+  const lineBidi = papelizPdfExportBidi
+  const { levels: bidiLevels } = lineBidi.getEmbeddingLevels(lineText, 'ltr')
+  const lineChunks: PapelizBidiLineChunk[] = []
+  let fragmentStartOffset = 0
+  for (const lineFragment of lineFragments) {
+    const fragmentChunks: PapelizBidiLineChunk[] = []
+    for (const { segment: graphemeText, index: graphemeOffset } of papelizPdfExportTextGraphemeSegmenter.segment(lineFragment.fragmentText)) {
+      const bidiLevel = bidiLevels[fragmentStartOffset + graphemeOffset] ?? 0
+      const isRightToLeft = bidiLevel % 2 === 1
+      const isWordGrapheme = isRightToLeft && isPapelizPdfExportWordPictureGrapheme(graphemeText)
+      const displayedGraphemeText =
+        isRightToLeft && !isWordGrapheme ? Array.from(graphemeText, (graphemeCharacter) => lineBidi.getMirroredCharacter(graphemeCharacter) ?? graphemeCharacter).join('') : graphemeText
+      const lastFragmentChunk = fragmentChunks.at(-1)
+      const joinsLastChunk = lastFragmentChunk !== undefined && lastFragmentChunk.bidiLevel === bidiLevel && (!isRightToLeft || (isWordGrapheme && lastFragmentChunk.isWordChunk))
+      if (joinsLastChunk) {
+        lastFragmentChunk.fragmentText += displayedGraphemeText
+        continue
+      }
+      fragmentChunks.push({
+        ...lineFragment,
+        fragmentText: displayedGraphemeText,
+        isStyledPieceStart: false,
+        isStyledPieceEnd: false,
+        logicalFragmentOrder: lineChunks.length + fragmentChunks.length,
+        hasLeftChipPadding: false,
+        hasRightChipPadding: false,
+        bidiLevel,
+        isWordChunk: isWordGrapheme,
+      })
+    }
+    const firstFragmentChunk = fragmentChunks[0]
+    const lastFragmentChunk = fragmentChunks.at(-1)
+    if (firstFragmentChunk !== undefined) firstFragmentChunk.isStyledPieceStart = lineFragment.isStyledPieceStart
+    if (lastFragmentChunk !== undefined) lastFragmentChunk.isStyledPieceEnd = lineFragment.isStyledPieceEnd
+    lineChunks.push(...fragmentChunks)
+    fragmentStartOffset += lineFragment.fragmentText.length
+  }
+  const highestBidiLevel = Math.max(...lineChunks.map((lineChunk) => lineChunk.bidiLevel))
+  const lowestOddBidiLevel = Math.min(...lineChunks.map((lineChunk) => (lineChunk.bidiLevel % 2 === 1 ? lineChunk.bidiLevel : lineChunk.bidiLevel + 1)))
+  for (let reversedBidiLevel = highestBidiLevel; reversedBidiLevel >= lowestOddBidiLevel; reversedBidiLevel -= 1) {
+    for (let runStartIndex = 0; runStartIndex < lineChunks.length; ) {
+      if ((lineChunks[runStartIndex]?.bidiLevel ?? 0) < reversedBidiLevel) {
+        runStartIndex += 1
+        continue
+      }
+      let runEndIndex = runStartIndex
+      while (runEndIndex + 1 < lineChunks.length && (lineChunks[runEndIndex + 1]?.bidiLevel ?? 0) >= reversedBidiLevel) runEndIndex += 1
+      lineChunks.splice(runStartIndex, runEndIndex - runStartIndex + 1, ...lineChunks.slice(runStartIndex, runEndIndex + 1).reverse())
+      runStartIndex = runEndIndex + 1
+    }
+  }
+  // A chip's padding at the outer edges of its piece's chunks as they show.
+  const displayIndexesByStyledPiece = new Map<number, number[]>()
+  lineChunks.forEach((lineChunk, displayIndex) => displayIndexesByStyledPiece.set(lineChunk.styledPieceIndex, [...(displayIndexesByStyledPiece.get(lineChunk.styledPieceIndex) ?? []), displayIndex]))
+  for (const [styledPieceIndex, displayIndexes] of displayIndexesByStyledPiece) {
+    const pieceChunks = lineChunks.filter((lineChunk) => lineChunk.styledPieceIndex === styledPieceIndex)
+    const hasPieceStart = pieceChunks.some((lineChunk) => lineChunk.isStyledPieceStart)
+    const hasPieceEnd = pieceChunks.some((lineChunk) => lineChunk.isStyledPieceEnd)
+    const leftmostChunk = lineChunks[displayIndexes[0] ?? 0]
+    const rightmostChunk = lineChunks[displayIndexes.at(-1) ?? 0]
+    if (leftmostChunk !== undefined) leftmostChunk.hasLeftChipPadding = hasPieceStart
+    if (rightmostChunk !== undefined) rightmostChunk.hasRightChipPadding = hasPieceEnd
+  }
+  return lineChunks
+}
+
 interface PapelizInlineBoxExtent {
   aboveBaselinePoints: number
   belowBaselinePoints: number
@@ -288,7 +567,7 @@ function measureInlineBoxExtent(
   baselineShiftPoints: number,
   textMeasurer: PapelizPdfExportTextMeasurer,
 ): PapelizInlineBoxExtent {
-  const { ascentEm, descentEm } = textMeasurer.getFontFaceMetrics(getPapelizPdfExportFontFaceKey({ ...fontStyle, fontSubsetName: 'latin' }))
+  const { ascentEm, descentEm } = textMeasurer.getFontFaceMetrics(getPapelizPdfExportLatinFontFaceKey(fontStyle))
   const halfLeadingPoints = (lineHeightRatio * textSizePoints - (ascentEm + descentEm) * textSizePoints) / 2
   return {
     aboveBaselinePoints: halfLeadingPoints + ascentEm * textSizePoints + baselineShiftPoints,
@@ -299,7 +578,7 @@ function measureInlineBoxExtent(
 // Where a chip's ground sits, from the baseline: around the text's own height, or centered on it at
 // its fixed height (a tag).
 function measureChipExtent(textStyle: PapelizPdfExportResolvedTextStyle, textChip: PapelizPdfExportTextChipLook, textMeasurer: PapelizPdfExportTextMeasurer): PapelizInlineBoxExtent {
-  const { ascentEm, descentEm } = textMeasurer.getFontFaceMetrics(getPapelizPdfExportFontFaceKey({ ...textStyle.textFontStyle, fontSubsetName: 'latin' }))
+  const { ascentEm, descentEm } = textMeasurer.getFontFaceMetrics(getPapelizPdfExportLatinFontFaceKey(textStyle.textFontStyle))
   const textAbovePoints = ascentEm * textStyle.textSizePoints + textStyle.baselineShiftPoints
   const textBelowPoints = descentEm * textStyle.textSizePoints - textStyle.baselineShiftPoints
   if (textChip.chipHeightPoints === null) {
@@ -316,7 +595,7 @@ interface PapelizLaidOutLineDraft {
 
 function layOutLine(lineTokens: readonly PapelizTextToken[], lineLeftPoints: number, textLinesOptions: PapelizPdfExportTextLinesOptions): PapelizLaidOutLineDraft {
   const { styledTextPieces, lineStrut, textMeasurer, structureElementKey } = textLinesOptions
-  const lineFragments = buildLineFragments(lineTokens)
+  const lineFragments = orderLineFragmentsForDisplay(buildLineFragments(lineTokens))
   const strutExtent = measureInlineBoxExtent(lineStrut.strutFontStyle, lineStrut.strutTextSizePoints, lineStrut.lineHeightRatio, 0, textMeasurer)
   let lineAbovePoints = strutExtent.aboveBaselinePoints
   let lineBelowPoints = strutExtent.belowBaselinePoints
@@ -324,7 +603,7 @@ function layOutLine(lineTokens: readonly PapelizTextToken[], lineLeftPoints: num
     const fragmentStyle = getPieceStyle(styledTextPieces, lineFragment.styledPieceIndex)
     if (fragmentStyle === null) continue
     const fragmentExtent = measureInlineBoxExtent(fragmentStyle.textFontStyle, fragmentStyle.textSizePoints, lineStrut.lineHeightRatio, fragmentStyle.baselineShiftPoints, textMeasurer)
-    lineAbovePoints = Math.max(lineAbovePoints, fragmentExtent.aboveBaselinePoints)
+    lineAbovePoints = Math.max(lineAbovePoints, fragmentExtent.aboveBaselinePoints, (fragmentStyle.textInlinePicture?.pictureHeightPoints ?? 0) + fragmentStyle.baselineShiftPoints)
     lineBelowPoints = Math.max(lineBelowPoints, fragmentExtent.belowBaselinePoints)
     const fragmentChip = fragmentStyle.textChip
     if (fragmentChip !== null && fragmentChip.chipHeightPoints !== null) {
@@ -337,8 +616,10 @@ function layOutLine(lineTokens: readonly PapelizTextToken[], lineLeftPoints: num
   const lineHeightPoints = lineAbovePoints + lineBelowPoints
   const placeOperations: PapelizPdfExportPageOperation[] = []
   const chipOperations: PapelizPdfExportPageOperation[] = []
-  const textOperations: PapelizPdfExportPageOperation[] = []
+  // Each with its fragment's place in reading order, the order the text is written in.
+  const orderedTextOperations: Array<{ logicalFragmentOrder: number; textOperation: PapelizPdfExportPageOperation }> = []
   const decorationOperations: PapelizPdfExportPageOperation[] = []
+  let lastChipOperation: { styledPieceIndex: number; chipRectangleOperation: PapelizPdfExportRectangleOperation } | null = null
   const linkAreaOperations: PapelizPdfExportLinkAreaOperation[] = []
   let missingCharacterCount = 0
   let fragmentLeftPoints = lineLeftPoints
@@ -350,10 +631,24 @@ function layOutLine(lineTokens: readonly PapelizTextToken[], lineLeftPoints: num
     if (fragmentStyle.textDestinationName !== null && lineFragment.isStyledPieceStart) {
       placeOperations.push({ pageOperationKind: 'destination', destinationName: fragmentStyle.textDestinationName, destinationTopPoints: 0 })
     }
-    if (lineFragment.isStyledPieceStart) fragmentLeftPoints += chipPaddingPoints
+    if (lineFragment.hasLeftChipPadding) fragmentLeftPoints += chipPaddingPoints
     const textStartPoints = fragmentLeftPoints
+    const pushTextOperation = (textOperation: PapelizPdfExportPageOperation) => orderedTextOperations.push({ logicalFragmentOrder: lineFragment.logicalFragmentOrder, textOperation })
     const textBaselinePoints = lineBaselinePoints - fragmentStyle.baselineShiftPoints
-    const { textInlineIcon, textLink } = fragmentStyle
+    const { textInlineIcon, textInlinePicture, textLink } = fragmentStyle
+    if (textInlinePicture !== null) {
+      pushTextOperation({
+        pageOperationKind: 'picture',
+        pictureSource: { pictureSourceKind: 'note-picture', notePictureIndex: textInlinePicture.notePictureIndex },
+        pictureLeftPoints: roundPapelizPdfExportPoints(textStartPoints),
+        pictureTopPoints: roundPapelizPdfExportPoints(textBaselinePoints - textInlinePicture.pictureHeightPoints),
+        pictureWidthPoints: roundPapelizPdfExportPoints(textInlinePicture.pictureWidthPoints),
+        pictureHeightPoints: roundPapelizPdfExportPoints(textInlinePicture.pictureHeightPoints),
+        pictureCornerRadiusPoints: roundPapelizPdfExportPoints(textInlinePicture.pictureCornerRadiusPoints),
+        operationTagging: { operationTaggingKind: 'structure', structureElementKey: textInlinePicture.figureStructureElementKey },
+      })
+      fragmentLeftPoints += textInlinePicture.pictureWidthPoints
+    }
     if (textInlineIcon !== null) {
       const { iconPathData, iconStrokeWidth } = papelizPdfExportInlineIconDrawings[textInlineIcon.inlineIconName]
       const iconSizePoints = getPapelizPdfExportInlineIconWidthPoints(textInlineIcon, fragmentStyle.textSizePoints)
@@ -369,29 +664,23 @@ function layOutLine(lineTokens: readonly PapelizTextToken[], lineLeftPoints: num
       })
       fragmentLeftPoints += iconSizePoints
     }
-    const fragmentText = textInlineIcon === null ? lineFragment.fragmentText : ''
-    for (const { segmentText, fontSubsetName } of splitPapelizPdfExportTextBySubset(fragmentText)) {
-      const fontFaceKey = getPapelizPdfExportFontFaceKey({ ...fragmentStyle.textFontStyle, fontSubsetName: fontSubsetName ?? 'latin' })
-      const openTypeFeatureSet = textMeasurer.chooseOpenTypeFeatureSet(segmentText, fontFaceKey, fragmentStyle.openTypeFeatureSet)
-      const textWidthPoints = textMeasurer.measureTextWidthPoints(segmentText, fontFaceKey, fragmentStyle.textSizePoints, fragmentStyle.characterSpacingPoints, openTypeFeatureSet)
-      missingCharacterCount += textMeasurer.countMissingCharacters(segmentText, fontFaceKey)
-      textOperations.push({
-        pageOperationKind: 'text-run',
-        textRunText: segmentText,
-        fontFaceKey,
-        textSizePoints: roundPapelizPdfExportPoints(fragmentStyle.textSizePoints),
-        textColor: fragmentStyle.textColor,
-        characterSpacingPoints: roundPapelizPdfExportPoints(fragmentStyle.characterSpacingPoints),
-        openTypeFeatureSet,
-        textLeftPoints: roundPapelizPdfExportPoints(fragmentLeftPoints),
-        textBaselinePoints: roundPapelizPdfExportPoints(textBaselinePoints),
-        textWidthPoints: roundPapelizPdfExportPoints(textWidthPoints),
-        operationTagging: { operationTaggingKind: 'structure', structureElementKey: textLink?.linkStructureElementKey ?? structureElementKey },
-      })
-      fragmentLeftPoints += textWidthPoints + fragmentStyle.characterSpacingPoints
+    const isFragmentText = textInlineIcon === null && textInlinePicture === null
+    if (isFragmentText && lineFragment.fragmentText.length > 0) {
+      const fragmentOperations = createPapelizPdfExportStyledTextOperations(
+        lineFragment.fragmentText,
+        fragmentStyle,
+        fragmentLeftPoints,
+        textBaselinePoints,
+        { operationTaggingKind: 'structure', structureElementKey: textLink?.linkStructureElementKey ?? structureElementKey },
+        textMeasurer,
+      )
+      chipOperations.push(...fragmentOperations.pictureOperations)
+      fragmentOperations.textOperations.forEach(pushTextOperation)
+      missingCharacterCount += fragmentOperations.missingCharacterCount
+      fragmentLeftPoints += fragmentOperations.textWidthPoints
     }
-    const textEndPoints = textInlineIcon === null ? fragmentLeftPoints - fragmentStyle.characterSpacingPoints : fragmentLeftPoints
-    if (lineFragment.isStyledPieceEnd) fragmentLeftPoints += chipPaddingPoints
+    const textEndPoints = isFragmentText ? fragmentLeftPoints - fragmentStyle.characterSpacingPoints : fragmentLeftPoints
+    if (lineFragment.hasRightChipPadding) fragmentLeftPoints += chipPaddingPoints
     if (textLink !== null) {
       // One area for the pieces of one link that sit side by side on this line.
       const lastLinkAreaOperation = linkAreaOperations.at(-1)
@@ -410,9 +699,12 @@ function layOutLine(lineTokens: readonly PapelizTextToken[], lineLeftPoints: num
         })
       }
     }
-    if (fragmentStyle.textChip !== null) {
+    if (fragmentStyle.textChip !== null && lastChipOperation?.styledPieceIndex === lineFragment.styledPieceIndex) {
+      // The next displayed piece of the same chip widens its ground.
+      lastChipOperation.chipRectangleOperation.rectangleWidthPoints = roundPapelizPdfExportPoints(fragmentLeftPoints - lastChipOperation.chipRectangleOperation.rectangleLeftPoints)
+    } else if (fragmentStyle.textChip !== null) {
       const chipExtent = measureChipExtent(fragmentStyle, fragmentStyle.textChip, textMeasurer)
-      chipOperations.push({
+      const chipRectangleOperation: PapelizPdfExportRectangleOperation = {
         pageOperationKind: 'rectangle',
         rectangleLeftPoints: roundPapelizPdfExportPoints(chipStartPoints),
         rectangleTopPoints: roundPapelizPdfExportPoints(lineBaselinePoints - chipExtent.aboveBaselinePoints),
@@ -422,9 +714,12 @@ function layOutLine(lineTokens: readonly PapelizTextToken[], lineLeftPoints: num
         rectangleFillColor: fragmentStyle.textChip.chipGroundColor,
         rectangleStrokeColor: null,
         rectangleStrokeWidthPoints: 0,
-      })
+      }
+      chipOperations.push(chipRectangleOperation)
+      lastChipOperation = { styledPieceIndex: lineFragment.styledPieceIndex, chipRectangleOperation }
     }
-    const fragmentFontFaceMetrics = textMeasurer.getFontFaceMetrics(getPapelizPdfExportFontFaceKey({ ...fragmentStyle.textFontStyle, fontSubsetName: 'latin' }))
+    if (fragmentStyle.textChip === null) lastChipOperation = null
+    const fragmentFontFaceMetrics = textMeasurer.getFontFaceMetrics(getPapelizPdfExportLatinFontFaceKey(fragmentStyle.textFontStyle))
     if (fragmentStyle.textUnderline !== null) {
       const underlineThicknessPoints = Math.max(0.4, fragmentFontFaceMetrics.underlineThicknessEm * fragmentStyle.textSizePoints)
       const underlineTopPoints = textBaselinePoints + fragmentFontFaceMetrics.underlineOffsetEm * fragmentStyle.textSizePoints + underlineThicknessPoints / 2
@@ -462,13 +757,40 @@ function layOutLine(lineTokens: readonly PapelizTextToken[], lineLeftPoints: num
     laidOutLine: {
       lineHeightPoints: roundPapelizPdfExportPoints(lineHeightPoints),
       lineBaselinePoints: roundPapelizPdfExportPoints(lineBaselinePoints),
+      lineContentWidthPoints: roundPapelizPdfExportPoints(fragmentLeftPoints),
       // Places first, grounds, then text, then the lines through and under it and the icons, then
       // the links' areas over all of it.
-      lineOperations: [...placeOperations, ...chipOperations, ...textOperations, ...decorationOperations, ...linkAreaOperations],
+      lineOperations: [
+        ...placeOperations,
+        ...chipOperations,
+        ...orderedTextOperations.sort((firstOrderedOperation, secondOrderedOperation) => firstOrderedOperation.logicalFragmentOrder - secondOrderedOperation.logicalFragmentOrder).map(({ textOperation }) => textOperation),
+        ...decorationOperations,
+        ...linkAreaOperations,
+      ],
       missingCharacterCount,
     },
     lineContentWidthPoints: fragmentLeftPoints - lineLeftPoints,
   }
+}
+
+export interface PapelizPdfExportTextContentWidths {
+  // The widest word: the narrowest the text can be set without breaking inside a word.
+  minimumContentWidthPoints: number
+  // The widest line when nothing wraps.
+  maximumContentWidthPoints: number
+}
+
+// A browser's min-content and max-content widths of the text, which size a table's columns.
+export function measurePapelizPdfExportTextContentWidths(textLinesOptions: PapelizPdfExportTextLinesOptions): PapelizPdfExportTextContentWidths {
+  let minimumContentWidthPoints = 0
+  let maximumContentWidthPoints = 0
+  let lineFullWidthPoints = 0
+  for (const textToken of listTextTokens(textLinesOptions)) {
+    minimumContentWidthPoints = Math.max(minimumContentWidthPoints, textToken.tokenContentWidthPoints)
+    maximumContentWidthPoints = Math.max(maximumContentWidthPoints, lineFullWidthPoints + textToken.tokenContentWidthPoints)
+    lineFullWidthPoints = textToken.isLineEndRequired ? 0 : lineFullWidthPoints + textToken.tokenFullWidthPoints
+  }
+  return { minimumContentWidthPoints, maximumContentWidthPoints }
 }
 
 export function layOutPapelizPdfExportTextLines(textLinesOptions: PapelizPdfExportTextLinesOptions): PapelizPdfExportLaidOutLine[] {

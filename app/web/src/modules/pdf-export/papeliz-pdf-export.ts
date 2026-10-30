@@ -1,6 +1,8 @@
+import type { PapelizDocxExportPictureTools } from '../docx-export/papeliz-docx-export-pictures'
 import { writePapelizExportZipFile, type PapelizExportZipEntry } from '../export-zip/papeliz-export-zip-file-writer'
 import type { PapelizExportPageSize } from '../export-print-style/papeliz-export-print-style'
 import { getPapelizHtmlExportNoteLanguageTag } from '../html-export/papeliz-html-export-note-article'
+import { createPapelizHtmlExportVaultFileResolver, type PapelizHtmlExportVaultFileResolver } from '../html-export/papeliz-html-export-vault-files'
 import { createPapelizWikilinkTargetResolver, type PapelizWikilinkTargetResolver } from '../links/papeliz-wikilink-targets'
 import { renderPapelizMdViewNote } from '../md-view/papeliz-md-view-render-pipeline'
 import { escapePapelizWikilinkPipesInTableRows } from '../md-view/papeliz-md-view-table-model'
@@ -9,18 +11,39 @@ import type { PapelizVaultAdapter } from '../vault/papeliz-vault-adapter'
 import { getVaultEntryParentFolderRelativePath, getVaultNoteTitle, splitVaultRelativePath } from '../vault/papeliz-vault-relative-paths'
 import { getPapelizSafeFileNameStem } from '../workspace/papeliz-export-file-save'
 import type { PapelizNoteFontFamily } from '../workspace/papeliz-note-typography-store'
+import {
+  createPapelizPdfExportPagePictureTools,
+  drawPapelizPdfExportCharacterPicturesOnCanvas,
+  preparePapelizPdfExportNotePictures,
+  type PapelizPdfExportCharacterPictureDrawer,
+} from './papeliz-pdf-export-assets'
+import { listPapelizPdfExportCharacterPictureRequests } from './papeliz-pdf-export-character-pictures'
+import {
+  choosePapelizPdfExportComputerFontFiles,
+  createPapelizPdfExportBrowserComputerFontSource,
+  createPapelizPdfExportComputerFontReading,
+  listPapelizPdfExportComputerFontRequests,
+  type PapelizPdfExportComputerFontFile,
+  type PapelizPdfExportComputerFontReading,
+  type PapelizPdfExportComputerFontsAsker,
+  type PapelizPdfExportComputerFontSource,
+} from './papeliz-pdf-export-computer-fonts'
+import { drawPapelizPdfExportVectorDiagramOnPage, type PapelizPdfExportVectorDiagramDrawer } from './papeliz-pdf-export-diagram-drawing'
 import { describePapelizPdfExportFailure, PapelizPdfExportError } from './papeliz-pdf-export-errors'
 import { readPapelizPdfExportFontFile, type PapelizPdfExportFontFileReader } from './papeliz-pdf-export-font-files'
 import { listPapelizPdfExportNoteFontFaceKeys } from './papeliz-pdf-export-fonts'
 import { resolvePapelizPdfExportLimits } from './papeliz-pdf-export-limits'
 import { buildPapelizPdfExportNoteDocument } from './papeliz-pdf-export-note-document-from-hast'
 import type { PapelizPdfExportNotePdfJob } from './papeliz-pdf-export-note-pdf'
+import { getPapelizPdfExportPageArea } from './papeliz-pdf-export-page-area'
 import { createPapelizPdfExportNotePdfWriter, type PapelizPdfExportNotePdfWriter } from './papeliz-pdf-export-worker-client'
 
 // Export › PDF: the Settings gear's Export page loads this with `import()` when someone exports as
 // PDF. Papeliz writes the PDF itself, with no print window: each note is read here as MD View reads
-// it, then laid out and written in the PDF worker, which holds pdfkit. One note becomes
-// `<Note name>.pdf`; several become `<Vault name> PDF.zip`, one `.pdf` per note in the vault's folders.
+// it, with its pictures drawn again on the page's canvas (and, for characters no bundled font has, the
+// computer's fonts when the person allows them), then laid out and written in the PDF worker, which
+// holds pdfkit. One note becomes `<Note name>.pdf`; several become `<Vault name> PDF.zip`, one `.pdf`
+// per note in the vault's folders.
 
 export { PapelizPdfExportError } from './papeliz-pdf-export-errors'
 
@@ -45,6 +68,17 @@ export interface PapelizPdfExportOptions {
   // PDF worker unless given (tests, which have no worker).
   readPdfExportFontFile?: PapelizPdfExportFontFileReader
   pdfExportNotePdfWriter?: PapelizPdfExportNotePdfWriter
+  // How pictures, diagrams and characters no font has are drawn: the page's canvas, `fetch` and
+  // MD View's Mermaid unless given.
+  pdfExportPictureTools?: Partial<PapelizDocxExportPictureTools>
+  drawPdfExportCharacterPictures?: PapelizPdfExportCharacterPictureDrawer
+  // How diagrams become vector drawings: MD View's print draw walked on the page unless given.
+  drawPdfExportVectorDiagram?: PapelizPdfExportVectorDiagramDrawer
+  // How the Export page asks to use the computer's fonts, when the browser hasn't been told yet.
+  askPdfExportComputerFonts?: PapelizPdfExportComputerFontsAsker
+  // Where the computer's fonts come from: the browser's Local Font Access unless given (tests give
+  // their own, or null for none).
+  pdfExportComputerFontSource?: PapelizPdfExportComputerFontSource | null
 }
 
 export interface PapelizPdfExportResult {
@@ -120,15 +154,53 @@ export interface PapelizPdfExportNotePdfJobOptions {
   // Font files already read in this export, by face key.
   pdfExportFontFilesByFaceKey: Map<string, Uint8Array>
   pdfExportCreationDate: Date
+  // The vault's pictures the note shows, and how pictures and characters are drawn; without them,
+  // pictures keep MD View's chip, diagrams their source, and characters no font has print as boxes.
+  resolveVaultFileReference?: PapelizHtmlExportVaultFileResolver
+  readVaultFileBlob?: (vaultFileRelativePath: string) => Promise<Blob>
+  pdfExportPictureTools?: PapelizDocxExportPictureTools
+  drawPdfExportCharacterPictures?: PapelizPdfExportCharacterPictureDrawer
+  drawPdfExportVectorDiagram?: PapelizPdfExportVectorDiagramDrawer
+  // The computer's fonts, for characters no bundled font has, and the faces already read in this
+  // export; without a source those characters print as pictures.
+  pdfExportComputerFontSource?: PapelizPdfExportComputerFontSource | null
+  pdfExportComputerFontReading?: PapelizPdfExportComputerFontReading
+  pdfExportAbortSignal?: AbortSignal
 }
 
-// What the worker needs for one note: the note read as MD View reads it, and the font files its text
-// uses. The note's name is the PDF's title; its `lang` property is the PDF's language.
+// What the worker needs for one note: the note read as MD View reads it, its pictures and diagrams,
+// pictures of the characters no bundled font has (kept for any the computer's fonts don't draw either),
+// the computer's fonts for them, and the font files its text uses. The note's name is the PDF's title;
+// its `lang` property is the PDF's language.
 export async function buildPapelizPdfExportNotePdfJob(notePdfJobOptions: PapelizPdfExportNotePdfJobOptions): Promise<PapelizPdfExportNotePdfJob> {
   const { noteFrontmatterText, noteHastRoot } = renderPapelizMdViewNote(notePdfJobOptions.vaultNoteText, {
     resolveWikilinkTarget: notePdfJobOptions.resolveWikilinkTarget,
     fromVaultNoteRelativePath: notePdfJobOptions.vaultNoteRelativePath,
   })
+  const pdfExportDocumentTitle = getVaultNoteTitle(notePdfJobOptions.vaultNoteRelativePath)
+  const pdfExportPageArea = getPapelizPdfExportPageArea(notePdfJobOptions.pdfExportPageSize)
+  const { readVaultFileBlob } = notePdfJobOptions
+  const notePictures = await preparePapelizPdfExportNotePictures({
+    noteHastRoot,
+    vaultNoteRelativePath: notePdfJobOptions.vaultNoteRelativePath,
+    pdfExportNoteName: pdfExportDocumentTitle,
+    resolveWikilinkTarget: notePdfJobOptions.resolveWikilinkTarget,
+    resolveVaultFileReference: readVaultFileBlob === undefined ? null : (notePdfJobOptions.resolveVaultFileReference ?? null),
+    readVaultFileBlob: readVaultFileBlob ?? (() => Promise.reject(new Error('This export has no vault files.'))),
+    pdfExportPictureTools: notePdfJobOptions.pdfExportPictureTools ?? createPapelizPdfExportPagePictureTools(),
+    pdfExportNoteFontFamily: notePdfJobOptions.pdfExportNoteFontFamily,
+    contentWidthPoints: pdfExportPageArea.contentWidthPoints,
+    contentHeightPoints: pdfExportPageArea.contentBottomPoints - pdfExportPageArea.contentTopPoints,
+    ...(notePdfJobOptions.pdfExportAbortSignal === undefined ? {} : { pdfExportAbortSignal: notePdfJobOptions.pdfExportAbortSignal }),
+  })
+  // Each diagram drawn as vectors too, when the page can walk its drawing; its picture stays the
+  // fallback.
+  const drawPdfExportVectorDiagram = notePdfJobOptions.drawPdfExportVectorDiagram ?? drawPapelizPdfExportVectorDiagramOnPage
+  for (const notePictureEntry of notePictures.notePictureEntriesByElement.values()) {
+    if (notePictureEntry.notePictureEntryKind !== 'shown' || !notePictureEntry.isMermaidDiagram) continue
+    notePdfJobOptions.pdfExportAbortSignal?.throwIfAborted()
+    notePictureEntry.diagramVectorDrawing = await drawPdfExportVectorDiagram(notePictureEntry.pictureDescription, notePdfJobOptions.pdfExportNoteFontFamily)
+  }
   const pdfExportNoteDocument = buildPapelizPdfExportNoteDocument({
     noteHastRoot,
     noteParsedText: escapePapelizWikilinkPipesInTableRows(notePdfJobOptions.vaultNoteText),
@@ -136,8 +208,26 @@ export async function buildPapelizPdfExportNotePdfJob(notePdfJobOptions: Papeliz
     noteFontFamily: notePdfJobOptions.pdfExportNoteFontFamily,
     vaultNoteRelativePath: notePdfJobOptions.vaultNoteRelativePath,
     resolveWikilinkTarget: notePdfJobOptions.resolveWikilinkTarget,
+    notePictureEntriesByElement: notePictures.notePictureEntriesByElement,
   })
-  const pdfExportDocumentTitle = getVaultNoteTitle(notePdfJobOptions.vaultNoteRelativePath)
+  const pdfExportLimits = resolvePapelizPdfExportLimits()
+  const drawPdfExportCharacterPictures = notePdfJobOptions.drawPdfExportCharacterPictures ?? drawPapelizPdfExportCharacterPicturesOnCanvas
+  const characterPictureRequests = listPapelizPdfExportCharacterPictureRequests(pdfExportNoteDocument, pdfExportDocumentTitle, pdfExportLimits.maximumCharacterPictureCount)
+  const pdfExportCharacterPictures = await drawPdfExportCharacterPictures(characterPictureRequests)
+  let pdfExportComputerFonts: PapelizPdfExportComputerFontFile[] = []
+  const computerFontRequests = listPapelizPdfExportComputerFontRequests(characterPictureRequests)
+  const { pdfExportComputerFontSource } = notePdfJobOptions
+  if (computerFontRequests.length > 0 && pdfExportComputerFontSource !== undefined && pdfExportComputerFontSource !== null) {
+    const localFonts = await pdfExportComputerFontSource.listComputerFonts(pdfExportDocumentTitle)
+    notePdfJobOptions.pdfExportAbortSignal?.throwIfAborted()
+    if (localFonts !== null) {
+      pdfExportComputerFonts = await choosePapelizPdfExportComputerFontFiles(
+        computerFontRequests,
+        localFonts,
+        notePdfJobOptions.pdfExportComputerFontReading ?? createPapelizPdfExportComputerFontReading(),
+      )
+    }
+  }
   const pdfExportFontFiles: Array<{ fontFaceKey: string; fontFileBytes: Uint8Array }> = []
   for (const fontFaceKey of listPapelizPdfExportNoteFontFaceKeys(pdfExportNoteDocument, pdfExportDocumentTitle)) {
     let fontFileBytes = notePdfJobOptions.pdfExportFontFilesByFaceKey.get(fontFaceKey)
@@ -158,6 +248,10 @@ export async function buildPapelizPdfExportNotePdfJob(notePdfJobOptions: Papeliz
     pdfExportDocumentTitle,
     pdfExportDocumentLanguageTag: getPapelizHtmlExportNoteLanguageTag(noteFrontmatterText === null ? [] : readPapelizNoteFrontmatterProperties(noteFrontmatterText)),
     pdfExportCreationDateIso: notePdfJobOptions.pdfExportCreationDate.toISOString(),
+    pdfExportPictures: notePictures.pdfExportPictures,
+    pdfExportCharacterPictures,
+    pdfExportComputerFonts,
+    pdfExportPreparationNotices: notePictures.pdfExportPictureNotices,
   }
 }
 
@@ -170,6 +264,14 @@ export async function exportPapelizNotesAsPdf(pdfExportOptions: PapelizPdfExport
   const pdfExportNoteCount = pdfExportVaultNoteRelativePaths.length
   const pdfExportNotices: string[] = []
   const notePdfWriter = pdfExportOptions.pdfExportNotePdfWriter ?? createPapelizPdfExportNotePdfWriter()
+  // One set of picture tools for the whole export, so the diagrams' fonts are prepared once.
+  const pdfExportPictureTools: PapelizDocxExportPictureTools = { ...createPapelizPdfExportPagePictureTools(), ...pdfExportOptions.pdfExportPictureTools }
+  const resolveVaultFileReference = createPapelizHtmlExportVaultFileResolver(await pdfExportVault.vaultAdapter.listVaultAttachmentFileRelativePaths())
+  // Asked at most once, and each face read at most once, in the whole export.
+  const pdfExportComputerFontSource =
+    pdfExportOptions.pdfExportComputerFontSource !== undefined ? pdfExportOptions.pdfExportComputerFontSource : createPapelizPdfExportBrowserComputerFontSource(pdfExportOptions.askPdfExportComputerFonts ?? null)
+  const pdfExportComputerFontReading = createPapelizPdfExportComputerFontReading()
+  const readVaultFileBlob = (vaultFileRelativePath: string) => pdfExportVault.vaultAdapter.readVaultAttachmentFileBlob(vaultFileRelativePath)
   const writeNotePdfFile = async (vaultNoteRelativePath: string, exportedNoteCount: number): Promise<Uint8Array> => {
     pdfExportAbortSignal?.throwIfAborted()
     const vaultNoteText = await pdfExportVault.vaultAdapter.readVaultNoteText(vaultNoteRelativePath)
@@ -183,6 +285,14 @@ export async function exportPapelizNotesAsPdf(pdfExportOptions: PapelizPdfExport
         readPdfExportFontFile: pdfExportOptions.readPdfExportFontFile ?? readPapelizPdfExportFontFile,
         pdfExportFontFilesByFaceKey,
         pdfExportCreationDate,
+        resolveVaultFileReference,
+        readVaultFileBlob,
+        pdfExportPictureTools,
+        pdfExportComputerFontSource,
+        pdfExportComputerFontReading,
+        ...(pdfExportOptions.drawPdfExportCharacterPictures === undefined ? {} : { drawPdfExportCharacterPictures: pdfExportOptions.drawPdfExportCharacterPictures }),
+        ...(pdfExportOptions.drawPdfExportVectorDiagram === undefined ? {} : { drawPdfExportVectorDiagram: pdfExportOptions.drawPdfExportVectorDiagram }),
+        ...(pdfExportAbortSignal === undefined ? {} : { pdfExportAbortSignal }),
       })
       const { pdfFileBytes, pdfExportNoteNotices } = await notePdfWriter.writeNotePdf(notePdfJob, () => {}, pdfExportAbortSignal)
       pdfExportNotices.push(...pdfExportNoteNotices)

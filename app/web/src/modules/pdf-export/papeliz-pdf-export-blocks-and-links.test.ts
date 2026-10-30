@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { checkPapelizPdfExportWebLinkAddress, createPapelizPdfExportHeadingDestinationName, papelizPdfExportDestinationNamePattern } from './papeliz-pdf-export-links'
 import type { PapelizPdfExportLaidOutBlock } from './papeliz-pdf-export-block-layout'
 import { resolvePapelizPdfExportLimits } from './papeliz-pdf-export-limits'
-import { getPapelizPdfExportPageArea, planPapelizPdfExportNotePages, writePapelizPdfExportNotePdf } from './papeliz-pdf-export-note-pdf'
+import { planPapelizPdfExportNotePages, writePapelizPdfExportNotePdf } from './papeliz-pdf-export-note-pdf'
+import { getPapelizPdfExportPageArea } from './papeliz-pdf-export-page-area'
 import { checkPapelizPdfExportPageLayoutPlan, type PapelizPdfExportPageLayoutPlan, type PapelizPdfExportPageOperation } from './papeliz-pdf-export-page-layout-plan'
 import { paginatePapelizPdfExportBlocks } from './papeliz-pdf-export-pagination'
 import type { PapelizPdfExportTextMeasurer } from './papeliz-pdf-export-text-measuring'
@@ -23,6 +24,9 @@ const papelizPdfExportFixedWidthTextMeasurer: PapelizPdfExportTextMeasurer = {
   measureTextWidthPoints: (textToMeasure) => textToMeasure.length * 5,
   chooseOpenTypeFeatureSet: (_textToShape, _fontFaceKey, wantedOpenTypeFeatureSet) => wantedOpenTypeFeatureSet,
   countMissingCharacters: () => 0,
+  getCharacterPicture: () => null,
+  splitTextIntoFontPieces: (textToSplit) => [{ fontPieceText: textToSplit, fontFaceKey: 'figtree-latin-400-normal', isFontPieceSlanted: false, isFontPieceThickened: false }],
+  hasFontLayoutTables: () => true,
 }
 
 // A block of one line this tall, drawing one word, or a rule.
@@ -50,6 +54,7 @@ function createTestLaidOutBlock(lineHeightPoints: number, blockSpaceAbovePoints:
         textLeftPoints: 0,
         textBaselinePoints: 10,
         textWidthPoints: 25,
+        textSynthesis: null,
         operationTagging: { operationTaggingKind: 'structure', structureElementKey: 'structure-1' },
       }
   return {
@@ -57,9 +62,12 @@ function createTestLaidOutBlock(lineHeightPoints: number, blockSpaceAbovePoints:
     blockWidthPoints: 400,
     blockSpaceAbovePoints,
     blockSpaceBelowPoints: 0,
-    blockLines: [{ lineHeightPoints, lineBaselinePoints: lineHeightPoints, lineOperations: [lineOperation], missingCharacterCount: 0 }],
+    blockFixedSpaceAbovePoints: 0,
+    blockFixedSpaceBelowPoints: 0,
+    blockLines: [{ lineHeightPoints, lineBaselinePoints: lineHeightPoints, lineContentWidthPoints: 25, lineOperations: [lineOperation], missingCharacterCount: 0 }],
     blockBox: null,
-    blockQuoteBars: [],
+    blockContainers: [],
+    isBlockFirstLineRepeated: false,
     isBlockKeptWithNext: false,
     blockKeptWholeLineCount: Number.POSITIVE_INFINITY,
     minimumLinesBeforePageBreak: 1,
@@ -81,26 +89,6 @@ function findStructureParentRole(structureNode: PapelizPdfExportPdfJsStructureNo
     if (foundParentRole !== undefined) return foundParentRole
   }
   return undefined
-}
-
-// A note whose headings fall at many places down a page, each followed by a different block: a
-// paragraph, a list, a task list, a quote, code, or more headings.
-function createHeadingsAtPageEndTestNoteText(): string {
-  const followingBlockTexts = [
-    'A paragraph after the heading. It runs on for two lines at least, so its first two lines must come along with the heading when the page ends here.',
-    '- A list item after the heading\n- And a second one\n- And a third',
-    '- [ ] A task after the heading\n- [x] A done task',
-    '> A quote after the heading, long enough to reach a second line on the page, so the quote can be split after it.',
-    '```\ncode after the heading\nline 2\nline 3\n```',
-    '### A heading right after the heading\n\n#### And a third heading\n\nThen the paragraph all three headings keep with.',
-  ]
-  const notePartTexts = ['# Headings at page end']
-  for (let sectionNumber = 1; sectionNumber <= 36; sectionNumber += 1) {
-    notePartTexts.push(`Filler ${sectionNumber}: ${'Words fill the page so the next heading lands lower each time. '.repeat(1 + (sectionNumber % 7))}`)
-    notePartTexts.push(`## Section ${sectionNumber}`)
-    notePartTexts.push(followingBlockTexts[sectionNumber % followingBlockTexts.length] ?? '')
-  }
-  return notePartTexts.join('\n\n')
 }
 
 describe('PDF export links', () => {
@@ -157,7 +145,7 @@ describe('PDF export links', () => {
     // Each footnote's place is on the footnotes' page, and each reference's on the page that refers to it.
     const { pdfJsDestinationPageIndexes } = everyBlockPdfJsReading
     expect(pdfJsDestinationPageIndexes.get('footnote-1')).toBe(everyBlockPdfJsReading.pdfJsPageCount - 1)
-    expect(pdfJsDestinationPageIndexes.get('footnote-reference-1')).toBeLessThan(everyBlockPdfJsReading.pdfJsPageCount - 1)
+    expect(pdfJsDestinationPageIndexes.get('footnote-reference-1')).toBeLessThanOrEqual(pdfJsDestinationPageIndexes.get('footnote-1') ?? 0)
     for (const linkedPlaceName of linkedPlaceNames) expect(pdfJsDestinationPageIndexes.has(linkedPlaceName), linkedPlaceName).toBe(true)
     expect(everyBlockPdfJsReading.pdfJsLinks.find((pdfJsLink) => pdfJsLink.pdfJsLinkDestinationName === 'footnote-reference-1')?.pdfJsLinkDescription).toBe('Back to reference 1')
     expect(everyBlockPdfJsReading.pdfJsLinks.map((pdfJsLink) => pdfJsLink.pdfJsLinkAddress)).toEqual(
@@ -223,7 +211,9 @@ describe('PDF export blocks', () => {
     const pdfJsReading = await readPapelizPdfExportFileWithPdfJs(
       (await writePapelizPdfExportNotePdf(await buildPapelizPdfExportTestNotePdfJob('Every block.md', getPapelizPdfExportTestNoteText('Every block.md')))).pdfFileBytes,
     )
-    expect(new Set(pdfJsReading.pdfJsStructureRoles)).toEqual(new Set(['Root', 'Document', 'L', 'LI', 'LBody', 'Lbl', 'P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'Link', 'BlockQuote', 'Code', 'Note']))
+    expect(new Set(pdfJsReading.pdfJsStructureRoles)).toEqual(
+      new Set(['Root', 'Document', 'L', 'LI', 'LBody', 'Lbl', 'P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'Link', 'BlockQuote', 'Div', 'Code', 'Table', 'TR', 'TH', 'TD', 'Note']),
+    )
     const pageStructureTrees = pdfJsReading.pdfJsStructureTreesByPage
     expect(findStructureParentRole(pageStructureTrees[0] ?? null, 'Lbl')).toBe('LI')
     expect(findStructureParentRole(pageStructureTrees[0] ?? null, 'Link')).toBe('P')
@@ -286,7 +276,7 @@ describe('PDF export blocks', () => {
 
   it('keeps headings with what follows when they fall at a page’s end', async () => {
     for (const pdfExportPageSize of ['a4', 'letter'] as const) {
-      const { pageLayoutPlan } = planPapelizPdfExportNotePages(await buildPapelizPdfExportTestNotePdfJob('Headings at page end.md', createHeadingsAtPageEndTestNoteText(), 'sans', pdfExportPageSize))
+      const { pageLayoutPlan } = planPapelizPdfExportNotePages(await buildPapelizPdfExportTestNotePdfJob('Headings at page end.md', getPapelizPdfExportTestNoteText('Headings at page end.md'), 'sans', pdfExportPageSize))
       const structureRolesByKey = getTextStructureRoles(pageLayoutPlan)
       const structureParentsByKey = new Map(pageLayoutPlan.pdfExportStructureElements.map(({ structureElementKey, parentStructureElementKey }) => [structureElementKey, parentStructureElementKey]))
       const getBlockRole = (structureElementKey: string) => structureRolesByKey.get(structureRolesByKey.get(structureElementKey) === 'Link' ? (structureParentsByKey.get(structureElementKey) ?? '') : structureElementKey)

@@ -1,4 +1,4 @@
-import PDFDocument, { type PapelizPdfKitOutline, type PapelizPdfKitStructureElement } from 'pdfkit'
+import PDFDocument, { type PapelizPdfKitImage, type PapelizPdfKitOutline, type PapelizPdfKitStructureElement } from 'pdfkit'
 import { PapelizPdfExportError } from './papeliz-pdf-export-errors'
 import type { PapelizPdfExportLimits } from './papeliz-pdf-export-limits'
 import {
@@ -9,7 +9,20 @@ import {
   type PapelizPdfExportOperationTagging,
   type PapelizPdfExportPageLayoutPlan,
   type PapelizPdfExportPageOperation,
+  type PapelizPdfExportPictureSource,
+  type PapelizPdfExportVectorDrawingOperation,
 } from './papeliz-pdf-export-page-layout-plan'
+import type { PapelizPdfExportPictureFile } from './papeliz-pdf-export-picture-check'
+import type { PapelizPdfExportVectorGradient } from './papeliz-pdf-export-vector-drawing'
+
+// The pictures a plan draws: the note's, by their place, and pictures of characters, by their key.
+export interface PapelizPdfExportPictureFiles {
+  notePictureFiles: readonly PapelizPdfExportPictureFile[]
+  characterPictureFilesByKey: ReadonlyMap<string, PapelizPdfExportPictureFile>
+}
+
+// Each picture read by pdfkit once, however many times it is drawn.
+type PapelizPdfExportPictureOpener = (pictureSource: PapelizPdfExportPictureSource) => PapelizPdfKitImage
 
 // Draws a checked page layout plan with pdfkit and collects the file's bytes. Every font is an
 // embedded subset with a map back to its characters; each block is a structure element, nested as
@@ -103,6 +116,8 @@ export function openPapelizPdfExportDocument(
   documentDetails: PapelizPdfExportDocumentDetails,
   fontFilesByFaceKey: ReadonlyMap<string, Uint8Array>,
   pdfExportLimits: PapelizPdfExportLimits,
+  // A face inside a font collection (`.ttc`) is picked by its PostScript name.
+  fontCollectionFaceNamesByFaceKey: ReadonlyMap<string, string> = new Map(),
 ): PapelizPdfExportOpenDocument {
   const pdfKitDocument = new PapelizPdfExportPdfKitDocument({
     pdfVersion: '1.7',
@@ -121,24 +136,33 @@ export function openPapelizPdfExportDocument(
     },
   })
   const outputCollector = new PapelizPdfExportOutputCollector(pdfKitDocument, pdfExportLimits.maximumPdfFileByteCount)
-  for (const [fontFaceKey, fontFileBytes] of fontFilesByFaceKey) pdfKitDocument.registerFont(fontFaceKey, fontFileBytes)
+  for (const [fontFaceKey, fontFileBytes] of fontFilesByFaceKey) {
+    const fontCollectionFaceName = fontCollectionFaceNamesByFaceKey.get(fontFaceKey)
+    if (fontCollectionFaceName === undefined) pdfKitDocument.registerFont(fontFaceKey, fontFileBytes)
+    else pdfKitDocument.registerFont(fontFaceKey, fontFileBytes, fontCollectionFaceName)
+  }
   return { pdfKitDocument, outputCollector }
 }
 
-function drawPageOperation(pdfKitDocument: PDFDocument, pageOperation: PapelizPdfExportPageOperation): void {
+function drawPageOperation(pdfKitDocument: PDFDocument, pageOperation: PapelizPdfExportPageOperation, openPicture: PapelizPdfExportPictureOpener): void {
   switch (pageOperation.pageOperationKind) {
     case 'text-run': {
       const openTypeFeatures = papelizPdfExportOpenTypeFeaturesBySet[pageOperation.openTypeFeatureSet]
-      pdfKitDocument
-        .font(pageOperation.fontFaceKey)
-        .fontSize(pageOperation.textSizePoints)
-        .fillColor(pageOperation.textColor)
-        .text(pageOperation.textRunText, pageOperation.textLeftPoints, pageOperation.textBaselinePoints, {
-          lineBreak: false,
-          baseline: 'alphabetic',
-          characterSpacing: pageOperation.characterSpacingPoints,
-          ...(openTypeFeatures === undefined ? {} : { features: openTypeFeatures }),
-        })
+      const { textSynthesis } = pageOperation
+      pdfKitDocument.font(pageOperation.fontFaceKey).fontSize(pageOperation.textSizePoints).fillColor(pageOperation.textColor)
+      const isTextThickened = textSynthesis !== null && textSynthesis.textStrokeWidthPoints > 0
+      // Thickened: filled and stroked in its own color (text render mode 2), as browsers draw a bold
+      // the font lacks; the stroke's color and width are put back after it.
+      if (isTextThickened) pdfKitDocument.save().strokeColor(pageOperation.textColor).lineWidth(textSynthesis.textStrokeWidthPoints)
+      pdfKitDocument.text(pageOperation.textRunText, pageOperation.textLeftPoints, pageOperation.textBaselinePoints, {
+        lineBreak: false,
+        baseline: 'alphabetic',
+        characterSpacing: pageOperation.characterSpacingPoints,
+        ...(openTypeFeatures === undefined ? {} : { features: openTypeFeatures }),
+        ...(textSynthesis !== null && textSynthesis.textSlantDegrees > 0 ? { oblique: textSynthesis.textSlantDegrees } : {}),
+        ...(isTextThickened ? { fill: true, stroke: true } : {}),
+      })
+      if (isTextThickened) pdfKitDocument.restore()
       return
     }
     case 'rectangle': {
@@ -176,10 +200,71 @@ function drawPageOperation(pdfKitDocument: PDFDocument, pageOperation: PapelizPd
       }
       pdfKitDocument.restore()
       return
+    case 'vector-drawing':
+      drawVectorDrawing(pdfKitDocument, pageOperation)
+      return
+    case 'picture': {
+      const { pictureLeftPoints, pictureTopPoints, pictureWidthPoints, pictureHeightPoints, pictureCornerRadiusPoints } = pageOperation
+      pdfKitDocument.save()
+      // MD View's rounded corners, as a clip around the picture.
+      if (pictureCornerRadiusPoints > 0) pdfKitDocument.roundedRect(pictureLeftPoints, pictureTopPoints, pictureWidthPoints, pictureHeightPoints, pictureCornerRadiusPoints).clip()
+      pdfKitDocument.image(openPicture(pageOperation.pictureSource), pictureLeftPoints, pictureTopPoints, { width: pictureWidthPoints, height: pictureHeightPoints })
+      pdfKitDocument.restore()
+      return
+    }
     case 'link-area':
     case 'destination':
       return
   }
+}
+
+// A drawing's shapes, each in its own transform and paint, scaled from the drawing's units to points;
+// then its labels over them, each in its face from its start on the baseline.
+function drawVectorDrawing(pdfKitDocument: PDFDocument, vectorDrawingOperation: PapelizPdfExportVectorDrawingOperation): void {
+  pdfKitDocument.save().translate(vectorDrawingOperation.drawingLeftPoints, vectorDrawingOperation.drawingTopPoints).scale(vectorDrawingOperation.drawingScale)
+  for (const vectorShape of vectorDrawingOperation.vectorDrawing.vectorShapes) {
+    const hasFill = vectorShape.vectorShapeFillColor !== null
+    const hasStroke = vectorShape.vectorShapeStrokeColor !== null && vectorShape.vectorShapeStrokeWidth > 0
+    if (!hasFill && !hasStroke) continue
+    pdfKitDocument.save().transform(...vectorShape.vectorShapeTransform)
+    // A gradient is placed in the shape's own units, so it is made after its transform.
+    const createGradient = (vectorGradient: PapelizPdfExportVectorGradient) => {
+      const pdfKitGradient = pdfKitDocument.linearGradient(vectorGradient.gradientStartX, vectorGradient.gradientStartY, vectorGradient.gradientEndX, vectorGradient.gradientEndY)
+      for (const { stopOffset, stopColor, stopOpacity } of vectorGradient.gradientStops) pdfKitGradient.stop(stopOffset, stopColor, stopOpacity)
+      return pdfKitGradient
+    }
+    if (vectorShape.vectorShapeFillColor !== null) {
+      const fillPaint = vectorShape.vectorShapeFillGradient === null ? vectorShape.vectorShapeFillColor : createGradient(vectorShape.vectorShapeFillGradient)
+      pdfKitDocument.fillColor(fillPaint, vectorShape.vectorShapeFillOpacity)
+    }
+    if (hasStroke && vectorShape.vectorShapeStrokeColor !== null) {
+      pdfKitDocument
+        .strokeColor(vectorShape.vectorShapeStrokeGradient === null ? vectorShape.vectorShapeStrokeColor : createGradient(vectorShape.vectorShapeStrokeGradient), vectorShape.vectorShapeStrokeOpacity)
+        .lineWidth(vectorShape.vectorShapeStrokeWidth)
+        .lineCap(vectorShape.vectorShapeLineCap)
+        .lineJoin(vectorShape.vectorShapeLineJoin)
+        .miterLimit(vectorShape.vectorShapeMiterLimit)
+      if (vectorShape.vectorShapeDashArray.length > 0) pdfKitDocument.dash(vectorShape.vectorShapeDashArray, { phase: vectorShape.vectorShapeDashOffset })
+    }
+    pdfKitDocument.path(vectorShape.vectorShapePathData)
+    if (hasFill && hasStroke) pdfKitDocument.fillAndStroke(vectorShape.vectorShapeFillRule)
+    else if (hasFill) pdfKitDocument.fill(vectorShape.vectorShapeFillRule)
+    else pdfKitDocument.stroke()
+    pdfKitDocument.restore()
+  }
+  vectorDrawingOperation.vectorDrawing.vectorTextRuns.forEach((vectorTextRun, vectorTextRunIndex) => {
+    const vectorTextRunFontFaceKey = vectorDrawingOperation.vectorTextRunFontFaceKeys[vectorTextRunIndex]
+    if (vectorTextRunFontFaceKey === undefined) return
+    pdfKitDocument
+      .save()
+      .transform(...vectorTextRun.vectorTextRunTransform)
+      .font(vectorTextRunFontFaceKey)
+      .fontSize(vectorTextRun.vectorTextRunSize)
+      .fillColor(vectorTextRun.vectorTextRunColor, vectorTextRun.vectorTextRunOpacity)
+      .text(vectorTextRun.vectorTextRunText, vectorTextRun.vectorTextRunLeft, vectorTextRun.vectorTextRunBaseline, { lineBreak: false, baseline: 'alphabetic' })
+      .restore()
+  })
+  pdfKitDocument.restore()
 }
 
 // Links and named places hold no drawing: they are annotations and entries of the file, made where
@@ -254,7 +339,9 @@ function getOperationTaggingKey(operationTagging: PapelizPdfExportOperationTaggi
 }
 
 function getPageOperationTagging(pageOperation: PapelizPdfExportPageOperation): PapelizPdfExportOperationTagging {
-  return pageOperation.pageOperationKind === 'text-run' ? pageOperation.operationTagging : { operationTaggingKind: 'artifact', artifactType: 'Layout' }
+  return pageOperation.pageOperationKind === 'text-run' || pageOperation.pageOperationKind === 'vector-drawing' || pageOperation.pageOperationKind === 'picture'
+    ? pageOperation.operationTagging
+    : { operationTaggingKind: 'artifact', artifactType: 'Layout' }
 }
 
 export interface PapelizPdfExportDrawingProgress {
@@ -268,9 +355,21 @@ export interface PapelizPdfExportDrawingProgress {
 export async function drawPapelizPdfExportPageLayoutPlan(
   openDocument: PapelizPdfExportOpenDocument,
   pageLayoutPlan: PapelizPdfExportPageLayoutPlan,
+  pictureFiles: PapelizPdfExportPictureFiles,
   drawingProgress: PapelizPdfExportDrawingProgress,
 ): Promise<Uint8Array> {
   const { pdfKitDocument, outputCollector } = openDocument
+  const openedPicturesByKey = new Map<string, PapelizPdfKitImage>()
+  const openPicture: PapelizPdfExportPictureOpener = (pictureSource) => {
+    const pictureKey = pictureSource.pictureSourceKind === 'note-picture' ? `note ${pictureSource.notePictureIndex}` : `character ${pictureSource.characterPictureKey}`
+    const openedPicture = openedPicturesByKey.get(pictureKey)
+    if (openedPicture !== undefined) return openedPicture
+    const pictureFile = pictureSource.pictureSourceKind === 'note-picture' ? pictureFiles.notePictureFiles[pictureSource.notePictureIndex] : pictureFiles.characterPictureFilesByKey.get(pictureSource.characterPictureKey)
+    if (pictureFile === undefined) throw new PapelizPdfExportError('pdf-export-writer-failed', 'A planned picture is missing.')
+    const pdfKitImage = pdfKitDocument.openImage(pictureFile.pictureBytes)
+    openedPicturesByKey.set(pictureKey, pdfKitImage)
+    return pdfKitImage
+  }
   const documentStructureElement = pdfKitDocument.struct('Document')
   pdfKitDocument.addStructure(documentStructureElement)
   const plannedStructureElementsByKey = new Map(pageLayoutPlan.pdfExportStructureElements.map((plannedStructureElement) => [plannedStructureElement.structureElementKey, plannedStructureElement]))
@@ -281,7 +380,13 @@ export async function drawPapelizPdfExportPageLayoutPlan(
     const plannedStructureElement = plannedStructureElementsByKey.get(structureElementKey)
     const parentStructureElementKey = plannedStructureElement?.parentStructureElementKey ?? null
     const parentStructureElement = parentStructureElementKey === null ? documentStructureElement : getStructureElement(parentStructureElementKey)
-    const structureElement = pdfKitDocument.struct(plannedStructureElement?.structureRole ?? 'P')
+    const structureAlternateText = plannedStructureElement?.structureAlternateText ?? null
+    const structureRole = plannedStructureElement?.structureRole ?? 'P'
+    const structureElement = pdfKitDocument.struct(structureRole, structureAlternateText === null ? {} : { alt: structureAlternateText })
+    // PDF/UA asks a table header cell to say what it heads (its column), and a note for an ID of its
+    // own.
+    if (structureRole === 'TH') structureElement.dictionary.data['A'] = { O: 'Table', Scope: 'Column' }
+    if (structureRole === 'Note') structureElement.dictionary.data['ID'] = new String(`papeliz-note-${structureElementKey}`)
     parentStructureElement.add(structureElement)
     structureElementsByKey.set(structureElementKey, structureElement)
     return structureElement
@@ -316,7 +421,7 @@ export async function drawPapelizPdfExportPageLayoutPlan(
       }
       const groupOperations = pagePlan.pageOperations.slice(operationGroupStartIndex, operationGroupEndIndex)
       const drawGroupOperations = () => {
-        for (const groupOperation of groupOperations) drawPageOperation(pdfKitDocument, groupOperation)
+        for (const groupOperation of groupOperations) drawPageOperation(pdfKitDocument, groupOperation, openPicture)
       }
       if (groupTagging.operationTaggingKind === 'structure') {
         getStructureElement(groupTagging.structureElementKey).add(drawGroupOperations)

@@ -1,16 +1,23 @@
 import type { Element as HastElement, ElementContent as HastElementContent, Root as HastRoot } from 'hast'
 import { visit } from 'unist-util-visit'
-import { getPapelizExportPrintColor, type PapelizExportPrintColorToken, papelizExportPrintColorsByToken } from '../export-print-style/papeliz-export-print-style'
+import {
+  getPapelizExportCalloutPrintColors,
+  getPapelizExportPrintColor,
+  type PapelizExportPrintColorToken,
+  papelizExportPrintColorsByToken,
+} from '../export-print-style/papeliz-export-print-style'
 import { createPapelizHtmlExportHeadingIdMaker } from '../html-export/papeliz-html-export-heading-ids'
+import { papelizHtmlExportCalloutIconNamesByKind } from '../html-export/papeliz-html-export-note-article'
 import type { PapelizWikilinkTargetResolver } from '../links/papeliz-wikilink-targets'
 import { readPapelizNoteFrontmatterProperties } from '../md-view/papeliz-note-frontmatter-properties'
-import { papelizMdViewCalloutClassName } from '../md-view/papeliz-remark-callouts'
+import { papelizMdViewCalloutBodyClassName, papelizMdViewCalloutClassName, papelizMdViewCalloutTitleClassName } from '../md-view/papeliz-remark-callouts'
 import { papelizMdViewTagClassName } from '../md-view/papeliz-remark-tags'
 import { papelizMdViewStyledTextClassName } from '../md-view/papeliz-remark-text-styles'
 import { papelizMdViewUnresolvedWikilinkClassName } from '../md-view/papeliz-remark-wikilinks'
 import { isPapelizTextColorValue, isPapelizTextSizeValue } from '../note-editor/papeliz-note-text-style'
 import { parsePapelizHexColor } from '../ui/papeliz-color-values'
 import type { PapelizNoteFontFamily } from '../workspace/papeliz-note-typography-store'
+import type { PapelizPdfExportNotePictureEntry } from './papeliz-pdf-export-assets'
 import {
   checkPapelizPdfExportWebLinkAddress,
   createPapelizPdfExportFootnoteDestinationName,
@@ -27,15 +34,17 @@ import {
   type PapelizPdfExportListItem,
   type PapelizPdfExportNoteBlock,
   type PapelizPdfExportNoteDocument,
+  type PapelizPdfExportTableCellAlignment,
+  type PapelizPdfExportTableRow,
   type PapelizPdfExportTextRunChip,
   type PapelizPdfExportTextRunLink,
   type PapelizPdfExportTextRunLook,
 } from './papeliz-pdf-export-note-document'
 
 // MD View's sanitized tree -> the note document the PDF worker lays out. Headings, paragraphs, lists,
-// task lists, quotes, code blocks, rules, footnotes and the note's properties keep MD View's look;
-// links lead to the web or to their place in the note. A block the PDF doesn't draw yet (a table, a
-// callout) prints as its Markdown source in a code box, so nothing is left out.
+// task lists, quotes, callouts, tables, code blocks, rules, footnotes and the note's properties keep
+// MD View's look; links lead to the web or to their place in the note. A block the PDF doesn't draw
+// yet prints as its Markdown source in a code box, so nothing is left out.
 
 export interface PapelizPdfExportNoteDocumentOptions {
   noteHastRoot: HastRoot
@@ -46,6 +55,9 @@ export interface PapelizPdfExportNoteDocumentOptions {
   // The note's own path and the vault's links, so a link to this note's heading finds its place.
   vaultNoteRelativePath: string
   resolveWikilinkTarget: PapelizWikilinkTargetResolver
+  // The note's pictures and diagrams, prepared on the page; without them, pictures keep MD View's chip
+  // and diagrams their source.
+  notePictureEntriesByElement?: ReadonlyMap<HastElement, PapelizPdfExportNotePictureEntry>
 }
 
 const papelizPdfExportBlockTagNames: ReadonlySet<string> = new Set([
@@ -271,7 +283,7 @@ function appendInlineElement(hastElement: HastElement, inlineWalk: PapelizPdfExp
       return
     case 'img': {
       const pictureLabel = getHastStringProperty(hastElement, 'alt') || getHastStringProperty(hastElement, 'src') || 'untitled'
-      pushTextRun(`Picture: ${pictureLabel}`, { ...inlineWalk, textRunLook: { ...textRunLook, textRunColor: getPrintColor('--color-papeliz-ink-muted'), textRunChip: papelizPdfExportPictureLineChip } }, inlineRuns)
+      appendPicture(hastElement, pictureLabel, inlineWalk, inlineRuns)
       return
     }
     case 'a':
@@ -336,8 +348,45 @@ function resolveLinkTarget(hastAnchorElement: HastElement, noteWalk: PapelizPdfE
   return isLinkToThisNote ? toNotePlace(findHeadingDestinationName(decodeLinkHrefPart(linkHref.slice(linkHrefFragmentIndex + 1)), noteWalk)) : null
 }
 
+// A picture the page prepared, in the line at MD View's size; else MD View's chip with its alt text,
+// and a web picture's address as a link.
+function appendPicture(hastPictureElement: HastElement, pictureLabel: string, inlineWalk: PapelizPdfExportInlineWalk, inlineRuns: PapelizPdfExportInlineRun[]): void {
+  const { noteWalk, textRunLook } = inlineWalk
+  const pictureChipLook: PapelizPdfExportTextRunLook = { ...textRunLook, textRunColor: getPrintColor('--color-papeliz-ink-muted'), textRunChip: papelizPdfExportPictureLineChip }
+  const notePictureEntry = noteWalk.noteDocumentOptions.notePictureEntriesByElement?.get(hastPictureElement)
+  if (notePictureEntry?.notePictureEntryKind === 'shown') {
+    inlineRuns.push({
+      inlineRunKind: 'picture',
+      notePictureIndex: notePictureEntry.notePictureIndex,
+      pictureShownPixelWidth: notePictureEntry.pictureShownPixelWidth,
+      pictureShownPixelHeight: notePictureEntry.pictureShownPixelHeight,
+      pictureAlternateText: notePictureEntry.pictureDescription || pictureLabel,
+      textRunLook: pictureChipLook,
+      textRunLink: inlineWalk.textRunLink,
+    })
+    return
+  }
+  const pictureChipText = notePictureEntry?.notePictureEntryKind === 'missing' ? `Picture: ${notePictureEntry.pictureAltText || pictureLabel}`.trimEnd() : `Picture: ${pictureLabel}`
+  pushTextRun(pictureChipText, { ...inlineWalk, textRunLook: pictureChipLook }, inlineRuns)
+  const pictureWebAddress = notePictureEntry?.notePictureEntryKind === 'missing' ? notePictureEntry.pictureWebAddress : null
+  const checkedPictureWebAddress = pictureWebAddress === null ? null : checkPapelizPdfExportWebLinkAddress(pictureWebAddress)
+  if (checkedPictureWebAddress === null) return
+  pushTextRun(' ', inlineWalk, inlineRuns)
+  const addressWalk: PapelizPdfExportInlineWalk = {
+    ...inlineWalk,
+    textRunLook: { ...textRunLook, textRunColor: getPrintColor('--color-papeliz-blue'), textRunFontWeight: 500 },
+    textRunLink: inlineWalk.textRunLink ?? createTextRunLink({ linkTargetKind: 'web', webLinkAddress: checkedPictureWebAddress }, checkedPictureWebAddress, noteWalk),
+  }
+  pushTextRun(checkedPictureWebAddress, addressWalk, inlineRuns)
+}
+
 function appendLink(hastAnchorElement: HastElement, inlineWalk: PapelizPdfExportInlineWalk, inlineRuns: PapelizPdfExportInlineRun[]): void {
   const { noteWalk, textRunLook } = inlineWalk
+  // `![[plan.png]]`: the picture it shows.
+  if (noteWalk.noteDocumentOptions.notePictureEntriesByElement?.has(hastAnchorElement) === true) {
+    appendPicture(hastAnchorElement, collectHastText(hastAnchorElement).trim() || 'untitled', inlineWalk, inlineRuns)
+    return
+  }
   if (hasHastProperty(hastAnchorElement, 'dataFootnoteBackref')) {
     appendFootnoteBackLink(hastAnchorElement, inlineWalk, inlineRuns)
     return
@@ -439,7 +488,7 @@ function normalizePapelizPdfExportInlineRuns(inlineRuns: readonly PapelizPdfExpo
       endsWithSpace = false
       continue
     }
-    if (inlineRun.inlineRunKind === 'icon') {
+    if (inlineRun.inlineRunKind === 'icon' || inlineRun.inlineRunKind === 'picture') {
       normalizedInlineRuns.push(inlineRun)
       isAtLineStart = false
       endsWithSpace = false
@@ -471,8 +520,8 @@ function pushParagraph(inlineRuns: PapelizPdfExportInlineRun[], hasParagraphSpac
 }
 
 // Code keeps its characters; a tab is four spaces, as code boxes print them.
-function pushCodeBox(codeBoxText: string, noteBlocks: PapelizPdfExportNoteBlock[]): void {
-  noteBlocks.push({ noteBlockKind: 'code-box', codeBoxText: codeBoxText.replace(/\r\n?/g, '\n').replace(/\t/g, '    ') })
+function pushCodeBox(codeBoxText: string, noteBlocks: PapelizPdfExportNoteBlock[], codeBoxErrorText: string | null = null): void {
+  noteBlocks.push({ noteBlockKind: 'code-box', codeBoxText: codeBoxText.replace(/\r\n?/g, '\n').replace(/\t/g, '    '), codeBoxErrorText })
 }
 
 // A block shown as its Markdown source. The tree keeps where each block came from; a block made by
@@ -549,6 +598,47 @@ function appendList(hastListElement: HastElement, noteWalk: PapelizPdfExportNote
   })
 }
 
+// A callout as MD View's card: its colors (its own, or its kind's), its kind's icon, its title and
+// its body.
+function appendCallout(hastCalloutElement: HastElement, noteWalk: PapelizPdfExportNoteWalk, noteBlocks: PapelizPdfExportNoteBlock[]): void {
+  const calloutKind = getHastStringProperty(hastCalloutElement, 'dataPapelizCalloutKind') ?? 'note'
+  const { calloutGroundColor, calloutInkColor } = getPapelizExportCalloutPrintColors(calloutKind, getHastStringProperty(hastCalloutElement, 'dataPapelizCalloutColor'))
+  const hastCalloutTitleElement = findHastChildElement(hastCalloutElement, (hastChildElement) => hasHastClassName(hastChildElement, papelizMdViewCalloutTitleClassName))
+  const hastCalloutBodyElement = findHastChildElement(hastCalloutElement, (hastChildElement) => hasHastClassName(hastChildElement, papelizMdViewCalloutBodyClassName))
+  const calloutBlocks: PapelizPdfExportNoteBlock[] = []
+  if (hastCalloutBodyElement !== undefined) appendBlocks(hastCalloutBodyElement.children, noteWalk, calloutBlocks)
+  noteBlocks.push({
+    noteBlockKind: 'callout',
+    calloutGroundColor,
+    calloutInkColor,
+    calloutIconName: (Object.hasOwn(papelizHtmlExportCalloutIconNamesByKind, calloutKind) ? papelizHtmlExportCalloutIconNamesByKind[calloutKind] : undefined) ?? 'Info',
+    calloutTitleInlineRuns: buildInlineRuns(hastCalloutTitleElement?.children ?? [], noteWalk),
+    calloutBlocks,
+  })
+}
+
+function readTableCellAlignment(hastCellElement: HastElement): PapelizPdfExportTableCellAlignment {
+  const cellAlignment = getHastStringProperty(hastCellElement, 'align')
+  return cellAlignment === 'center' || cellAlignment === 'right' ? cellAlignment : 'left'
+}
+
+// A Markdown table's rows, the header row first, each cell with its text and its column's alignment.
+function appendTable(hastTableElement: HastElement, noteWalk: PapelizPdfExportNoteWalk, noteBlocks: PapelizPdfExportNoteBlock[]): void {
+  const tableRows: PapelizPdfExportTableRow[] = []
+  for (const hastTableSection of hastTableElement.children) {
+    if (hastTableSection.type !== 'element') continue
+    const hastTableRows = hastTableSection.tagName === 'tr' ? [hastTableSection] : hastTableSection.children.filter((hastChild): hastChild is HastElement => hastChild.type === 'element' && hastChild.tagName === 'tr')
+    for (const hastTableRow of hastTableRows) {
+      const hastTableCells = hastTableRow.children.filter((hastChild): hastChild is HastElement => hastChild.type === 'element' && (hastChild.tagName === 'th' || hastChild.tagName === 'td'))
+      tableRows.push({
+        isTableHeaderRow: hastTableSection.tagName === 'thead',
+        tableCells: hastTableCells.map((hastTableCell) => ({ tableCellInlineRuns: buildInlineRuns(hastTableCell.children, noteWalk), tableCellAlignment: readTableCellAlignment(hastTableCell) })),
+      })
+    }
+  }
+  if (tableRows.some((tableRow) => tableRow.tableCells.length > 0)) noteBlocks.push({ noteBlockKind: 'table', tableRows })
+}
+
 // The section GitHub Markdown adds at the end: each footnote with its number, in the list's order.
 function appendFootnotes(hastFootnotesElement: HastElement, noteWalk: PapelizPdfExportNoteWalk, noteBlocks: PapelizPdfExportNoteBlock[]): void {
   const noteFootnotes: PapelizPdfExportFootnote[] = []
@@ -587,7 +677,21 @@ function appendBlockElement(hastElement: HastElement, noteWalk: PapelizPdfExport
       return
     case 'pre': {
       const hastCodeElement = findHastChildElement(hastElement, (hastChildElement) => hastChildElement.tagName === 'code')
-      pushCodeBox(collectHastText(hastCodeElement ?? hastElement).replace(/\n$/, ''), noteBlocks)
+      const codeBoxText = collectHastText(hastCodeElement ?? hastElement).replace(/\n$/, '')
+      // A ```mermaid block: the diagram MD View draws, or its source with MD View's error line.
+      const diagramEntry = noteWalk.noteDocumentOptions.notePictureEntriesByElement?.get(hastElement)
+      if (diagramEntry?.notePictureEntryKind === 'shown') {
+        noteBlocks.push({
+          noteBlockKind: 'diagram',
+          notePictureIndex: diagramEntry.notePictureIndex,
+          pictureShownPixelWidth: diagramEntry.pictureShownPixelWidth,
+          pictureShownPixelHeight: diagramEntry.pictureShownPixelHeight,
+          diagramAlternateText: diagramEntry.pictureDescription,
+          diagramVectorDrawing: diagramEntry.diagramVectorDrawing,
+        })
+        return
+      }
+      pushCodeBox(codeBoxText, noteBlocks, diagramEntry?.notePictureEntryKind === 'diagram-error' ? `This diagram can’t be drawn: ${diagramEntry.mermaidDiagramErrorMessage}` : null)
       return
     }
     case 'ul':
@@ -611,9 +715,11 @@ function appendBlockElement(hastElement: HastElement, noteWalk: PapelizPdfExport
       appendBlocks(hastElement.children, noteWalk, noteBlocks)
       return
     case 'div':
-      // Callouts get MD View's cards in a later phase; until then they print as their source.
-      if (hasHastClassName(hastElement, papelizMdViewCalloutClassName)) appendBlockAsSource(hastElement, noteWalk, noteBlocks)
+      if (hasHastClassName(hastElement, papelizMdViewCalloutClassName)) appendCallout(hastElement, noteWalk, noteBlocks)
       else appendBlocks(hastElement.children, noteWalk, noteBlocks)
+      return
+    case 'table':
+      appendTable(hastElement, noteWalk, noteBlocks)
       return
     default:
       appendBlockAsSource(hastElement, noteWalk, noteBlocks)

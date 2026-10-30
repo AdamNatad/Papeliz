@@ -1,31 +1,4 @@
-import charisSilLatin400NormalWoffDataUrl from '@fontsource/charis-sil/files/charis-sil-latin-400-normal.woff?inline'
-import charisSilLatin400ItalicWoffDataUrl from '@fontsource/charis-sil/files/charis-sil-latin-400-italic.woff?inline'
-import charisSilLatin700NormalWoffDataUrl from '@fontsource/charis-sil/files/charis-sil-latin-700-normal.woff?inline'
-import charisSilLatin700ItalicWoffDataUrl from '@fontsource/charis-sil/files/charis-sil-latin-700-italic.woff?inline'
-import charisSilLatinExtended400NormalWoffDataUrl from '@fontsource/charis-sil/files/charis-sil-latin-ext-400-normal.woff?inline'
-import charisSilLatinExtended400ItalicWoffDataUrl from '@fontsource/charis-sil/files/charis-sil-latin-ext-400-italic.woff?inline'
-import charisSilLatinExtended700NormalWoffDataUrl from '@fontsource/charis-sil/files/charis-sil-latin-ext-700-normal.woff?inline'
-import charisSilLatinExtended700ItalicWoffDataUrl from '@fontsource/charis-sil/files/charis-sil-latin-ext-700-italic.woff?inline'
-import figtreeLatin400NormalWoffDataUrl from '@fontsource/figtree/files/figtree-latin-400-normal.woff?inline'
-import figtreeLatin400ItalicWoffDataUrl from '@fontsource/figtree/files/figtree-latin-400-italic.woff?inline'
-import figtreeLatin500NormalWoffDataUrl from '@fontsource/figtree/files/figtree-latin-500-normal.woff?inline'
-import figtreeLatin500ItalicWoffDataUrl from '@fontsource/figtree/files/figtree-latin-500-italic.woff?inline'
-import figtreeLatin600NormalWoffDataUrl from '@fontsource/figtree/files/figtree-latin-600-normal.woff?inline'
-import figtreeLatin600ItalicWoffDataUrl from '@fontsource/figtree/files/figtree-latin-600-italic.woff?inline'
-import figtreeLatinExtended400NormalWoffDataUrl from '@fontsource/figtree/files/figtree-latin-ext-400-normal.woff?inline'
-import figtreeLatinExtended400ItalicWoffDataUrl from '@fontsource/figtree/files/figtree-latin-ext-400-italic.woff?inline'
-import figtreeLatinExtended500NormalWoffDataUrl from '@fontsource/figtree/files/figtree-latin-ext-500-normal.woff?inline'
-import figtreeLatinExtended500ItalicWoffDataUrl from '@fontsource/figtree/files/figtree-latin-ext-500-italic.woff?inline'
-import figtreeLatinExtended600NormalWoffDataUrl from '@fontsource/figtree/files/figtree-latin-ext-600-normal.woff?inline'
-import figtreeLatinExtended600ItalicWoffDataUrl from '@fontsource/figtree/files/figtree-latin-ext-600-italic.woff?inline'
-import jetBrainsMonoLatin400NormalWoffDataUrl from '@fontsource/jetbrains-mono/files/jetbrains-mono-latin-400-normal.woff?inline'
-import jetBrainsMonoLatin400ItalicWoffDataUrl from '@fontsource/jetbrains-mono/files/jetbrains-mono-latin-400-italic.woff?inline'
-import jetBrainsMonoLatin700NormalWoffDataUrl from '@fontsource/jetbrains-mono/files/jetbrains-mono-latin-700-normal.woff?inline'
-import jetBrainsMonoLatin700ItalicWoffDataUrl from '@fontsource/jetbrains-mono/files/jetbrains-mono-latin-700-italic.woff?inline'
-import jetBrainsMonoLatinExtended400NormalWoffDataUrl from '@fontsource/jetbrains-mono/files/jetbrains-mono-latin-ext-400-normal.woff?inline'
-import jetBrainsMonoLatinExtended400ItalicWoffDataUrl from '@fontsource/jetbrains-mono/files/jetbrains-mono-latin-ext-400-italic.woff?inline'
-import jetBrainsMonoLatinExtended700NormalWoffDataUrl from '@fontsource/jetbrains-mono/files/jetbrains-mono-latin-ext-700-normal.woff?inline'
-import jetBrainsMonoLatinExtended700ItalicWoffDataUrl from '@fontsource/jetbrains-mono/files/jetbrains-mono-latin-ext-700-italic.woff?inline'
+import { readFileSync } from 'node:fs'
 import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs'
 import { createPapelizWikilinkTargetResolver } from '../links/papeliz-wikilink-targets'
 import { papelizSampleVaultNotes } from '../vault/papeliz-sample-vault-notes'
@@ -34,47 +7,20 @@ import { buildPapelizPdfExportNotePdfJob } from './papeliz-pdf-export'
 import type { PapelizPdfExportFontFileReader } from './papeliz-pdf-export-font-files'
 import type { PapelizPdfExportNoteBlock, PapelizPdfExportNoteDocument } from './papeliz-pdf-export-note-document'
 import { writePapelizPdfExportNotePdf, type PapelizPdfExportNotePdfJob } from './papeliz-pdf-export-note-pdf'
+import { computePapelizPdfExportCrc32 } from './papeliz-pdf-export-picture-check'
 import { createPapelizPdfExportAbortError, type PapelizPdfExportNotePdfWriter } from './papeliz-pdf-export-worker-client'
 
-// For the PDF export's tests: the font files as the build inlines them (tests have no server to
+// For the PDF export's tests: the font files read from @fontsource's folders (tests have no server to
 // fetch from), the PDF worker's work done in place (tests have no workers), each PDF read back with
 // pdf.js, an independent reader, and the text a note document asks the PDF to print.
 
-const papelizPdfExportTestFontDataUrlsByFaceKey: Readonly<Record<string, string>> = {
-  'charis-sil-latin-400-normal': charisSilLatin400NormalWoffDataUrl,
-  'charis-sil-latin-400-italic': charisSilLatin400ItalicWoffDataUrl,
-  'charis-sil-latin-700-normal': charisSilLatin700NormalWoffDataUrl,
-  'charis-sil-latin-700-italic': charisSilLatin700ItalicWoffDataUrl,
-  'charis-sil-latin-ext-400-normal': charisSilLatinExtended400NormalWoffDataUrl,
-  'charis-sil-latin-ext-400-italic': charisSilLatinExtended400ItalicWoffDataUrl,
-  'charis-sil-latin-ext-700-normal': charisSilLatinExtended700NormalWoffDataUrl,
-  'charis-sil-latin-ext-700-italic': charisSilLatinExtended700ItalicWoffDataUrl,
-  'figtree-latin-400-normal': figtreeLatin400NormalWoffDataUrl,
-  'figtree-latin-400-italic': figtreeLatin400ItalicWoffDataUrl,
-  'figtree-latin-500-normal': figtreeLatin500NormalWoffDataUrl,
-  'figtree-latin-500-italic': figtreeLatin500ItalicWoffDataUrl,
-  'figtree-latin-600-normal': figtreeLatin600NormalWoffDataUrl,
-  'figtree-latin-600-italic': figtreeLatin600ItalicWoffDataUrl,
-  'figtree-latin-ext-400-normal': figtreeLatinExtended400NormalWoffDataUrl,
-  'figtree-latin-ext-400-italic': figtreeLatinExtended400ItalicWoffDataUrl,
-  'figtree-latin-ext-500-normal': figtreeLatinExtended500NormalWoffDataUrl,
-  'figtree-latin-ext-500-italic': figtreeLatinExtended500ItalicWoffDataUrl,
-  'figtree-latin-ext-600-normal': figtreeLatinExtended600NormalWoffDataUrl,
-  'figtree-latin-ext-600-italic': figtreeLatinExtended600ItalicWoffDataUrl,
-  'jetbrains-mono-latin-400-normal': jetBrainsMonoLatin400NormalWoffDataUrl,
-  'jetbrains-mono-latin-400-italic': jetBrainsMonoLatin400ItalicWoffDataUrl,
-  'jetbrains-mono-latin-700-normal': jetBrainsMonoLatin700NormalWoffDataUrl,
-  'jetbrains-mono-latin-700-italic': jetBrainsMonoLatin700ItalicWoffDataUrl,
-  'jetbrains-mono-latin-ext-400-normal': jetBrainsMonoLatinExtended400NormalWoffDataUrl,
-  'jetbrains-mono-latin-ext-400-italic': jetBrainsMonoLatinExtended400ItalicWoffDataUrl,
-  'jetbrains-mono-latin-ext-700-normal': jetBrainsMonoLatinExtended700NormalWoffDataUrl,
-  'jetbrains-mono-latin-ext-700-italic': jetBrainsMonoLatinExtended700ItalicWoffDataUrl,
-}
+const papelizPdfExportTestFontFamilyNames = ['charis-sil', 'figtree', 'jetbrains-mono', 'noto-sans']
 
+// "noto-sans-greek-600-italic" -> node_modules/@fontsource/noto-sans/files/noto-sans-greek-600-italic.woff
 export const readPapelizPdfExportTestFontFile: PapelizPdfExportFontFileReader = async (fontFaceKey) => {
-  const fontDataUrl = papelizPdfExportTestFontDataUrlsByFaceKey[fontFaceKey]
-  if (fontDataUrl === undefined) throw new Error(`No test font ${fontFaceKey}`)
-  return Uint8Array.from(atob(fontDataUrl.slice(fontDataUrl.indexOf(',') + 1)), (binaryCharacter) => binaryCharacter.charCodeAt(0))
+  const fontFamilyName = papelizPdfExportTestFontFamilyNames.find((testFontFamilyName) => fontFaceKey.startsWith(`${testFontFamilyName}-`))
+  if (fontFamilyName === undefined || !/^[a-z0-9-]+$/.test(fontFaceKey)) throw new Error(`No test font ${fontFaceKey}`)
+  return new Uint8Array(readFileSync(new URL(`../../../node_modules/@fontsource/${fontFamilyName}/files/${fontFaceKey}.woff`, import.meta.url)))
 }
 
 export const papelizPdfExportInPlaceNotePdfWriter: PapelizPdfExportNotePdfWriter = {
@@ -94,6 +40,8 @@ export interface PapelizPdfExportPdfJsTextItem {
   pdfJsBaselineFromBottomPoints: number
   pdfJsLeftPoints: number
   pdfJsFontName: string
+  // Inside page furniture (the footer, a table header row drawn again), which readers skip.
+  isPdfJsArtifactText: boolean
 }
 
 export interface PapelizPdfExportPdfJsStructureNode {
@@ -173,11 +121,20 @@ export async function readPapelizPdfExportFileWithPdfJs(pdfFileBytes: Uint8Array
       const pdfJsPage = await pdfJsDocument.getPage(pageNumber)
       const [, , pageWidthPoints = 0, pageHeightPoints = 0] = pdfJsPage.view
       pdfJsPageSizes.push({ pageWidthPoints, pageHeightPoints })
-      const pdfJsTextContent = await pdfJsPage.getTextContent()
+      const pdfJsTextContent = await pdfJsPage.getTextContent({ includeMarkedContent: true })
       const pdfJsTextItems: PapelizPdfExportPdfJsTextItem[] = []
-      for (const pdfJsItem of pdfJsTextContent.items) {
-        if (!('str' in pdfJsItem) || pdfJsItem.str.length === 0) continue
-        pdfJsTextItems.push({ pdfJsText: pdfJsItem.str, pdfJsBaselineFromBottomPoints: pdfJsItem.transform[5] ?? 0, pdfJsLeftPoints: pdfJsItem.transform[4] ?? 0, pdfJsFontName: pdfJsItem.fontName })
+      const markedContentTags: string[] = []
+      for (const pdfJsItem of pdfJsTextContent.items as Array<{ type?: string; tag?: string; str?: string; transform?: number[]; fontName?: string }>) {
+        if (pdfJsItem.type === 'beginMarkedContent' || pdfJsItem.type === 'beginMarkedContentProps') markedContentTags.push(pdfJsItem.tag ?? '')
+        if (pdfJsItem.type === 'endMarkedContent') markedContentTags.pop()
+        if (pdfJsItem.str === undefined || pdfJsItem.str.length === 0) continue
+        pdfJsTextItems.push({
+          pdfJsText: pdfJsItem.str,
+          pdfJsBaselineFromBottomPoints: pdfJsItem.transform?.[5] ?? 0,
+          pdfJsLeftPoints: pdfJsItem.transform?.[4] ?? 0,
+          pdfJsFontName: pdfJsItem.fontName ?? '',
+          isPdfJsArtifactText: markedContentTags.includes('Artifact'),
+        })
       }
       pdfJsTextItemsByPage.push(pdfJsTextItems)
       const pdfJsStructureTree = (await pdfJsPage.getStructTree()) as PapelizPdfExportPdfJsStructureNode | null
@@ -258,6 +215,15 @@ function collectNoteBlocksText(pdfExportNoteBlocks: readonly PapelizPdfExportNot
           collectNoteBlocksText(noteFootnote.footnoteBlocks, noteTextParts)
         }
         break
+      case 'callout':
+        noteTextParts.push(pdfExportNoteBlock.calloutTitleInlineRuns.map((titleInlineRun) => (titleInlineRun.inlineRunKind === 'text' ? titleInlineRun.textRunText : '')).join(''))
+        collectNoteBlocksText(pdfExportNoteBlock.calloutBlocks, noteTextParts)
+        break
+      case 'table':
+        for (const { tableCells } of pdfExportNoteBlock.tableRows) {
+          for (const { tableCellInlineRuns } of tableCells) noteTextParts.push(tableCellInlineRuns.map((cellInlineRun) => (cellInlineRun.inlineRunKind === 'text' ? cellInlineRun.textRunText : '\n')).join(''))
+        }
+        break
       case 'rule':
         break
     }
@@ -319,7 +285,7 @@ export async function buildPapelizPdfExportTestNotePdfJob(
 export function readPapelizPdfExportBodyText(pdfJsReading: PapelizPdfExportPdfJsReading): string {
   return pdfJsReading.pdfJsTextItemsByPage
     .flat()
-    .filter((pdfJsTextItem) => pdfJsTextItem.pdfJsBaselineFromBottomPoints > papelizPdfExportTestFooterTopFromBottomPoints)
+    .filter((pdfJsTextItem) => !pdfJsTextItem.isPdfJsArtifactText && pdfJsTextItem.pdfJsBaselineFromBottomPoints > papelizPdfExportTestFooterTopFromBottomPoints)
     .map((pdfJsTextItem) => pdfJsTextItem.pdfJsText)
     .join('')
 }
@@ -328,4 +294,52 @@ export function readPapelizPdfExportFileLatin1Text(pdfFileBytes: Uint8Array): st
   let pdfLatin1Text = ''
   for (let byteOffset = 0; byteOffset < pdfFileBytes.length; byteOffset += 0x8000) pdfLatin1Text += String.fromCharCode(...pdfFileBytes.subarray(byteOffset, byteOffset + 0x8000))
   return pdfLatin1Text
+}
+
+function writeUint32(byteValues: number[], longValue: number): void {
+  byteValues.push((longValue >>> 24) & 0xff, (longValue >>> 16) & 0xff, (longValue >>> 8) & 0xff, longValue & 0xff)
+}
+
+function createPngChunk(chunkType: string, chunkData: readonly number[]): number[] {
+  const typeAndData = [...Array.from(chunkType, (typeCharacter) => typeCharacter.charCodeAt(0)), ...chunkData]
+  const chunkBytes: number[] = []
+  writeUint32(chunkBytes, chunkData.length)
+  chunkBytes.push(...typeAndData)
+  writeUint32(chunkBytes, computePapelizPdfExportCrc32(Uint8Array.from(typeAndData)))
+  return chunkBytes
+}
+
+// A PNG of one RGBA color, its pixels in an uncompressed zlib stream, with any extra chunks before its data.
+export function createPapelizPdfExportTestPngBytes(pixelWidth: number, pixelHeight: number, extraChunks: Array<[string, number[]]> = []): Uint8Array {
+  const rawRows: number[] = []
+  for (let rowIndex = 0; rowIndex < pixelHeight; rowIndex += 1) {
+    rawRows.push(0)
+    for (let columnIndex = 0; columnIndex < pixelWidth; columnIndex += 1) rawRows.push(0x00, 0x64, 0xd4, 0xff)
+  }
+  const zlibBytes = [0x78, 0x01, 0x01, rawRows.length & 0xff, (rawRows.length >>> 8) & 0xff, ~rawRows.length & 0xff, (~rawRows.length >>> 8) & 0xff, ...rawRows]
+  let adlerLow = 1
+  let adlerHigh = 0
+  for (const rawByte of rawRows) {
+    adlerLow = (adlerLow + rawByte) % 65521
+    adlerHigh = (adlerHigh + adlerLow) % 65521
+  }
+  writeUint32(zlibBytes, ((adlerHigh << 16) | adlerLow) >>> 0)
+  const headerData: number[] = []
+  writeUint32(headerData, pixelWidth)
+  writeUint32(headerData, pixelHeight)
+  headerData.push(8, 6, 0, 0, 0)
+  return Uint8Array.from([
+    0x89,
+    0x50,
+    0x4e,
+    0x47,
+    0x0d,
+    0x0a,
+    0x1a,
+    0x0a,
+    ...createPngChunk('IHDR', headerData),
+    ...extraChunks.flatMap(([chunkType, chunkData]) => createPngChunk(chunkType, chunkData)),
+    ...createPngChunk('IDAT', zlibBytes),
+    ...createPngChunk('IEND', []),
+  ])
 }
