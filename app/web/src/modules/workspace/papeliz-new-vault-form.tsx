@@ -73,7 +73,7 @@ const papelizNewVaultPlaceComparisonRows: readonly PapelizNewVaultPlaceCompariso
         comparisonCellInfoTipTitle: 'A folder you choose',
         comparisonCellInfoTipLines: [
           'Each note is saved as a file in that folder.',
-          'You can see, copy and back up the folder like any other.',
+          'You can open, copy and back up your notes like any other file.',
         ],
       },
       'browser-vault-in-opfs': {
@@ -94,7 +94,7 @@ const papelizNewVaultPlaceComparisonRows: readonly PapelizNewVaultPlaceCompariso
         comparisonCellInfoTipTitle: 'Stays on your machine',
         comparisonCellInfoTipLines: [
           'Your notes stay in the folder until you move or delete them.',
-          'Clearing browser data or removing the browser doesn’t touch them.',
+          'Clearing your browser’s data or uninstalling the browser won’t delete them.',
         ],
       },
       'browser-vault-in-opfs': {
