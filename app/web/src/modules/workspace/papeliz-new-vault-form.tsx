@@ -66,7 +66,7 @@ interface PapelizNewVaultPlaceComparisonRow {
 // that explains it.
 const papelizNewVaultPlaceComparisonRows: readonly PapelizNewVaultPlaceComparisonRow[] = [
   {
-    comparisonRowLabel: 'Saved in',
+    comparisonRowLabel: 'Location',
     comparisonRowCellByPlace: {
       'folder-on-disk': {
         comparisonCellText: 'A folder on your computer',
@@ -87,7 +87,7 @@ const papelizNewVaultPlaceComparisonRows: readonly PapelizNewVaultPlaceCompariso
     },
   },
   {
-    comparisonRowLabel: 'Kept',
+    comparisonRowLabel: 'Duration',
     comparisonRowCellByPlace: {
       'folder-on-disk': {
         comparisonCellText: 'Until you delete them',
@@ -110,7 +110,7 @@ const papelizNewVaultPlaceComparisonRows: readonly PapelizNewVaultPlaceCompariso
     },
   },
   {
-    comparisonRowLabel: 'Works in',
+    comparisonRowLabel: 'Compatibility',
     comparisonRowCellByPlace: {
       'folder-on-disk': {
         comparisonCellText: 'Chrome, Edge and Brave',
@@ -121,10 +121,11 @@ const papelizNewVaultPlaceComparisonRows: readonly PapelizNewVaultPlaceCompariso
         ],
       },
       'browser-vault-in-opfs': {
-        comparisonCellText: 'Most browsers, incl. non-Chromium',
+        comparisonCellText: 'Most Browsers',
         comparisonCellInfoTipTitle: 'Works almost everywhere',
         comparisonCellInfoTipLines: [
-          'Chromium-based browsers like Chrome, Edge and Brave, and non-Chromium based browsers like Firefox and Safari.',
+          'Chromium-based browsers like Chrome, Edge and Brave, and Non-Chromium Based browsers like Firefox and Safari.',
+          'It uses OPFS (Origin Private File System): a private storage area the browser gives each website. Only Papeliz can read it, and it doesn’t show up as a folder on your computer.',
           'Chrome and Edge 103, Firefox 113 and Safari 16.4 or later, on computers and phones.',
           'Each browser keeps its own vaults: another browser on this device can’t see them.',
         ],
