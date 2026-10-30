@@ -45,6 +45,10 @@ export const papelizHelpFilesArticles: readonly PapelizHelpArticle[] = [
         helpParagraph(
           'Each note you open gets a tab above the note. Click a tab to switch to it, and drag tabs to change their order. With a tab focused, `Delete` closes it and `Alt+Shift+←` or `Alt+Shift+→` moves it.',
         ),
+        helpParagraph('The lock at the front of a tab locks that note. See [[switch-views-and-lock]].'),
+        helpParagraph(
+          'When tabs don’t fit in one row, they scroll sideways. To wrap them onto more rows instead, choose **Stack** under **Note tabs** on the gear’s **Accessibility** page. See [[text-settings-and-theme]].',
+        ),
       ]),
       helpSection('Keyboard', [
         helpShortcutTable([

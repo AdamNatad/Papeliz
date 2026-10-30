@@ -1,4 +1,13 @@
-import { helpBulletList, helpCodeSample, helpNote, helpParagraph, helpSection, helpShortcutTable, type PapelizHelpArticle } from './papeliz-help-content-blocks'
+import {
+  helpBulletList,
+  helpCodeSample,
+  helpNote,
+  helpNumberedSteps,
+  helpParagraph,
+  helpSection,
+  helpShortcutTable,
+  type PapelizHelpArticle,
+} from './papeliz-help-content-blocks'
 
 export const papelizHelpReferenceArticles: readonly PapelizHelpArticle[] = [
   {
@@ -21,6 +30,7 @@ export const papelizHelpReferenceArticles: readonly PapelizHelpArticle[] = [
         helpShortcutTable([
           ['Ctrl+B', 'Bold'],
           ['Ctrl+I', 'Italic'],
+          ['Ctrl+U', 'Underline'],
           ['Ctrl+Z', 'Undo'],
           [['Ctrl+Y', 'Ctrl+Shift+Z'], 'Redo'],
           ['[[', 'Suggest notes to link to'],
@@ -60,8 +70,17 @@ export const papelizHelpReferenceArticles: readonly PapelizHelpArticle[] = [
           ['Esc', 'Reject an edit to a selection'],
         ]),
       ]),
+      helpSection('Change a shortcut', [
+        helpParagraph(
+          'Open the gear at the right end of the top bar and choose **Settings**. **Key Bindings** lists every shortcut you can change: switching views, saving, focus mode, bold, italic, underline, editing with the assistant, and opening the link under the cursor.',
+        ),
+        helpNumberedSteps(['Click a shortcut.', 'Press the new keys. `Esc` stops without a change.']),
+        helpParagraph(
+          'Changes save as you go. Keys another action already uses are refused, and Papeliz names that action. **Reset** puts one shortcut back, and **Reset All** puts them all back. This page lists the default keys.',
+        ),
+      ]),
     ],
-    relatedArticleSlugs: ['format-text', 'find-and-replace', 'file-explorer'],
+    relatedArticleSlugs: ['format-text', 'find-and-replace', 'file-explorer', 'settings-gear'],
   },
   {
     papelizHelpArticleSlug: 'supported-markdown',

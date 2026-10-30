@@ -104,7 +104,7 @@ export const papelizHelpAssistantArticles: readonly PapelizHelpArticle[] = [
     articleSections: [
       helpSection('The Assistant panel', [
         helpParagraph(
-          'The Assistant panel docks on the right, with three tabs: **Chat**, **Backlinks** and **Outline**. The button at the right end of the top bar opens and closes it.',
+          'The Assistant panel docks on the right, with three tabs: **Chat**, **Backlinks** and **Outline**. The **AI Assistant** button in the top bar, just left of the gear, opens and closes it.',
         ),
       ]),
       helpSection('Ask', [
@@ -195,14 +195,14 @@ export const papelizHelpAssistantArticles: readonly PapelizHelpArticle[] = [
     articleSections: [
       helpSection('Turn it on', [
         helpParagraph(
-          'Press `Ctrl+Shift+F` or choose the focus button in the top bar. The file list and the Assistant panel step away, and a large message box floats at the bottom of the note.',
+          'Press `Ctrl+Shift+F`, or open the gear at the right end of the top bar and turn on **Focus Mode**. The file list and the Assistant panel step away, and a large message box floats at the bottom of the note.',
         ),
       ]),
       helpSection('Ask without leaving the note', [
         helpParagraph('Send a message from the floating box. The latest answer rises above it, and you can put it away when you’re done.'),
       ]),
       helpSection('Leave focus mode', [
-        helpParagraph('Press `Esc` or `Ctrl+Shift+F`, or choose **Exit focus** in the top bar.'),
+        helpParagraph('Press `Esc` or `Ctrl+Shift+F`, choose **Exit focus** in the top bar, or turn off **Focus Mode** in the gear.'),
       ]),
     ],
     relatedArticleSlugs: ['chat-with-the-assistant', 'keyboard-shortcuts'],

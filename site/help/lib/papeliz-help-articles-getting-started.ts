@@ -107,7 +107,9 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
         ),
       ]),
       helpSection('Close a vault', [
-        helpParagraph('The **Start page** button in the top bar closes the vault and takes you back to the start page.'),
+        helpParagraph(
+          'Open the gear at the right end of the top bar and choose **Close Vault**. Papeliz asks first. Your notes are saved and stay in the folder, and you go back to the start page, where you can open it again.',
+        ),
       ]),
     ],
     relatedArticleSlugs: ['browser-support', 'file-explorer', 'where-your-notes-live'],
@@ -137,5 +139,36 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
       ]),
     ],
     relatedArticleSlugs: ['open-a-folder', 'troubleshooting'],
+  },
+  {
+    papelizHelpArticleSlug: 'settings-gear',
+    articleTitle: 'The Settings gear',
+    articleSummary: 'Accessibility, key bindings, locking, focus mode and closing the vault, in one panel.',
+    papelizHelpGroupSlug: 'getting-started',
+    papelizHelpArticleAvailability: 'available',
+    articleSections: [
+      helpSection('Open it', [
+        helpParagraph(
+          'The gear at the right end of the top bar opens a panel: a list on the left, and the page you choose on the right. It opens on **Accessibility**. `Esc` or a click outside closes it.',
+        ),
+        helpParagraph('In a narrow window the list fills the panel. Each page opens over it, and the back arrow returns to the list.'),
+      ]),
+      helpSection('What’s in it', [
+        helpBulletList([
+          '**Account**: coming soon.',
+          '**Sync**: keep your vaults in sync across web, desktop and mobile, end-to-end encrypted. A paid add-on, coming soon.',
+          '**Settings**: **Key Bindings**, the shortcuts you can change. See [[keyboard-shortcuts]].',
+          '**Export**: download notes as PDF or HTML. Coming soon.',
+          '**Accessibility**: the theme, how your notes’ text looks, and how note tabs show. See [[text-settings-and-theme]].',
+          '**Lock All Notes**: a switch that locks every note in the vault. See [[switch-views-and-lock]].',
+          '**Focus Mode**: a switch for [[focus-mode|focus mode]].',
+          '**Close Vault**, at the bottom: back to the start page. See [[open-a-folder]].',
+        ]),
+      ]),
+      helpSection('On the start page', [
+        helpParagraph('The start page has a gear too, with **Account**, **Sync** and **Accessibility**. With no vault open, Accessibility holds only the theme.'),
+      ]),
+    ],
+    relatedArticleSlugs: ['text-settings-and-theme', 'keyboard-shortcuts', 'switch-views-and-lock'],
   },
 ]

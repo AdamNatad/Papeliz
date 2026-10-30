@@ -86,7 +86,7 @@ export const papelizHelpWritingArticles: readonly PapelizHelpArticle[] = [
         helpParagraph('Switching keeps your place: the text, the cursor and the undo history stay as they were.'),
       ]),
       helpSection('Lock a note', [
-        helpNumberedSteps(['Open the note.', 'Choose the lock button in the top bar.']),
+        helpNumberedSteps(['Open the note.', 'Choose the lock at the front of its tab, above the note.']),
         helpParagraph(
           'A locked note can be read, selected, copied and searched, but not changed. In MD View, a locked note shows as a clean rendered page. Choose the lock again to unlock it.',
         ),
@@ -94,6 +94,11 @@ export const papelizHelpWritingArticles: readonly PapelizHelpArticle[] = [
       helpSection('Lock a whole folder', [
         helpParagraph(
           'In the file list, right-click a folder and choose **Lock editing of its notes**. Every note in it stays locked until you choose **Unlock editing**. A single note has **Lock editing** in the same menu.',
+        ),
+      ]),
+      helpSection('Lock every note', [
+        helpParagraph(
+          'Open the gear at the right end of the top bar and turn on **Lock All Notes**. Every note in the vault stays locked until you turn it off. Notes you locked one by one stay locked after that.',
         ),
         helpNote('Locking is a Papeliz setting. It doesn’t change the files’ permissions on your disk, and other apps can still edit them.'),
       ]),
@@ -239,17 +244,25 @@ tags: [garden, plans]
   {
     papelizHelpArticleSlug: 'text-settings-and-theme',
     articleTitle: 'Text settings and theme',
-    articleSummary: 'Choose the font, size and width of your notes, and a light or dark theme.',
+    articleSummary: 'Choose the font, size and width of your notes, a light or dark theme, and how note tabs show.',
     papelizHelpGroupSlug: 'writing',
     papelizHelpArticleAvailability: 'available',
     articleSections: [
       helpSection('Text settings', [
         helpParagraph(
-          'The **Aa** button in the top bar sets how notes look: the font (Sans, Serif or Mono), the text size, and the text width (Narrow, Normal, Wide or Full). MD Code always uses a monospace font, a little smaller than your text size.',
+          'Open the gear at the right end of the top bar. Its **Accessibility** page sets how notes look: the **Font** (Sans, Serif or Mono), the **Text size**, and the **Text width** (Narrow, Normal, Wide or Full). Changes show at once, and Papeliz remembers them. MD Code always uses a monospace font, a little smaller than your text size.',
+        ),
+        helpParagraph(
+          '**Text size** is a slider from 14 to 24 px. Drag it, click along it, or use the arrow keys, `Home` and `End`. **Reset Text Settings** puts the font, size and width back to their defaults.',
         ),
       ]),
       helpSection('Theme', [
-        helpParagraph('The theme button in the top bar picks **Light**, **Dark**, or **Match this device**.'),
+        helpParagraph('**Theme**, at the top of the same page, picks **Light**, **Dark**, or **Device**, which follows your device’s setting. The start page’s gear has it too.'),
+      ]),
+      helpSection('Note tabs', [
+        helpParagraph(
+          '**Note tabs** picks how tabs show when they don’t fit in one row. **Scroll** keeps one row that scrolls sideways, and **Stack** wraps them onto more rows, so every tab shows.',
+        ),
       ]),
       helpSection('Panels', [
         helpParagraph(
@@ -257,7 +270,7 @@ tags: [garden, plans]
         ),
       ]),
     ],
-    relatedArticleSlugs: ['switch-views-and-lock', 'keyboard-shortcuts'],
+    relatedArticleSlugs: ['settings-gear', 'switch-views-and-lock', 'keyboard-shortcuts'],
   },
   {
     papelizHelpArticleSlug: 'backlinks-and-outline',
