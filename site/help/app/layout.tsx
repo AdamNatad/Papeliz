@@ -44,7 +44,8 @@ export const metadata: Metadata = {
   },
   ...createPapelizHelpPageMetadata('Papeliz Help', papelizHelpDescription, papelizHelpHomePath),
   applicationName: 'Papeliz',
-  authors: [{ name: 'Adam Natad', url: '/adam-natad/' }],
+  // The author page is on the main site, outside the /help base path, so its address is absolute.
+  authors: [{ name: 'Adam Natad', url: `${papelizHelpCanonicalOrigin}/adam-natad/` }],
   creator: 'Adam Natad',
   publisher: 'Natad Corporation',
   // Metadata URLs don't get the /help base path that pages and next/link do, so it's written out.

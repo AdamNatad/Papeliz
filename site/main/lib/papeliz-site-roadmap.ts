@@ -35,10 +35,12 @@ export const papelizSiteRoadmapMilestones: PapelizSiteRoadmapMilestone[] = [
         papelizSiteRoadmapStepStatus: 'done',
         papelizSiteRoadmapStepItems: [
           'Open a folder of Markdown notes, or try the sample vault',
+          'Vaults kept in the browser for Firefox, Safari and phones',
           'MD Code and MD View behind one switch',
           'Tables and Mermaid diagrams in MD View',
           'File explorer, tabs and wikilinks',
           'Autosave to plain .md files',
+          'Export as HTML: one note as a page, or several as a website',
         ],
       },
       {
@@ -91,7 +93,6 @@ export const papelizSiteRoadmapMilestones: PapelizSiteRoadmapMilestone[] = [
           'A passphrase lock for your keys',
           'Translations',
           'Math and code highlighting in MD View',
-          'Firefox and Safari on the web',
         ],
       },
     ],

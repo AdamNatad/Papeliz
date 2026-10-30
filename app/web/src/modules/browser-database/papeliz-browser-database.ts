@@ -1,14 +1,17 @@
 // A thin typed wrapper over Papeliz's one IndexedDB database. Notes never
-// live here: only app data such as the folders the user opened.
+// live here: only app data such as the folders the user opened. (A browser vault's notes live in the
+// Origin Private File System; only its row in the list of browser vaults is here.)
 
 const papelizBrowserDatabaseName = 'papeliz-browser-database'
-const papelizBrowserDatabaseVersion = 4
+const papelizBrowserDatabaseVersion = 5
 
 export const papelizVaultFolderHandlesStoreName = 'papelizVaultFolderHandles'
 export const papelizUserSettingsStoreName = 'papelizUserSettings'
 export const papelizAssistantProviderKeysStoreName = 'papelizAssistantProviderKeys'
 // Recovery copies of unsaved typing (papeliz-note-recovery-drafts.ts).
 export const papelizNoteRecoveryDraftsStoreName = 'papelizNoteRecoveryDrafts'
+// The browser vaults kept in this browser (papeliz-browser-vaults.ts).
+export const papelizBrowserVaultsStoreName = 'papelizBrowserVaults'
 
 let papelizBrowserDatabasePromise: Promise<IDBDatabase> | null = null
 
@@ -24,7 +27,7 @@ function openPapelizBrowserDatabase(): Promise<IDBDatabase> {
       // Each version only adds what is missing and never wipes what is already stored.
       // Version 1: the folders the user opened. Version 2: the user's settings (the theme).
       // Version 3: each assistant provider's base URL, model and API key. Version 4: recovery copies
-      // of unsaved typing.
+      // of unsaved typing. Version 5: the list of browser vaults.
       if (!papelizBrowserDatabase.objectStoreNames.contains(papelizVaultFolderHandlesStoreName)) {
         papelizBrowserDatabase.createObjectStore(papelizVaultFolderHandlesStoreName, { keyPath: 'papelizVaultId' })
       }
@@ -37,8 +40,20 @@ function openPapelizBrowserDatabase(): Promise<IDBDatabase> {
       if (!papelizBrowserDatabase.objectStoreNames.contains(papelizNoteRecoveryDraftsStoreName)) {
         papelizBrowserDatabase.createObjectStore(papelizNoteRecoveryDraftsStoreName, { keyPath: 'noteRecoveryDraftKey' })
       }
+      if (!papelizBrowserDatabase.objectStoreNames.contains(papelizBrowserVaultsStoreName)) {
+        papelizBrowserDatabase.createObjectStore(papelizBrowserVaultsStoreName, { keyPath: 'papelizVaultId' })
+      }
     }
-    databaseOpenRequest.onsuccess = () => resolveDatabase(databaseOpenRequest.result)
+    databaseOpenRequest.onsuccess = () => {
+      const papelizBrowserDatabase = databaseOpenRequest.result
+      // A newer Papeliz in another tab needs a newer version: let go, so its upgrade isn't blocked
+      // until this tab closes.
+      papelizBrowserDatabase.onversionchange = () => {
+        papelizBrowserDatabase.close()
+        papelizBrowserDatabasePromise = null
+      }
+      resolveDatabase(papelizBrowserDatabase)
+    }
     databaseOpenRequest.onerror = () => {
       papelizBrowserDatabasePromise = null
       rejectDatabase(databaseOpenRequest.error ?? new Error('The browser database could not be opened.'))

@@ -86,7 +86,9 @@ export const papelizHelpFilesArticles: readonly PapelizHelpArticle[] = [
         helpParagraph(
           'Press `Delete` or choose **Move to trash**. The note or folder moves into the vault’s `.trash` folder, which the file list doesn’t show. Papeliz never deletes a note outright.',
         ),
-        helpParagraph('To get a note back, move it out of `.trash` with your computer’s file manager.'),
+        helpParagraph(
+          'To get a note back from a folder on your disk, move it out of `.trash` with your computer’s file manager. A vault kept in your browser has no folder you can open that way, but its `.trash` comes along in every backup. See [[keep-a-vault-in-your-browser]].',
+        ),
         helpNote('Links to a renamed or moved note aren’t updated yet. See [[links-between-notes]].'),
       ]),
     ],
@@ -101,7 +103,7 @@ export const papelizHelpFilesArticles: readonly PapelizHelpArticle[] = [
     articleSections: [
       helpSection('Autosave', [
         helpParagraph(
-          'Papeliz saves a note a moment after you stop typing, and `Ctrl+S` saves every open note right away. The status bar at the bottom shows the note’s word count, and tells you if a save failed.',
+          'Papeliz saves a note a moment after you stop typing, and `Ctrl+S` saves every open note right away. The status bar at the bottom shows the note’s word count, says **Saved to disk** or, in a vault kept in your browser, **Saved in browser**, and tells you if a save failed.',
         ),
       ]),
       helpSection('Safe writes', [
@@ -113,16 +115,17 @@ export const papelizHelpFilesArticles: readonly PapelizHelpArticle[] = [
           '`.trash`: where deleted notes and folders go.',
           '`.papeliz`: Papeliz’s own files for the vault, such as the file list’s order.',
           'Every other hidden folder or file, such as `.git`, is left out of the list and never changed.',
-          'Files that aren’t Markdown notes stay on your disk untouched, and don’t appear in the list.',
+          'Files that aren’t Markdown notes stay untouched, and don’t appear in the list.',
         ]),
         helpParagraph(
           'The assistant, still in development, saves each conversation as a note in a **Chat Sessions** folder in the vault. See [[chat-with-the-assistant]].',
         ),
       ]),
       helpSection('Edits from other apps', [
-        helpNote(
-          'Papeliz doesn’t notice yet when another app changes a note it has open. If you keep typing in Papeliz, its next save overwrites the other app’s change. Close the vault in Papeliz before you edit its notes somewhere else, and open it again afterwards.',
+        helpParagraph(
+          'While a folder vault is open, Papeliz checks your open notes for changes from other apps every few seconds, and looks over the whole vault again when you come back to its tab. A note with no unsaved changes takes the new text. A note you’re typing in keeps your text, and its next save combines both versions line by line.',
         ),
+        helpNote('If both changed the same lines, Papeliz asks what to keep: **Keep both**, **Keep saved** or **Keep mine**.'),
       ]),
     ],
     relatedArticleSlugs: ['rename-move-and-trash', 'where-your-notes-live'],

@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { PapelizFolderAccessOffReason } from '../vault/papeliz-folder-access-support'
-import type { PapelizRememberedVaultFolder } from '../vault/papeliz-remembered-vault-folders'
+import type { PapelizRecentVault } from '../vault/papeliz-recent-vaults'
 
 // What the start screen shows while the eye previewer (development builds only,
 // papeliz-workspace-eye-previewer.ts) holds one of its states: made-up vaults and the state to
@@ -9,7 +9,7 @@ import type { PapelizRememberedVaultFolder } from '../vault/papeliz-remembered-v
 export interface PapelizStartScreenEyePreview {
   // Each pick starts the start screen over.
   startScreenEyePreviewNumber: number
-  previewRememberedVaultFolders: PapelizRememberedVaultFolder[]
+  previewRememberedVaultFolders: PapelizRecentVault[]
   previewFolderAccessOffReason: PapelizFolderAccessOffReason | null
   isPreviewHiddenVaultListShown: boolean
   previewRecentVaultSearchText: string

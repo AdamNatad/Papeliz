@@ -1,8 +1,10 @@
-import { FolderOpen, Minus, Plus } from 'lucide-react'
+import { AppWindow, FolderOpen, Minus, Plus } from 'lucide-react'
 import { useDeferredValue, useMemo, useState } from 'react'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { PapelizPopoverMenu, type PapelizPopoverMenuPosition } from '../ui/papeliz-popover-menu'
+import type { PapelizVaultKind } from '../vault/papeliz-vault-adapter'
 import { getVaultEntryName } from '../vault/papeliz-vault-relative-paths'
+import { PapelizBrowserVaultBackupStatus } from './papeliz-browser-vault-backup-status'
 import { PapelizNoteSaveConflictDialog } from './papeliz-note-save-conflict-dialog'
 import { papelizNoteZoomPercentChoices, papelizNoteZoomPercentLimits, usePapelizNoteTypographyStore } from './papeliz-note-typography-store'
 import type { PapelizVaultNoteEditingLock } from './papeliz-vault-entry-locks'
@@ -26,13 +28,14 @@ export function countVaultNoteWords(vaultNoteText: string): number {
   return vaultNoteWordCount
 }
 
-function describeNoteSaveState(noteSaveState: PapelizNoteSaveState, isFolderOnDisk: boolean, isVaultNoteDeletedElsewhere: boolean): string {
+function describeNoteSaveState(noteSaveState: PapelizNoteSaveState, papelizVaultKind: PapelizVaultKind, isVaultNoteDeletedElsewhere: boolean): string {
   if (noteSaveState === 'saving') return 'Saving…'
   if (noteSaveState === 'unsaved') return 'Unsaved changes'
   if (noteSaveState === 'save-failed') return 'Not saved'
   if (noteSaveState === 'save-conflict') return isVaultNoteDeletedElsewhere ? 'Moved or deleted elsewhere' : 'Changed elsewhere too'
   // The sample vault lives in memory: its notes last until the tab is reloaded or closed.
-  return isFolderOnDisk ? 'Saved to disk' : 'Kept until reload'
+  if (papelizVaultKind === 'folder-on-disk') return 'Saved to disk'
+  return papelizVaultKind === 'browser-vault-in-opfs' ? 'Saved in browser' : 'Kept until reload'
 }
 
 function describeVaultNoteEditingLock(vaultNoteEditingLock: PapelizVaultNoteEditingLock | null, vaultNoteRelativePath: string | null): string {
@@ -105,7 +108,8 @@ function PapelizNoteZoomControl() {
 }
 
 // The blue bar across the bottom of the workspace: the vault and the open note's path on the left;
-// whether the note is saved, how many words it has, which view is showing, and the zoom on the right.
+// a browser vault's backup state, whether the note is saved, how many words it has, which view is
+// showing, and the zoom on the right.
 export function PapelizStatusBar() {
   const openVault = usePapelizWorkspaceStore((workspaceState) => workspaceState.openVault)
   const activeVaultNoteRelativePath = usePapelizWorkspaceStore((workspaceState) => workspaceState.activeVaultNoteRelativePath)
@@ -125,19 +129,26 @@ export function PapelizStatusBar() {
   const vaultNoteWordCount = useMemo(() => countVaultNoteWords(deferredVaultNoteText), [deferredVaultNoteText])
 
   if (openVault === null) return null
-  const isFolderOnDisk = openVault.papelizVaultAdapter.papelizVaultKind === 'folder-on-disk'
+  const openVaultKind = openVault.papelizVaultAdapter.papelizVaultKind
+  const isSampleVaultInMemory = openVaultKind === 'sample-vault-in-memory'
   const isNoteReady = activeLoadedVaultNote !== undefined && activeLoadedVaultNote.noteLoadState === 'loaded'
 
   return (
     <footer className="flex h-7 flex-none items-center gap-4 overflow-hidden bg-papeliz-topbar px-3 text-[12px] whitespace-nowrap text-white/85 sm:px-4">
       <span
         className="flex min-w-0 items-center gap-1.5"
-        title={isFolderOnDisk ? 'A folder on this device' : 'Kept in this browser tab only'}
+        title={
+          openVaultKind === 'folder-on-disk' ? 'A folder on this device' : openVaultKind === 'browser-vault-in-opfs' ? 'Kept in this browser' : 'Kept in this browser tab only'
+        }
       >
-        <FolderOpen className="size-[13px] flex-none opacity-80" aria-hidden="true" />
+        {openVaultKind === 'browser-vault-in-opfs' ? (
+          <AppWindow className="size-[13px] flex-none opacity-80" aria-hidden="true" />
+        ) : (
+          <FolderOpen className="size-[13px] flex-none opacity-80" aria-hidden="true" />
+        )}
         <span className="truncate font-medium text-white">{openVault.papelizVaultDisplayName}</span>
         {/* Always shown for the sample vault, so nobody mistakes it for storage that lasts. */}
-        {!isFolderOnDisk && (
+        {isSampleVaultInMemory && (
           <span
             className="flex-none rounded-full bg-white/20 px-1.5 text-[11px] leading-[17px] font-semibold text-white"
             title="The sample vault lives only in this tab. Reloading or closing the tab starts it fresh; open a folder to keep your notes."
@@ -148,6 +159,7 @@ export function PapelizStatusBar() {
         {activeVaultNoteRelativePath !== null && <span className="truncate text-white/70 max-sm:hidden">/ {activeVaultNoteRelativePath}</span>}
       </span>
       <span className="ml-auto flex flex-none items-center gap-4">
+        {openVaultKind === 'browser-vault-in-opfs' && <PapelizBrowserVaultBackupStatus papelizVaultId={openVault.papelizVaultId} />}
         {isNoteReady && activeVaultNoteRelativePath !== null && (
           <>
             <span className="flex items-center gap-1.5">
@@ -164,7 +176,7 @@ export function PapelizStatusBar() {
               <span className={activeLoadedVaultNote.noteSaveState === 'save-failed' ? 'font-medium text-white' : undefined}>
                 {describeNoteSaveState(
                   activeLoadedVaultNote.noteSaveState,
-                  isFolderOnDisk,
+                  openVaultKind,
                   activeVaultNoteSaveConflict?.vaultNoteSaveConflictKind === 'deleted-elsewhere',
                 )}
               </span>

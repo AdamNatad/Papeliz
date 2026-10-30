@@ -8,7 +8,8 @@ import type { PapelizNoteViewMode } from '../note-editor/papeliz-note-editor'
 import { describePapelizFolderAccessOffReason, type PapelizFolderAccessOffReason } from '../vault/papeliz-folder-access-support'
 import { PapelizInMemoryVaultAdapter, type PapelizInMemoryVaultNote } from '../vault/papeliz-in-memory-vault-adapter'
 import type { PapelizOpenVault } from '../vault/papeliz-open-vault'
-import type { PapelizRememberedVaultFolder } from '../vault/papeliz-remembered-vault-folders'
+import { papelizBrowserVaultDefaultBackupReminderIntervalMinutes } from '../vault/papeliz-browser-vaults'
+import type { PapelizRecentVault } from '../vault/papeliz-recent-vaults'
 import { papelizSampleVaultNotes } from '../vault/papeliz-sample-vault-notes'
 import type { PapelizVaultAdapter, PapelizVaultTreeListingOptions } from '../vault/papeliz-vault-adapter'
 import { usePapelizStartScreenEyePreviewStore, type PapelizStartScreenEyePreview } from './papeliz-start-screen-eye-preview-store'
@@ -414,24 +415,52 @@ function applyAssistantPreviewState(previewVaultId: string, workspaceEyePreviewe
 let nextStartScreenEyePreviewNumber = 1
 const papelizEyePreviewerMinuteMilliseconds = 60_000
 
-// A remembered folder for a preview: a name only. Its made-up handle is never used, since every
-// action on it in a preview says so instead (papeliz-welcome-screen.tsx).
-function createPreviewRememberedVaultFolder(
+// A recent vault for a preview, a folder or a browser vault: a name only. Its made-up handle or
+// folder is never used, since every action on it in a preview says so instead
+// (papeliz-welcome-screen.tsx).
+function createPreviewRecentVault(
   previewVaultDisplayName: string,
+  previewRecentVaultKind: PapelizRecentVault['papelizRecentVaultKind'],
   openedMinutesAgo: number,
   hiddenMinutesAgo: number | null,
-): PapelizRememberedVaultFolder {
+): PapelizRecentVault {
   const previewNow = Date.now()
+  const previewVaultLastOpenedAt = previewNow - openedMinutesAgo * papelizEyePreviewerMinuteMilliseconds
+  const previewVaultHiddenAt = hiddenMinutesAgo === null ? null : previewNow - hiddenMinutesAgo * papelizEyePreviewerMinuteMilliseconds
+  const previewPapelizVaultId = `papeliz-eye-previewer-remembered-vault-${previewVaultDisplayName.toLowerCase().replaceAll(' ', '-')}`
+  if (previewRecentVaultKind === 'browser-vault-in-opfs') {
+    return {
+      papelizRecentVaultKind: 'browser-vault-in-opfs',
+      papelizVaultId: previewPapelizVaultId,
+      papelizVaultDisplayName: previewVaultDisplayName,
+      papelizBrowserVaultCreatedAt: previewVaultLastOpenedAt,
+      papelizVaultLastOpenedAt: previewVaultLastOpenedAt,
+      papelizVaultHiddenAt: previewVaultHiddenAt,
+      papelizBrowserVaultLastBackupAt: null,
+      papelizBrowserVaultFirstChangeSinceBackupAt: null,
+      papelizBrowserVaultBackupReminderOn: true,
+      papelizBrowserVaultBackupReminderIntervalMinutes: papelizBrowserVaultDefaultBackupReminderIntervalMinutes,
+      papelizBrowserVaultBackupReminderShownAt: null,
+    }
+  }
   return {
-    papelizVaultId: `papeliz-eye-previewer-remembered-vault-${previewVaultDisplayName.toLowerCase().replaceAll(' ', '-')}`,
+    papelizRecentVaultKind: 'folder-on-disk',
+    papelizVaultId: previewPapelizVaultId,
     papelizVaultDisplayName: previewVaultDisplayName,
     papelizVaultFolderHandle: { kind: 'directory', name: previewVaultDisplayName } as unknown as FileSystemDirectoryHandle,
-    papelizVaultLastOpenedAt: previewNow - openedMinutesAgo * papelizEyePreviewerMinuteMilliseconds,
-    papelizVaultHiddenAt: hiddenMinutesAgo === null ? null : previewNow - hiddenMinutesAgo * papelizEyePreviewerMinuteMilliseconds,
+    papelizVaultLastOpenedAt: previewVaultLastOpenedAt,
+    papelizVaultHiddenAt: previewVaultHiddenAt,
   }
 }
 
-function createPreviewRecentVaultFolders(previewVaultCount: 'few' | 'many'): PapelizRememberedVaultFolder[] {
+// Which made-up vaults are browser vaults; the rest are folders.
+const papelizEyePreviewerBrowserVaultNames = new Set(['Reading notes', 'Recipes', 'Travel plans', 'Trip 2025'])
+
+function findPreviewRecentVaultKind(previewVaultDisplayName: string): PapelizRecentVault['papelizRecentVaultKind'] {
+  return papelizEyePreviewerBrowserVaultNames.has(previewVaultDisplayName) ? 'browser-vault-in-opfs' : 'folder-on-disk'
+}
+
+function createPreviewRecentVaultFolders(previewVaultCount: 'few' | 'many'): PapelizRecentVault[] {
   const previewRecentVaultNames =
     previewVaultCount === 'few'
       ? ['Garden journal', 'Work notes', 'Reading notes', 'Recipes']
@@ -440,13 +469,23 @@ function createPreviewRecentVaultFolders(previewVaultCount: 'few' | 'many'): Pap
           'Book drafts', 'Course notes', 'Home projects', 'Ideas', 'Research', 'Daily log', 'Fitness',
         ]
   return previewRecentVaultNames.map((previewRecentVaultName, previewRecentVaultIndex) =>
-    createPreviewRememberedVaultFolder(previewRecentVaultName, [3, 95, 60 * 26, 60 * 24 * 6][previewRecentVaultIndex] ?? 60 * 24 * (previewRecentVaultIndex + 3), null),
+    createPreviewRecentVault(
+      previewRecentVaultName,
+      findPreviewRecentVaultKind(previewRecentVaultName),
+      [3, 95, 60 * 26, 60 * 24 * 6][previewRecentVaultIndex] ?? 60 * 24 * (previewRecentVaultIndex + 3),
+      null,
+    ),
   )
 }
 
-function createPreviewHiddenVaultFolders(previewHiddenVaultNames: readonly string[]): PapelizRememberedVaultFolder[] {
+function createPreviewHiddenVaultFolders(previewHiddenVaultNames: readonly string[]): PapelizRecentVault[] {
   return previewHiddenVaultNames.map((previewHiddenVaultName, previewHiddenVaultIndex) =>
-    createPreviewRememberedVaultFolder(previewHiddenVaultName, 60 * 24 * 30, [12, 60 * 5, 60 * 24 * 2][previewHiddenVaultIndex] ?? 60 * 24 * 3),
+    createPreviewRecentVault(
+      previewHiddenVaultName,
+      findPreviewRecentVaultKind(previewHiddenVaultName),
+      60 * 24 * 30,
+      [12, 60 * 5, 60 * 24 * 2][previewHiddenVaultIndex] ?? 60 * 24 * 3,
+    ),
   )
 }
 

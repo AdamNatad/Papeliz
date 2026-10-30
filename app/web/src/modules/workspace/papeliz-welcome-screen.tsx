@@ -1,4 +1,4 @@
-import { BookOpen, Code, Eye, EyeOff, FolderOpen, FolderPlus, RefreshCw, RotateCcw, Search, Trash2, type LucideIcon } from 'lucide-react'
+import { AppWindow, BookOpen, Code, Download, Eye, EyeOff, FolderOpen, FolderPlus, HardDrive, Pencil, RefreshCw, RotateCcw, Search, Trash2, Upload, type LucideIcon } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { PapelizIconButton } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
@@ -10,21 +10,36 @@ import {
   detectPapelizFolderAccessSupport,
   type PapelizFolderAccessOffReason,
 } from '../vault/papeliz-folder-access-support'
+import { subscribeToPapelizBrowserVaultListChanges } from '../vault/papeliz-browser-vault-list-channel'
 import {
-  openPapelizSampleVault,
-  pickAndOpenPapelizVaultFolder,
-  reopenRememberedPapelizVaultFolder,
-  type PapelizOpenVaultResult,
-} from '../vault/papeliz-open-vault'
+  describePapelizBrowserVaultOffReason,
+  detectPapelizBrowserVaultSupport,
+  probePapelizBrowserVaultStorage,
+  type PapelizBrowserVaultOffReason,
+} from '../vault/papeliz-browser-vault-support'
 import {
-  deleteRememberedVaultFolderFromDisk,
-  isRememberedVaultFolderHidden,
-  isVaultFolderDeleteSupported,
-  listRememberedVaultFolders,
-  setRememberedVaultFolderHidden,
-  type PapelizRememberedVaultFolder,
-} from '../vault/papeliz-remembered-vault-folders'
+  createPapelizBrowserVault,
+  openPapelizBrowserVault,
+  pickFreePapelizBrowserVaultName,
+  renamePapelizBrowserVault,
+  type PapelizBrowserVaultRecord,
+} from '../vault/papeliz-browser-vaults'
+import { openPapelizSampleVault, pickAndOpenPapelizVaultFolder, type PapelizOpenVaultResult } from '../vault/papeliz-open-vault'
+import {
+  deletePapelizRecentVault,
+  isPapelizRecentVaultHidden,
+  listPapelizRecentVaults,
+  reopenPapelizRecentVault,
+  setPapelizRecentVaultHidden,
+  type PapelizRecentVault,
+} from '../vault/papeliz-recent-vaults'
+import { isVaultFolderDeleteSupported } from '../vault/papeliz-remembered-vault-folders'
+import { describePapelizVaultError } from '../vault/papeliz-vault-adapter'
 import { papelizSampleVaultFirstNoteRelativePath, papelizSampleVaultNotes } from '../vault/papeliz-sample-vault-notes'
+import { usePapelizBrowserStorageStore } from './papeliz-browser-storage-store'
+import { downloadPapelizBrowserVaultBackupFromClick } from './papeliz-browser-vault-backup-reminder-store'
+import { PapelizBrowserVaultImportDialog } from './papeliz-browser-vault-import-dialog'
+import { PapelizBrowserVaultNameDialog, type PapelizNewVaultPlace } from './papeliz-browser-vault-name-dialog'
 import { PapelizSettingsGearButton } from './papeliz-settings-gear-button'
 import { usePapelizStartScreenEyePreviewStore, type PapelizStartScreenEyePreview } from './papeliz-start-screen-eye-preview-store'
 import { PapelizWorkspaceEyePreviewerSlot } from './papeliz-workspace-eye-previewer-slot'
@@ -115,15 +130,31 @@ function PapelizWelcomeAction({
 }
 
 // What the delete dialog is about to delete: one hidden vault, or every hidden vault (Delete All).
-type PapelizVaultFolderDeleteRequest =
-  | { vaultFolderDeleteScope: 'one-vault'; rememberedVaultFolder: PapelizRememberedVaultFolder }
-  | { vaultFolderDeleteScope: 'all-hidden-vaults'; rememberedVaultFolders: readonly PapelizRememberedVaultFolder[] }
+type PapelizRecentVaultDeleteRequest =
+  | { recentVaultDeleteScope: 'one-vault'; recentVault: PapelizRecentVault }
+  | { recentVaultDeleteScope: 'all-hidden-vaults'; recentVaults: readonly PapelizRecentVault[] }
+
+// The delete dialog's first words: what goes, and from where. Nothing deleted goes to the Recycle Bin.
+function describeRecentVaultDeleteRequest(recentVaultDeleteRequest: PapelizRecentVaultDeleteRequest): string {
+  if (recentVaultDeleteRequest.recentVaultDeleteScope === 'one-vault') {
+    const { recentVault } = recentVaultDeleteRequest
+    return recentVault.papelizRecentVaultKind === 'browser-vault-in-opfs'
+      ? `This deletes the vault “${recentVault.papelizVaultDisplayName}” and every note and file in it from this browser. It can’t be undone.`
+      : `This deletes the folder “${recentVault.papelizVaultDisplayName}” and every note and file in it from your disk. It doesn’t go to the Recycle Bin, and it can’t be undone.`
+  }
+  const isBrowserVaultDeleted = recentVaultDeleteRequest.recentVaults.some((recentVault) => recentVault.papelizRecentVaultKind === 'browser-vault-in-opfs')
+  return isBrowserVaultDeleted
+    ? 'This deletes every vault in the Hidden list, with every note and file in it: folders from your disk, browser vaults from this browser. It can’t be undone.'
+    : 'This deletes every vault in the Hidden list: each folder and every note and file in it, from your disk. It doesn’t go to the Recycle Bin, and it can’t be undone.'
+}
 
 // The start screen, shown when no vault is open: on the blue panel, Papeliz, the ways in (a new
-// vault, a folder already in use, the sample vault) and who made it; beside it, the vaults opened
-// before, to come back to in one click, and the Hidden list. Hide only takes a vault off Recent
-// vaults; Delete in the Hidden list erases its folder from the disk, once its name is typed. In a
-// browser that can't open folders, the folder actions say so on a badge, on hover and in a toast.
+// vault, an import into this browser, a folder already in use, the sample vault) and who made it; beside it, the vaults opened
+// before, to come back to in one click, and the Hidden list. A new vault is a folder on the disk or a
+// browser vault: Chrome and Edge ask which, other browsers keep it in the browser. Hide only takes a
+// vault off Recent vaults; Delete in the Hidden list erases it, from the disk or from this browser,
+// once its name is typed. In a browser that can keep neither kind, the actions say so on a badge, on
+// hover and in a toast; where only folders are missing, Open Vault goes.
 // In development builds the eye previewer in the Recent Vaults heading can hold it in any of its
 // states, with made-up vaults; nothing on the disk or in the browser's storage changes then.
 export function PapelizWelcomeScreen() {
@@ -136,39 +167,47 @@ export function PapelizWelcomeScreen() {
   )
 }
 
-function findPreviewHiddenVaultFolders(startScreenEyePreview: PapelizStartScreenEyePreview): PapelizRememberedVaultFolder[] {
-  return startScreenEyePreview.previewRememberedVaultFolders.filter(isRememberedVaultFolderHidden)
+function findPreviewHiddenRecentVaults(startScreenEyePreview: PapelizStartScreenEyePreview): PapelizRecentVault[] {
+  return startScreenEyePreview.previewRememberedVaultFolders.filter(isPapelizRecentVaultHidden)
 }
 
 function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEyePreview: PapelizStartScreenEyePreview | null }) {
   const openVaultInWorkspace = usePapelizWorkspaceStore((workspaceState) => workspaceState.openVaultInWorkspace)
   const showWorkspaceNotice = usePapelizWorkspaceStore((workspaceState) => workspaceState.showWorkspaceNotice)
-  const [rememberedVaultFolders, setRememberedVaultFolders] = useState<PapelizRememberedVaultFolder[]>(
+  const askBrowserToKeepStorage = usePapelizBrowserStorageStore((browserStorageState) => browserStorageState.askBrowserToKeepStorage)
+  const [recentVaults, setRecentVaults] = useState<PapelizRecentVault[]>(
     () => startScreenEyePreview?.previewRememberedVaultFolders ?? [],
   )
   const [recentVaultSearchText, setRecentVaultSearchText] = useState(startScreenEyePreview?.previewRecentVaultSearchText ?? '')
   const [isHiddenVaultListShown, setHiddenVaultListShown] = useState(startScreenEyePreview?.isPreviewHiddenVaultListShown ?? false)
   const [isRecentVaultListReloading, setRecentVaultListReloading] = useState(startScreenEyePreview?.isPreviewRecentVaultListReloading ?? false)
-  const [vaultFolderDeleteRequest, setVaultFolderDeleteRequest] = useState<PapelizVaultFolderDeleteRequest | null>(() => {
+  const [recentVaultDeleteRequest, setRecentVaultDeleteRequest] = useState<PapelizRecentVaultDeleteRequest | null>(() => {
     if (startScreenEyePreview === null || startScreenEyePreview.previewVaultFolderDeleteScope === null) return null
-    const previewHiddenVaultFolders = findPreviewHiddenVaultFolders(startScreenEyePreview)
+    const previewHiddenRecentVaults = findPreviewHiddenRecentVaults(startScreenEyePreview)
     if (startScreenEyePreview.previewVaultFolderDeleteScope === 'all-hidden-vaults') {
-      return { vaultFolderDeleteScope: 'all-hidden-vaults', rememberedVaultFolders: previewHiddenVaultFolders }
+      return { recentVaultDeleteScope: 'all-hidden-vaults', recentVaults: previewHiddenRecentVaults }
     }
-    const firstPreviewHiddenVaultFolder = previewHiddenVaultFolders[0]
-    return firstPreviewHiddenVaultFolder === undefined ? null : { vaultFolderDeleteScope: 'one-vault', rememberedVaultFolder: firstPreviewHiddenVaultFolder }
+    const firstPreviewHiddenRecentVault = previewHiddenRecentVaults[0]
+    return firstPreviewHiddenRecentVault === undefined ? null : { recentVaultDeleteScope: 'one-vault', recentVault: firstPreviewHiddenRecentVault }
   })
+  // New vault's dialog (or Rename's, for a browser vault), while it is open.
+  const [browserVaultNameDialogRequest, setBrowserVaultNameDialogRequest] = useState<
+    | { browserVaultNameDialogPurpose: 'create'; suggestedBrowserVaultName: string }
+    | { browserVaultNameDialogPurpose: 'rename'; renamedBrowserVaultRecord: PapelizBrowserVaultRecord }
+    | null
+  >(null)
+  const [isBrowserVaultImportDialogShown, setBrowserVaultImportDialogShown] = useState(false)
   // What has been typed in the delete dialog: the vault's name, or for Delete All the count.
   const [typedVaultDeleteConfirmation, setTypedVaultDeleteConfirmation] = useState('')
   const [deletingPapelizVaultIds, setDeletingPapelizVaultIds] = useState<ReadonlySet<string> | null>(() =>
     startScreenEyePreview?.isPreviewVaultFolderDeleting === true
-      ? new Set(findPreviewHiddenVaultFolders(startScreenEyePreview).map((rememberedVaultFolder) => rememberedVaultFolder.papelizVaultId))
+      ? new Set(findPreviewHiddenRecentVaults(startScreenEyePreview).map((recentVault) => recentVault.papelizVaultId))
       : null,
   )
   const [isOpeningVault, setIsOpeningVault] = useState(false)
   // The recent vault whose right-click menu is open, and where.
   const [recentVaultMenu, setRecentVaultMenu] = useState<{
-    rememberedVaultFolder: PapelizRememberedVaultFolder
+    recentVault: PapelizRecentVault
     recentVaultMenuPosition: PapelizPopoverMenuPosition
   } | null>(null)
   // The folder window failed to open from a click of the user's own: opening a folder is off for
@@ -188,15 +227,46 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
     detectedFolderAccessOffReason ?? (isFolderChooserUnavailable ? 'chooser-unavailable' : null)
   const folderAccessOffReasonText = folderAccessOffReason === null ? null : describePapelizFolderAccessOffReason(folderAccessOffReason)
 
-  // A preview keeps its made-up vaults: the real list is read only when live.
-  const reloadRememberedVaultFolders = useCallback(() => {
-    if (startScreenEyePreview !== null) return
-    listRememberedVaultFolders()
-      .then(setRememberedVaultFolders)
-      .catch(() => setRememberedVaultFolders([]))
-  }, [startScreenEyePreview])
+  // Browser vaults: what the browser has, then whether it lets this page use its storage.
+  const [browserVaultOffReason, setBrowserVaultOffReason] = useState<PapelizBrowserVaultOffReason | null>(
+    () => detectPapelizBrowserVaultSupport().browserVaultOffReason,
+  )
+  useEffect(() => {
+    let isProbeAnswerWanted = true
+    void probePapelizBrowserVaultStorage().then((probedBrowserVaultSupport) => {
+      if (isProbeAnswerWanted) setBrowserVaultOffReason(probedBrowserVaultSupport.browserVaultOffReason)
+    })
+    return () => {
+      isProbeAnswerWanted = false
+    }
+  }, [])
+  const isBrowserVaultOn = browserVaultOffReason === null
+  const browserVaultOffReasonText = browserVaultOffReason === null ? null : describePapelizBrowserVaultOffReason(browserVaultOffReason)
+  // New Vault: a folder, a browser vault, or (Chrome and Edge) a choice of the two.
+  const isFolderVaultOn = folderAccessOffReason === null
+  const isNewVaultPlaceChoiceShown = isFolderVaultOn && isBrowserVaultOn
+  // Where folders can't be opened at all but browser vaults work, Open Vault would never work.
+  const isOpenFolderVaultActionShown = !(folderAccessOffReason === 'unsupported' && isBrowserVaultOn)
+  const browserVaultRecords = useMemo(
+    () =>
+      recentVaults.filter(
+        (recentVault): recentVault is Extract<PapelizRecentVault, { papelizRecentVaultKind: 'browser-vault-in-opfs' }> =>
+          recentVault.papelizRecentVaultKind === 'browser-vault-in-opfs',
+      ),
+    [recentVaults],
+  )
 
-  useEffect(reloadRememberedVaultFolders, [reloadRememberedVaultFolders])
+  // A preview keeps its made-up vaults: the real list is read only when live.
+  const reloadRecentVaults = useCallback(() => {
+    if (startScreenEyePreview !== null) return
+    listPapelizRecentVaults(isBrowserVaultOn)
+      .then(setRecentVaults)
+      .catch(() => setRecentVaults([]))
+  }, [startScreenEyePreview, isBrowserVaultOn])
+
+  useEffect(reloadRecentVaults, [reloadRecentVaults])
+  // Another tab made, renamed, hid or deleted a browser vault.
+  useEffect(() => subscribeToPapelizBrowserVaultListChanges(reloadRecentVaults), [reloadRecentVaults])
 
   // A preview's toast shows once it opens.
   useEffect(() => {
@@ -216,25 +286,25 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
   const showStartScreenPreviewOnlyNotice = () =>
     showWorkspaceNotice('info', 'Nothing changed (Preview Only).')
 
-  const recentVaultFolders = useMemo(
-    () => rememberedVaultFolders.filter((rememberedVaultFolder) => !isRememberedVaultFolderHidden(rememberedVaultFolder)),
-    [rememberedVaultFolders],
+  const recentListVaults = useMemo(
+    () => recentVaults.filter((recentVault) => !isPapelizRecentVaultHidden(recentVault)),
+    [recentVaults],
   )
   // Most recently hidden first.
-  const hiddenVaultFolders = useMemo(
+  const hiddenRecentVaults = useMemo(
     () =>
-      rememberedVaultFolders
-        .filter(isRememberedVaultFolderHidden)
-        .sort((firstVaultFolder, secondVaultFolder) => (secondVaultFolder.papelizVaultHiddenAt ?? 0) - (firstVaultFolder.papelizVaultHiddenAt ?? 0)),
-    [rememberedVaultFolders],
+      recentVaults
+        .filter(isPapelizRecentVaultHidden)
+        .sort((firstRecentVault, secondRecentVault) => (secondRecentVault.papelizVaultHiddenAt ?? 0) - (firstRecentVault.papelizVaultHiddenAt ?? 0)),
+    [recentVaults],
   )
-  const listedVaultFolders = isHiddenVaultListShown ? hiddenVaultFolders : recentVaultFolders
+  const listedRecentVaults = isHiddenVaultListShown ? hiddenRecentVaults : recentListVaults
 
-  const shownVaultFolders = useMemo(() => {
+  const shownRecentVaults = useMemo(() => {
     const lowerCaseSearchText = recentVaultSearchText.trim().toLowerCase()
-    if (lowerCaseSearchText.length === 0) return listedVaultFolders
-    return listedVaultFolders.filter((rememberedVaultFolder) => rememberedVaultFolder.papelizVaultDisplayName.toLowerCase().includes(lowerCaseSearchText))
-  }, [recentVaultSearchText, listedVaultFolders])
+    if (lowerCaseSearchText.length === 0) return listedRecentVaults
+    return listedRecentVaults.filter((recentVault) => recentVault.papelizVaultDisplayName.toLowerCase().includes(lowerCaseSearchText))
+  }, [recentVaultSearchText, listedRecentVaults])
 
   // The toast for a folder action that is off: why, with Try again when this page turned it off.
   // Try again turns it back on and opens the folder window again at once, from its own click (in a
@@ -256,9 +326,9 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
     )
   }
 
-  // Opens a picked or remembered folder. A new vault whose folder has no notes yet starts its first
-  // note right away, named and ready to write in.
-  const finishOpeningFolderVault = async (openVaultResult: PapelizOpenVaultResult, isNewVault: boolean) => {
+  // Opens a vault: a picked or remembered folder, or a browser vault. A new vault with no notes yet
+  // starts its first note right away, named and ready to write in.
+  const finishOpeningVault = async (openVaultResult: PapelizOpenVaultResult, isNewVault: boolean) => {
     // Closing the folder window and a browser refusing to let Papeliz edit the picked folder (the user
     // turned its question down, or it doesn't ask at all) look the same.
     if (openVaultResult.openVaultOutcome === 'cancelled') {
@@ -288,6 +358,87 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
     }
   }
 
+  // New Vault: a browser vault's name (and in Chrome and Edge, where to keep it) first; a folder
+  // straight away where browser vaults are off.
+  const startNewVault = () => {
+    if (!isBrowserVaultOn) {
+      // Neither kind works here: the browser vault's reason says what to do.
+      if (folderAccessOffReason === 'unsupported' && browserVaultOffReasonText !== null) showWorkspaceNotice('error', browserVaultOffReasonText)
+      else void openFolderVault(true)
+      return
+    }
+    setBrowserVaultNameDialogRequest({
+      browserVaultNameDialogPurpose: 'create',
+      suggestedBrowserVaultName: pickFreePapelizBrowserVaultName('Notes', browserVaultRecords),
+    })
+  }
+
+  // New vault's dialog confirmed. Runs from its click: the folder window and Firefox's question about
+  // keeping storage need one.
+  const finishNewVault = async (typedBrowserVaultName: string, chosenNewVaultPlace: PapelizNewVaultPlace) => {
+    setBrowserVaultNameDialogRequest(null)
+    if (chosenNewVaultPlace === 'folder-on-disk') {
+      await openFolderVault(true)
+      return
+    }
+    if (startScreenEyePreview !== null) {
+      showStartScreenPreviewOnlyNotice()
+      return
+    }
+    askBrowserToKeepStorage()
+    setIsOpeningVault(true)
+    try {
+      const createdBrowserVaultRecord = await createPapelizBrowserVault(typedBrowserVaultName)
+      await finishOpeningVault(await openPapelizBrowserVault(createdBrowserVaultRecord), true)
+    } catch (browserVaultCreateError) {
+      showWorkspaceNotice('error', `Couldn’t make “${typedBrowserVaultName}” (${describePapelizVaultError(browserVaultCreateError)})`)
+      reloadRecentVaults()
+    } finally {
+      setIsOpeningVault(false)
+    }
+  }
+
+  // Import Vault: off with the browser vault's reason where browser vaults are.
+  const startBrowserVaultImport = () => {
+    if (browserVaultOffReasonText !== null) {
+      showWorkspaceNotice('error', browserVaultOffReasonText)
+      return
+    }
+    if (startScreenEyePreview !== null) {
+      showStartScreenPreviewOnlyNotice()
+      return
+    }
+    setBrowserVaultImportDialogShown(true)
+  }
+
+  const openImportedBrowserVault = async (importedBrowserVaultRecord: PapelizBrowserVaultRecord, importedFileCount: number) => {
+    setBrowserVaultImportDialogShown(false)
+    setIsOpeningVault(true)
+    try {
+      await finishOpeningVault(await openPapelizBrowserVault(importedBrowserVaultRecord), false)
+      usePapelizWorkspaceStore
+        .getState()
+        .showWorkspaceNotice('info', `Imported “${importedBrowserVaultRecord.papelizVaultDisplayName}” (${importedFileCount.toLocaleString()} ${importedFileCount === 1 ? 'file' : 'files'}).`)
+    } finally {
+      setIsOpeningVault(false)
+      reloadRecentVaults()
+    }
+  }
+
+  // Download backup for a browser vault in the list. Runs from its click: Chrome and Edge ask where.
+  const downloadRecentBrowserVaultBackup = async (browserVaultRecord: PapelizBrowserVaultRecord) => {
+    if (startScreenEyePreview !== null) {
+      showStartScreenPreviewOnlyNotice()
+      return
+    }
+    const browserVaultBackupDownloadResult = await downloadPapelizBrowserVaultBackupFromClick(browserVaultRecord)
+    if (browserVaultBackupDownloadResult.browserVaultBackupDownloadOutcome === 'downloaded') {
+      showWorkspaceNotice('info', `Backed up as “${browserVaultBackupDownloadResult.browserVaultBackupFileName}”.`)
+    } else if (browserVaultBackupDownloadResult.browserVaultBackupDownloadOutcome === 'failed') {
+      showWorkspaceNotice('error', browserVaultBackupDownloadResult.browserVaultBackupFailureMessage)
+    }
+  }
+
   const openFolderVault = async (isNewVault: boolean) => {
     if (folderAccessOffReason !== null) {
       showFolderAccessOffNotice(folderAccessOffReason, isNewVault)
@@ -304,20 +455,21 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
   const pickAndOpenFolderVault = async (isNewVault: boolean) => {
     setIsOpeningVault(true)
     try {
-      await finishOpeningFolderVault(await pickAndOpenPapelizVaultFolder(), isNewVault)
+      await finishOpeningVault(await pickAndOpenPapelizVaultFolder(), isNewVault)
     } finally {
       setIsOpeningVault(false)
     }
   }
 
-  const reopenRememberedFolderVault = async (rememberedVaultFolder: PapelizRememberedVaultFolder) => {
+  const reopenRecentVault = async (recentVault: PapelizRecentVault) => {
     if (startScreenEyePreview !== null) {
       showStartScreenPreviewOnlyNotice()
       return
     }
+    if (recentVault.papelizRecentVaultKind === 'browser-vault-in-opfs') askBrowserToKeepStorage()
     setIsOpeningVault(true)
     try {
-      await finishOpeningFolderVault(await reopenRememberedPapelizVaultFolder(rememberedVaultFolder), false)
+      await finishOpeningVault(await reopenPapelizRecentVault(recentVault), false)
     } finally {
       setIsOpeningVault(false)
     }
@@ -333,48 +485,48 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
       setTimeout(() => setRecentVaultListReloading(false), papelizRecentVaultListReloadMinimumMilliseconds)
       return
     }
-    void listRememberedVaultFolders()
-      .then(setRememberedVaultFolders)
-      .catch(() => setRememberedVaultFolders([]))
+    void listPapelizRecentVaults(isBrowserVaultOn)
+      .then(setRecentVaults)
+      .catch(() => setRecentVaults([]))
       .finally(() => {
         setTimeout(() => setRecentVaultListReloading(false), Math.max(0, papelizRecentVaultListReloadMinimumMilliseconds - (Date.now() - reloadStartedAt)))
       })
   }
 
   // Hides a vault into the Hidden list or restores it; the folder and its notes stay on the disk.
-  const setVaultFolderHidden = (rememberedVaultFolder: PapelizRememberedVaultFolder, isVaultHidden: boolean) => {
+  const setRecentVaultHidden = (recentVault: PapelizRecentVault, isVaultHidden: boolean) => {
     if (startScreenEyePreview !== null) {
       showStartScreenPreviewOnlyNotice()
       return
     }
-    void setRememberedVaultFolderHidden(rememberedVaultFolder, isVaultHidden).finally(reloadRememberedVaultFolders)
+    void setPapelizRecentVaultHidden(recentVault, isVaultHidden).finally(reloadRecentVaults)
   }
 
   // Runs straight from the dialog's click, so the browser can ask for permission to change a folder.
   // Delete All goes through the vaults in turn; one that can't be deleted now stays in the list.
-  const deleteHiddenVaultFolders = async (confirmedVaultFolderDeleteRequest: PapelizVaultFolderDeleteRequest) => {
-    const vaultFoldersToDelete =
-      confirmedVaultFolderDeleteRequest.vaultFolderDeleteScope === 'one-vault'
-        ? [confirmedVaultFolderDeleteRequest.rememberedVaultFolder]
-        : confirmedVaultFolderDeleteRequest.rememberedVaultFolders
-    setVaultFolderDeleteRequest(null)
+  const deleteHiddenRecentVaults = async (confirmedRecentVaultDeleteRequest: PapelizRecentVaultDeleteRequest) => {
+    const recentVaultsToDelete =
+      confirmedRecentVaultDeleteRequest.recentVaultDeleteScope === 'one-vault'
+        ? [confirmedRecentVaultDeleteRequest.recentVault]
+        : confirmedRecentVaultDeleteRequest.recentVaults
+    setRecentVaultDeleteRequest(null)
     if (startScreenEyePreview !== null) {
       showStartScreenPreviewOnlyNotice()
       return
     }
-    setDeletingPapelizVaultIds(new Set(vaultFoldersToDelete.map((rememberedVaultFolder) => rememberedVaultFolder.papelizVaultId)))
+    setDeletingPapelizVaultIds(new Set(recentVaultsToDelete.map((recentVault) => recentVault.papelizVaultId)))
     try {
-      const vaultFolderDeleteFailureMessages: string[] = []
-      for (const rememberedVaultFolder of vaultFoldersToDelete) {
-        const vaultFolderDeleteResult = await deleteRememberedVaultFolderFromDisk(rememberedVaultFolder)
-        if (vaultFolderDeleteResult.vaultFolderDeleteOutcome === 'failed') vaultFolderDeleteFailureMessages.push(vaultFolderDeleteResult.vaultFolderDeleteFailureMessage)
+      const recentVaultDeleteFailureMessages: string[] = []
+      for (const recentVault of recentVaultsToDelete) {
+        const recentVaultDeleteResult = await deletePapelizRecentVault(recentVault)
+        if (recentVaultDeleteResult.recentVaultDeleteOutcome === 'failed') recentVaultDeleteFailureMessages.push(recentVaultDeleteResult.recentVaultDeleteFailureMessage)
       }
-      const deletedVaultCount = vaultFoldersToDelete.length - vaultFolderDeleteFailureMessages.length
-      const keptVaultCount = vaultFolderDeleteFailureMessages.length
-      if (confirmedVaultFolderDeleteRequest.vaultFolderDeleteScope === 'one-vault') {
+      const deletedVaultCount = recentVaultsToDelete.length - recentVaultDeleteFailureMessages.length
+      const keptVaultCount = recentVaultDeleteFailureMessages.length
+      if (confirmedRecentVaultDeleteRequest.recentVaultDeleteScope === 'one-vault') {
         showWorkspaceNotice(
           keptVaultCount === 0 ? 'info' : 'error',
-          vaultFolderDeleteFailureMessages[0] ?? `Deleted “${confirmedVaultFolderDeleteRequest.rememberedVaultFolder.papelizVaultDisplayName}”.`,
+          recentVaultDeleteFailureMessages[0] ?? `Deleted “${confirmedRecentVaultDeleteRequest.recentVault.papelizVaultDisplayName}”.`,
         )
       } else if (keptVaultCount === 0) {
         showWorkspaceNotice('info', `Deleted ${deletedVaultCount} ${deletedVaultCount === 1 ? 'vault' : 'vaults'}.`)
@@ -382,25 +534,45 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
         // A vault that couldn't be deleted stays in the Hidden list.
         showWorkspaceNotice(
           'error',
-          vaultFoldersToDelete.length === 1
-            ? (vaultFolderDeleteFailureMessages[0] ?? '')
-            : `Couldn’t delete ${keptVaultCount} of ${vaultFoldersToDelete.length} vaults (Still Hidden)`,
+          recentVaultsToDelete.length === 1
+            ? (recentVaultDeleteFailureMessages[0] ?? '')
+            : `Couldn’t delete ${keptVaultCount} of ${recentVaultsToDelete.length} vaults (Still Hidden)`,
         )
       }
     } finally {
       setDeletingPapelizVaultIds(null)
-      reloadRememberedVaultFolders()
+      reloadRecentVaults()
     }
   }
 
   const expectedVaultDeleteConfirmation =
-    vaultFolderDeleteRequest === null
+    recentVaultDeleteRequest === null
       ? ''
-      : vaultFolderDeleteRequest.vaultFolderDeleteScope === 'one-vault'
-        ? vaultFolderDeleteRequest.rememberedVaultFolder.papelizVaultDisplayName
-        : String(vaultFolderDeleteRequest.rememberedVaultFolders.length)
-  const isVaultDeleteConfirmationTyped = vaultFolderDeleteRequest !== null && typedVaultDeleteConfirmation.trim() === expectedVaultDeleteConfirmation
-  const canDeleteVaultFolders = isVaultFolderDeleteSupported()
+      : recentVaultDeleteRequest.recentVaultDeleteScope === 'one-vault'
+        ? recentVaultDeleteRequest.recentVault.papelizVaultDisplayName
+        : String(recentVaultDeleteRequest.recentVaults.length)
+  const isVaultDeleteConfirmationTyped = recentVaultDeleteRequest !== null && typedVaultDeleteConfirmation.trim() === expectedVaultDeleteConfirmation
+  // A browser vault can always be deleted; a folder only where the browser can erase folders.
+  const canDeleteRecentVault = (recentVault: PapelizRecentVault) => recentVault.papelizRecentVaultKind === 'browser-vault-in-opfs' || isVaultFolderDeleteSupported()
+  const canDeleteEveryHiddenRecentVault = hiddenRecentVaults.every(canDeleteRecentVault)
+  const isFolderVaultListed = listedRecentVaults.some((recentVault) => recentVault.papelizRecentVaultKind === 'folder-on-disk')
+  const isBrowserVaultListed = listedRecentVaults.some((recentVault) => recentVault.papelizRecentVaultKind === 'browser-vault-in-opfs')
+
+  // Rename's dialog confirmed, for a browser vault.
+  const finishBrowserVaultRename = async (renamedBrowserVaultRecord: PapelizBrowserVaultRecord, typedBrowserVaultName: string) => {
+    setBrowserVaultNameDialogRequest(null)
+    if (startScreenEyePreview !== null) {
+      showStartScreenPreviewOnlyNotice()
+      return
+    }
+    try {
+      await renamePapelizBrowserVault(renamedBrowserVaultRecord.papelizVaultId, typedBrowserVaultName)
+    } catch (browserVaultRenameError) {
+      showWorkspaceNotice('error', `Couldn’t rename “${renamedBrowserVaultRecord.papelizVaultDisplayName}” (${describePapelizVaultError(browserVaultRenameError)})`)
+    } finally {
+      reloadRecentVaults()
+    }
+  }
 
   const openSampleVault = () =>
     openVaultInWorkspace(openPapelizSampleVault(), {
@@ -438,19 +610,31 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
               <PapelizWelcomeAction
                 WelcomeActionIcon={FolderPlus}
                 welcomeActionTitle="New Vault"
-                welcomeActionDescription="Start in a new folder."
+                welcomeActionDescription={
+                  isNewVaultPlaceChoiceShown ? 'On disk or in this browser.' : isBrowserVaultOn ? 'Kept in this browser.' : 'Start in a new folder.'
+                }
                 isWelcomeActionDisabled={isOpeningVault}
-                welcomeActionOffReasonText={folderAccessOffReasonText}
-                onWelcomeActionSelect={() => void openFolderVault(true)}
+                welcomeActionOffReasonText={isBrowserVaultOn ? null : folderAccessOffReason === 'unsupported' ? browserVaultOffReasonText : folderAccessOffReasonText}
+                onWelcomeActionSelect={startNewVault}
               />
               <PapelizWelcomeAction
-                WelcomeActionIcon={FolderOpen}
-                welcomeActionTitle="Open Vault"
-                welcomeActionDescription="Use notes you have."
+                WelcomeActionIcon={Upload}
+                welcomeActionTitle="Import Vault"
+                welcomeActionDescription="From a .zip or a folder."
                 isWelcomeActionDisabled={isOpeningVault}
-                welcomeActionOffReasonText={folderAccessOffReasonText}
-                onWelcomeActionSelect={() => void openFolderVault(false)}
+                welcomeActionOffReasonText={browserVaultOffReasonText}
+                onWelcomeActionSelect={startBrowserVaultImport}
               />
+              {isOpenFolderVaultActionShown && (
+                <PapelizWelcomeAction
+                  WelcomeActionIcon={FolderOpen}
+                  welcomeActionTitle="Open Vault"
+                  welcomeActionDescription="Use notes you have."
+                  isWelcomeActionDisabled={isOpeningVault}
+                  welcomeActionOffReasonText={folderAccessOffReasonText}
+                  onWelcomeActionSelect={() => void openFolderVault(false)}
+                />
+              )}
               <PapelizWelcomeAction
                 WelcomeActionIcon={BookOpen}
                 welcomeActionTitle="Try Sample"
@@ -474,14 +658,14 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                 {isHiddenVaultListShown ? 'Hidden Vaults' : 'Recent Vaults'}
               </h2>
               <div className="flex min-w-0 items-center gap-2 max-sm:w-full">
-                {isHiddenVaultListShown && hiddenVaultFolders.length > 0 && (
+                {isHiddenVaultListShown && hiddenRecentVaults.length > 0 && (
                   <button
                     type="button"
-                    disabled={deletingPapelizVaultIds !== null || !canDeleteVaultFolders}
-                    title={canDeleteVaultFolders ? 'Delete every hidden vault from your disk' : 'This browser can’t delete folders'}
+                    disabled={deletingPapelizVaultIds !== null || !canDeleteEveryHiddenRecentVault}
+                    title={canDeleteEveryHiddenRecentVault ? 'Delete every hidden vault for good' : 'This browser can’t delete folders'}
                     onClick={() => {
                       setTypedVaultDeleteConfirmation('')
-                      setVaultFolderDeleteRequest({ vaultFolderDeleteScope: 'all-hidden-vaults', rememberedVaultFolders: hiddenVaultFolders })
+                      setRecentVaultDeleteRequest({ recentVaultDeleteScope: 'all-hidden-vaults', recentVaults: hiddenRecentVaults })
                     }}
                     className={joinPapelizClassNames(papelizHiddenVaultActionButtonClassName, papelizHiddenVaultDeleteButtonClassName, 'h-8 px-3 text-[12.5px]')}
                   >
@@ -495,8 +679,8 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                 <button
                   type="button"
                   aria-pressed={isHiddenVaultListShown}
-                  aria-label={isHiddenVaultListShown ? 'Back to Recent Vaults' : `Hidden Vaults (${hiddenVaultFolders.length})`}
-                  title={isHiddenVaultListShown ? 'Back to Recent Vaults' : `Hidden Vaults (${hiddenVaultFolders.length})`}
+                  aria-label={isHiddenVaultListShown ? 'Back to Recent Vaults' : `Hidden Vaults (${hiddenRecentVaults.length})`}
+                  title={isHiddenVaultListShown ? 'Back to Recent Vaults' : `Hidden Vaults (${hiddenRecentVaults.length})`}
                   onClick={() => {
                     setHiddenVaultListShown(!isHiddenVaultListShown)
                     setRecentVaultSearchText('')
@@ -504,12 +688,12 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                   className="relative grid size-8 flex-none place-items-center rounded-full border border-papeliz-line text-papeliz-ink-muted transition-colors hover:bg-papeliz-hover hover:text-papeliz-ink aria-pressed:border-papeliz-blue-line aria-pressed:bg-papeliz-blue-soft aria-pressed:text-papeliz-blue"
                 >
                   {isHiddenVaultListShown ? <Eye className="size-4" aria-hidden="true" /> : <EyeOff className="size-4" aria-hidden="true" />}
-                  {hiddenVaultFolders.length > 0 && (
+                  {hiddenRecentVaults.length > 0 && (
                     <span
                       aria-hidden="true"
                       className="absolute -top-1 -right-1 grid h-4 min-w-4 place-items-center rounded-full bg-[#C0524A] px-1 text-[9.5px] leading-none font-bold text-white"
                     >
-                      {hiddenVaultFolders.length}
+                      {hiddenRecentVaults.length}
                     </span>
                   )}
                 </button>
@@ -548,7 +732,7 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                   <span className="text-[12.5px] font-semibold text-papeliz-ink-muted">Reloading…</span>
                 </div>
               )}
-              {listedVaultFolders.length === 0 ? (
+              {listedRecentVaults.length === 0 ? (
                 <div className="flex flex-1 flex-col items-center justify-center px-4 py-8 text-center">
                   <span className="grid size-11 place-items-center rounded-xl bg-papeliz-blue-soft text-papeliz-blue">
                     {isHiddenVaultListShown ? <EyeOff className="size-5" aria-hidden="true" /> : <FolderOpen className="size-5" aria-hidden="true" />}
@@ -557,37 +741,39 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                   <p className="mt-1 max-w-[300px] text-[12.5px] text-papeliz-ink-muted">
                     {isHiddenVaultListShown
                       ? 'Right-click a vault and choose Hide.'
-                      : (folderAccessOffReasonText ?? 'Folders you open show up here, so you can come back to them in one click.')}
+                      : isBrowserVaultOn
+                        ? `Vaults you make or ${isFolderVaultOn ? 'open' : 'import'} show up here, so you can come back to them in one click.`
+                        : (folderAccessOffReasonText ?? 'Folders you open show up here, so you can come back to them in one click.')}
                   </p>
                 </div>
               ) : (
                 <ul className="mt-1.5 flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto px-3 pb-1">
-                  {shownVaultFolders.length === 0 && (
+                  {shownRecentVaults.length === 0 && (
                     <li className="px-1 py-6 text-center text-[12.5px] text-papeliz-ink-muted">
                       {isHiddenVaultListShown ? 'No hidden vault matches' : 'No recent vault matches'} “{recentVaultSearchText.trim()}”.
                     </li>
                   )}
                   {isHiddenVaultListShown
-                    ? shownVaultFolders.map((rememberedVaultFolder) => {
-                        const isThisVaultDeleting = deletingPapelizVaultIds?.has(rememberedVaultFolder.papelizVaultId) === true
+                    ? shownRecentVaults.map((recentVault) => {
+                        const isThisVaultDeleting = deletingPapelizVaultIds?.has(recentVault.papelizVaultId) === true
                         return (
                           // A hidden vault's row: the same card, not clickable, with Restore and Delete (Delete
                           // asks first).
                           <li
-                            key={rememberedVaultFolder.papelizVaultId}
-                            aria-label={rememberedVaultFolder.papelizVaultDisplayName}
+                            key={recentVault.papelizVaultId}
+                            aria-label={recentVault.papelizVaultDisplayName}
                             className="flex items-center gap-3 rounded-xl border border-papeliz-line bg-papeliz-surface px-2.5 py-2"
                           >
                             <span
                               aria-hidden="true"
                               className="grid size-9 flex-none place-items-center rounded-lg bg-papeliz-hover text-[15px] font-semibold text-papeliz-ink-muted"
                             >
-                              {rememberedVaultFolder.papelizVaultDisplayName.trim().charAt(0).toUpperCase() || '·'}
+                              {recentVault.papelizVaultDisplayName.trim().charAt(0).toUpperCase() || '·'}
                             </span>
                             <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                              <span className="truncate text-[13.5px] font-semibold">{rememberedVaultFolder.papelizVaultDisplayName}</span>
+                              <span className="truncate text-[13.5px] font-semibold">{recentVault.papelizVaultDisplayName}</span>
                               <span className="text-[11.5px] text-papeliz-ink-subtle">
-                                Hidden {describeTimeSince(rememberedVaultFolder.papelizVaultHiddenAt ?? rememberedVaultFolder.papelizVaultLastOpenedAt).toLowerCase()}
+                                Hidden {describeTimeSince(recentVault.papelizVaultHiddenAt ?? recentVault.papelizVaultLastOpenedAt).toLowerCase()}
                               </span>
                             </span>
                             {/* Restore and Delete stack at the far right, hanging from a zero-height column centred on
@@ -596,7 +782,7 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                               <button
                                 type="button"
                                 disabled={deletingPapelizVaultIds !== null}
-                                onClick={() => setVaultFolderHidden(rememberedVaultFolder, false)}
+                                onClick={() => setRecentVaultHidden(recentVault, false)}
                                 className={joinPapelizClassNames(
                                   papelizHiddenVaultActionButtonClassName,
                                   papelizHiddenVaultRestoreButtonClassName,
@@ -608,15 +794,17 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                               </button>
                               <button
                                 type="button"
-                                disabled={deletingPapelizVaultIds !== null || !canDeleteVaultFolders}
+                                disabled={deletingPapelizVaultIds !== null || !canDeleteRecentVault(recentVault)}
                                 title={
-                                  canDeleteVaultFolders
-                                    ? `Delete “${rememberedVaultFolder.papelizVaultDisplayName}” and its notes from your disk`
-                                    : 'This browser can’t delete folders'
+                                  !canDeleteRecentVault(recentVault)
+                                    ? 'This browser can’t delete folders'
+                                    : recentVault.papelizRecentVaultKind === 'browser-vault-in-opfs'
+                                      ? `Delete “${recentVault.papelizVaultDisplayName}” and its notes from this browser`
+                                      : `Delete “${recentVault.papelizVaultDisplayName}” and its notes from your disk`
                                 }
                                 onClick={() => {
                                   setTypedVaultDeleteConfirmation('')
-                                  setVaultFolderDeleteRequest({ vaultFolderDeleteScope: 'one-vault', rememberedVaultFolder })
+                                  setRecentVaultDeleteRequest({ recentVaultDeleteScope: 'one-vault', recentVault })
                                 }}
                                 className={joinPapelizClassNames(
                                   papelizHiddenVaultActionButtonClassName,
@@ -631,13 +819,13 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                           </li>
                         )
                       })
-                    : shownVaultFolders.map((rememberedVaultFolder) => (
+                    : shownRecentVaults.map((recentVault) => (
                         <li
-                          key={rememberedVaultFolder.papelizVaultId}
+                          key={recentVault.papelizVaultId}
                           onContextMenu={(contextMenuEvent) => {
                             contextMenuEvent.preventDefault()
                             setRecentVaultMenu({
-                              rememberedVaultFolder,
+                              recentVault,
                               recentVaultMenuPosition: { menuAnchorLeft: contextMenuEvent.clientX, menuAnchorTop: contextMenuEvent.clientY },
                             })
                           }}
@@ -646,26 +834,38 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                           <button
                             type="button"
                             disabled={isOpeningVault}
-                            onClick={() => void reopenRememberedFolderVault(rememberedVaultFolder)}
+                            onClick={() => void reopenRecentVault(recentVault)}
                             className="flex min-w-0 flex-1 items-center gap-3 rounded-xl px-2.5 py-2 text-left"
                           >
                             <span
                               aria-hidden="true"
                               className="grid size-9 flex-none place-items-center rounded-lg bg-papeliz-blue-soft text-[15px] font-semibold text-papeliz-blue"
                             >
-                              {rememberedVaultFolder.papelizVaultDisplayName.trim().charAt(0).toUpperCase() || '·'}
+                              {recentVault.papelizVaultDisplayName.trim().charAt(0).toUpperCase() || '·'}
                             </span>
                             <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                              <span className="truncate text-[13.5px] font-semibold">{rememberedVaultFolder.papelizVaultDisplayName}</span>
-                              <span className="text-[11.5px] text-papeliz-ink-subtle">Folder on this device</span>
+                              <span className="truncate text-[13.5px] font-semibold">{recentVault.papelizVaultDisplayName}</span>
+                              <span className="flex items-center gap-1 text-[11.5px] text-papeliz-ink-subtle">
+                                {recentVault.papelizRecentVaultKind === 'browser-vault-in-opfs' ? (
+                                  <>
+                                    <AppWindow className="size-3 flex-none" aria-hidden="true" />
+                                    In this browser
+                                  </>
+                                ) : (
+                                  <>
+                                    <HardDrive className="size-3 flex-none" aria-hidden="true" />
+                                    Folder on this device
+                                  </>
+                                )}
+                              </span>
                             </span>
-                            <span className="flex-none text-[11.5px] text-papeliz-ink-subtle">{describeTimeSince(rememberedVaultFolder.papelizVaultLastOpenedAt)}</span>
+                            <span className="flex-none text-[11.5px] text-papeliz-ink-subtle">{describeTimeSince(recentVault.papelizVaultLastOpenedAt)}</span>
                           </button>
                           <PapelizIconButton
-                            iconButtonLabel={`Hide ${rememberedVaultFolder.papelizVaultDisplayName}`}
+                            iconButtonLabel={`Hide ${recentVault.papelizVaultDisplayName}`}
                             iconButtonSize="small"
                             className="mr-2.5 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 max-md:opacity-100"
-                            onClick={() => setVaultFolderHidden(rememberedVaultFolder, true)}
+                            onClick={() => setRecentVaultHidden(recentVault, true)}
                           >
                             <EyeOff className="size-[15px]" aria-hidden="true" />
                           </PapelizIconButton>
@@ -675,17 +875,25 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
               )}
             </div>
 
-            {listedVaultFolders.length > 0 && (
+            {listedRecentVaults.length > 0 && (
               <p className="mt-2 px-3 text-[11px] text-papeliz-ink-subtle">
                 {isHiddenVaultListShown
-                  ? 'Delete erases the folder and every note in it from your disk. It doesn’t go to the Recycle Bin.'
-                  : 'The folders stay on your disk. Hide only takes one off this list.'}
+                  ? isBrowserVaultListed
+                    ? isFolderVaultListed
+                      ? 'Delete erases a folder from your disk, or a browser vault from this browser, with every note in it. It can’t be undone.'
+                      : 'Delete erases the vault and every note in it from this browser. It can’t be undone.'
+                    : 'Delete erases the folder and every note in it from your disk. It doesn’t go to the Recycle Bin.'
+                  : isBrowserVaultListed
+                    ? isFolderVaultListed
+                      ? 'Folders stay on your disk and browser vaults in this browser. Hide only takes one off this list.'
+                      : 'Browser vaults stay in this browser. Hide only takes one off this list.'
+                    : 'The folders stay on your disk. Hide only takes one off this list.'}
               </p>
             )}
 
             {recentVaultMenu !== null && (
               <PapelizPopoverMenu
-                menuLabel={recentVaultMenu.rememberedVaultFolder.papelizVaultDisplayName}
+                menuLabel={recentVaultMenu.recentVault.papelizVaultDisplayName}
                 menuPosition={recentVaultMenu.recentVaultMenuPosition}
                 onMenuClose={() => setRecentVaultMenu(null)}
                 menuItems={[
@@ -693,41 +901,113 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                     menuItemKey: 'open-recent-vault',
                     menuItemLabel: 'Open',
                     MenuItemIcon: FolderOpen,
-                    onMenuItemSelect: () => void reopenRememberedFolderVault(recentVaultMenu.rememberedVaultFolder),
+                    onMenuItemSelect: () => void reopenRecentVault(recentVaultMenu.recentVault),
                   },
+                  ...(recentVaultMenu.recentVault.papelizRecentVaultKind === 'browser-vault-in-opfs'
+                    ? [
+                        {
+                          menuItemKey: 'rename-browser-vault',
+                          menuItemLabel: 'Rename',
+                          MenuItemIcon: Pencil,
+                          onMenuItemSelect: () => {
+                            const renamedRecentVault = recentVaultMenu.recentVault
+                            if (renamedRecentVault.papelizRecentVaultKind === 'browser-vault-in-opfs') {
+                              setBrowserVaultNameDialogRequest({ browserVaultNameDialogPurpose: 'rename', renamedBrowserVaultRecord: renamedRecentVault })
+                            }
+                          },
+                        },
+                        {
+                          menuItemKey: 'download-browser-vault-backup',
+                          menuItemLabel: 'Download backup',
+                          MenuItemIcon: Download,
+                          onMenuItemSelect: () => {
+                            const backedUpRecentVault = recentVaultMenu.recentVault
+                            if (backedUpRecentVault.papelizRecentVaultKind === 'browser-vault-in-opfs') void downloadRecentBrowserVaultBackup(backedUpRecentVault)
+                          },
+                        },
+                      ]
+                    : []),
                   {
                     menuItemKey: 'hide-recent-vault',
                     menuItemLabel: 'Hide',
                     MenuItemIcon: EyeOff,
                     menuItemGroupHeading: ' ',
-                    onMenuItemSelect: () => setVaultFolderHidden(recentVaultMenu.rememberedVaultFolder, true),
+                    onMenuItemSelect: () => setRecentVaultHidden(recentVaultMenu.recentVault, true),
                   },
                 ]}
               />
             )}
 
+            {isBrowserVaultImportDialogShown && (
+              <PapelizBrowserVaultImportDialog
+                existingBrowserVaultRecords={browserVaultRecords}
+                onBrowserVaultImported={(importedBrowserVaultRecord, importedFileCount) => void openImportedBrowserVault(importedBrowserVaultRecord, importedFileCount)}
+                onBrowserVaultImportClose={(wasImportStopped) => {
+                  setBrowserVaultImportDialogShown(false)
+                  if (wasImportStopped) showWorkspaceNotice('info', 'Import stopped. Nothing was kept.')
+                  reloadRecentVaults()
+                }}
+              />
+            )}
+
+            {browserVaultNameDialogRequest !== null && (
+              <PapelizBrowserVaultNameDialog
+                browserVaultNameDialogPurpose={browserVaultNameDialogRequest.browserVaultNameDialogPurpose}
+                renamedBrowserVaultRecord={
+                  browserVaultNameDialogRequest.browserVaultNameDialogPurpose === 'rename' ? browserVaultNameDialogRequest.renamedBrowserVaultRecord : undefined
+                }
+                isNewVaultPlaceChoiceShown={browserVaultNameDialogRequest.browserVaultNameDialogPurpose === 'create' && isNewVaultPlaceChoiceShown}
+                suggestedBrowserVaultName={
+                  browserVaultNameDialogRequest.browserVaultNameDialogPurpose === 'create'
+                    ? browserVaultNameDialogRequest.suggestedBrowserVaultName
+                    : browserVaultNameDialogRequest.renamedBrowserVaultRecord.papelizVaultDisplayName
+                }
+                existingBrowserVaultRecords={browserVaultRecords}
+                onBrowserVaultNameConfirm={(typedBrowserVaultName, chosenNewVaultPlace) =>
+                  browserVaultNameDialogRequest.browserVaultNameDialogPurpose === 'create'
+                    ? void finishNewVault(typedBrowserVaultName, chosenNewVaultPlace)
+                    : void finishBrowserVaultRename(browserVaultNameDialogRequest.renamedBrowserVaultRecord, typedBrowserVaultName)
+                }
+                onBrowserVaultNameCancel={() => setBrowserVaultNameDialogRequest(null)}
+              />
+            )}
+
             {/* One confirmation for Delete and for Delete All: the same dialog, asking for the vault's name or,
                 for Delete All, the number of vaults. */}
-            {vaultFolderDeleteRequest !== null && (
+            {recentVaultDeleteRequest !== null && (
               <PapelizConfirmDialog
                 confirmDialogTitle={
-                  vaultFolderDeleteRequest.vaultFolderDeleteScope === 'one-vault'
-                    ? `Delete “${vaultFolderDeleteRequest.rememberedVaultFolder.papelizVaultDisplayName}”?`
-                    : vaultFolderDeleteRequest.rememberedVaultFolders.length === 1
+                  recentVaultDeleteRequest.recentVaultDeleteScope === 'one-vault'
+                    ? `Delete “${recentVaultDeleteRequest.recentVault.papelizVaultDisplayName}”?`
+                    : recentVaultDeleteRequest.recentVaults.length === 1
                       ? 'Delete 1 hidden vault?'
-                      : `Delete all ${vaultFolderDeleteRequest.rememberedVaultFolders.length} hidden vaults?`
+                      : `Delete all ${recentVaultDeleteRequest.recentVaults.length} hidden vaults?`
                 }
                 confirmDialogBody={
                   <>
                     <p>
-                      {vaultFolderDeleteRequest.vaultFolderDeleteScope === 'one-vault'
-                        ? `This deletes the folder “${vaultFolderDeleteRequest.rememberedVaultFolder.papelizVaultDisplayName}” and every note and file in it from your disk.`
-                        : 'This deletes every vault in the Hidden list: each folder and every note and file in it, from your disk.'}{' '}
-                      It doesn’t go to the Recycle Bin, and it can’t be undone.
+                      {describeRecentVaultDeleteRequest(recentVaultDeleteRequest)}
+                      {recentVaultDeleteRequest.recentVaultDeleteScope === 'one-vault' &&
+                        recentVaultDeleteRequest.recentVault.papelizRecentVaultKind === 'browser-vault-in-opfs' && (
+                          <>
+                            {' '}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const deletedRecentVault = recentVaultDeleteRequest.recentVault
+                                if (deletedRecentVault.papelizRecentVaultKind === 'browser-vault-in-opfs') void downloadRecentBrowserVaultBackup(deletedRecentVault)
+                              }}
+                              className="font-semibold text-papeliz-blue underline-offset-2 hover:underline"
+                            >
+                              Download a backup
+                            </button>{' '}
+                            first if you might want it back.
+                          </>
+                        )}
                     </p>
                     <label className="mt-4 block text-[13px] font-medium text-papeliz-ink">
                       Type <span className="papeliz-selectable-text font-semibold">{expectedVaultDeleteConfirmation}</span> to delete{' '}
-                      {vaultFolderDeleteRequest.vaultFolderDeleteScope === 'one-vault' || vaultFolderDeleteRequest.rememberedVaultFolders.length === 1
+                      {recentVaultDeleteRequest.recentVaultDeleteScope === 'one-vault' || recentVaultDeleteRequest.recentVaults.length === 1
                         ? 'it'
                         : 'them'}
                       <input
@@ -736,7 +1016,7 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                         onKeyDown={(keyDownEvent) => {
                           if (keyDownEvent.key !== 'Enter' || !isVaultDeleteConfirmationTyped) return
                           keyDownEvent.preventDefault()
-                          void deleteHiddenVaultFolders(vaultFolderDeleteRequest)
+                          void deleteHiddenRecentVaults(recentVaultDeleteRequest)
                         }}
                         autoComplete="off"
                         spellCheck={false}
@@ -745,11 +1025,11 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                     </label>
                   </>
                 }
-                confirmButtonLabel={vaultFolderDeleteRequest.vaultFolderDeleteScope === 'one-vault' ? 'Delete Vault' : 'Delete All Vaults'}
+                confirmButtonLabel={recentVaultDeleteRequest.recentVaultDeleteScope === 'one-vault' ? 'Delete Vault' : 'Delete All Vaults'}
                 isConfirmActionDangerous
                 isConfirmButtonDisabled={!isVaultDeleteConfirmationTyped}
-                onConfirm={() => void deleteHiddenVaultFolders(vaultFolderDeleteRequest)}
-                onCancel={() => setVaultFolderDeleteRequest(null)}
+                onConfirm={() => void deleteHiddenRecentVaults(recentVaultDeleteRequest)}
+                onCancel={() => setRecentVaultDeleteRequest(null)}
               />
             )}
           </section>

@@ -122,7 +122,7 @@ Three raised beds this year. See [[Reading list]] #garden
       ]),
       helpSection('Not yet', [
         helpBulletList([
-          'Math, Mermaid diagrams and code highlighting in the rendered page.',
+          'Math and code highlighting in the rendered page.',
           'Embeds with `![[ ]]` and attachments.',
           'Raw HTML, which isn’t rendered for your safety. See [[safe-rendering]].',
         ]),
@@ -133,28 +133,51 @@ Three raised beds this year. See [[Reading list]] #garden
   {
     papelizHelpArticleSlug: 'troubleshooting',
     articleTitle: 'Troubleshooting',
-    articleSummary: 'Fixes for folder permissions, browser support, saving and links.',
+    articleSummary: 'Fixes for folder permissions, browser support, browser storage, saving and links.',
     papelizHelpGroupSlug: 'reference',
     papelizHelpArticleAvailability: 'available',
     articleSections: [
       helpSection('Papeliz asks for permission again', [
         helpParagraph(
-          'Browsers give a site access to a folder only for a while. When you reopen a vault from Recent vaults, the browser may ask again whether Papeliz may edit the folder. Allow it to continue. If you don’t, the vault stays closed and your files aren’t touched.',
+          'Browsers give a site access to a folder only for a while. When you reopen a folder from Recent Vaults, the browser may ask again whether Papeliz may edit it. Allow it to continue. If you don’t, the vault stays closed and your files aren’t touched.',
         ),
       ]),
-      helpSection('The folder buttons are greyed out', [
-        helpParagraph(
-          'Your browser can’t open folders on your disk. Use Chrome or Edge on a computer, on a secure `https://` page, or try the sample vault. See [[browser-support]].',
-        ),
+      helpSection('An action says Off in this browser', [
+        helpParagraph('Hover over the action, or press it, to see why. Then:'),
+        helpBulletList([
+          '“Couldn’t keep vaults in this browser (Update It, Or Use Chrome, Edge Or Firefox)”: update your browser, or use Chrome or Edge 103, Firefox 113 or Safari 16.4 or later.',
+          '“Couldn’t keep vaults in this browser (Storage Off)”: open Papeliz in a normal window instead of a private one, and allow site data for Papeliz in your browser’s settings.',
+          '**Open Vault** that can’t open folders: only Chrome and Edge on a computer open folders on your disk, on a secure `https://` page. Elsewhere, keep the vault in your browser instead.',
+          '“Couldn’t open the folder window (Use Its Own Tab)”: Papeliz is showing inside another site’s page. Open it in a tab of its own.',
+        ]),
+        helpParagraph('**Try Sample** works in every browser. See [[browser-support]].'),
       ]),
       helpSection('A note didn’t save', [
         helpParagraph(
-          'The status bar shows the reason when a save fails. Check that the folder still exists and that Papeliz still has permission to edit it, then press `Ctrl+S`.',
+          'The status bar shows the reason when a save fails. Check that the folder still exists and that Papeliz still has permission to edit it, then choose **Try again** or press `Ctrl+S`.',
         ),
+      ]),
+      helpSection('Browser Storage Full', [
+        helpParagraph(
+          'In a vault kept in your browser, a save that finds the browser’s storage full shows **Not saved** with “Browser Storage Full”, and a message offers **Download backup**. Your typing is still in the open tab, so keep the tab open. Download a backup, make room, for example by deleting a browser vault you no longer need, then choose **Try again**.',
+        ),
+      ]),
+      helpSection('Storage nearly full', [
+        helpParagraph(
+          '**Storage nearly full**, in the status bar or the gear’s **Settings** › **Reminder**, means Papeliz is using 90% or more of the space this browser allows it. Download a backup now, then make room before a save fails.',
+        ),
+      ]),
+      helpSection('Safari clears a browser vault', [
+        helpParagraph(
+          'Safari may clear a site’s storage when your disk runs low, or after 7 days of using Safari without opening Papeliz. That erases its browser vaults. Open Papeliz at least once a week, and keep a recent backup. If a vault is gone, bring it back from its backup with **Import Vault**. See [[keep-a-vault-in-your-browser]].',
+        ),
+      ]),
+      helpSection('Open In Another Tab', [
+        helpParagraph('A browser vault can’t be renamed or deleted while another tab has it open. Close it in that tab, or close the tab, then try again.'),
       ]),
       helpSection('A note changed in another app', [
         helpParagraph(
-          'Papeliz doesn’t notice changes made by another app yet, and typing in Papeliz afterwards overwrites them. Close the vault in Papeliz before you edit its notes somewhere else. See [[saving-and-hidden-folders]].',
+          'Papeliz picks up another app’s changes to an open note within a few seconds, and combines them with your unsaved typing when it saves. If both changed the same lines, it asks what to keep. See [[saving-and-hidden-folders]].',
         ),
       ]),
       helpSection('A link opens the wrong note', [
@@ -166,6 +189,6 @@ Three raised beds this year. See [[Reading list]] #garden
         ),
       ]),
     ],
-    relatedArticleSlugs: ['browser-support', 'open-a-folder', 'saving-and-hidden-folders'],
+    relatedArticleSlugs: ['browser-support', 'open-a-folder', 'keep-a-vault-in-your-browser', 'saving-and-hidden-folders'],
   },
 ]

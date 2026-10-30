@@ -4,18 +4,26 @@ export const papelizHelpPrivacyArticles: readonly PapelizHelpArticle[] = [
   {
     papelizHelpArticleSlug: 'where-your-notes-live',
     articleTitle: 'Where your notes live',
-    articleSummary: 'On your disk, in the folder you opened. Papeliz has no server to send them to.',
+    articleSummary: 'In a folder on your disk, or in your browser’s own storage. Papeliz has no server to send them to.',
     papelizHelpGroupSlug: 'privacy',
     papelizHelpArticleAvailability: 'available',
     articleSections: [
       helpSection('On your disk', [
         helpParagraph(
-          'A vault is a folder on your computer. Papeliz reads and writes it inside your browser, and nothing is uploaded to Papeliz: there is no Papeliz server, account or cloud storage.',
+          'A vault you open with **Open Vault**, or start as a **Folder on disk**, is a folder on your computer. Papeliz reads and writes it inside your browser, and nothing is uploaded to Papeliz: there is no Papeliz server, account or cloud storage.',
         ),
       ]),
-      helpSection('In your browser’s storage', [
+      helpSection('In your browser', [
         helpParagraph(
-          'Papeliz keeps a few things in your browser: the list of recent vaults and the permission to reopen them, your settings, and the assistant’s provider settings. Clearing your browser’s data for Papeliz removes them. Your notes on disk aren’t affected.',
+          'A vault kept in your browser lives in that browser’s own private storage on your device, not in a folder you can see. It isn’t uploaded either.',
+        ),
+        helpNote(
+          'Unlike a folder on your disk, a browser vault is erased when you clear your browser’s data for Papeliz, with every note in it. Download a backup now and then. See [[keep-a-vault-in-your-browser]].',
+        ),
+      ]),
+      helpSection('Settings in your browser', [
+        helpParagraph(
+          'Papeliz also keeps a few things in your browser: the list of recent vaults and the permission to reopen folders, your settings, and the assistant’s provider settings. Clearing your browser’s data for Papeliz removes them, and erases vaults kept in the browser. Folders on your disk aren’t affected.',
         ),
       ]),
       helpSection('When you use the assistant', [
@@ -24,7 +32,7 @@ export const papelizHelpPrivacyArticles: readonly PapelizHelpArticle[] = [
         ),
       ]),
     ],
-    relatedArticleSlugs: ['where-your-key-goes', 'saving-and-hidden-folders', 'safe-rendering'],
+    relatedArticleSlugs: ['where-your-key-goes', 'keep-a-vault-in-your-browser', 'saving-and-hidden-folders', 'safe-rendering'],
   },
   {
     papelizHelpArticleSlug: 'where-your-key-goes',

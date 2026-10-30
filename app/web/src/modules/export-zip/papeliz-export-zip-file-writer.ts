@@ -1,10 +1,12 @@
-// Writes a `.zip` file in the browser for Papeliz's exports (a website of notes, several PDFs):
+// Writes a `.zip` file in the browser for Papeliz's exports (a website of notes, several PDFs) and a
+// browser vault's backups:
 // each file compressed with the browser's own `CompressionStream('deflate-raw')`, or stored as it
 // is when that doesn't make it smaller (pictures, fonts). File names are UTF-8, so "Café.md" stays
 // "Café.md". Plain zip without the 64-bit extension: up to 65,535 files and 4 GB.
 
 export interface PapelizExportZipEntry {
-  // A relative path with "/" between folders: "projects/launch-plan.html".
+  // A relative path with "/" between folders: "projects/launch-plan.html". A folder of its own (an
+  // empty folder in a backup) ends with "/" and holds no bytes.
   zipEntryPath: string
   zipEntryBytes: Uint8Array
 }
@@ -54,8 +56,9 @@ function encodePapelizZipDosDateTime(zipEntryModifiedDate: Date): { dosTime: num
   }
 }
 
-function checkPapelizZipEntryPath(zipEntryPath: string, writtenZipEntryPaths: ReadonlySet<string>): void {
-  const zipEntryPathSegments = zipEntryPath.split('/')
+function checkPapelizZipEntryPath(zipEntryPath: string, zipEntryByteCount: number, writtenZipEntryPaths: ReadonlySet<string>): void {
+  const isZipFolderEntry = zipEntryPath.endsWith('/') && zipEntryByteCount === 0
+  const zipEntryPathSegments = (isZipFolderEntry ? zipEntryPath.slice(0, -1) : zipEntryPath).split('/')
   const isPathSafe =
     zipEntryPath.length > 0 &&
     !zipEntryPath.includes('\\') &&
@@ -90,7 +93,7 @@ export async function writePapelizExportZipFile(zipEntries: readonly PapelizExpo
   const utf8Encoder = new TextEncoder()
 
   for (const { zipEntryPath, zipEntryBytes } of zipEntries) {
-    checkPapelizZipEntryPath(zipEntryPath, writtenZipEntryPaths)
+    checkPapelizZipEntryPath(zipEntryPath, zipEntryBytes.length, writtenZipEntryPaths)
     writtenZipEntryPaths.add(zipEntryPath)
     const zipEntryNameBytes = utf8Encoder.encode(zipEntryPath)
     const deflatedBytes = await deflatePapelizZipEntryBytes(zipEntryBytes)

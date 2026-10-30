@@ -10,7 +10,7 @@ import {
 // closed tab or a save that keeps failing (the folder's permission gone, a full disk) loses nothing.
 // A copy is written 1 s after typing stops, at least every 2 s while it goes on, and at once when the
 // tab is hidden or put away; it is cleared once the note is saved. Opening the note again offers it
-// back. Only a folder on disk has them: the sample vault starts afresh anyway.
+// back. A folder on disk and a browser vault have them: the sample vault starts afresh anyway.
 
 export const papelizNoteRecoveryDraftAfterTypingStopsMilliseconds = 1000
 export const papelizNoteRecoveryDraftWhileTypingMilliseconds = 2000

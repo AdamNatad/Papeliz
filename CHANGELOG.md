@@ -3,6 +3,21 @@
 What changed in Papeliz, newest first, in plain words. These entries record what has been built,
 from the plan to the launch. The website's Changelog page shows the same list.
 
+## 2026-10-30 — The Settings gear, HTML export, and vaults in every browser
+
+- One Settings gear in the top bar: Account, Sync, Settings with Key Bindings, Export, Accessibility
+  with a Text size slider, Lock All Notes, Focus Mode and Close Vault.
+- Export one note as a single .html page that looks like MD View, with its pictures and diagrams
+  inside.
+- Export several notes, or the whole vault, as a small website in one .zip: a page and a Markdown
+  twin per note, search, and light and dark themes, with the site’s Astro project.
+- Firefox, Safari and phones keep vaults in the browser. In Chrome and Edge, New Vault asks: a
+  folder on disk, or this browser.
+- Import a vault from a .zip or a folder, and download a backup of a browser vault any time.
+- A reminder to back up a browser vault that has changes; set how often under Settings › Reminder.
+- Papeliz asks the browser to keep a vault’s storage, and says when the storage is nearly full.
+- Two tabs on one browser vault take turns saving, so neither overwrites the other.
+
 ## 2026-10-29 — Papeliz is live, and the assistant grows up
 
 - Papeliz is live at papeliz.com, with the app at papeliz.com/app and help at papeliz.com/help.

@@ -9,6 +9,8 @@ interface PapelizConfirmDialogProps {
   isConfirmActionDangerous?: boolean
   // Holds the action back until the body's own condition is met (a typed name, say).
   isConfirmButtonDisabled?: boolean
+  // A second, harmless action beside the main one (Download backup before Close vault, say).
+  confirmDialogSecondaryAction?: { secondaryActionLabel: string; isSecondaryActionDisabled?: boolean; onSecondaryActionSelect: () => void }
   onConfirm: () => void
   onCancel: () => void
 }
@@ -21,6 +23,7 @@ export function PapelizConfirmDialog({
   confirmButtonLabel,
   isConfirmActionDangerous = false,
   isConfirmButtonDisabled = false,
+  confirmDialogSecondaryAction,
   onConfirm,
   onCancel,
 }: PapelizConfirmDialogProps) {
@@ -62,9 +65,20 @@ export function PapelizConfirmDialog({
           <PapelizPillButton pillButtonVariant="red-primary" onClick={onCancel}>
             Cancel
           </PapelizPillButton>
-          <PapelizPillButton pillButtonVariant={isConfirmActionDangerous ? 'danger' : 'primary'} disabled={isConfirmButtonDisabled} onClick={onConfirm}>
-            {confirmButtonLabel}
-          </PapelizPillButton>
+          <span className="flex flex-wrap items-center justify-end gap-2">
+            {confirmDialogSecondaryAction !== undefined && (
+              <PapelizPillButton
+                pillButtonVariant="line"
+                disabled={confirmDialogSecondaryAction.isSecondaryActionDisabled}
+                onClick={confirmDialogSecondaryAction.onSecondaryActionSelect}
+              >
+                {confirmDialogSecondaryAction.secondaryActionLabel}
+              </PapelizPillButton>
+            )}
+            <PapelizPillButton pillButtonVariant={isConfirmActionDangerous ? 'danger' : 'primary'} disabled={isConfirmButtonDisabled} onClick={onConfirm}>
+              {confirmButtonLabel}
+            </PapelizPillButton>
+          </span>
         </div>
       </div>
     </dialog>

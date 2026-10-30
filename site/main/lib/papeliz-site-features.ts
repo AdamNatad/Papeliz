@@ -20,10 +20,12 @@ export const papelizSiteFeatureGroups: PapelizSiteFeatureGroup[] = [
     papelizSiteFeatureGroupPoints: [
       { papelizSiteFeaturePointTitle: 'Plain .md files', papelizSiteFeaturePointBody: 'No database and no special format. Your notes open in any other Markdown app too.' },
       { papelizSiteFeaturePointTitle: 'Open a folder', papelizSiteFeaturePointBody: 'Pick a folder in Chrome or Edge. Papeliz remembers it and asks again for access when you come back.' },
+      { papelizSiteFeaturePointTitle: 'A vault in your browser', papelizSiteFeaturePointBody: 'In Firefox, Safari and on phones, a vault lives in the browser’s own storage. Import one from a .zip or a folder, and download a backup any time.' },
       { papelizSiteFeaturePointTitle: 'A sample vault', papelizSiteFeaturePointBody: 'Try Papeliz on a set of linked example notes before you open your own.' },
       { papelizSiteFeaturePointTitle: 'File explorer', papelizSiteFeaturePointBody: 'Browse, filter, create and rename notes. Deleted notes move to the vault’s own .trash folder.' },
       { papelizSiteFeaturePointTitle: 'Leaves other apps alone', papelizSiteFeaturePointBody: 'Hidden folders, such as another app’s settings folder, are never written.' },
       { papelizSiteFeaturePointTitle: 'Autosave', papelizSiteFeaturePointBody: 'Changes are saved to disk as you type.' },
+      { papelizSiteFeaturePointTitle: 'Export as HTML', papelizSiteFeaturePointBody: 'One note as a single web page, or several as a small website in a .zip, with a Markdown twin of every page.' },
     ],
   },
   {
@@ -90,7 +92,6 @@ export const papelizSiteFeatureGroups: PapelizSiteFeatureGroup[] = [
 export const papelizSiteAfterLaunchFeatures = [
   'Graph view and canvas',
   'Offline install',
-  'Firefox and Safari, with a vault stored in the browser',
   'A passphrase lock for your keys',
   'Translations',
   'Math and code highlighting in MD View',

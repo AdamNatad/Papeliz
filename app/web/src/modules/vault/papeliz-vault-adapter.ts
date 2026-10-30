@@ -1,7 +1,14 @@
-// One interface for every place a vault can live: the bundled sample vault in memory, or a folder
-// on the user's disk. The rest of the app talks only to this interface.
+// One interface for every place a vault can live: the bundled sample vault in memory, a folder on
+// the user's disk, or a browser vault in the browser's Origin Private File System. The rest of the
+// app talks only to this interface.
 
-export type PapelizVaultKind = 'sample-vault-in-memory' | 'folder-on-disk'
+export type PapelizVaultKind = 'sample-vault-in-memory' | 'folder-on-disk' | 'browser-vault-in-opfs'
+
+// A folder or a browser vault outlives this tab: other tabs (and, for a folder, other apps) can
+// change it, and unsaved typing gets recovery copies. The sample vault is this tab's alone.
+export function isPapelizVaultKeptBeyondThisTab(papelizVaultKind: PapelizVaultKind): boolean {
+  return papelizVaultKind !== 'sample-vault-in-memory'
+}
 
 export type PapelizVaultEntryKind = 'note' | 'folder'
 
@@ -48,6 +55,12 @@ export interface PapelizVaultAdapter {
   // when needed. Nothing else in a hidden folder is read or written.
   readPapelizVaultSettingsFile(papelizVaultSettingsFileName: string): Promise<string | null>
   writePapelizVaultSettingsFile(papelizVaultSettingsFileName: string, papelizVaultSettingsFileText: string): Promise<void>
+  // Runs one change (a save's read, merge and write; a rename; a move) while no other tab of this
+  // browser changes the vault. Only a browser vault has it; the workspace runs its changes through it
+  // one at a time, so it is never called inside itself.
+  runVaultChangeExclusively?<VaultChangeResult>(vaultChange: () => Promise<VaultChangeResult>): Promise<VaultChangeResult>
+  // The workspace is done with the vault (Close Vault, or another vault opened).
+  closeVaultAdapter?(): void
 }
 
 export class PapelizVaultOperationError extends Error {

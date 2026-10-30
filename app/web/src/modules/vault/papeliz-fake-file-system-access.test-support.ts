@@ -1,6 +1,7 @@
 // Test support only: an in-memory stand-in for the File System Access API that Chrome gives a
-// picked folder. Names compare without case, the way Windows and macOS folders do, so the tests
-// exercise the same edge cases a real vault on those systems would.
+// picked folder, and for the Origin Private File System a browser vault lives in (with the sync
+// access handles Safari before 26 writes through). Names compare without case, the way Windows and
+// macOS folders do, so the tests exercise the same edge cases a real vault on those systems would.
 
 type PapelizFakeEntryHandle = PapelizFakeFileHandle | PapelizFakeDirectoryHandle
 
@@ -40,12 +41,16 @@ export class PapelizFakeFileHandle extends PapelizFakeHandleBase {
   fakeFileContents: Blob = new Blob([])
   // When set, the next writable stream fails on close(), as a full disk or a locked file would.
   shouldFailNextWriteClose = false
+  // A sync access handle is open on the file: nothing else may write it until it closes.
+  isFakeFileLockedBySyncAccessHandle = false
+  syncAccessHandleOpenCount = 0
 
   async getFile(): Promise<File> {
     return new File([this.fakeFileContents], this.name)
   }
 
   async createWritable() {
+    if (this.isFakeFileLockedBySyncAccessHandle) throw createFakeDomException('The file is locked.', 'NoModificationAllowedError')
     let pendingFileContents: Blob = new Blob([])
     let isWritableStreamOpen = true
     return {
@@ -64,6 +69,51 @@ export class PapelizFakeFileHandle extends PapelizFakeHandleBase {
       },
       abort: async () => {
         isWritableStreamOpen = false
+      },
+    }
+  }
+
+  // Like a browser's: it locks the file until close(), and writes land in place as they are made.
+  async createSyncAccessHandle() {
+    if (this.isFakeFileLockedBySyncAccessHandle) throw createFakeDomException('The file is locked.', 'NoModificationAllowedError')
+    this.isFakeFileLockedBySyncAccessHandle = true
+    this.syncAccessHandleOpenCount += 1
+    let fakeFileBytes = new Uint8Array(await this.fakeFileContents.arrayBuffer())
+    const keepFakeFileBytes = () => {
+      this.fakeFileContents = new Blob([fakeFileBytes])
+    }
+    return {
+      getSize: () => fakeFileBytes.length,
+      read: (readIntoBytes: Uint8Array, readOptions: { at?: number } = {}) => {
+        const readBytes = fakeFileBytes.subarray(readOptions.at ?? 0, (readOptions.at ?? 0) + readIntoBytes.length)
+        readIntoBytes.set(readBytes)
+        return readBytes.length
+      },
+      truncate: (newFileByteCount: number) => {
+        const truncatedFileBytes = new Uint8Array(newFileByteCount)
+        truncatedFileBytes.set(fakeFileBytes.subarray(0, newFileByteCount))
+        fakeFileBytes = truncatedFileBytes
+        keepFakeFileBytes()
+      },
+      write: (writtenBytes: Uint8Array, writeOptions: { at?: number } = {}) => {
+        if (this.shouldFailNextWriteClose) {
+          this.shouldFailNextWriteClose = false
+          throw createFakeDomException('The disk is full.', 'QuotaExceededError')
+        }
+        const writeOffset = writeOptions.at ?? 0
+        if (writeOffset + writtenBytes.length > fakeFileBytes.length) {
+          const grownFileBytes = new Uint8Array(writeOffset + writtenBytes.length)
+          grownFileBytes.set(fakeFileBytes)
+          fakeFileBytes = grownFileBytes
+        }
+        fakeFileBytes.set(writtenBytes, writeOffset)
+        keepFakeFileBytes()
+        return writtenBytes.length
+      },
+      flush: () => keepFakeFileBytes(),
+      close: () => {
+        keepFakeFileBytes()
+        this.isFakeFileLockedBySyncAccessHandle = false
       },
     }
   }
@@ -133,6 +183,15 @@ export async function createPapelizFakeVaultFolder(
   fakeVaultFileContentsByRelativePath: Record<string, string>,
 ): Promise<PapelizFakeDirectoryHandle> {
   const fakeVaultRootHandle = new PapelizFakeDirectoryHandle(fakeVaultFolderName)
+  await addPapelizFakeVaultFiles(fakeVaultRootHandle, fakeVaultFileContentsByRelativePath)
+  return fakeVaultRootHandle
+}
+
+// Adds files and folders to a fake folder, from paths as above.
+export async function addPapelizFakeVaultFiles(
+  fakeVaultRootHandle: PapelizFakeDirectoryHandle,
+  fakeVaultFileContentsByRelativePath: Record<string, string>,
+): Promise<void> {
   for (const [fakeVaultRelativePath, fakeVaultFileContents] of Object.entries(fakeVaultFileContentsByRelativePath)) {
     const fakeVaultPathSegments = fakeVaultRelativePath.split('/')
     const fakeVaultFileName = fakeVaultPathSegments.pop() ?? ''
@@ -144,7 +203,6 @@ export async function createPapelizFakeVaultFolder(
     const fakeVaultFileHandle = await fakeVaultFolderHandle.getFileHandle(fakeVaultFileName, { create: true })
     fakeVaultFileHandle.fakeFileContents = new Blob([fakeVaultFileContents])
   }
-  return fakeVaultRootHandle
 }
 
 // Reads the fake folder back as "path" -> text, folders as "path/", for easy comparisons.

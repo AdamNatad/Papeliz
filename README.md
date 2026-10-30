@@ -27,13 +27,14 @@ MD Code and MD View, with a built-in AI assistant that runs on your own API key 
 no Papeliz server in between. Available on the web, Windows, macOS, Linux, Android, iOS, and
 HarmonyOS.
 
-**Try it now at [papeliz.com/app](https://papeliz.com/app/)** — open a folder of notes, or start
-with the sample vault. Nothing to install, no sign-up.
+**Try it now at [papeliz.com/app](https://papeliz.com/app/)** — open a folder of notes, keep a
+vault in your browser, or start with the sample vault. Nothing to install, no sign-up.
 
 ## Why Papeliz
 
-- **Your files stay yours.** Notes are plain `.md` files in a folder on your disk. No proprietary
-  format, no lock-in. Existing Markdown folders open as they are.
+- **Your files stay yours.** Notes are plain `.md` files in a folder on your disk, or in a vault
+  kept in your browser that downloads as a `.zip` of the same files. No proprietary format, no
+  lock-in. Existing Markdown folders open as they are.
 - **Use it anywhere, no account.** Open a folder of notes and start writing.
 - **Your key, your provider.** The assistant talks straight from your device to the AI provider
   you choose. Papeliz has no server, so it never sees your key or your notes.
@@ -52,6 +53,10 @@ with the sample vault. Nothing to install, no sign-up.
 - **Linked notes:** wikilinks (`[[note]]`), backlinks, an outline and full-text search.
 - **A file list you can make your own:** colors and icons for any note or folder.
 - **Focus mode** (`Ctrl+Shift+F`): only your note and a floating prompt box.
+- **Export as HTML:** one note as a single web page, or several as a small website in a `.zip`,
+  with a Markdown twin of every page and the site's Astro project to change and rebuild.
+- **One Settings gear:** accessibility, key bindings, export, locking, focus mode and closing the
+  vault, in one panel.
 
 **Work with the AI assistant**
 
@@ -71,6 +76,9 @@ with the sample vault. Nothing to install, no sign-up.
   both changed the same lines, Papeliz asks what to keep.
 - **Nothing lost:** unsaved typing is kept in the browser until the note is saved, so a closed tab
   or a failed save can be recovered.
+- **Vaults in any browser:** in Firefox, Safari and on phones, a vault lives in the browser's own
+  storage. Import one from a `.zip` or a folder, download a backup any time, and get a reminder
+  when there are changes to back up.
 
 ## Bring your own AI provider
 
@@ -123,14 +131,16 @@ provider is subject to that provider's own terms and pricing.
 
 | Browser | Support |
 | --- | --- |
-| Chrome, Edge | Open real folders on your disk |
-| Firefox, Safari | Planned: a vault stored in the browser, with zip import and export |
+| Chrome, Edge (103 and later) | Open real folders on your disk, or keep a vault in the browser |
+| Firefox (113 and later), Safari (16.4 and later), phones | Keep vaults in the browser, with `.zip` import and backup |
 
 ## Roadmap
 
 **Available now: Papeliz 1.0**
 
 - [x] Open a folder of Markdown notes or a sample vault; create, rename and delete notes
+- [x] Vaults kept in the browser for Firefox, Safari and phones, with `.zip` import and backup
+- [x] Export as HTML: one note as a page, or several as a website
 - [x] MD Code with autosave, and MD View, behind one switch
 - [x] Tables and Mermaid diagrams in MD View
 - [x] Wikilinks (`[[note]]`), backlinks, outline and full-text search
@@ -155,7 +165,6 @@ provider is subject to that provider's own terms and pricing.
 - [ ] Passphrase lock for stored keys
 - [ ] Translations
 - [ ] Math and code highlighting in MD View
-- [ ] Firefox and Safari on the web
 
 ## Run it locally
 

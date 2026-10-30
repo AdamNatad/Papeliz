@@ -8,6 +8,7 @@ import { getVaultEntryParentFolderRelativePath } from '../vault/papeliz-vault-re
 import { choosePapelizExportFileDestination, writePapelizExportFile } from './papeliz-export-file-save'
 import { PapelizKeyBindingsList } from './papeliz-key-bindings-list'
 import { PapelizNoteTextSizeSlider } from './papeliz-note-text-size-slider'
+import { PapelizSettingsGearReminderTab } from './papeliz-settings-gear-reminder-tab'
 import { usePapelizNoteTabsLayoutStore, type PapelizNoteTabsLayout } from './papeliz-note-tabs-layout-store'
 import {
   papelizDefaultNoteTypography,
@@ -154,13 +155,38 @@ export function PapelizSettingsGearAccessibilityPage({ isNoteDisplaySettingsShow
   )
 }
 
-// Settings: Key Bindings. A Reminder tab (backups) joins it for a vault kept in the browser, once
-// Papeliz has those.
+type PapelizSettingsGearSettingsTab = 'key-bindings' | 'reminder'
+
+// Settings: Key Bindings. A vault kept in the browser adds a Reminder tab (backups), with a tab row
+// over the two; a folder vault shows Key Bindings alone.
 export function PapelizSettingsGearSettingsPage() {
+  const isBrowserVaultOpen = usePapelizWorkspaceStore((workspaceState) => workspaceState.openVault?.papelizVaultAdapter.papelizVaultKind === 'browser-vault-in-opfs')
+  const [chosenSettingsGearSettingsTab, setChosenSettingsGearSettingsTab] = useState<PapelizSettingsGearSettingsTab>('key-bindings')
+  if (!isBrowserVaultOpen) {
+    return (
+      <div>
+        <p className="mb-1.5 text-[13px] font-semibold">Key Bindings</p>
+        <PapelizKeyBindingsList />
+      </div>
+    )
+  }
   return (
     <div>
-      <p className="mb-1.5 text-[13px] font-semibold">Key Bindings</p>
-      <PapelizKeyBindingsList />
+      <PapelizSlidingChoiceGroup<PapelizSettingsGearSettingsTab>
+        slidingChoiceGroupLabel="Settings"
+        slidingChoiceGroupRole="tablist"
+        slidingChoiceGroupTone="solid-blue"
+        slidingChoices={[
+          { slidingChoiceValue: 'key-bindings', slidingChoiceContent: 'Key Bindings' },
+          { slidingChoiceValue: 'reminder', slidingChoiceContent: 'Reminder' },
+        ]}
+        chosenSlidingChoiceValue={chosenSettingsGearSettingsTab}
+        onSlidingChoiceSelect={setChosenSettingsGearSettingsTab}
+        slidingChoiceGroupClassName="mb-3"
+      />
+      <div role="tabpanel" aria-label={chosenSettingsGearSettingsTab === 'reminder' ? 'Reminder' : 'Key Bindings'}>
+        {chosenSettingsGearSettingsTab === 'reminder' ? <PapelizSettingsGearReminderTab /> : <PapelizKeyBindingsList />}
+      </div>
     </div>
   )
 }

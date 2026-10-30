@@ -7,6 +7,7 @@ import type { PapelizOpenVault } from '../vault/papeliz-open-vault'
 import {
   describePapelizVaultError,
   isPapelizVaultEntryMissingError,
+  isPapelizVaultKeptBeyondThisTab,
   PapelizVaultOperationError,
   type PapelizVaultEntryKind,
   type PapelizVaultTreeEntry,
@@ -306,10 +307,15 @@ let nextWorkspaceNoticeId = 1
 const autosaveTimersByLoadedNoteSessionId = new Map<number, ReturnType<typeof setTimeout>>()
 
 // Saves, creates, renames and moves run one at a time, in order. A rename therefore never races an
-// autosave of the same note, and an autosave queued during a rename writes to the new name.
+// autosave of the same note, and an autosave queued during a rename writes to the new name. A browser
+// vault also runs each under its writes lock, so this browser's other tabs wait their turn.
 let vaultOperationQueueTail: Promise<unknown> = Promise.resolve()
 function runVaultOperationInOrder<VaultOperationResult>(vaultOperation: () => Promise<VaultOperationResult>): Promise<VaultOperationResult> {
-  const vaultOperationResult = vaultOperationQueueTail.then(vaultOperation, vaultOperation)
+  const runVaultOperationExclusively = () => {
+    const openVaultAdapter = usePapelizWorkspaceStore.getState().openVault?.papelizVaultAdapter
+    return openVaultAdapter?.runVaultChangeExclusively === undefined ? vaultOperation() : openVaultAdapter.runVaultChangeExclusively(vaultOperation)
+  }
+  const vaultOperationResult = vaultOperationQueueTail.then(runVaultOperationExclusively, runVaultOperationExclusively)
   vaultOperationQueueTail = vaultOperationResult.catch(() => undefined)
   return vaultOperationResult
 }
@@ -400,14 +406,15 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
   }
 
   // Recovery copies of unsaved typing (papeliz-note-recovery-drafts.ts): 1 s after typing stops, at
-  // least every 2 s while it goes on, at once when the tab is hidden; a folder vault's notes only.
+  // least every 2 s while it goes on, at once when the tab is hidden; a folder's or a browser vault's
+  // notes, not the sample's.
   const noteRecoveryDraftTimersByLoadedNoteSessionId = new Map<number, { recoveryDraftTimer: ReturnType<typeof setTimeout>; firstUnwrittenChangeAt: number }>()
   const writeNoteRecoveryDraftNow = (loadedNoteSessionId: number) => {
     const pendingRecoveryDraft = noteRecoveryDraftTimersByLoadedNoteSessionId.get(loadedNoteSessionId)
     if (pendingRecoveryDraft !== undefined) clearTimeout(pendingRecoveryDraft.recoveryDraftTimer)
     noteRecoveryDraftTimersByLoadedNoteSessionId.delete(loadedNoteSessionId)
     const { openVault, loadedVaultNotesByRelativePath } = getWorkspaceState()
-    if (openVault === null || openVault.papelizVaultAdapter.papelizVaultKind !== 'folder-on-disk') return
+    if (openVault === null || !isPapelizVaultKeptBeyondThisTab(openVault.papelizVaultAdapter.papelizVaultKind)) return
     const vaultNoteRelativePath = findVaultNoteRelativePathForSession(loadedVaultNotesByRelativePath, loadedNoteSessionId)
     const loadedVaultNote = vaultNoteRelativePath === null ? undefined : loadedVaultNotesByRelativePath[vaultNoteRelativePath]
     if (vaultNoteRelativePath === null || loadedVaultNote?.noteLoadState !== 'loaded') return
@@ -442,7 +449,7 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
   // copy goes in as unsaved changes made on its own base, so saving merges it with anything saved
   // since rather than writing over it.
   const offerNoteRecoveryDraft = async (openVault: PapelizOpenVault, vaultNoteRelativePath: string, loadedNoteSessionId: number, vaultNoteTextOnDisk: string) => {
-    if (openVault.papelizVaultAdapter.papelizVaultKind !== 'folder-on-disk') return
+    if (!isPapelizVaultKeptBeyondThisTab(openVault.papelizVaultAdapter.papelizVaultKind)) return
     const noteRecoveryDraft = await readPapelizNoteRecoveryDraft(openVault.papelizVaultId, vaultNoteRelativePath)
     if (noteRecoveryDraft === null || getWorkspaceState().openVault !== openVault) return
     if (noteRecoveryDraft.recoveryDraftVaultNoteText === vaultNoteTextOnDisk) {
@@ -501,7 +508,7 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
           (vaultNoteReadError: unknown) => ({ vaultNoteTextOnDisk: null, isVaultNoteGoneFromDisk: isPapelizVaultEntryMissingError(vaultNoteReadError) }),
         )
         // Moved or trashed elsewhere: writing it would bring it back unasked, so the user chooses.
-        if (vaultNoteDiskRead.isVaultNoteGoneFromDisk && openVault.papelizVaultAdapter.papelizVaultKind === 'folder-on-disk') {
+        if (vaultNoteDiskRead.isVaultNoteGoneFromDisk && isPapelizVaultKeptBeyondThisTab(openVault.papelizVaultAdapter.papelizVaultKind)) {
           setWorkspaceState((workspaceState) => ({
             vaultNoteSaveConflictsByLoadedNoteSessionId: {
               ...workspaceState.vaultNoteSaveConflictsByLoadedNoteSessionId,
@@ -554,7 +561,7 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
         })
         if (needsAnotherSave) scheduleAutosave(loadedNoteSessionId)
         // Saved as typed: its recovery copy is no longer needed.
-        else if (openVault.papelizVaultAdapter.papelizVaultKind === 'folder-on-disk') {
+        else if (isPapelizVaultKeptBeyondThisTab(openVault.papelizVaultAdapter.papelizVaultKind)) {
           void deletePapelizNoteRecoveryDraft(openVault.papelizVaultId, vaultNoteRelativePath).catch(() => undefined)
         }
       } catch (vaultSaveError) {
@@ -613,7 +620,7 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
   // notes and folders. A vault in memory (the sample) is this tab's alone.
   const announceVaultChangeHere = (changedVaultNoteRelativePaths: string[] | null) => {
     const openVault = getWorkspaceState().openVault
-    if (openVault === null || openVault.papelizVaultAdapter.papelizVaultKind !== 'folder-on-disk') return
+    if (openVault === null || !isPapelizVaultKeptBeyondThisTab(openVault.papelizVaultAdapter.papelizVaultKind)) return
     announcePapelizVaultChange(openVault.papelizVaultId, changedVaultNoteRelativePaths)
   }
 
@@ -684,14 +691,15 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
     }
   }
 
-  // While a folder vault is open: the other tabs' changes are heard and read again; another browser's
-  // or app's are looked for when the tab comes back into view (everything) and every few seconds
-  // while it is in view (the open notes).
+  // While a folder or browser vault is open: the other tabs' changes are heard and read again; another
+  // browser's or app's are looked for when the tab comes back into view (everything) and, for a
+  // folder, every few seconds while it is in view (the open notes). Only this browser's Papeliz tabs
+  // change a browser vault, and they always announce it, so it needs no polling.
   let stopWatchingVaultChangesElsewhere: (() => void) | null = null
   const startWatchingVaultChangesElsewhere = (openVault: PapelizOpenVault) => {
     stopWatchingVaultChangesElsewhere?.()
     stopWatchingVaultChangesElsewhere = null
-    if (openVault.papelizVaultAdapter.papelizVaultKind !== 'folder-on-disk') return
+    if (!isPapelizVaultKeptBeyondThisTab(openVault.papelizVaultAdapter.papelizVaultKind)) return
     const vaultReloadScheduler = createPapelizVaultChangeReloadScheduler((changedVaultNoteRelativePaths) => void reloadVaultChangedElsewhere(changedVaultNoteRelativePaths))
     const stopListeningToVaultChanges = subscribeToPapelizVaultChanges((vaultChangeMessage) => {
       if (vaultChangeMessage.papelizVaultId === getWorkspaceState().openVault?.papelizVaultId) {
@@ -707,16 +715,19 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
     }
     if (typeof document !== 'undefined') document.addEventListener('visibilitychange', lookAgainOnReturn)
     if (typeof window !== 'undefined') window.addEventListener('pagehide', writeEveryNoteRecoveryDraftNow)
-    const vaultChangePollTimer = setInterval(() => {
-      const openVaultNoteRelativePaths = Object.keys(getWorkspaceState().loadedVaultNotesByRelativePath)
-      if (isPageInView() && openVaultNoteRelativePaths.length > 0) vaultReloadScheduler.scheduleVaultReload(openVaultNoteRelativePaths)
-    }, papelizVaultChangePollMilliseconds)
+    const vaultChangePollTimer =
+      openVault.papelizVaultAdapter.papelizVaultKind === 'folder-on-disk'
+        ? setInterval(() => {
+            const openVaultNoteRelativePaths = Object.keys(getWorkspaceState().loadedVaultNotesByRelativePath)
+            if (isPageInView() && openVaultNoteRelativePaths.length > 0) vaultReloadScheduler.scheduleVaultReload(openVaultNoteRelativePaths)
+          }, papelizVaultChangePollMilliseconds)
+        : null
     stopWatchingVaultChangesElsewhere = () => {
       stopListeningToVaultChanges()
       vaultReloadScheduler.cancelVaultReload()
       if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', lookAgainOnReturn)
       if (typeof window !== 'undefined') window.removeEventListener('pagehide', writeEveryNoteRecoveryDraftNow)
-      clearInterval(vaultChangePollTimer)
+      if (vaultChangePollTimer !== null) clearInterval(vaultChangePollTimer)
     }
   }
 
@@ -1059,12 +1070,16 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
     },
 
     closeVaultInWorkspace: async () => {
-      if (getWorkspaceState().openVault === null) return
+      const closingOpenVault = getWorkspaceState().openVault
+      if (closingOpenVault === null) return
       stopWatchingVaultChangesElsewhere?.()
       stopWatchingVaultChangesElsewhere = null
       await getWorkspaceState().saveAllVaultNotesNow()
       for (const autosaveTimer of autosaveTimersByLoadedNoteSessionId.values()) clearTimeout(autosaveTimer)
       autosaveTimersByLoadedNoteSessionId.clear()
+      // A browser vault lets go of its open lock once its last save is done.
+      await runVaultOperationInOrder(async () => undefined).catch(() => undefined)
+      closingOpenVault.papelizVaultAdapter.closeVaultAdapter?.()
       setWorkspaceState({
         openVault: null,
         vaultTreeEntries: [],

@@ -21,6 +21,7 @@
     "webapp:typecheck": "pnpm --filter @papeliz/webapp typecheck",
     "webapp:test": "pnpm --filter @papeliz/webapp test",
     "webapp:lint": "pnpm --filter @papeliz/webapp lint",
+    "webapp:browser-test": "pnpm --filter @papeliz/webapp browser-test",
     "deploy:assemble": "pnpm run site:build && pnpm run webapp:build && pnpm run help:build && node build_tools/shared/deploy-folder/papeliz-deploy-folder-assemble.mjs"
   }
 }
