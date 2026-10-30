@@ -9,6 +9,8 @@
     "verify": "node scripts/verify-papeliz-site-export.mjs"
   },
   "dependencies": {
+    "@clerk/clerk-js": "6.40.0",
+    "@clerk/react": "6.18.0",
     "@fontsource/figtree": "5.3.0",
     "@fontsource/jetbrains-mono": "5.3.0",
     "lucide-react": "1.60.0",

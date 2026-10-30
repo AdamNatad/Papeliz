@@ -1,6 +1,7 @@
 'use client'
 
-import { Accessibility, Monitor, Moon, Sun } from 'lucide-react'
+import { Monitor, Moon, Sun } from 'lucide-react'
+import { FaUniversalAccess } from 'react-icons/fa'
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { PapelizSiteSlidingChoiceGroup } from '@/components/theme/papeliz-site-sliding-choice-group'
 import { choosePapelizSiteThemePreference, readPapelizSiteThemePreference, type PapelizSiteThemePreference } from '@/lib/papeliz-site-theme'
@@ -82,7 +83,8 @@ export function PapelizSiteAccessibilityMenuButton() {
         }}
         className="grid size-[34px] flex-none cursor-pointer place-items-center rounded-full text-white/90 transition-[background-color,color,transform] duration-150 ease-out hover:bg-white/15 hover:text-white focus-visible:outline-white active:scale-[.94] aria-expanded:bg-white/15"
       >
-        <Accessibility className="size-[18px]" aria-hidden="true" />
+        {/* A solid mark, as the GitHub mark beside it, so it reads clearly on the blue bar (Adam, 2026-10-31). */}
+        <FaUniversalAccess className="size-[18px]" aria-hidden="true" />
       </button>
       {papelizSiteAccessibilityMenuAnchor !== null && (
         <PapelizSiteAccessibilityMenuPanel

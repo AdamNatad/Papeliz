@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useLayoutEffect, useRef, useState } from 'react'
 import { papelizSiteHeaderLinks } from '@/lib/papeliz-site-navigation'
+import { PapelizSiteHeaderResourcesMenu } from './papeliz-site-header-resources-menu'
 
 type PapelizSiteHeaderIndicatorPlacement = {
   papelizSiteHeaderIndicatorLeft: number
@@ -20,10 +21,12 @@ export const papelizSiteHeaderIndicatorRiseAboveLinkBottom = 6
 // How long the underline takes to slide or grow: the duration-500 in its class below.
 export const papelizSiteHeaderIndicatorSlideMilliseconds = 500
 
-// A header link's look: the page links here, and Community at the header's right.
+// A header link's look: the page links here, and Community at the header's right. On hover or
+// keyboard focus a glowing white underline grows from the middle, the same size and place as the
+// current page's underline (60% of the label, just under it); the current page has its own.
 export function createPapelizSiteHeaderLinkClassName(papelizSiteHeaderLinkIsCurrent: boolean) {
-  return `rounded-full px-2 py-1.5 text-[15px] whitespace-nowrap transition-colors hover:bg-white/15 hover:text-white focus-visible:outline-white lg:px-3 ${
-    papelizSiteHeaderLinkIsCurrent ? 'font-medium text-white' : 'text-white/90'
+  return `relative rounded-full px-2 py-1.5 text-[15px] whitespace-nowrap transition-colors hover:text-white focus-visible:outline-white lg:px-3 after:pointer-events-none after:absolute after:bottom-1 after:left-1/2 after:h-0.5 after:w-[calc(60%-10px)] after:-translate-x-1/2 after:scale-x-0 after:rounded-full after:bg-white after:shadow-[0_0_12px_rgb(255_255_255/0.45)] after:transition-transform after:duration-300 after:ease-[cubic-bezier(0.22,1,0.36,1)] hover:after:scale-x-100 focus-visible:after:scale-x-100 motion-reduce:after:transition-none lg:after:w-[calc(60%-14px)] ${
+    papelizSiteHeaderLinkIsCurrent ? 'font-medium text-white after:hidden' : 'text-white/90'
   }`
 }
 
@@ -82,8 +85,9 @@ export function PapelizSiteHeaderNavigation() {
 
     // Returns whether the underline slides from its last place.
     const placePapelizSiteHeaderIndicator = (papelizSiteHeaderIndicatorMaySlide: boolean) => {
+      // The current page's link, or the Resources menu while one of its pages is open (aria-current="true").
       const papelizSiteCurrentLinkLabel = papelizSiteHeaderBarElement.querySelector<HTMLElement>(
-        '[aria-current="page"] [data-papeliz-site-header-link-label]',
+        ':is([aria-current="page"], [aria-current="true"]) > [data-papeliz-site-header-link-label]',
       )
       const papelizSiteHeaderBarRect = papelizSiteHeaderBarElement.getBoundingClientRect()
       // No link for this page, or the links are hidden (phones): no underline.
@@ -106,7 +110,9 @@ export function PapelizSiteHeaderNavigation() {
         papelizSiteCurrentLinkLabelRect.left -
         papelizSiteHeaderBarRect.left +
         (papelizSiteCurrentLinkLabelRect.width - papelizSiteHeaderIndicatorWidth) / 2
-      const papelizSiteCurrentLinkRect = (papelizSiteCurrentLinkLabel.closest('[aria-current="page"]') ?? papelizSiteCurrentLinkLabel).getBoundingClientRect()
+      const papelizSiteCurrentLinkRect = (
+        papelizSiteCurrentLinkLabel.closest('[aria-current="page"], [aria-current="true"]') ?? papelizSiteCurrentLinkLabel
+      ).getBoundingClientRect()
       const papelizSiteHeaderIndicatorTop =
         papelizSiteCurrentLinkRect.bottom - papelizSiteHeaderBarRect.top - papelizSiteHeaderIndicatorRiseAboveLinkBottom
       const papelizSiteHeaderIndicatorSlidesHere = papelizSiteHeaderIndicatorMaySlide && papelizSiteHeaderIndicatorWasShownRef.current
@@ -199,6 +205,7 @@ export function PapelizSiteHeaderNavigation() {
           </Link>
         )
       })}
+      <PapelizSiteHeaderResourcesMenu />
       <span
         aria-hidden="true"
         className={createPapelizSiteHeaderIndicatorClassName(

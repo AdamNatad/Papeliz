@@ -1,5 +1,5 @@
-import { ChevronDown, ChevronRight, Download, FileText, Folder, LoaderCircle, Monitor, Moon, RefreshCw, RotateCcw, Search, Sun, User } from 'lucide-react'
-import { useMemo, useRef, useState, type ReactNode } from 'react'
+import { ChevronDown, ChevronRight, Download, FileText, Folder, LoaderCircle, Monitor, Moon, RotateCcw, Search, Sun } from 'lucide-react'
+import { lazy, Suspense, useMemo, useRef, useState, type ReactNode } from 'react'
 import { PapelizPillButton } from '../ui/papeliz-buttons'
 import { PapelizSlidingChoiceGroup } from '../ui/papeliz-sliding-choice-group'
 import { usePapelizThemeStore, type PapelizThemePreference } from '../ui/papeliz-theme'
@@ -193,31 +193,23 @@ export function PapelizSettingsGearSettingsPage() {
 
 type PapelizSettingsGearTeaser = 'account' | 'sync'
 
-// Account and Sync: what is coming, and nothing to click yet.
+// Papeliz Sync's pages, loaded when one is opened, so the app's first load carries none of Sync.
+const PapelizSyncAccountPage = lazy(() => import('../sync/papeliz-sync-account-page').then((syncAccountPageModule) => ({ default: syncAccountPageModule.PapelizSyncAccountPage })))
+const PapelizSyncPage = lazy(() => import('../sync/papeliz-sync-page').then((syncPageModule) => ({ default: syncPageModule.PapelizSyncPage })))
+
+// Account and Sync: Papeliz Sync's own pages. An account is only for Sync.
 export function PapelizSettingsGearTeaserPage({ settingsGearTeaser }: { settingsGearTeaser: PapelizSettingsGearTeaser }) {
-  const TeaserIcon = settingsGearTeaser === 'account' ? User : RefreshCw
   return (
-    <div className="flex flex-col items-center gap-2 py-6 text-center">
-      <span className="grid size-[52px] place-items-center rounded-full bg-papeliz-surface-gray text-papeliz-ink-muted">
-        <TeaserIcon className="size-6" aria-hidden="true" />
-      </span>
-      <p className="text-[15px] font-semibold">{settingsGearTeaser === 'account' ? 'Account' : 'Sync'}</p>
-      {settingsGearTeaser === 'sync' && (
-        <p className="max-w-[230px] text-[12.5px] leading-[1.45] text-papeliz-ink-muted">
-          Keep your vaults in sync across web, desktop and mobile, end-to-end encrypted.
+    <Suspense
+      fallback={
+        <p role="status" className="flex items-center gap-2 py-2 text-[12.5px] text-papeliz-ink-subtle">
+          <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" />
+          Loading…
         </p>
-      )}
-      <div className="flex flex-wrap justify-center gap-1.5">
-        {settingsGearTeaser === 'sync' && (
-          <span className="inline-flex h-[22px] items-center rounded-full border border-papeliz-ok/45 bg-papeliz-ok/12 px-2.5 text-[11.5px] font-semibold text-papeliz-ok">
-            Paid Add-on
-          </span>
-        )}
-        <span className="inline-flex h-[22px] items-center rounded-full border border-papeliz-blue-line bg-papeliz-blue-soft px-2.5 text-[11.5px] font-semibold text-papeliz-blue">
-          Coming soon
-        </span>
-      </div>
-    </div>
+      }
+    >
+      {settingsGearTeaser === 'account' ? <PapelizSyncAccountPage /> : <PapelizSyncPage />}
+    </Suspense>
   )
 }
 

@@ -2,7 +2,9 @@
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { build as buildWithVite, defineConfig, type Plugin } from 'vite'
+import { papelizPdfExportWoff2DecoderAlias } from '../../build_tools/webapp/papeliz-pdf-export-vite-alias.mjs'
 import { papelizHtmlExportCorePlugin } from '../../build_tools/webapp/papeliz-html-export-core-vite-plugin.mjs'
+import { papelizSyncEnginePlugin } from '../../build_tools/webapp/papeliz-sync-engine-vite-plugin.mjs'
 
 // The built app's Content-Security-Policy. The user's API keys live in this origin, so: scripts only
 // from the app itself, no plugins or frames. Network calls go to the app, to any https host (the
@@ -43,8 +45,11 @@ function papelizContentSecurityPolicyPlugin(): Plugin {
 // webapp's own Worker serves (wrangler.jsonc), at the same paths. The dev server stays at the root.
 export default defineConfig(({ command }) => ({
   base: command === 'build' ? '/app/' : '/',
+  // The PDF export reads WOFF font files only, so fontkit's WOFF2 decoder never runs; a one-line
+  // stand-in keeps it (60 kB gzip) out of the PDF worker.
+  resolve: { alias: [papelizPdfExportWoff2DecoderAlias] },
   build: { outDir: 'dist/app' },
-  plugins: [react(), tailwindcss(), papelizContentSecurityPolicyPlugin(), papelizHtmlExportCorePlugin(buildWithVite)],
+  plugins: [react(), tailwindcss(), papelizContentSecurityPolicyPlugin(), papelizHtmlExportCorePlugin(buildWithVite), papelizSyncEnginePlugin()],
   server: {
     host: '127.0.0.1',
     port: 14201,

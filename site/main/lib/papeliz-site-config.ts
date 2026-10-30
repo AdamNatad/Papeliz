@@ -16,9 +16,11 @@ export const papelizSiteCanonicalOrigin: string | null = 'https://papeliz.com'
 
 // The webapp is served at /app/ on the same domain as the site.
 export const papelizSiteAppUrl: string | null = '/app/'
-// The header's Use App menu: Download and My Account show "Coming soon" until these are set.
-export const papelizSiteDownloadUrl: string | null = null
-export const papelizSiteAccountUrl: string | null = null
+// The Download page (app/download/), which lists every app: the header's Use App menu and the account
+// page's download menu link to it (Adam, 2026-10-31). Each app's own link is in lib/papeliz-site-downloads.ts.
+export const papelizSiteDownloadUrl: string | null = '/download/'
+// My Account opens the sign-in and account page (app/account/), live with Papeliz Sync (Adam, 2026-10-31).
+export const papelizSiteAccountUrl: string | null = '/account/'
 export const papelizSiteGitHubRepositoryUrl: string | null = 'https://github.com/AdamNatad/Papeliz'
 // GitHub's Discussions and Issues for the repository. Discussions are turned off on the repository
 // for now, so their link shows "Coming soon" until they are turned on.

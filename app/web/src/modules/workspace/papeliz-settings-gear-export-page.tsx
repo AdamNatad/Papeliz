@@ -2,7 +2,7 @@ import { ChevronDown, ChevronRight, Download, FilePen, FileText, Folder, Globe, 
 import { useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { choosePapelizExportDefaultPageSize } from '../export-print-style/papeliz-export-print-style'
 import { PapelizPillButton } from '../ui/papeliz-buttons'
-import { describePapelizVaultError } from '../vault/papeliz-vault-adapter'
+import { describePapelizVaultError, PapelizVaultOperationError } from '../vault/papeliz-vault-adapter'
 import { getVaultEntryParentFolderRelativePath } from '../vault/papeliz-vault-relative-paths'
 import { choosePapelizExportFileDestination, writePapelizExportFile, type PapelizExportFileKind } from './papeliz-export-file-save'
 import { usePapelizNoteTypographyStore } from './papeliz-note-typography-store'
@@ -33,7 +33,7 @@ interface PapelizSettingsGearExportFormatRow {
 
 const papelizSettingsGearExportFormatRows: readonly PapelizSettingsGearExportFormatRow[] = [
   { exportFormat: 'word', exportFormatLabel: 'Word', exportFormatLine: 'Editable .docx, for Word, Google Docs or Notion', ExportFormatIcon: FilePen, isExportFormatReady: true },
-  { exportFormat: 'pdf', exportFormatLabel: 'PDF', exportFormatLine: 'Pages for printing and sharing', ExportFormatIcon: Printer, isExportFormatReady: false },
+  { exportFormat: 'pdf', exportFormatLabel: 'PDF', exportFormatLine: 'Pages for printing and sharing', ExportFormatIcon: Printer, isExportFormatReady: true },
   { exportFormat: 'html', exportFormatLabel: 'HTML', exportFormatLine: 'A web page; several notes make a website', ExportFormatIcon: Globe, isExportFormatReady: true },
 ]
 
@@ -284,6 +284,36 @@ export function PapelizSettingsGearExportPage() {
             docxExportAbortSignal: exportAbortSignal,
           })
           return { exportFileBlob: docxExportFileBlob, exportNotices: docxExportNotices }
+        },
+      }
+    }
+    if (chosenExportFormat === 'pdf') {
+      const pdfExportModule = await import('../pdf-export/papeliz-pdf-export')
+      const pdfExportFileKind = pdfExportModule.describePapelizPdfExportFile(papelizVaultDisplayName, exportVaultNoteRelativePaths)
+      return {
+        exportFileName: pdfExportFileKind.pdfExportFileName,
+        exportFileKind: {
+          exportFileDescription: pdfExportFileKind.pdfExportFileDescription,
+          exportFileMediaType: pdfExportFileKind.pdfExportFileMediaType,
+          exportFileExtension: pdfExportFileKind.pdfExportFileExtension,
+        },
+        writeExportFile: async (onExportProgress, exportAbortSignal) => {
+          try {
+            const { pdfExportFileBlob, pdfExportNotices } = await pdfExportModule.exportPapelizNotesAsPdf({
+              pdfExportVault: { vaultAdapter: papelizVaultAdapter, vaultDisplayName: papelizVaultDisplayName },
+              pdfExportVaultNoteRelativePaths: exportVaultNoteRelativePaths,
+              pdfExportEveryVaultNoteRelativePath: everyExportNoteRelativePath,
+              pdfExportPageSize: choosePapelizExportDefaultPageSize(navigator.languages),
+              pdfExportNoteFontFamily: noteFontFamily,
+              onPdfExportProgress: onExportProgress,
+              pdfExportAbortSignal: exportAbortSignal,
+            })
+            return { exportFileBlob: pdfExportFileBlob, exportNotices: pdfExportNotices }
+          } catch (pdfExportError) {
+            // The PDF export's own plain line shows as it is.
+            if (pdfExportError instanceof pdfExportModule.PapelizPdfExportError) throw new PapelizVaultOperationError(pdfExportError.message)
+            throw pdfExportError
+          }
         },
       }
     }

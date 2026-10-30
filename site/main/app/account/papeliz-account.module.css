@@ -1,0 +1,154 @@
+/* The account page stands on its own, as the app does: the site's top bar and footer stay off it. */
+:global(body:has([data-papeliz-account-page])) > :global(header),
+:global(body:has([data-papeliz-account-page])) > :global(footer) {
+  display: none;
+}
+
+.papelizAccountPage {
+  min-height: 100svh;
+  background: var(--color-papeliz-surface-soft);
+  color: var(--color-papeliz-ink);
+}
+
+/* The six code boxes: one real input under six drawn boxes, so paste, autofill and the phone's
+   one-time-code suggestion all work. */
+.papelizAccountCodeBoxes {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.papelizAccountCodeInput {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  color: transparent;
+  caret-color: transparent;
+  font-size: 16px;
+  letter-spacing: 0;
+  outline: none;
+  opacity: 0.01;
+}
+
+@keyframes papelizAccountLoadingSlide {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(260%);
+  }
+}
+
+.papelizAccountLoadingBar {
+  animation: papelizAccountLoadingSlide 1.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .papelizAccountLoadingBar {
+    animation: none;
+  }
+}
+
+/* Links: no underline at rest. On hover or keyboard focus it grows out from the middle of the
+   word, and a press pulls it in a little. */
+.papelizAccountSlidingUnderline {
+  position: relative;
+  text-decoration: none;
+}
+
+.papelizAccountSlidingUnderline::after {
+  content: '';
+  position: absolute;
+  right: 10%;
+  bottom: -2px;
+  left: 10%;
+  height: 1px;
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform 200ms ease;
+  pointer-events: none;
+}
+
+.papelizAccountSlidingUnderline:is(:hover, :focus-visible):not(:disabled)::after {
+  transform: scaleX(1);
+}
+
+.papelizAccountSlidingUnderline:active:not(:disabled)::after {
+  transform: scaleX(0.88);
+  transition-duration: 80ms;
+}
+
+/* The card morphs between its steps (sign in, create, the code, the username): these parts glide
+   to their new place and size instead of jumping. */
+.papelizAccountMorphCard {
+  view-transition-name: papeliz-account-card;
+}
+
+.papelizAccountMorphMark {
+  view-transition-name: papeliz-account-mark;
+}
+
+.papelizAccountMorphHeading {
+  view-transition-name: papeliz-account-heading;
+}
+
+.papelizAccountMorphFieldLabel {
+  view-transition-name: papeliz-account-field-label;
+}
+
+.papelizAccountMorphField {
+  view-transition-name: papeliz-account-field;
+}
+
+.papelizAccountMorphSubmit {
+  view-transition-name: papeliz-account-submit;
+}
+
+.papelizAccountMorphLegal {
+  view-transition-name: papeliz-account-legal;
+}
+
+:global(html):has(.papelizAccountPage)::view-transition-group(*) {
+  animation-duration: 420ms;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* A message under the fields, and each digit of the code, arrive instead of popping in. */
+@keyframes papelizAccountNoticeEnter {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+.papelizAccountNoticeEnter {
+  animation: papelizAccountNoticeEnter 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes papelizAccountCodeDigitEnter {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+
+.papelizAccountCodeDigitEnter {
+  display: inline-block;
+  animation: papelizAccountCodeDigitEnter 160ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .papelizAccountSlidingUnderline::after {
+    transition: none;
+  }
+
+  .papelizAccountNoticeEnter,
+  .papelizAccountCodeDigitEnter {
+    animation: none;
+  }
+}

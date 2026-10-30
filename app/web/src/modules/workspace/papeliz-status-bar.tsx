@@ -4,6 +4,7 @@ import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { PapelizPopoverMenu, type PapelizPopoverMenuPosition } from '../ui/papeliz-popover-menu'
 import type { PapelizVaultKind } from '../vault/papeliz-vault-adapter'
 import { getVaultEntryName } from '../vault/papeliz-vault-relative-paths'
+import { PapelizSyncStatusBarIndicator, PapelizSyncWorkspaceConnection } from '../sync/papeliz-sync-status-bar-indicator'
 import { PapelizBrowserVaultBackupStatus } from './papeliz-browser-vault-backup-status'
 import { PapelizNoteSaveConflictDialog } from './papeliz-note-save-conflict-dialog'
 import { papelizNoteZoomPercentChoices, papelizNoteZoomPercentLimits, usePapelizNoteTypographyStore } from './papeliz-note-typography-store'
@@ -108,8 +109,8 @@ function PapelizNoteZoomControl() {
 }
 
 // The blue bar across the bottom of the workspace: the vault and the open note's path on the left;
-// a browser vault's backup state, whether the note is saved, how many words it has, which view is
-// showing, and the zoom on the right.
+// a browser vault's backup state, whether the note is saved, the vault's Sync state, how many words
+// it has, which view is showing, and the zoom on the right.
 export function PapelizStatusBar() {
   const openVault = usePapelizWorkspaceStore((workspaceState) => workspaceState.openVault)
   const activeVaultNoteRelativePath = usePapelizWorkspaceStore((workspaceState) => workspaceState.activeVaultNoteRelativePath)
@@ -214,17 +215,20 @@ export function PapelizStatusBar() {
                 </button>
               </>
             )}
+            <PapelizSyncStatusBarIndicator papelizVaultId={openVault.papelizVaultId} />
             <span className="max-sm:hidden">
               {vaultNoteWordCount.toLocaleString()} {vaultNoteWordCount === 1 ? 'word' : 'words'}
             </span>
           </>
         )}
+        {!(isNoteReady && activeVaultNoteRelativePath !== null) && <PapelizSyncStatusBarIndicator papelizVaultId={openVault.papelizVaultId} />}
         <span className="max-sm:hidden">
           {noteViewMode === 'md-code' ? 'MD Code' : 'MD View'}
           {describeVaultNoteEditingLock(activeVaultNoteEditingLock, activeVaultNoteRelativePath)}
         </span>
         <PapelizNoteZoomControl />
       </span>
+      <PapelizSyncWorkspaceConnection />
     </footer>
   )
 }

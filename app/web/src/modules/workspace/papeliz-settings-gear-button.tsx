@@ -1,6 +1,7 @@
 import { Accessibility, ChevronLeft, ChevronRight, FolderX, Lock, LockOpen, Maximize2, RefreshCw, Settings, Share, User, type LucideIcon } from 'lucide-react'
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { takePapelizSyncPlanPickFromAddress, usePapelizSyncSettingsGearRequestStore } from '../sync/papeliz-sync-settings-gear-request-store'
 import { PapelizIconButton } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { usePapelizMediaQuery } from '../ui/papeliz-media-query'
@@ -57,6 +58,12 @@ function PapelizSettingsGearSwitchRow({ switchRowLabel, switchRowTitle, isSwitch
   )
 }
 
+// The panel hangs below the gear, its right edge in line with the gear's.
+function measureSettingsGearPanelAnchor(settingsGearButtonElement: HTMLElement): { anchorRight: number; anchorTop: number } {
+  const settingsGearButtonRect = settingsGearButtonElement.getBoundingClientRect()
+  return { anchorRight: window.innerWidth - settingsGearButtonRect.right, anchorTop: settingsGearButtonRect.bottom + 6 }
+}
+
 interface PapelizSettingsGearButtonProps {
   // The workspace's gear has every page, the switches and Close Vault; the start page's has Account,
   // Sync and Accessibility (the theme only), since no vault is open there.
@@ -64,8 +71,9 @@ interface PapelizSettingsGearButtonProps {
 }
 
 // The Settings gear in the blue top bar. It opens a panel: the list on the left, the chosen page on
-// the right, opening on Accessibility. Below the md breakpoint the list fills the panel and each page
-// opens over it with a back arrow. Esc, a click outside or a change in window width closes it.
+// the right, opening on Accessibility (on Sync when the status bar's Sync state or a plan in the
+// address asks). Below the md breakpoint the list fills the panel and each page opens over it with a
+// back arrow. Esc, a click outside or a change in window width closes it.
 export function PapelizSettingsGearButton({ settingsGearPlace }: PapelizSettingsGearButtonProps) {
   const isWorkspaceSettingsGear = settingsGearPlace === 'workspace'
   const isSettingsGearSideBySide = usePapelizMediaQuery('(min-width: 768px)')
@@ -88,13 +96,29 @@ export function PapelizSettingsGearButton({ settingsGearPlace }: PapelizSettings
 
   useLayoutEffect(() => {
     if (!isSettingsGearPanelOpen) return
-    // The chosen page's row on desktop; the list's first row on phones.
+    // The chosen page's row on desktop; the list's first row on phones, or Back when it opens on a page.
     const settingsGearPanelElement = settingsGearPanelRef.current
     ;(
       settingsGearPanelElement?.querySelector<HTMLButtonElement>('[aria-current="page"]') ??
-      settingsGearPanelElement?.querySelector<HTMLButtonElement>('[data-papeliz-settings-gear-first-row]')
+      settingsGearPanelElement?.querySelector<HTMLButtonElement>('[data-papeliz-settings-gear-first-row]') ??
+      settingsGearPanelElement?.querySelector<HTMLButtonElement>('button')
     )?.focus()
   }, [isSettingsGearPanelOpen])
+
+  useEffect(() => {
+    // Opens on Sync when asked. The status bar asks from its click, after its pointerdown, so the
+    // outside-click check below never sees it; a plan in the address asks once, as the gear appears.
+    const stopFollowingSyncPageRequests = usePapelizSyncSettingsGearRequestStore.subscribe((requestState, previousRequestState) => {
+      if (requestState.settingsGearSyncPageRequestCount === previousRequestState.settingsGearSyncPageRequestCount) return
+      const settingsGearButtonElement = settingsGearButtonRef.current
+      if (settingsGearButtonElement === null) return
+      setChosenSettingsGearPage('sync')
+      setIsSettingsGearPageOpenOnPhone(true)
+      setSettingsGearPanelAnchor(measureSettingsGearPanelAnchor(settingsGearButtonElement))
+    })
+    takePapelizSyncPlanPickFromAddress()
+    return stopFollowingSyncPageRequests
+  }, [])
 
   useEffect(() => {
     if (!isSettingsGearPanelOpen) return
@@ -220,10 +244,9 @@ export function PapelizSettingsGearButton({ settingsGearPlace }: PapelizSettings
             closeSettingsGearPanel()
             return
           }
-          const settingsGearButtonRect = clickEvent.currentTarget.getBoundingClientRect()
           setChosenSettingsGearPage('accessibility')
           setIsSettingsGearPageOpenOnPhone(false)
-          setSettingsGearPanelAnchor({ anchorRight: window.innerWidth - settingsGearButtonRect.right, anchorTop: settingsGearButtonRect.bottom + 6 })
+          setSettingsGearPanelAnchor(measureSettingsGearPanelAnchor(clickEvent.currentTarget))
         }}
       >
         <Settings className="size-[18px]" aria-hidden="true" />

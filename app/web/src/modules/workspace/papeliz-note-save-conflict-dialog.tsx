@@ -8,24 +8,33 @@ import { getVaultNoteTitle } from '../vault/papeliz-vault-relative-paths'
 import type { PapelizVaultNoteSaveConflict } from './papeliz-workspace-store'
 import { usePapelizWorkspaceStore } from './papeliz-workspace-store'
 
-interface PapelizNoteSaveConflictDialogProps {
-  loadedNoteSessionId: number
-  vaultNoteSaveConflict: PapelizVaultNoteSaveConflict
-  onSaveConflictDialogClose: () => void
+// A clash with another device through Papeliz Sync: the dialog names that device ("On Phone"), and
+// Save hands the choices to Sync instead of saving this tab's note.
+export interface PapelizSyncNoteClashOtherDevice {
+  otherSyncDeviceName: string | null
+  onSyncNoteClashSave: (mergeChoicesByConflictId: Record<string, PapelizVaultNoteMergeChoice>) => void
 }
 
-const papelizMergeChoices: ReadonlyArray<{ vaultNoteMergeChoice: PapelizVaultNoteMergeChoice; mergeChoiceLabel: string }> = [
-  { vaultNoteMergeChoice: 'both', mergeChoiceLabel: 'Keep both' },
-  { vaultNoteMergeChoice: 'saved', mergeChoiceLabel: 'Keep saved' },
-  { vaultNoteMergeChoice: 'mine', mergeChoiceLabel: 'Keep mine' },
-]
+type PapelizNoteSaveConflictDialogProps = {
+  vaultNoteSaveConflict: PapelizVaultNoteSaveConflict
+  onSaveConflictDialogClose: () => void
+} & ({ loadedNoteSessionId: number; syncNoteClashOtherDevice?: undefined } | { loadedNoteSessionId?: undefined; syncNoteClashOtherDevice: PapelizSyncNoteClashOtherDevice })
+
+function listMergeChoices(otherSideKeepLabel: string): ReadonlyArray<{ vaultNoteMergeChoice: PapelizVaultNoteMergeChoice; mergeChoiceLabel: string }> {
+  return [
+    { vaultNoteMergeChoice: 'both', mergeChoiceLabel: 'Keep both' },
+    { vaultNoteMergeChoice: 'saved', mergeChoiceLabel: otherSideKeepLabel },
+    { vaultNoteMergeChoice: 'mine', mergeChoiceLabel: 'Keep mine' },
+  ]
+}
 
 // A save elsewhere (another tab, another app) that this tab's changes can't simply join. Either both
 // changed the same lines: the parts that don't touch are already combined, and each clash shows the
 // saved lines and this tab's, to keep both (the default, so nothing is lost), the saved ones or
 // this tab's. Or the note was moved or trashed: Keep my copy writes it back, Close note lets this
-// tab's changes go. Later closes the dialog; the note waits, unsaved, until it is settled.
-export function PapelizNoteSaveConflictDialog({ loadedNoteSessionId, vaultNoteSaveConflict, onSaveConflictDialogClose }: PapelizNoteSaveConflictDialogProps) {
+// tab's changes go. Later closes the dialog; the note waits, unsaved, until it is settled. A Sync
+// clash shows the other device's lines and this device's the same way.
+export function PapelizNoteSaveConflictDialog({ loadedNoteSessionId, vaultNoteSaveConflict, onSaveConflictDialogClose, syncNoteClashOtherDevice }: PapelizNoteSaveConflictDialogProps) {
   const saveConflictDialogRef = useRef<HTMLDialogElement>(null)
   const resolveVaultNoteSaveConflict = usePapelizWorkspaceStore((workspaceState) => workspaceState.resolveVaultNoteSaveConflict)
   const resolveVaultNoteDeletedElsewhere = usePapelizWorkspaceStore((workspaceState) => workspaceState.resolveVaultNoteDeletedElsewhere)
@@ -37,6 +46,10 @@ export function PapelizNoteSaveConflictDialog({ loadedNoteSessionId, vaultNoteSa
       : []
   const vaultNoteTitle = getVaultNoteTitle(vaultNoteSaveConflict.vaultNoteRelativePath)
   const SaveConflictIcon = isVaultNoteDeletedElsewhere ? FileQuestion : GitMerge
+  const otherSyncDeviceName = syncNoteClashOtherDevice === undefined ? null : (syncNoteClashOtherDevice.otherSyncDeviceName ?? 'the other device')
+  const papelizMergeChoices = listMergeChoices(
+    syncNoteClashOtherDevice === undefined ? 'Keep saved' : syncNoteClashOtherDevice.otherSyncDeviceName === null ? 'Keep theirs' : `Keep ${syncNoteClashOtherDevice.otherSyncDeviceName}’s`,
+  )
 
   useEffect(() => {
     const saveConflictDialogElement = saveConflictDialogRef.current
@@ -62,12 +75,18 @@ export function PapelizNoteSaveConflictDialog({ loadedNoteSessionId, vaultNoteSa
         </span>
         <div className="min-w-0 flex-1">
           <h2 id="papeliz-note-save-conflict-title" className="text-lg font-semibold">
-            {isVaultNoteDeletedElsewhere ? `“${vaultNoteTitle}” was moved or deleted elsewhere` : `“${vaultNoteTitle}” changed elsewhere too`}
+            {isVaultNoteDeletedElsewhere
+              ? `“${vaultNoteTitle}” was moved or deleted elsewhere`
+              : otherSyncDeviceName === null
+                ? `“${vaultNoteTitle}” changed elsewhere too`
+                : `“${vaultNoteTitle}” changed on ${otherSyncDeviceName} too`}
           </h2>
           <p className="text-sm text-papeliz-ink-muted">
             {isVaultNoteDeletedElsewhere
               ? 'Another tab or app moved this note or put it in the trash while you had unsaved changes. Keep your copy to save it here again, or close it and let your changes go.'
-              : 'Another tab or app saved this note while you were editing it. Papeliz combined the changes that don’t overlap. Where both changed the same lines, choose what to keep.'}
+              : otherSyncDeviceName === null
+                ? 'Another tab or app saved this note while you were editing it. Papeliz combined the changes that don’t overlap. Where both changed the same lines, choose what to keep.'
+                : `Papeliz combined the changes that don’t overlap. Where ${otherSyncDeviceName} and this device changed the same lines, choose what to keep.`}
           </p>
         </div>
       </div>
@@ -97,8 +116,8 @@ export function PapelizNoteSaveConflictDialog({ loadedNoteSessionId, vaultNoteSa
             <div className="grid gap-px bg-papeliz-line sm:grid-cols-2">
               {(
                 [
-                  ['Saved', mergeConflict.savedText],
-                  ['Yours', mergeConflict.myText],
+                  [otherSyncDeviceName === null ? 'Saved' : `On ${otherSyncDeviceName}`, mergeConflict.savedText],
+                  [otherSyncDeviceName === null ? 'Yours' : 'On this device', mergeConflict.myText],
                 ] as const
               ).map(([mergeSideLabel, mergeSideText]) => (
                 <div key={mergeSideLabel} className="bg-papeliz-surface px-3.5 py-2.5">
@@ -117,7 +136,7 @@ export function PapelizNoteSaveConflictDialog({ loadedNoteSessionId, vaultNoteSa
         <PapelizPillButton pillButtonVariant="gray" onClick={onSaveConflictDialogClose}>
           Later
         </PapelizPillButton>
-        {isVaultNoteDeletedElsewhere ? (
+        {isVaultNoteDeletedElsewhere && loadedNoteSessionId !== undefined ? (
           <>
             <PapelizPillButton
               pillButtonVariant="gray"
@@ -143,7 +162,8 @@ export function PapelizNoteSaveConflictDialog({ loadedNoteSessionId, vaultNoteSa
             pillButtonVariant="primary"
             onClick={() => {
               onSaveConflictDialogClose()
-              void resolveVaultNoteSaveConflict(loadedNoteSessionId, mergeChoicesByConflictId)
+              if (syncNoteClashOtherDevice !== undefined) syncNoteClashOtherDevice.onSyncNoteClashSave(mergeChoicesByConflictId)
+              else if (loadedNoteSessionId !== undefined) void resolveVaultNoteSaveConflict(loadedNoteSessionId, mergeChoicesByConflictId)
             }}
           >
             Save

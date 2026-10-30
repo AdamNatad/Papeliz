@@ -21,6 +21,9 @@ const papelizRepositoryLicensePath = path.join(papelizSitePackageDirectory, '..'
 // The same list as papelizSitePagePaths in lib/papeliz-site-navigation.ts.
 const papelizSiteExpectedPagePaths = [
   '/',
+  '/pricing/',
+  '/sync/',
+  '/download/',
   '/features/',
   '/providers/',
   '/roadmap/',

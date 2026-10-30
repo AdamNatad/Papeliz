@@ -7,7 +7,7 @@
   },
   "scripts": {
     "site:dev": "pnpm --filter @papeliz/site dev",
-    "site:build": "pnpm --filter @papeliz/site build && node build_tools/site/papeliz-site-repair-windows-segment-files.mjs",
+    "site:build": "pnpm --filter @papeliz/site build && node build_tools/site/papeliz-site-repair-windows-segment-files.mjs && node build_tools/site/papeliz-site-account-csp-hashes.mjs",
     "site:typecheck": "pnpm --filter @papeliz/site typecheck",
     "site:lint": "pnpm --filter @papeliz/site lint",
     "site:verify": "pnpm --filter @papeliz/site verify",
