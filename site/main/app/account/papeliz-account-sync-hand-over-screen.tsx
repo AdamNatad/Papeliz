@@ -9,7 +9,7 @@ import {
   papelizAccountStoragePlaceLabels,
   readPapelizAccountNearestStoragePlace,
 } from './papeliz-account-config'
-import { PapelizAccountStateScreen } from './papeliz-account-state-screen'
+import { PapelizAccountAfterLoadingBar, PapelizAccountStateScreen } from './papeliz-account-state-screen'
 import {
   papelizSyncStoragePlaces,
   postPapelizSyncSignInFailure,
@@ -120,96 +120,112 @@ export function PapelizAccountSyncHandOverScreen({ papelizSyncSignInPageParamete
 
   useEffect(() => () => stopSyncHandOverRef.current?.(), [])
 
+  // Each finished screen first fills the loading bar to the end, then shows.
   if (syncHandOverStage.syncHandOverStageKind === 'choosing-storage-place') {
     return (
-      <PapelizAccountCardFrame>
-        <PapelizAccountCardMark />
-        <h1 className="text-center text-[26px] leading-tight font-semibold tracking-[-0.02em] text-balance">Where should Sync keep your notes?</h1>
-        <p className="mt-3.5 mb-5 text-sm leading-relaxed text-pretty text-papeliz-ink-muted">
-          Your notes are encrypted on your devices before they&rsquo;re stored. <b className="font-semibold text-papeliz-ink">You can&rsquo;t change this later.</b>
-        </p>
-        <form
-          onSubmit={(submitEvent) => {
-            submitEvent.preventDefault()
-            void createPapelizSyncDeviceSession(chosenPapelizSyncStoragePlace)
-          }}
-        >
-          <fieldset className="m-0 grid gap-2 border-0 p-0">
-            <legend className="sr-only">Storage place</legend>
-            {papelizSyncStoragePlaces.map((papelizSyncStoragePlace) => (
-              <label
-                key={papelizSyncStoragePlace}
-                className={`flex cursor-pointer items-center gap-3 rounded-[10px] border px-3.5 py-2.5 ${
-                  chosenPapelizSyncStoragePlace === papelizSyncStoragePlace ? 'border-papeliz-blue bg-papeliz-blue-soft' : 'border-papeliz-line bg-papeliz-surface hover:bg-papeliz-surface-soft'
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="papeliz-sync-storage-place"
-                  value={papelizSyncStoragePlace}
-                  checked={chosenPapelizSyncStoragePlace === papelizSyncStoragePlace}
-                  onChange={() => setChosenPapelizSyncStoragePlace(papelizSyncStoragePlace)}
-                  className="size-4 accent-papeliz-gradient-start"
-                />
-                <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-semibold">{papelizAccountStoragePlaceLabels[papelizSyncStoragePlace].storagePlaceName}</span>
-                  <span className="block text-xs text-papeliz-ink-muted">{papelizAccountStoragePlaceLabels[papelizSyncStoragePlace].storagePlaceGuarantee}</span>
-                </span>
-                {papelizSyncStoragePlace === nearestPapelizSyncStoragePlace && <span className="text-[11px] font-bold text-papeliz-blue">Nearest</span>}
-              </label>
-            ))}
-          </fieldset>
-          <button type="submit" className={`${papelizAccountPrimaryButtonClassName} mt-4`}>
-            Continue
-          </button>
-        </form>
-        <p className="mt-4 text-center text-xs text-papeliz-ink-subtle">
-          <button
-            type="button"
-            onClick={() => {
-              postPapelizSyncSignInFailure(papelizSyncSignInPageParameters.papelizSyncSignInState, 'cancelled', 'Sign-in was cancelled before choosing where Sync keeps notes.')
-              setSyncHandOverStage({ syncHandOverStageKind: 'cancelled' })
+      <PapelizAccountAfterLoadingBar>
+        <PapelizAccountCardFrame>
+          <PapelizAccountCardMark />
+          <h1 className="text-center text-[26px] leading-tight font-semibold tracking-[-0.02em] text-balance">Where should Sync keep your notes?</h1>
+          <p className="mt-3.5 mb-5 text-sm leading-relaxed text-pretty text-papeliz-ink-muted">
+            Your notes are encrypted on your devices before they&rsquo;re stored. <b className="font-semibold text-papeliz-ink">You can&rsquo;t change this later.</b>
+          </p>
+          <form
+            onSubmit={(submitEvent) => {
+              submitEvent.preventDefault()
+              void createPapelizSyncDeviceSession(chosenPapelizSyncStoragePlace)
             }}
-            className={papelizAccountTextLinkClassName}
           >
-            Cancel
-          </button>
-        </p>
-      </PapelizAccountCardFrame>
+            <fieldset className="m-0 grid gap-2 border-0 p-0">
+              <legend className="sr-only">Storage place</legend>
+              {papelizSyncStoragePlaces.map((papelizSyncStoragePlace) => (
+                <label
+                  key={papelizSyncStoragePlace}
+                  className={`flex cursor-pointer items-center gap-3 rounded-[10px] border px-3.5 py-2.5 ${
+                    chosenPapelizSyncStoragePlace === papelizSyncStoragePlace ? 'border-papeliz-blue bg-papeliz-blue-soft' : 'border-papeliz-line bg-papeliz-surface hover:bg-papeliz-surface-soft'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="papeliz-sync-storage-place"
+                    value={papelizSyncStoragePlace}
+                    checked={chosenPapelizSyncStoragePlace === papelizSyncStoragePlace}
+                    onChange={() => setChosenPapelizSyncStoragePlace(papelizSyncStoragePlace)}
+                    className="size-4 accent-papeliz-gradient-start"
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-semibold">{papelizAccountStoragePlaceLabels[papelizSyncStoragePlace].storagePlaceName}</span>
+                    <span className="block text-xs text-papeliz-ink-muted">{papelizAccountStoragePlaceLabels[papelizSyncStoragePlace].storagePlaceGuarantee}</span>
+                  </span>
+                  {papelizSyncStoragePlace === nearestPapelizSyncStoragePlace && <span className="text-[11px] font-bold text-papeliz-blue">Nearest</span>}
+                </label>
+              ))}
+            </fieldset>
+            <button type="submit" className={`${papelizAccountPrimaryButtonClassName} mt-4`}>
+              Continue
+            </button>
+          </form>
+          <p className="mt-4 text-center text-xs text-papeliz-ink-subtle">
+            <button
+              type="button"
+              onClick={() => {
+                postPapelizSyncSignInFailure(papelizSyncSignInPageParameters.papelizSyncSignInState, 'cancelled', 'Sign-in was cancelled before choosing where Sync keeps notes.')
+                setSyncHandOverStage({ syncHandOverStageKind: 'cancelled' })
+              }}
+              className={papelizAccountTextLinkClassName}
+            >
+              Cancel
+            </button>
+          </p>
+        </PapelizAccountCardFrame>
+      </PapelizAccountAfterLoadingBar>
     )
   }
 
   if (syncHandOverStage.syncHandOverStageKind === 'handed-over') {
-    return <PapelizAccountStateScreen papelizAccountStateKind="done" papelizAccountStateTitle="You're signed in" papelizAccountStateText="Papeliz has your sign-in. You can close this tab." />
+    return (
+      <PapelizAccountAfterLoadingBar>
+        <PapelizAccountStateScreen papelizAccountStateKind="done" papelizAccountStateTitle="You're signed in" papelizAccountStateText="Papeliz has your sign-in. You can close this tab." />
+      </PapelizAccountAfterLoadingBar>
+    )
   }
   if (syncHandOverStage.syncHandOverStageKind === 'cancelled') {
-    return <PapelizAccountStateScreen papelizAccountStateKind="done" papelizAccountStateTitle="Sign-in cancelled" papelizAccountStateText="Nothing was set up. You can close this tab." />
+    return (
+      <PapelizAccountAfterLoadingBar>
+        <PapelizAccountStateScreen papelizAccountStateKind="done" papelizAccountStateTitle="Sign-in cancelled" papelizAccountStateText="Nothing was set up. You can close this tab." />
+      </PapelizAccountAfterLoadingBar>
+    )
   }
   if (syncHandOverStage.syncHandOverStageKind === 'timed-out') {
     return (
-      <PapelizAccountStateScreen
-        papelizAccountStateKind="error"
-        papelizAccountStateTitle="Papeliz didn't answer"
-        papelizAccountStateText="Its tab may have closed. Sign in again from Papeliz: Settings › Account."
-        papelizAccountStateActionLabel="Open Papeliz"
-        papelizAccountStateActionHref={papelizAccountAppPath}
-      />
+      <PapelizAccountAfterLoadingBar>
+        <PapelizAccountStateScreen
+          papelizAccountStateKind="error"
+          papelizAccountStateTitle="Papeliz didn't answer"
+          papelizAccountStateText="Its tab may have closed. Sign in again from Papeliz: Settings › Account."
+          papelizAccountStateActionLabel="Open Papeliz"
+          papelizAccountStateActionHref={papelizAccountAppPath}
+        />
+      </PapelizAccountAfterLoadingBar>
     )
   }
   if (syncHandOverStage.syncHandOverStageKind === 'failed') {
     return (
-      <PapelizAccountStateScreen
-        papelizAccountStateKind="error"
-        papelizAccountStateTitle="Couldn't sign Papeliz in"
-        papelizAccountStateText={syncHandOverStage.syncHandOverFailureMessage}
-        papelizAccountStateActionLabel="Try again"
-        onPapelizAccountStateAction={() => void createPapelizSyncDeviceSession(papelizSyncSignInPageParameters.papelizSyncStoragePlaceForNewAccount)}
-      />
+      <PapelizAccountAfterLoadingBar>
+        <PapelizAccountStateScreen
+          papelizAccountStateKind="error"
+          papelizAccountStateTitle="Couldn't sign Papeliz in"
+          papelizAccountStateText={syncHandOverStage.syncHandOverFailureMessage}
+          papelizAccountStateActionLabel="Try again"
+          onPapelizAccountStateAction={() => void createPapelizSyncDeviceSession(papelizSyncSignInPageParameters.papelizSyncStoragePlaceForNewAccount)}
+        />
+      </PapelizAccountAfterLoadingBar>
     )
   }
   return (
     <PapelizAccountStateScreen
       papelizAccountStateKind="loading"
+      papelizAccountLoadingStep={syncHandOverStage.syncHandOverStageKind === 'handing-over' ? 'handing-over' : 'signing-in'}
       papelizAccountStateTitle="Signing Papeliz in"
       papelizAccountStateText={syncHandOverStage.syncHandOverStageKind === 'handing-over' ? 'Handing your sign-in to Papeliz…' : 'Setting up Sync on this device…'}
     />

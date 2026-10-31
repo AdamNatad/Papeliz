@@ -16,7 +16,7 @@ import { PapelizAccountDashboard } from './papeliz-account-dashboard'
 import { PapelizAccountSignInCard } from './papeliz-account-sign-in-card'
 import { forgetPapelizAccountSsoPendingProvider, PapelizAccountSsoCallback, readPapelizAccountSsoPendingProvider } from './papeliz-account-sso-callback'
 import { PapelizAccountChooseUsernameStep } from './papeliz-account-choose-username-step'
-import { PapelizAccountStateScreen } from './papeliz-account-state-screen'
+import { PapelizAccountAfterLoadingBar, PapelizAccountStateScreen } from './papeliz-account-state-screen'
 import { readPapelizSyncSignInPageParameters } from './papeliz-account-sync-hand-over'
 import { PapelizAccountSyncHandOverScreen } from './papeliz-account-sync-hand-over-screen'
 import { selectPapelizAccountSyncService } from './papeliz-account-sync-service'
@@ -37,16 +37,18 @@ export function PapelizAccountClerkPage() {
       afterSignOutUrl={papelizAccountPagePath}
     >
       <ClerkLoading>
-        <PapelizAccountStateScreen papelizAccountStateKind="loading" papelizAccountStateTitle="Loading your account" />
+        <PapelizAccountStateScreen papelizAccountStateKind="loading" papelizAccountStateTitle="Loading your account" papelizAccountLoadingStep="code-loaded" />
       </ClerkLoading>
       <ClerkFailed>
-        <PapelizAccountStateScreen
-          papelizAccountStateKind="error"
-          papelizAccountStateTitle="Couldn't load sign-in"
-          papelizAccountStateText="Check your connection, then try again."
-          papelizAccountStateActionLabel="Try again"
-          onPapelizAccountStateAction={() => window.location.reload()}
-        />
+        <PapelizAccountAfterLoadingBar>
+          <PapelizAccountStateScreen
+            papelizAccountStateKind="error"
+            papelizAccountStateTitle="Couldn't load sign-in"
+            papelizAccountStateText="Check your connection, then try again."
+            papelizAccountStateActionLabel="Try again"
+            onPapelizAccountStateAction={() => window.location.reload()}
+          />
+        </PapelizAccountAfterLoadingBar>
       </ClerkFailed>
       <ClerkLoaded>
         <PapelizAccountPageContent isPapelizAccountProductionHost={isPapelizAccountProductionHost(papelizAccountPageHostname)} />
@@ -55,7 +57,23 @@ export function PapelizAccountClerkPage() {
   )
 }
 
+// Clerk is ready. A screen that is still waiting (Google's or Apple's return, the hand-over to the
+// app) carries the loading bar on; any other first fills the bar to the end, then shows.
 function PapelizAccountPageContent({ isPapelizAccountProductionHost }: { isPapelizAccountProductionHost: boolean }) {
+  const [papelizAccountPageSearchParameters] = useState(() => new URLSearchParams(window.location.search))
+  const { isSignedIn } = useAuth()
+  if (papelizAccountPageSearchParameters.has(papelizAccountSsoCallbackParameterName)) return <PapelizAccountSsoCallback />
+  if (isSignedIn && readPapelizSyncSignInPageParameters(papelizAccountPageSearchParameters)) {
+    return <PapelizAccountPageScreen isPapelizAccountProductionHost={isPapelizAccountProductionHost} />
+  }
+  return (
+    <PapelizAccountAfterLoadingBar>
+      <PapelizAccountPageScreen isPapelizAccountProductionHost={isPapelizAccountProductionHost} />
+    </PapelizAccountAfterLoadingBar>
+  )
+}
+
+function PapelizAccountPageScreen({ isPapelizAccountProductionHost }: { isPapelizAccountProductionHost: boolean }) {
   const { isSignedIn } = useAuth()
   const [papelizAccountPageSearchParameters] = useState(() => new URLSearchParams(window.location.search))
   const [papelizSyncSignInPageParameters] = useState(() => readPapelizSyncSignInPageParameters(papelizAccountPageSearchParameters))
@@ -78,8 +96,6 @@ function PapelizAccountPageContent({ isPapelizAccountProductionHost }: { isPapel
     papelizAccountAddressWithoutDeleteFlag.searchParams.delete(papelizAccountDeleteAfterSignInParameterName)
     window.history.replaceState(window.history.state, '', papelizAccountAddressWithoutDeleteFlag.href)
   }, [isSignedIn, isPapelizAccountDeleteOpenedAfterSignIn])
-
-  if (papelizAccountPageSearchParameters.has(papelizAccountSsoCallbackParameterName)) return <PapelizAccountSsoCallback />
 
   if (!isSignedIn && papelizAccountPageSearchParameters.has(papelizAccountDeletedParameterName)) {
     return (

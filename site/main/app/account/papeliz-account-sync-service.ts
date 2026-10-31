@@ -14,6 +14,10 @@ import {
 export const papelizAccountSyncDeviceSessionsPath = '/api/account/v1/device-sessions'
 export const papelizAccountSyncDevicesPath = '/api/account/v1/devices'
 export const papelizAccountSyncAccountDeletionFromSignInPagePath = '/api/account/v1/account/deletion-from-sign-in-page'
+// The Devices section's list and Remove, from a sign-in token and no device: GET answers
+// `{ syncDeviceRecords }` (an empty list when the sign-in has no Sync account); DELETE with a device ID
+// answers `{ removedPapelizSyncDeviceId }`.
+export const papelizAccountSyncDevicesFromSignInPagePath = '/api/account/v1/devices-from-sign-in-page'
 // The word the deletion routes ask for in the body, so no request deletes an account by accident.
 const papelizAccountSyncAccountDeletionConfirmation = 'delete-my-papeliz-sync-account'
 
@@ -34,6 +38,26 @@ export type PapelizAccountSyncAccountDeletionOutcome =
   | { syncAccountDeletionOutcomeKind: 'fresh-sign-in-required' }
   | { syncAccountDeletionOutcomeKind: 'refused'; syncAccountDeletionRefusalMessage: string }
 
+export type PapelizAccountSyncDevicePlatform = 'web' | 'desktop' | 'mobile'
+
+// A device as this page sees it. Its name is encrypted with the account key, which only a signed-in
+// device holds, so this page never reads it.
+export interface PapelizAccountSyncDeviceRecord {
+  papelizSyncDeviceId: string
+  syncDevicePlatform: PapelizAccountSyncDevicePlatform
+  syncDeviceAddedAt: number
+  syncDeviceLastSeenAt: number | null
+}
+
+export type PapelizAccountSyncDeviceListOutcome =
+  | { syncDeviceListOutcomeKind: 'listed'; syncDeviceRecords: PapelizAccountSyncDeviceRecord[] }
+  | { syncDeviceListOutcomeKind: 'refused'; syncDeviceListRefusalMessage: string }
+
+export type PapelizAccountSyncDeviceRemovalOutcome =
+  | { syncDeviceRemovalOutcomeKind: 'removed' }
+  | { syncDeviceRemovalOutcomeKind: 'fresh-sign-in-required' }
+  | { syncDeviceRemovalOutcomeKind: 'refused'; syncDeviceRemovalRefusalMessage: string }
+
 export interface PapelizAccountSyncService {
   papelizAccountSyncServiceIsLocalFake: boolean
   // `signInToken` is a fresh session token from Clerk, sent in `Authorization: Bearer`.
@@ -43,6 +67,37 @@ export interface PapelizAccountSyncService {
   // Delete account: the subscription, every synced copy and its history, from a sign-in in the last
   // 10 minutes. Notes on devices stay.
   deletePapelizSyncAccount(signInToken: string): Promise<PapelizAccountSyncAccountDeletionOutcome>
+  // The Devices section: every device signed in to Sync, and Remove, which signs one out.
+  listPapelizSyncDevices(signInToken: string): Promise<PapelizAccountSyncDeviceListOutcome>
+  removePapelizSyncDeviceFromSignInPage(signInToken: string, papelizSyncDeviceId: string): Promise<PapelizAccountSyncDeviceRemovalOutcome>
+}
+
+const papelizAccountSyncDevicePlatforms: readonly PapelizAccountSyncDevicePlatform[] = ['web', 'desktop', 'mobile']
+
+function readPapelizAccountSyncDeviceRecords(deviceListReplyCandidate: unknown): PapelizAccountSyncDeviceRecord[] | null {
+  if (typeof deviceListReplyCandidate !== 'object' || deviceListReplyCandidate === null) return null
+  const { syncDeviceRecords } = deviceListReplyCandidate as { syncDeviceRecords?: unknown }
+  if (!Array.isArray(syncDeviceRecords)) return null
+  const papelizAccountSyncDeviceRecords: PapelizAccountSyncDeviceRecord[] = []
+  for (const syncDeviceRecordCandidate of syncDeviceRecords) {
+    if (typeof syncDeviceRecordCandidate !== 'object' || syncDeviceRecordCandidate === null) return null
+    const { papelizSyncDeviceId, syncDevicePlatform, syncDeviceAddedAt, syncDeviceLastSeenAt } = syncDeviceRecordCandidate as Record<string, unknown>
+    if (
+      typeof papelizSyncDeviceId !== 'string' ||
+      !papelizAccountSyncDevicePlatforms.includes(syncDevicePlatform as PapelizAccountSyncDevicePlatform) ||
+      typeof syncDeviceAddedAt !== 'number' ||
+      (syncDeviceLastSeenAt !== null && typeof syncDeviceLastSeenAt !== 'number')
+    ) {
+      return null
+    }
+    papelizAccountSyncDeviceRecords.push({
+      papelizSyncDeviceId,
+      syncDevicePlatform: syncDevicePlatform as PapelizAccountSyncDevicePlatform,
+      syncDeviceAddedAt,
+      syncDeviceLastSeenAt: syncDeviceLastSeenAt as number | null,
+    })
+  }
+  return papelizAccountSyncDeviceRecords
 }
 
 function readPapelizSyncErrorReplyMessage(errorReplyCandidate: unknown): { syncErrorCode: string | null; syncErrorMessage: string | null } {
@@ -103,6 +158,37 @@ async function requestPapelizSyncAccountDeletionFromAccountWorker(signInToken: s
   }
 }
 
+// The Account Worker's answer, or null when no Account Worker is on this origin (as above).
+async function requestPapelizSyncDeviceListFromAccountWorker(signInToken: string): Promise<PapelizAccountSyncDeviceListOutcome | null> {
+  const deviceListResponse = await fetch(papelizAccountSyncDevicesFromSignInPagePath, {
+    method: 'GET',
+    credentials: 'omit',
+    cache: 'no-store',
+    headers: { Authorization: `Bearer ${signInToken}` },
+  })
+  const deviceListReplyBody: unknown = await deviceListResponse.json().catch(() => null)
+  const papelizAccountSyncDeviceRecords = deviceListResponse.ok ? readPapelizAccountSyncDeviceRecords(deviceListReplyBody) : null
+  if (papelizAccountSyncDeviceRecords !== null) return { syncDeviceListOutcomeKind: 'listed', syncDeviceRecords: papelizAccountSyncDeviceRecords }
+  const { syncErrorCode, syncErrorMessage } = readPapelizSyncErrorReplyMessage(deviceListReplyBody)
+  if (deviceListResponse.status === 404 && syncErrorCode === null) return null
+  return { syncDeviceListOutcomeKind: 'refused', syncDeviceListRefusalMessage: syncErrorMessage ?? `Papeliz Sync answered ${deviceListResponse.status}.` }
+}
+
+// The Account Worker's answer, or null when no Account Worker is on this origin (as above).
+async function requestPapelizSyncDeviceRemovalFromAccountWorker(signInToken: string, papelizSyncDeviceId: string): Promise<PapelizAccountSyncDeviceRemovalOutcome | null> {
+  const deviceRemovalResponse = await fetch(`${papelizAccountSyncDevicesFromSignInPagePath}/${encodeURIComponent(papelizSyncDeviceId)}`, {
+    method: 'DELETE',
+    credentials: 'omit',
+    cache: 'no-store',
+    headers: { Authorization: `Bearer ${signInToken}` },
+  })
+  if (deviceRemovalResponse.ok) return { syncDeviceRemovalOutcomeKind: 'removed' }
+  const { syncErrorCode, syncErrorMessage } = readPapelizSyncErrorReplyMessage(await deviceRemovalResponse.json().catch(() => null))
+  if (deviceRemovalResponse.status === 404 && syncErrorCode === null) return null
+  if (syncErrorCode === 'fresh-sign-in-required') return { syncDeviceRemovalOutcomeKind: 'fresh-sign-in-required' }
+  return { syncDeviceRemovalOutcomeKind: 'refused', syncDeviceRemovalRefusalMessage: syncErrorMessage ?? `Papeliz Sync answered ${deviceRemovalResponse.status}.` }
+}
+
 const papelizAccountSyncWorkerService: PapelizAccountSyncService = {
   papelizAccountSyncServiceIsLocalFake: false,
   async createPapelizSyncDeviceSession(signInToken, deviceSessionRequest) {
@@ -129,6 +215,22 @@ const papelizAccountSyncWorkerService: PapelizAccountSyncService = {
       headers: { Authorization: `Bearer ${papelizSyncDeviceSession.papelizSyncGrant}` },
     })
   },
+  async listPapelizSyncDevices(signInToken) {
+    return (
+      (await requestPapelizSyncDeviceListFromAccountWorker(signInToken)) ?? {
+        syncDeviceListOutcomeKind: 'refused',
+        syncDeviceListRefusalMessage: 'Papeliz Sync answered 404.',
+      }
+    )
+  },
+  async removePapelizSyncDeviceFromSignInPage(signInToken, papelizSyncDeviceId) {
+    return (
+      (await requestPapelizSyncDeviceRemovalFromAccountWorker(signInToken, papelizSyncDeviceId)) ?? {
+        syncDeviceRemovalOutcomeKind: 'refused',
+        syncDeviceRemovalRefusalMessage: 'Papeliz Sync answered 404.',
+      }
+    )
+  },
 }
 
 // ---- The local fake ----------------------------------------------------------------------------
@@ -139,6 +241,8 @@ const papelizAccountLocalFakeBase32Alphabet = 'abcdefghijklmnopqrstuvwxyz234567'
 interface PapelizAccountLocalFakeSyncAccount {
   papelizSyncAccountId: string
   papelizSyncDeviceIds: string[]
+  // When each device was added; missing for accounts the fake kept before it recorded this.
+  papelizSyncDeviceAddedAts?: Record<string, number>
 }
 
 function createPapelizAccountLocalFakeBase32Part(): string {
@@ -195,7 +299,10 @@ export const papelizAccountLocalFakeSyncService: PapelizAccountSyncService = {
       localFakeSyncAccount.papelizSyncDeviceIds.includes(deviceSessionRequest.papelizSyncDeviceIdToSignInAgain)
         ? deviceSessionRequest.papelizSyncDeviceIdToSignInAgain
         : `pzdev_${createPapelizAccountLocalFakeBase32Part()}`
-    if (!localFakeSyncAccount.papelizSyncDeviceIds.includes(papelizSyncDeviceId)) localFakeSyncAccount.papelizSyncDeviceIds.push(papelizSyncDeviceId)
+    if (!localFakeSyncAccount.papelizSyncDeviceIds.includes(papelizSyncDeviceId)) {
+      localFakeSyncAccount.papelizSyncDeviceIds.push(papelizSyncDeviceId)
+      localFakeSyncAccount.papelizSyncDeviceAddedAts = { ...localFakeSyncAccount.papelizSyncDeviceAddedAts, [papelizSyncDeviceId]: Date.now() }
+    }
     localFakeSyncAccounts[localFakeSignInSubject] = localFakeSyncAccount
     writePapelizAccountLocalFakeSyncAccounts(localFakeSyncAccounts)
     const papelizSyncGrantExpiresAt = Date.now() + 60 * 60 * 1000
@@ -236,6 +343,26 @@ export const papelizAccountLocalFakeSyncService: PapelizAccountSyncService = {
     writePapelizAccountLocalFakeSyncAccounts(localFakeSyncAccounts)
     return { syncAccountDeletionOutcomeKind: 'deleted' }
   },
+  // Every device the fake made came from Papeliz on the web, through this page's hand-over.
+  async listPapelizSyncDevices(signInToken) {
+    const localFakeSyncAccount = readPapelizAccountLocalFakeSyncAccounts()[readPapelizAccountLocalFakeSignInSubject(signInToken)]
+    return {
+      syncDeviceListOutcomeKind: 'listed',
+      syncDeviceRecords: (localFakeSyncAccount?.papelizSyncDeviceIds ?? []).map((papelizSyncDeviceId) => {
+        const syncDeviceAddedAt = localFakeSyncAccount?.papelizSyncDeviceAddedAts?.[papelizSyncDeviceId] ?? Date.now()
+        return { papelizSyncDeviceId, syncDevicePlatform: 'web', syncDeviceAddedAt, syncDeviceLastSeenAt: syncDeviceAddedAt }
+      }),
+    }
+  },
+  async removePapelizSyncDeviceFromSignInPage(signInToken, papelizSyncDeviceId) {
+    const localFakeSyncAccounts = readPapelizAccountLocalFakeSyncAccounts()
+    const localFakeSyncAccount = localFakeSyncAccounts[readPapelizAccountLocalFakeSignInSubject(signInToken)]
+    if (localFakeSyncAccount !== undefined) {
+      localFakeSyncAccount.papelizSyncDeviceIds = localFakeSyncAccount.papelizSyncDeviceIds.filter((candidateDeviceId) => candidateDeviceId !== papelizSyncDeviceId)
+      writePapelizAccountLocalFakeSyncAccounts(localFakeSyncAccounts)
+    }
+    return { syncDeviceRemovalOutcomeKind: 'removed' }
+  },
 }
 
 // Away from papeliz.com: asks the Worker first, and only when nothing on this origin answers the
@@ -258,6 +385,18 @@ function createPapelizAccountSyncServiceWithLocalFakeFallback(): PapelizAccountS
       const accountWorkerOutcome = await requestPapelizSyncAccountDeletionFromAccountWorker(signInToken)
       papelizAccountChosenSyncService = accountWorkerOutcome === null ? papelizAccountLocalFakeSyncService : papelizAccountSyncWorkerService
       return accountWorkerOutcome ?? papelizAccountLocalFakeSyncService.deletePapelizSyncAccount(signInToken)
+    },
+    async listPapelizSyncDevices(signInToken) {
+      if (papelizAccountChosenSyncService !== null) return papelizAccountChosenSyncService.listPapelizSyncDevices(signInToken)
+      const accountWorkerOutcome = await requestPapelizSyncDeviceListFromAccountWorker(signInToken)
+      papelizAccountChosenSyncService = accountWorkerOutcome === null ? papelizAccountLocalFakeSyncService : papelizAccountSyncWorkerService
+      return accountWorkerOutcome ?? papelizAccountLocalFakeSyncService.listPapelizSyncDevices(signInToken)
+    },
+    async removePapelizSyncDeviceFromSignInPage(signInToken, papelizSyncDeviceId) {
+      if (papelizAccountChosenSyncService !== null) return papelizAccountChosenSyncService.removePapelizSyncDeviceFromSignInPage(signInToken, papelizSyncDeviceId)
+      const accountWorkerOutcome = await requestPapelizSyncDeviceRemovalFromAccountWorker(signInToken, papelizSyncDeviceId)
+      papelizAccountChosenSyncService = accountWorkerOutcome === null ? papelizAccountLocalFakeSyncService : papelizAccountSyncWorkerService
+      return accountWorkerOutcome ?? papelizAccountLocalFakeSyncService.removePapelizSyncDeviceFromSignInPage(signInToken, papelizSyncDeviceId)
     },
   }
 }

@@ -34,21 +34,82 @@
   opacity: 0.01;
 }
 
-@keyframes papelizAccountLoadingSlide {
+/* The loading bar before the page's code runs: the page is shown, so it starts at that step's mark
+   and creeps toward the next without reaching it. The code then takes over (see
+   papeliz-account-loading-progress.ts), moves it on the page's real steps, and fills it to the end
+   before the page shows. */
+@keyframes papelizAccountLoadingCreep {
   from {
-    transform: translateX(-100%);
+    width: 8%;
   }
   to {
-    transform: translateX(260%);
+    width: 31%;
   }
 }
 
 .papelizAccountLoadingBar {
-  animation: papelizAccountLoadingSlide 1.2s ease-in-out infinite;
+  width: 8%;
+  animation: papelizAccountLoadingCreep 12s cubic-bezier(0.15, 0.6, 0.35, 1) forwards;
 }
 
+/* The dots after a loading title build up one, two, three, then start again. */
+@keyframes papelizAccountLoadingFirstDot {
+  0%,
+  24.9% {
+    opacity: 0;
+  }
+  25%,
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes papelizAccountLoadingSecondDot {
+  0%,
+  49.9% {
+    opacity: 0;
+  }
+  50%,
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes papelizAccountLoadingThirdDot {
+  0%,
+  74.9% {
+    opacity: 0;
+  }
+  75%,
+  100% {
+    opacity: 1;
+  }
+}
+
+.papelizAccountLoadingEllipsis > span {
+  animation: 1.6s linear infinite;
+}
+
+.papelizAccountLoadingEllipsis > span:nth-child(1) {
+  animation-name: papelizAccountLoadingFirstDot;
+}
+
+.papelizAccountLoadingEllipsis > span:nth-child(2) {
+  animation-name: papelizAccountLoadingSecondDot;
+}
+
+.papelizAccountLoadingEllipsis > span:nth-child(3) {
+  animation-name: papelizAccountLoadingThirdDot;
+}
+
+/* Reduced motion: the bar stands at each step's mark without moving between them, and the dots are
+   a still "...". */
 @media (prefers-reduced-motion: reduce) {
   .papelizAccountLoadingBar {
+    animation: none;
+  }
+
+  .papelizAccountLoadingEllipsis > span {
     animation: none;
   }
 }

@@ -3,7 +3,7 @@
 import { AuthenticateWithRedirectCallback } from '@clerk/react'
 import { Component, type ReactNode } from 'react'
 import { papelizAccountSignUpNeedsMoreParameterName, papelizAccountSsoCallbackParameterName } from './papeliz-account-config'
-import { PapelizAccountStateScreen } from './papeliz-account-state-screen'
+import { PapelizAccountAfterLoadingBar, PapelizAccountStateScreen } from './papeliz-account-state-screen'
 
 // Set just before the page leaves for Google or Apple; cleared once the page is back and signed
 // in. Still set on a signed-out return means the provider didn't finish.
@@ -47,17 +47,20 @@ export function PapelizAccountSsoCallback() {
   return (
     <PapelizAccountSsoCallbackBoundary
       fallback={
-        <PapelizAccountStateScreen
-          papelizAccountStateKind="error"
-          papelizAccountStateTitle="Couldn't sign you in"
-          papelizAccountStateText={`${papelizAccountSsoProviderName} didn't finish signing you in.`}
-          papelizAccountStateActionLabel="Try again"
-          papelizAccountStateActionHref={papelizAccountReturnPath}
-        />
+        <PapelizAccountAfterLoadingBar>
+          <PapelizAccountStateScreen
+            papelizAccountStateKind="error"
+            papelizAccountStateTitle="Couldn't sign you in"
+            papelizAccountStateText={`${papelizAccountSsoProviderName} didn't finish signing you in.`}
+            papelizAccountStateActionLabel="Try again"
+            papelizAccountStateActionHref={papelizAccountReturnPath}
+          />
+        </PapelizAccountAfterLoadingBar>
       }
     >
       <PapelizAccountStateScreen
         papelizAccountStateKind="loading"
+        papelizAccountLoadingStep="signing-in"
         papelizAccountStateTitle="Signing you in"
         papelizAccountStateText={`Finishing with ${papelizAccountSsoProviderName}…`}
       />

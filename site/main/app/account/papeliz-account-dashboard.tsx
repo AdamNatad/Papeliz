@@ -3,6 +3,7 @@
 import { useAuth, useClerk, useSession, useUser } from '@clerk/react'
 import { ArrowLeft, Check, ChevronRight, CreditCard, FingerprintPattern, Laptop, Mail, Power, RefreshCw, UserRound, type LucideIcon } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
+import type { IconType } from 'react-icons'
 import { FaApple } from 'react-icons/fa6'
 import { FcGoogle } from 'react-icons/fc'
 import {
@@ -14,7 +15,6 @@ import {
 } from './papeliz-account-card-frame'
 import { papelizAccountClerkErrorCodes, readPapelizAccountClerkError } from './papeliz-account-clerk-errors'
 import {
-  papelizAccountAppPath,
   papelizAccountDeleteAfterSignInParameterName,
   papelizAccountDeletedParameterName,
   papelizAccountFreshSignInMinutes,
@@ -23,8 +23,10 @@ import {
   readPapelizAccountPasskeysAreOn,
 } from './papeliz-account-config'
 import { PapelizAccountBillingSection } from './papeliz-account-billing-section'
+import { PapelizAccountDevicesSection, usePapelizAccountSyncDeviceList, type PapelizAccountSyncDeviceList } from './papeliz-account-devices-section'
+import { PapelizAccountDialog } from './papeliz-account-dialog'
 import { PapelizAccountPhoneLaunchButtons, PapelizAccountSidebarLaunchButton } from './papeliz-account-launch-menu'
-import { PapelizAccountRow, PapelizAccountRowDescription, PapelizAccountRowGroup } from './papeliz-account-rows'
+import { PapelizAccountRow, PapelizAccountRowGroup, papelizAccountPhoneChevronRowActionClassName } from './papeliz-account-rows'
 import type { PapelizAccountSyncService } from './papeliz-account-sync-service'
 import { PapelizAccountSyncPlansSection } from './papeliz-account-sync-plans-section'
 
@@ -36,18 +38,6 @@ const papelizAccountSections: readonly { papelizAccountSectionId: PapelizAccount
   { papelizAccountSectionId: 'devices', papelizAccountSectionLabel: 'Devices', PapelizAccountSectionIcon: Laptop },
   { papelizAccountSectionId: 'billing', papelizAccountSectionLabel: 'Billing', PapelizAccountSectionIcon: CreditCard },
 ]
-
-function PapelizAccountSectionIntro({ children }: { children: ReactNode }) {
-  return <p className="-mt-1 mb-4 max-w-[560px] text-sm text-pretty text-papeliz-ink-muted md:-mt-2.5 md:mb-2 md:text-[15px]">{children}</p>
-}
-
-function PapelizAccountOpenAppAction({ papelizAccountOpenAppLabel = 'Open Papeliz' }: { papelizAccountOpenAppLabel?: string }) {
-  return (
-    <a href={papelizAccountAppPath} target="_blank" rel="noopener" className={`${papelizAccountCompactPrimaryButtonClassName} ${papelizAccountRowActionWidthClassName}`}>
-      {papelizAccountOpenAppLabel}
-    </a>
-  )
-}
 
 type PapelizAccountDeleteStage =
   | { accountDeleteStageKind: 'closed' }
@@ -123,75 +113,86 @@ function PapelizAccountDeleteAccountRow({
   }
 
   const accountDeleteStageKind = accountDeleteStage.accountDeleteStageKind
+  const closePapelizAccountDeleteDialog = () => setAccountDeleteStage({ accountDeleteStageKind: 'closed' })
   return (
-    <PapelizAccountRow
-      papelizAccountRowTitle="Delete account"
-      papelizAccountRowIsDanger
-      papelizAccountRowExtra={
-        accountDeleteStageKind !== 'closed' && (
-          <div className="mt-1.5 max-w-[520px]">
-            <p className="text-[13px] text-pretty text-papeliz-ink-muted md:text-sm">
-              {accountDeleteStageKind === 'fresh-sign-in-needed'
-                ? 'To delete your account, sign in again first.'
-                : 'Deletes your account, your Sync subscription and every synced copy. The notes on your devices stay. This can’t be undone.'}
-            </p>
-            {accountDeleteStage.accountDeleteStageKind === 'failed' && (
-              <p role="alert" className="mt-1.5 text-[13px] text-pretty text-papeliz-diff-removed-ink md:text-sm">
-                {accountDeleteStage.accountDeleteFailureMessage}
-              </p>
-            )}
-            <div className="mt-3 flex flex-wrap gap-2">
-              {accountDeleteStageKind === 'fresh-sign-in-needed' ? (
-                <button type="button" onClick={signInAgainToDeletePapelizAccount} className={papelizAccountCompactPrimaryButtonClassName}>
-                  Sign in again
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  disabled={accountDeleteIsRunning}
-                  onClick={() => void deletePapelizAccount()}
-                  className={papelizAccountCompactDangerButtonClassName}
-                >
-                  {accountDeleteIsRunning ? 'Deleting…' : accountDeleteStageKind === 'failed' ? 'Try again' : 'Delete account'}
-                </button>
-              )}
-              <button
-                type="button"
-                disabled={accountDeleteIsRunning}
-                onClick={() => setAccountDeleteStage({ accountDeleteStageKind: 'closed' })}
-                className={papelizAccountSecondaryButtonClassName}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        )
-      }
-      papelizAccountRowAction={
-        accountDeleteStageKind === 'closed' && (
+    <>
+      <PapelizAccountRow
+        papelizAccountRowTitle="Delete Account"
+        papelizAccountRowIsDanger
+        papelizAccountRowAction={
+          // A row like Contact Support on a phone, its label and a chevron; it confirms in a dialog
+          // (Adam, 2026-10-31).
           <button
             type="button"
+            aria-haspopup="dialog"
             onClick={() => setAccountDeleteStage({ accountDeleteStageKind: 'confirming' })}
-            className={`${papelizAccountCompactDangerButtonClassName} ${papelizAccountRowActionWidthClassName}`}
+            className={`${papelizAccountCompactDangerButtonClassName} ${papelizAccountRowActionWidthClassName} ${papelizAccountPhoneChevronRowActionClassName}`}
           >
-            Delete
+            <span className="max-md:sr-only">Delete</span>
+            <ChevronRight className="size-4 text-papeliz-ink-subtle md:hidden" aria-hidden="true" />
           </button>
-        )
-      }
-    />
+        }
+      />
+      {accountDeleteStageKind !== 'closed' && (
+        <PapelizAccountDialog
+          papelizAccountDialogTitle="Delete your account?"
+          onPapelizAccountDialogClose={() => {
+            if (!accountDeleteIsRunning) closePapelizAccountDeleteDialog()
+          }}
+          papelizAccountDialogFooter={
+            <>
+              <button type="button" disabled={accountDeleteIsRunning} onClick={closePapelizAccountDeleteDialog} className={papelizAccountSecondaryButtonClassName}>
+                Cancel
+              </button>
+              {accountDeleteStageKind === 'fresh-sign-in-needed' ? (
+                <button type="button" onClick={signInAgainToDeletePapelizAccount} className={papelizAccountCompactPrimaryButtonClassName}>
+                  Sign In Again
+                </button>
+              ) : (
+                <button type="button" disabled={accountDeleteIsRunning} onClick={() => void deletePapelizAccount()} className={papelizAccountCompactDangerButtonClassName}>
+                  {accountDeleteIsRunning ? 'Deleting…' : accountDeleteStageKind === 'failed' ? 'Try Again' : 'Delete Account'}
+                </button>
+              )}
+            </>
+          }
+        >
+          <p>
+            {accountDeleteStageKind === 'fresh-sign-in-needed'
+              ? 'To delete your account, sign in again first.'
+              : 'Deletes your account, your Sync subscription and every synced copy. The notes on your devices stay. This can’t be undone.'}
+          </p>
+          {accountDeleteStage.accountDeleteStageKind === 'failed' && (
+            <p role="alert" className="text-papeliz-diff-removed-ink">
+              {accountDeleteStage.accountDeleteFailureMessage}
+            </p>
+          )}
+        </PapelizAccountDialog>
+      )}
+    </>
   )
 }
 
-function PapelizAccountSignInWayConnectedBadge() {
+// Connected, in muted green and the size of a row's button, so it lines up with Connect and Add
+// (Adam, 2026-10-31). A status, not a button: there is nothing to press.
+function PapelizAccountSignInWayConnectedStatus() {
   return (
-    <span className="inline-flex h-6 shrink-0 items-center gap-1 rounded-full bg-papeliz-diff-added px-2.5 text-xs font-semibold text-papeliz-diff-added-ink">
+    <span
+      className={`inline-flex min-h-[38px] shrink-0 items-center justify-center gap-1.5 rounded-lg bg-papeliz-diff-added px-3 text-[13px] font-semibold whitespace-nowrap text-papeliz-diff-added-ink ${papelizAccountRowActionWidthClassName}`}
+    >
       <Check className="size-3.5" aria-hidden="true" />
       Connected
     </span>
   )
 }
 
-// One way to sign in: its icon, its name over what it uses, then Connected or Add on the right.
+type PapelizAccountSignInProvider = 'google' | 'apple'
+
+const papelizAccountSignInProviders: readonly { signInProvider: PapelizAccountSignInProvider; signInProviderName: string; SignInProviderIcon: IconType }[] = [
+  { signInProvider: 'google', signInProviderName: 'Google', SignInProviderIcon: FcGoogle },
+  { signInProvider: 'apple', signInProviderName: 'Apple', SignInProviderIcon: FaApple },
+]
+
+// One way to sign in: its icon, its name over what it uses, then Connected, Connect or Add on the right.
 function PapelizAccountSignInWayLine({
   signInWayIcon,
   signInWayName,
@@ -222,21 +223,49 @@ function PapelizAccountSignInWayLine({
 function PapelizAccountProfileSection({
   papelizAccountSyncService,
   isPapelizAccountDeleteOpenedAfterSignIn,
+  papelizAccountPhoneLeaveCard,
 }: {
   papelizAccountSyncService: PapelizAccountSyncService
   isPapelizAccountDeleteOpenedAfterSignIn: boolean
+  // Back to Main Site and Sign Out, on a phone; on Profile it comes before Contact Support and
+  // Delete Account (Adam, 2026-10-31).
+  papelizAccountPhoneLeaveCard: ReactNode
 }) {
   const papelizAccountClerk = useClerk()
   const { user } = useUser()
   const [passkeyMessage, setPasskeyMessage] = useState<string | null>(null)
   const [passkeyIsBeingAdded, setPasskeyIsBeingAdded] = useState(false)
+  const [signInProviderBeingConnected, setSignInProviderBeingConnected] = useState<PapelizAccountSignInProvider | null>(null)
+  const [signInProviderConnectMessages, setSignInProviderConnectMessages] = useState<Partial<Record<PapelizAccountSignInProvider, string>>>({})
   if (!user) return null
   const papelizAccountPrimaryEmailAddress = user.primaryEmailAddress?.emailAddress ?? null
   const papelizAccountEmailAddress = papelizAccountPrimaryEmailAddress ?? 'No email'
-  const connectedGoogleAccount = user.externalAccounts.find((externalAccount) => externalAccount.provider === 'google')
-  const connectedAppleAccount = user.externalAccounts.find((externalAccount) => externalAccount.provider === 'apple')
   const passkeyCount = user.passkeys.length
   const papelizAccountPasskeysAreOn = readPapelizAccountPasskeysAreOn(papelizAccountClerk)
+
+  // Connect: Clerk links Google or Apple to this account, by way of the provider's own page, which
+  // sends the browser back here. A link that never finished is tried again rather than made twice.
+  async function connectPapelizAccountSignInProvider(signInProvider: PapelizAccountSignInProvider) {
+    if (!user) return
+    setSignInProviderBeingConnected(signInProvider)
+    setSignInProviderConnectMessages((currentConnectMessages) => ({ ...currentConnectMessages, [signInProvider]: undefined }))
+    try {
+      const papelizAccountReturnAddress = new URL(papelizAccountPagePath, window.location.origin).href
+      const unfinishedExternalAccount = user.externalAccounts.find((externalAccount) => externalAccount.provider === signInProvider)
+      const linkingExternalAccount = unfinishedExternalAccount
+        ? await unfinishedExternalAccount.reauthorize({ redirectUrl: papelizAccountReturnAddress })
+        : await user.createExternalAccount({ strategy: `oauth_${signInProvider}`, redirectUrl: papelizAccountReturnAddress })
+      const signInProviderAddress = linkingExternalAccount.verification?.externalVerificationRedirectURL
+      if (!signInProviderAddress) throw new Error('Connecting didn’t start. Try again.')
+      window.location.assign(signInProviderAddress.href)
+    } catch (signInProviderConnectError) {
+      setSignInProviderConnectMessages((currentConnectMessages) => ({
+        ...currentConnectMessages,
+        [signInProvider]: readPapelizAccountClerkError(signInProviderConnectError).clerkErrorMessage,
+      }))
+      setSignInProviderBeingConnected(null)
+    }
+  }
 
   async function addPapelizAccountPasskey() {
     if (!user) return
@@ -263,27 +292,46 @@ function PapelizAccountProfileSection({
           papelizAccountRowTitle="Ways to sign in"
           papelizAccountRowExtra={
             <ul className="mt-1.5 md:mt-2.5">
-              {connectedGoogleAccount && (
-                <PapelizAccountSignInWayLine
-                  signInWayIcon={<FcGoogle className="size-4" aria-hidden="true" />}
-                  signInWayName="Google"
-                  signInWayDetail={connectedGoogleAccount.emailAddress || papelizAccountPrimaryEmailAddress || 'Your Google account'}
-                  signInWayAction={<PapelizAccountSignInWayConnectedBadge />}
-                />
-              )}
-              {connectedAppleAccount && (
-                <PapelizAccountSignInWayLine
-                  signInWayIcon={<FaApple className="size-4" aria-hidden="true" />}
-                  signInWayName="Apple"
-                  signInWayDetail={connectedAppleAccount.emailAddress || papelizAccountPrimaryEmailAddress || 'Your Apple Account'}
-                  signInWayAction={<PapelizAccountSignInWayConnectedBadge />}
-                />
-              )}
+              {/* Google and Apple always show: Connected when linked, Connect when not (Adam, 2026-10-31). */}
+              {papelizAccountSignInProviders.map(({ signInProvider, signInProviderName, SignInProviderIcon }) => {
+                const connectedExternalAccount = user.externalAccounts.find(
+                  (externalAccount) => externalAccount.provider === signInProvider && externalAccount.verification?.status === 'verified',
+                )
+                const signInProviderIsBeingConnected = signInProviderBeingConnected === signInProvider
+                return (
+                  <PapelizAccountSignInWayLine
+                    key={signInProvider}
+                    signInWayIcon={<SignInProviderIcon className="size-4" aria-hidden="true" />}
+                    signInWayName={signInProviderName}
+                    signInWayDetail={
+                      connectedExternalAccount
+                        ? connectedExternalAccount.emailAddress || papelizAccountPrimaryEmailAddress || `Your ${signInProviderName} account`
+                        : (signInProviderConnectMessages[signInProvider] ?? 'Not connected')
+                    }
+                    signInWayDetailIsAnnounced={!connectedExternalAccount}
+                    signInWayAction={
+                      connectedExternalAccount ? (
+                        <PapelizAccountSignInWayConnectedStatus />
+                      ) : (
+                        <button
+                          type="button"
+                          aria-label={`Connect ${signInProviderName}`}
+                          disabled={signInProviderBeingConnected !== null}
+                          onClick={() => void connectPapelizAccountSignInProvider(signInProvider)}
+                          className={`${papelizAccountCompactPrimaryButtonClassName} ${papelizAccountRowActionWidthClassName}`}
+                        >
+                          {signInProviderIsBeingConnected ? 'Connecting…' : 'Connect'}
+                        </button>
+                      )
+                    }
+                  />
+                )
+              })}
               <PapelizAccountSignInWayLine
                 signInWayIcon={<Mail className="size-4 text-papeliz-ink-muted" aria-hidden="true" />}
                 signInWayName="Email code"
                 signInWayDetail={papelizAccountPrimaryEmailAddress ? `A code sent to ${papelizAccountPrimaryEmailAddress}` : 'A code sent to your email'}
-                signInWayAction={<PapelizAccountSignInWayConnectedBadge />}
+                signInWayAction={<PapelizAccountSignInWayConnectedStatus />}
               />
               {papelizAccountPasskeysAreOn && (
                 <PapelizAccountSignInWayLine
@@ -315,15 +363,16 @@ function PapelizAccountProfileSection({
           }
         />
       </PapelizAccountRowGroup>
+      {papelizAccountPhoneLeaveCard}
       <PapelizAccountRowGroup>
         <PapelizAccountRow
-          papelizAccountRowTitle="Contact support"
+          papelizAccountRowTitle="Contact Support"
           papelizAccountRowAction={
             <a
               href={papelizAccountSupportPath}
-              className={`${papelizAccountCompactPrimaryButtonClassName} ${papelizAccountRowActionWidthClassName} max-md:min-w-0 max-md:bg-transparent max-md:px-0 max-md:shadow-none`}
+              className={`${papelizAccountCompactPrimaryButtonClassName} ${papelizAccountRowActionWidthClassName} ${papelizAccountPhoneChevronRowActionClassName}`}
             >
-              <span className="max-md:sr-only">Contact us</span>
+              <span className="max-md:sr-only">Contact Us</span>
               <ChevronRight className="size-4 text-papeliz-ink-subtle md:hidden" aria-hidden="true" />
             </a>
           }
@@ -337,31 +386,24 @@ function PapelizAccountProfileSection({
   )
 }
 
-// Sync shows the plans to buy; Devices points to the app, where a signed-in device holds Sync's
-// keys; Billing lists what it covers.
-function PapelizAccountPlansDevicesAndBillingSection({ papelizAccountSectionId }: { papelizAccountSectionId: Exclude<PapelizAccountSectionId, 'profile'> }) {
+// Sync shows the plans to buy; Devices lists the devices signed in to Sync, with Remove (Adam,
+// 2026-10-31); Billing lists what it covers.
+function PapelizAccountPlansDevicesAndBillingSection({
+  papelizAccountSectionId,
+  papelizAccountSyncService,
+  papelizAccountSyncDeviceList,
+}: {
+  papelizAccountSectionId: Exclude<PapelizAccountSectionId, 'profile'>
+  papelizAccountSyncService: PapelizAccountSyncService
+  papelizAccountSyncDeviceList: PapelizAccountSyncDeviceList
+}) {
   const papelizAccountSectionHeading = papelizAccountSectionId === 'sync' ? 'Sync' : papelizAccountSectionId === 'devices' ? 'Devices' : 'Billing'
   return (
     <>
       <h1 className="mt-[22px] mb-2.5 text-[22px] font-[650] tracking-[-0.02em] md:mt-0 md:mb-[22px] md:text-[29px]">{papelizAccountSectionHeading}</h1>
       {papelizAccountSectionId === 'sync' && <PapelizAccountSyncPlansSection />}
       {papelizAccountSectionId === 'devices' && (
-        <>
-          <PapelizAccountSectionIntro>Devices signed in to Sync. Removing one signs it out; its notes stay on it.</PapelizAccountSectionIntro>
-          <PapelizAccountRowGroup>
-            <PapelizAccountRow
-              papelizAccountRowTitle="Your devices"
-              papelizAccountRowExtra={<PapelizAccountRowDescription>See, rename and remove devices in Papeliz: Settings › Account.</PapelizAccountRowDescription>}
-              papelizAccountRowAction={<PapelizAccountOpenAppAction />}
-            />
-            <PapelizAccountRow
-              papelizAccountRowTitle="Add a device"
-              papelizAccountRowExtra={
-                <PapelizAccountRowDescription>Get Papeliz for your computer or phone with Download, then sign in to Sync there.</PapelizAccountRowDescription>
-              }
-            />
-          </PapelizAccountRowGroup>
-        </>
+        <PapelizAccountDevicesSection papelizAccountSyncService={papelizAccountSyncService} papelizAccountSyncDeviceList={papelizAccountSyncDeviceList} />
       )}
       {papelizAccountSectionId === 'billing' && <PapelizAccountBillingSection />}
     </>
@@ -377,24 +419,50 @@ export function PapelizAccountDashboard({
   isPapelizAccountDeleteOpenedAfterSignIn?: boolean
 }) {
   const papelizAccountClerk = useClerk()
-  const { user } = useUser()
   const [chosenPapelizAccountSectionId, setChosenPapelizAccountSectionId] = useState<PapelizAccountSectionId>('profile')
   const [papelizAccountIsSigningOut, setPapelizAccountIsSigningOut] = useState(false)
-  const papelizAccountInitial = (user?.primaryEmailAddress?.emailAddress ?? '?').charAt(0).toUpperCase()
+  const papelizAccountSyncDeviceList = usePapelizAccountSyncDeviceList(papelizAccountSyncService)
 
   function signOutOfPapelizAccount() {
     setPapelizAccountIsSigningOut(true)
     void papelizAccountClerk.signOut({ redirectUrl: papelizAccountPagePath })
   }
 
+  const papelizAccountPhoneCardActionClassName =
+    'flex min-h-[52px] w-full cursor-pointer items-center gap-3 border-b border-papeliz-line px-3.5 text-left text-[14.5px] font-semibold text-papeliz-ink transition-colors last:border-b-0 hover:bg-papeliz-hover active:bg-papeliz-press disabled:cursor-wait disabled:opacity-60 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-papeliz-blue'
+  // Back to Main Site and Sign Out in a card of their own on a phone (Adam, 2026-10-31): before
+  // Contact Support on Profile, under the section everywhere else.
+  const papelizAccountPhoneLeaveCard = (
+    <PapelizAccountRowGroup isPapelizAccountRowGroupPhoneOnly>
+      {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- a full page load leaves Clerk behind on this page */}
+      <a href="/" className={papelizAccountPhoneCardActionClassName}>
+        <ArrowLeft className="size-[18px] shrink-0 text-papeliz-ink-muted" aria-hidden="true" />
+        Back to Main Site
+      </a>
+      <button type="button" disabled={papelizAccountIsSigningOut} onClick={signOutOfPapelizAccount} className={papelizAccountPhoneCardActionClassName}>
+        <Power className="size-[18px] shrink-0 text-papeliz-ink-muted" aria-hidden="true" />
+        {papelizAccountIsSigningOut ? 'Signing Out…' : 'Sign Out'}
+      </button>
+    </PapelizAccountRowGroup>
+  )
   const papelizAccountSectionContent =
     chosenPapelizAccountSectionId === 'profile' ? (
-      <PapelizAccountProfileSection papelizAccountSyncService={papelizAccountSyncService} isPapelizAccountDeleteOpenedAfterSignIn={isPapelizAccountDeleteOpenedAfterSignIn} />
+      <PapelizAccountProfileSection
+        papelizAccountSyncService={papelizAccountSyncService}
+        isPapelizAccountDeleteOpenedAfterSignIn={isPapelizAccountDeleteOpenedAfterSignIn}
+        papelizAccountPhoneLeaveCard={papelizAccountPhoneLeaveCard}
+      />
     ) : (
-      <PapelizAccountPlansDevicesAndBillingSection papelizAccountSectionId={chosenPapelizAccountSectionId} />
+      <PapelizAccountPlansDevicesAndBillingSection
+        papelizAccountSectionId={chosenPapelizAccountSectionId}
+        papelizAccountSyncService={papelizAccountSyncService}
+        papelizAccountSyncDeviceList={papelizAccountSyncDeviceList}
+      />
     )
+  // On a computer: a light tint and shadow on hover, pressed in a little when clicked, and Sign Out
+  // turns red on hover.
   const papelizAccountSidebarActionClassName =
-    '-mx-2.5 flex min-h-[38px] cursor-pointer items-center gap-[9px] rounded-lg px-2.5 py-1 text-base font-medium text-papeliz-ink-muted transition-colors hover:bg-papeliz-hover hover:text-papeliz-ink disabled:cursor-wait disabled:opacity-60'
+    '-mx-2.5 flex min-h-[38px] cursor-pointer items-center gap-[9px] rounded-lg px-2.5 py-1 text-base font-medium text-papeliz-ink-muted transition-[color,background-color,box-shadow,scale] duration-150 ease-out hover:bg-papeliz-hover hover:shadow-[0_1px_3px_rgb(0_0_0/0.18)] active:scale-[0.99] active:bg-papeliz-press disabled:cursor-wait disabled:opacity-60 motion-reduce:transition-none motion-reduce:active:scale-100'
 
   return (
     <>
@@ -425,13 +493,18 @@ export function PapelizAccountDashboard({
           </nav>
           <div className="mt-7 grid gap-[3px]">
             {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- a full page load leaves Clerk behind on this page */}
-            <a href="/" className={papelizAccountSidebarActionClassName}>
+            <a href="/" className={`${papelizAccountSidebarActionClassName} hover:text-papeliz-ink`}>
               <ArrowLeft className="size-[19px] shrink-0" aria-hidden="true" />
-              Back to main site
+              Back to Main Site
             </a>
-            <button type="button" disabled={papelizAccountIsSigningOut} onClick={signOutOfPapelizAccount} className={papelizAccountSidebarActionClassName}>
+            <button
+              type="button"
+              disabled={papelizAccountIsSigningOut}
+              onClick={signOutOfPapelizAccount}
+              className={`${papelizAccountSidebarActionClassName} enabled:hover:text-papeliz-diff-removed-ink`}
+            >
               <Power className="size-[19px] shrink-0" aria-hidden="true" />
-              {papelizAccountIsSigningOut ? 'Signing out…' : 'Sign out'}
+              {papelizAccountIsSigningOut ? 'Signing Out…' : 'Sign Out'}
             </button>
           </div>
         </aside>
@@ -440,15 +513,8 @@ export function PapelizAccountDashboard({
 
       {/* A phone: the header, Launch and Download, the sections as tabs, then grouped rows. */}
       <div className="mx-auto max-w-[480px] px-4 pb-6 md:hidden">
-        <div className="flex h-[62px] items-center justify-between">
+        <div className="flex h-[62px] items-center">
           <PapelizAccountBrand papelizAccountBrandSize="small" />
-          <span
-            className="grid size-[34px] place-items-center rounded-full bg-papeliz-gradient-start text-sm font-bold text-white"
-            title={user?.primaryEmailAddress?.emailAddress}
-            aria-hidden="true"
-          >
-            {papelizAccountInitial}
-          </span>
         </div>
         <PapelizAccountPhoneLaunchButtons />
         <nav aria-label="Account sections" className="grid grid-cols-4 gap-0.5 rounded-[11px] bg-papeliz-surface-gray p-[3px] shadow-[inset_0_0_0_1px_var(--color-papeliz-line)]">
@@ -467,17 +533,7 @@ export function PapelizAccountDashboard({
           ))}
         </nav>
         <div className="px-0.5">{papelizAccountSectionContent}</div>
-        <div className="mt-[18px] flex justify-between px-1 text-[13px] text-papeliz-ink-muted">
-          {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- a full page load leaves Clerk behind on this page */}
-          <a href="/" className="inline-flex items-center gap-1.5 hover:text-papeliz-ink">
-            <ArrowLeft className="size-[15px]" aria-hidden="true" />
-            Back to main site
-          </a>
-          <button type="button" disabled={papelizAccountIsSigningOut} onClick={signOutOfPapelizAccount} className="inline-flex cursor-pointer items-center gap-1.5 hover:text-papeliz-ink">
-            <Power className="size-[15px]" aria-hidden="true" />
-            {papelizAccountIsSigningOut ? 'Signing out…' : 'Sign out'}
-          </button>
-        </div>
+        {chosenPapelizAccountSectionId !== 'profile' && <div className="mt-3 px-0.5">{papelizAccountPhoneLeaveCard}</div>}
       </div>
     </>
   )

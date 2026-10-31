@@ -283,7 +283,7 @@ export function PapelizAccountSignInCard() {
 
   const signInCardHeading = signInCardIsCode ? 'Check your email' : signInCardIsCreating ? 'Create an account' : 'Sign in to your account'
   const signInProviderButtonClassName =
-    'flex min-h-[42px] min-w-0 cursor-pointer items-center justify-center gap-2 px-2 text-[12.5px] font-semibold whitespace-nowrap text-papeliz-ink transition-[background-color,scale] duration-150 ease-out hover:bg-papeliz-surface enabled:active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-papeliz-blue'
+    'flex min-h-[42px] min-w-0 cursor-pointer items-center justify-center gap-2 px-2 text-[12.5px] font-semibold whitespace-nowrap text-papeliz-ink transition-[background-color,scale] duration-150 ease-out enabled:hover:bg-papeliz-surface-gray enabled:active:scale-[0.98] enabled:active:bg-papeliz-surface-gray-hover disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-papeliz-blue'
 
   if (signInCardView === 'create-username') return <PapelizAccountChooseUsernameStep papelizAccountVerifiedByProviderName={null} />
 
