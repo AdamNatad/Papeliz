@@ -510,6 +510,16 @@ async function readOrCreatePapelizSyncLocalGrantSigningKey() {
   return grantSigningKey
 }
 
+// The Account Worker wraps Standard vault keys with this secret: 32 random bytes as base64url, made on the
+// first run and kept, so Standard vaults still open after a restart. Never printed.
+function readOrCreatePapelizSyncLocalStandardVaultKeyWrapSecret() {
+  const standardVaultKeyWrapSecretFilePath = path.join(papelizSyncLocalWorkersStateDirectory, 'papeliz-sync-local-standard-vault-key-wrap-secret.txt')
+  if (existsSync(standardVaultKeyWrapSecretFilePath)) return readFileSync(standardVaultKeyWrapSecretFilePath, 'utf8').trim()
+  const standardVaultKeyWrapSecretText = Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64url')
+  writeFileSync(standardVaultKeyWrapSecretFilePath, `${standardVaultKeyWrapSecretText}\n`)
+  return standardVaultKeyWrapSecretText
+}
+
 // A Worker's generated wrangler.json and, beside it, the .dev.vars that `wrangler dev` reads for it.
 function writePapelizSyncLocalWorkerFiles(workerFolderName, workerConfig, workerDevVars) {
   const workerFolder = path.join(papelizSyncLocalWorkersStateDirectory, workerFolderName)
@@ -572,6 +582,7 @@ async function preparePapelizSyncLocalWorkers(webappSyncLocalOrigin) {
   const accountWorkerConfigFilePath = writePapelizSyncLocalWorkerFiles(accountWorkerConfig.name, accountWorkerConfig, {
     PAPELIZ_SYNC_GRANT_SIGNING_PRIVATE_KEY: JSON.stringify(grantSigningPrivateJwk),
     PAPELIZ_SYNC_GRANT_PUBLIC_KEY_SET: grantPublicKeySetText,
+    PAPELIZ_SYNC_STANDARD_VAULT_KEY_WRAP_SECRET: readOrCreatePapelizSyncLocalStandardVaultKeyWrapSecret(),
     PAPELIZ_SYNC_ALLOWED_SIGN_IN_ORIGINS: webappSyncLocalOrigin,
     PAPELIZ_SYNC_SIGN_IN_TOKEN_ISSUER: papelizSyncLocalSignInProviderOrigin,
     PAPELIZ_SYNC_SIGN_IN_JWKS_URL: `${papelizSyncLocalSignInProviderOrigin}/.well-known/jwks.json`,
@@ -640,7 +651,7 @@ async function runPapelizSyncLocalWorkersTarget(launcherRequest, launcherTarget,
   const signInPageDevServerOrigin = `http://${papelizLoopbackHost}:${papelizSyncSignInPageDevServerPort}`
   const stateDirectoryForDisplay = path.relative(papelizRepositoryRoot, papelizSyncLocalWorkersStateDirectory)
   if (launcherRequest.dryRun) {
-    console.log(` [plan] Write each Worker's local config and .dev.vars into ${stateDirectoryForDisplay}/ (Git-ignored)`)
+    console.log(` [plan] Write each Worker's local config and .dev.vars into ${stateDirectoryForDisplay}/ (Git-ignored), with a made-up grant signing key and Standard vault key wrap secret kept there`)
     console.log(` [plan] wrangler d1 migrations apply <account directory> --local, then wrangler dev with the router, Account and Sync Workers on ${localWorkersRouterOrigin}`)
     console.log(` [plan] pnpm run site:dev ${nextServerArguments(papelizSyncSignInPageDevServerPort).join(' ')} (unless a server already answers on ${papelizSyncSignInPageDevServerPort})`)
     console.log(` [plan] pnpm ${webappScriptArguments.join(' ')}, with the real Sync engine and its proxy to ${localWorkersRouterOrigin} and ${signInPageDevServerOrigin}`)
