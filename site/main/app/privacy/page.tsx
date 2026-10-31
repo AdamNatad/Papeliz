@@ -3,7 +3,7 @@ import { createPapelizSitePageMetadata } from '@/lib/papeliz-site-seo'
 
 export const metadata = createPapelizSitePageMetadata({
   papelizSitePageTitle: 'Privacy Policy',
-  papelizSitePageDescription: 'How Papeliz handles your notes and your API key: it has no server, so it never sees either.',
+  papelizSitePageDescription: 'How Papeliz handles your notes, your API key and the vaults you sync with Papeliz Sync.',
   papelizSitePagePath: '/privacy/',
 })
 
@@ -12,12 +12,23 @@ export default function PapelizSitePrivacyPage() {
     <PapelizLegalDocument
       papelizLegalDocumentPath="/privacy/"
       papelizLegalDocumentTitle="Privacy Policy"
-      papelizLegalDocumentSummary="Papeliz never sees your notes or your key: it is a static web app with no server of its own. This page explains where your data goes. It is a draft and will be finalized before launch."
+      papelizLegalDocumentSummary="Papeliz is a static web app with no server of its own. It never sees your key, and could read your notes only if you sync them with Papeliz Sync, the optional add-on, as a Standard vault. This page explains where your data goes. It is a draft and will be finalized before launch."
     >
       <PapelizLegalDocumentSection papelizLegalSectionTitle="Your notes">
         <p>
           Your notes stay in the folder you open, on your own disk. Papeliz reads and writes that folder
-          in your browser. Nothing is uploaded to Papeliz, because there is nowhere to upload it to.
+          in your browser. Nothing is uploaded to Papeliz unless you sync that vault with Papeliz Sync.
+        </p>
+      </PapelizLegalDocumentSection>
+
+      <PapelizLegalDocumentSection papelizLegalSectionTitle="Papeliz Sync">
+        <p>
+          Papeliz Sync, a paid add-on, keeps the vaults you choose the same on your devices. A synced
+          vault is encrypted on your device before it is uploaded, and is one of two kinds, chosen when
+          you turn Sync on for it. In a Standard vault, Papeliz keeps the vault’s key, so Papeliz could
+          read it. An End-to-end vault has its own passphrase, which Papeliz never receives, so Papeliz
+          can’t read it or recover the passphrase. Vault and device names are readable by Papeliz for
+          both. Your AI provider keys never sync.
         </p>
       </PapelizLegalDocumentSection>
 
@@ -36,9 +47,10 @@ export default function PapelizSitePrivacyPage() {
         </p>
       </PapelizLegalDocumentSection>
 
-      <PapelizLegalDocumentSection papelizLegalSectionTitle="No accounts, no tracking">
+      <PapelizLegalDocumentSection papelizLegalSectionTitle="No account needed, no tracking">
         <p>
-          Papeliz has no accounts and no analytics on your notes. The website and the app are served as
+          Papeliz needs no account: you sign in only to use Papeliz Sync. There are no analytics on your
+          notes. The website and the app are served as
           static files; the hosting provider keeps standard request logs.
         </p>
       </PapelizLegalDocumentSection>

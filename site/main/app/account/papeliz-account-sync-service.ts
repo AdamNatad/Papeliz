@@ -40,10 +40,11 @@ export type PapelizAccountSyncAccountDeletionOutcome =
 
 export type PapelizAccountSyncDevicePlatform = 'web' | 'desktop' | 'mobile'
 
-// A device as this page sees it. Its name is encrypted with the account key, which only a signed-in
-// device holds, so this page never reads it.
+// A device as this page sees it. Its name is the one the device gave itself, readable by Papeliz, or
+// null when it has none; the Devices section then names it by its kind.
 export interface PapelizAccountSyncDeviceRecord {
   papelizSyncDeviceId: string
+  syncDeviceName: string | null
   syncDevicePlatform: PapelizAccountSyncDevicePlatform
   syncDeviceAddedAt: number
   syncDeviceLastSeenAt: number | null
@@ -81,7 +82,7 @@ function readPapelizAccountSyncDeviceRecords(deviceListReplyCandidate: unknown):
   const papelizAccountSyncDeviceRecords: PapelizAccountSyncDeviceRecord[] = []
   for (const syncDeviceRecordCandidate of syncDeviceRecords) {
     if (typeof syncDeviceRecordCandidate !== 'object' || syncDeviceRecordCandidate === null) return null
-    const { papelizSyncDeviceId, syncDevicePlatform, syncDeviceAddedAt, syncDeviceLastSeenAt } = syncDeviceRecordCandidate as Record<string, unknown>
+    const { papelizSyncDeviceId, syncDeviceName, syncDevicePlatform, syncDeviceAddedAt, syncDeviceLastSeenAt } = syncDeviceRecordCandidate as Record<string, unknown>
     if (
       typeof papelizSyncDeviceId !== 'string' ||
       !papelizAccountSyncDevicePlatforms.includes(syncDevicePlatform as PapelizAccountSyncDevicePlatform) ||
@@ -90,8 +91,11 @@ function readPapelizAccountSyncDeviceRecords(deviceListReplyCandidate: unknown):
     ) {
       return null
     }
+    // A missing, empty or malformed name leaves the device named by its kind, rather than failing the list.
+    const trimmedSyncDeviceName = typeof syncDeviceName === 'string' ? syncDeviceName.trim() : ''
     papelizAccountSyncDeviceRecords.push({
       papelizSyncDeviceId,
+      syncDeviceName: trimmedSyncDeviceName === '' ? null : trimmedSyncDeviceName,
       syncDevicePlatform: syncDevicePlatform as PapelizAccountSyncDevicePlatform,
       syncDeviceAddedAt,
       syncDeviceLastSeenAt: syncDeviceLastSeenAt as number | null,
@@ -350,7 +354,7 @@ export const papelizAccountLocalFakeSyncService: PapelizAccountSyncService = {
       syncDeviceListOutcomeKind: 'listed',
       syncDeviceRecords: (localFakeSyncAccount?.papelizSyncDeviceIds ?? []).map((papelizSyncDeviceId) => {
         const syncDeviceAddedAt = localFakeSyncAccount?.papelizSyncDeviceAddedAts?.[papelizSyncDeviceId] ?? Date.now()
-        return { papelizSyncDeviceId, syncDevicePlatform: 'web', syncDeviceAddedAt, syncDeviceLastSeenAt: syncDeviceAddedAt }
+        return { papelizSyncDeviceId, syncDeviceName: null, syncDevicePlatform: 'web', syncDeviceAddedAt, syncDeviceLastSeenAt: syncDeviceAddedAt }
       }),
     }
   },

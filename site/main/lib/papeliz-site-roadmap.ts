@@ -74,7 +74,7 @@ export const papelizSiteRoadmapMilestones: PapelizSiteRoadmapMilestone[] = [
         papelizSiteRoadmapStepItems: [
           'Keep your vaults in sync across web, desktop and mobile',
           'Edits from two devices merge instead of overwriting each other',
-          'End-to-end encrypted, so Papeliz still never sees your notes',
+          'End-to-end encryption for the vaults you choose',
           'Optional: Papeliz itself stays free, with no account needed',
         ],
       },

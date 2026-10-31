@@ -74,7 +74,7 @@ export const papelizSiteFeatureGroups: PapelizSiteFeatureGroup[] = [
     papelizSiteFeatureGroupSummary: 'Bring an API key from the provider you like. It stays on your device.',
     papelizSiteFeatureGroupPoints: [
       { papelizSiteFeaturePointTitle: 'Any OpenAI-compatible provider', papelizSiteFeaturePointBody: 'Pick a preset, or paste any compatible base URL, hosted or running on your own machine.' },
-      { papelizSiteFeaturePointTitle: 'No Papeliz server', papelizSiteFeaturePointBody: 'Requests go straight from your device to your provider. Papeliz never sees your key or your notes.' },
+      { papelizSiteFeaturePointTitle: 'No Papeliz server', papelizSiteFeaturePointBody: 'Requests go straight from your device to your provider, never through Papeliz, and your key goes only to that provider.' },
       { papelizSiteFeaturePointTitle: 'You see what is sent', papelizSiteFeaturePointBody: 'Each message shows which notes go with it. Nothing leaves until you send it.' },
     ],
   },

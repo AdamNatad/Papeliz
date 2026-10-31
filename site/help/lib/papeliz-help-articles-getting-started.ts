@@ -285,7 +285,7 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
       helpSection('What’s in it', [
         helpBulletList([
           '**Account**: coming soon.',
-          '**Sync**: keep your vaults in sync across web, desktop and mobile, end-to-end encrypted. A paid add-on, coming soon.',
+          '**Sync**: keep your vaults in sync across web, desktop and mobile, with end-to-end encryption for the vaults you choose. A paid add-on, coming soon.',
           '**Settings**: **Key Bindings**, the shortcuts you can change. See [[keyboard-shortcuts]]. In a vault kept in your browser, Settings has two tabs, **Key Bindings** and **Reminder**, for the backup reminder and **Download backup**. See [[keep-a-vault-in-your-browser]].',
           '**Export**: download notes as Word, PDF or HTML files. See **Export** below.',
           '**Accessibility**: the theme, how your notes’ text looks, and how note tabs show. See [[text-settings-and-theme]].',

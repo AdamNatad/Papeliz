@@ -18,7 +18,7 @@ const papelizSiteAboutPrinciples = [
   {
     papelizSiteAboutPrincipleTitle: 'Your key, your provider',
     papelizSiteAboutPrincipleBody:
-      'The assistant talks straight from your device to the provider you choose. There is no Papeliz server in between, so Papeliz never sees your key or your notes.',
+      'The assistant talks straight from your device to the provider you choose. There is no Papeliz server in between, so your key and your requests never pass through Papeliz.',
   },
   {
     papelizSiteAboutPrincipleTitle: 'The AI proposes, you decide',

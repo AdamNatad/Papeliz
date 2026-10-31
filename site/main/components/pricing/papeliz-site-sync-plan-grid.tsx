@@ -18,7 +18,7 @@ import { createPapelizSiteYearlySavingsBadgeInfo, papelizSiteSyncYearlyMonthsSav
 // What Pricing's one Sync card lists: what the add-on does, with the plans themselves on the Sync page.
 const papelizSiteSyncAddOnCardLines = [
   'Sync notes across web, desktop and mobile',
-  'End-to-end encryption',
+  'End-to-end encryption for the vaults you choose',
   'Edits from every device merge',
   'Choose where your notes are stored',
   'Standard, Plus and Pro plans',

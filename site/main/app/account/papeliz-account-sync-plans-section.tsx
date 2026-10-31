@@ -15,14 +15,14 @@ import { papelizAccountCompactPrimaryButtonClassName, papelizAccountTextLinkClas
 
 // The account page's Sync section: what Sync is, the Monthly / Yearly switch, then the three plans,
 // each with its own Subscribe (Adam, 2026-10-31). Subscribe opens Papeliz on Settings › Sync with
-// that plan and period chosen, where the storage place, the passphrase and checkout happen.
+// that plan and period chosen, where the storage place and checkout happen.
 export function PapelizAccountSyncPlansSection() {
   const [chosenPapelizAccountSyncBillingPeriod, setChosenPapelizAccountSyncBillingPeriod] = useState<PapelizSiteSyncBillingPeriod>('yearly')
 
   return (
     <>
       <p className="-mt-1 mb-5 max-w-[560px] text-sm text-pretty text-papeliz-ink-muted md:-mt-2.5 md:text-[15px]">
-        Your vaults on every device, end-to-end encrypted.{' '}
+        Your vaults on every device, with end-to-end encryption for the ones you choose.{' '}
         <a href="/sync/" className={papelizAccountTextLinkClassName}>
           Learn more.
         </a>

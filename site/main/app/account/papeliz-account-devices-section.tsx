@@ -82,11 +82,23 @@ export function usePapelizAccountSyncDeviceList(papelizAccountSyncService: Papel
   return { syncDeviceListStage, loadPapelizAccountSyncDevices, forgetRemovedPapelizAccountSyncDevice }
 }
 
-// Named by kind: a device's own name is end-to-end encrypted, so only Papeliz can show it.
+// Each kind's icon, and its name for a device that has no name of its own.
 const papelizAccountSyncDevicePlatformLabels: Record<PapelizAccountSyncDevicePlatform, { syncDevicePlatformName: string; SyncDevicePlatformIcon: LucideIcon }> = {
   web: { syncDevicePlatformName: 'Browser', SyncDevicePlatformIcon: Globe },
   desktop: { syncDevicePlatformName: 'Computer', SyncDevicePlatformIcon: Laptop },
   mobile: { syncDevicePlatformName: 'Phone or tablet', SyncDevicePlatformIcon: Smartphone },
+}
+
+// The device's own name, or its kind when it has none.
+function namePapelizAccountSyncDevice(syncDeviceRecord: PapelizAccountSyncDeviceRecord): string {
+  return syncDeviceRecord.syncDeviceName ?? papelizAccountSyncDevicePlatformLabels[syncDeviceRecord.syncDevicePlatform].syncDevicePlatformName
+}
+
+// The removal dialog's title: "Remove “Work laptop”?", or "Remove this browser?" for a device named by its kind.
+function titlePapelizAccountSyncDeviceRemoval(syncDeviceRecord: PapelizAccountSyncDeviceRecord): string {
+  return syncDeviceRecord.syncDeviceName === null
+    ? `Remove this ${papelizAccountSyncDevicePlatformLabels[syncDeviceRecord.syncDevicePlatform].syncDevicePlatformName.toLowerCase()}?`
+    : `Remove “${syncDeviceRecord.syncDeviceName}”?`
 }
 
 const papelizAccountSyncDeviceRelativeTimeFormat = new Intl.RelativeTimeFormat('en', { numeric: 'auto' })
@@ -138,7 +150,7 @@ function PapelizAccountSyncDeviceLine({
         <SyncDeviceLineIcon className="size-[18px] text-papeliz-ink-muted" aria-hidden="true" />
       </span>
       <div className="min-w-0 flex-1">
-        <h2 className="text-[14.5px] font-semibold md:text-base">{syncDeviceLineTitle}</h2>
+        <h2 className="text-[14.5px] font-semibold break-words md:text-base">{syncDeviceLineTitle}</h2>
         <p className="mt-0.5 text-[13px] text-pretty text-papeliz-ink-muted md:text-sm">{syncDeviceLineDetail}</p>
       </div>
       {syncDeviceLineAction}
@@ -199,7 +211,6 @@ export function PapelizAccountDevicesSection({
 
   const listedSyncDeviceRecords = syncDeviceListStage.syncDeviceListStageKind === 'listed' ? syncDeviceListStage.syncDeviceRecords : null
   const syncDeviceRemovalIsRunning = syncDeviceRemoval?.syncDeviceRemovalStageKind === 'removing'
-  const chosenSyncDevicePlatformName = syncDeviceRemoval ? papelizAccountSyncDevicePlatformLabels[syncDeviceRemoval.syncDeviceRecord.syncDevicePlatform].syncDevicePlatformName : ''
 
   return (
     <>
@@ -247,18 +258,19 @@ export function PapelizAccountDevicesSection({
           />
         )}
         {listedSyncDeviceRecords?.map((syncDeviceRecord) => {
-          const { syncDevicePlatformName, SyncDevicePlatformIcon } = papelizAccountSyncDevicePlatformLabels[syncDeviceRecord.syncDevicePlatform]
+          const { SyncDevicePlatformIcon } = papelizAccountSyncDevicePlatformLabels[syncDeviceRecord.syncDevicePlatform]
+          const syncDeviceShownName = namePapelizAccountSyncDevice(syncDeviceRecord)
           return (
             <PapelizAccountSyncDeviceLine
               key={syncDeviceRecord.papelizSyncDeviceId}
               SyncDeviceLineIcon={SyncDevicePlatformIcon}
-              syncDeviceLineTitle={syncDevicePlatformName}
+              syncDeviceLineTitle={syncDeviceShownName}
               syncDeviceLineDetail={describePapelizAccountSyncDevice(syncDeviceRecord, currentTime)}
               syncDeviceLineAction={
                 <button
                   type="button"
                   aria-haspopup="dialog"
-                  aria-label={`Remove ${syncDevicePlatformName.toLowerCase()}, ${describePapelizAccountSyncDevice(syncDeviceRecord, currentTime)}`}
+                  aria-label={`Remove ${syncDeviceRecord.syncDeviceName === null ? syncDeviceShownName.toLowerCase() : syncDeviceShownName}, ${describePapelizAccountSyncDevice(syncDeviceRecord, currentTime)}`}
                   onClick={() => setSyncDeviceRemoval({ syncDeviceRecord, syncDeviceRemovalStageKind: 'confirming' })}
                   className={`${papelizAccountSecondaryButtonClassName} ${papelizAccountRowActionWidthClassName}`}
                 >
@@ -269,12 +281,9 @@ export function PapelizAccountDevicesSection({
           )
         })}
       </PapelizAccountRowGroup>
-      {listedSyncDeviceRecords && listedSyncDeviceRecords.length > 0 && (
-        <p className="mt-3 px-1 text-xs text-pretty text-papeliz-ink-subtle md:px-0 md:text-[13px]">Device names are end-to-end encrypted, so only Papeliz shows them.</p>
-      )}
       {syncDeviceRemoval && (
         <PapelizAccountDialog
-          papelizAccountDialogTitle={`Remove this ${chosenSyncDevicePlatformName.toLowerCase()}?`}
+          papelizAccountDialogTitle={titlePapelizAccountSyncDeviceRemoval(syncDeviceRemoval.syncDeviceRecord)}
           onPapelizAccountDialogClose={() => setSyncDeviceRemoval(null)}
           papelizAccountDialogFooter={
             <>

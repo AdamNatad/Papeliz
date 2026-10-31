@@ -53,7 +53,7 @@ export const papelizSitePricingQuestions: PapelizSiteQuestion[] = [
     papelizSiteQuestionAnchor: 'can-papeliz-read-my-notes',
     papelizSiteQuestionText: 'Can Papeliz read my synced notes?',
     papelizSiteQuestionAnswerParts: [
-      'No. Your notes, file and folder names and settings are encrypted on your device before they leave it, with a passphrase only you know. Papeliz stores them but cannot open them. ',
+      'Only in a Standard vault. When you turn Sync on for a vault, you choose Standard or End-to-end, and either way its files are encrypted on your device before they’re uploaded. Papeliz keeps a Standard vault’s key, so it could read that vault. An End-to-end vault has its own passphrase, which Papeliz never receives, so Papeliz can’t read it. Vault and device names are readable for both. ',
       { papelizSiteQuestionAnswerLinkLabel: 'How Sync works', papelizSiteQuestionAnswerLinkHref: '/sync/' },
     ],
   },
@@ -77,7 +77,7 @@ export const papelizSiteSyncQuestions: PapelizSiteQuestion[] = [
     papelizSiteQuestionAnchor: 'what-syncs',
     papelizSiteQuestionText: 'What does Sync keep in sync?',
     papelizSiteQuestionAnswerParts: [
-      'Your notes, attachments such as pictures and PDFs, and the vault’s own Papeliz settings. Assistant chats and app settings sync too, unless you turn them off. AI provider keys sync only if you turn that on, encrypted like a note.',
+      'Your notes, attachments such as pictures and PDFs, and the vault’s own Papeliz settings. Assistant chats and app settings sync too, unless you turn them off. AI provider keys never sync: you paste yours on each device.',
     ],
   },
   {
@@ -91,7 +91,14 @@ export const papelizSiteSyncQuestions: PapelizSiteQuestion[] = [
     papelizSiteQuestionAnchor: 'forgotten-passphrase',
     papelizSiteQuestionText: 'What if I forget my passphrase?',
     papelizSiteQuestionAnswerParts: [
-      'Use the Recovery Key Papeliz gives you when you set up Sync, and keep it somewhere safe. Without your passphrase or your Recovery Key, nobody can open your synced notes, Papeliz included. The notes on your devices stay as they are.',
+      'Only End-to-end vaults have a passphrase, and Papeliz can’t recover it. If you forget it, choose Delete from Sync for that vault, then turn Sync on again from a device that still has its notes. The notes on your devices stay as they are.',
+    ],
+  },
+  {
+    papelizSiteQuestionAnchor: 'switch-standard-and-end-to-end',
+    papelizSiteQuestionText: 'Can I switch a vault between Standard and End-to-end?',
+    papelizSiteQuestionAnswerParts: [
+      'Only by syncing it again: choose Delete from Sync for that vault, then turn Sync on with the other choice. The notes on your devices stay as they are.',
     ],
   },
   {

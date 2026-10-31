@@ -14,7 +14,7 @@ import { papelizSiteSyncQuestions } from '@/lib/papeliz-site-sync-questions'
 export const metadata = createPapelizSitePageMetadata({
   papelizSitePageTitle: 'Papeliz Sync',
   papelizSitePageDescription:
-    'Papeliz Sync keeps your vaults the same on the web, desktop and mobile. End-to-end encrypted: Papeliz stores your synced notes but can never read them.',
+    'Papeliz Sync keeps your vaults the same on the web, desktop and mobile, with end-to-end encryption for the vaults you choose.',
   papelizSitePagePath: '/sync/',
 })
 
@@ -27,27 +27,27 @@ type PapelizSiteSyncCard = {
 const papelizSiteSyncPrivacyCards: PapelizSiteSyncCard[] = [
   {
     PapelizSiteSyncCardIcon: Lock,
-    papelizSiteSyncCardTitle: 'End-to-end encrypted.',
+    papelizSiteSyncCardTitle: 'Encrypted on your device.',
     papelizSiteSyncCardBody:
-      'Your notes, file and folder names and settings are encrypted on your device before they leave it. Papeliz stores them, and never holds a key that opens them.',
-  },
-  {
-    PapelizSiteSyncCardIcon: EyeOff,
-    papelizSiteSyncCardTitle: 'What Papeliz never sees.',
-    papelizSiteSyncCardBody:
-      'The text of your notes, your attachments, the names of your files, folders and vaults, your tags and links, and your passphrase.',
+      'Your notes, attachments, settings, and file and folder names are encrypted on your device before they’re uploaded. Vault and device names aren’t.',
   },
   {
     PapelizSiteSyncCardIcon: KeyRound,
-    papelizSiteSyncCardTitle: 'Your passphrase, your Recovery Key.',
+    papelizSiteSyncCardTitle: 'Standard: no passphrase.',
     papelizSiteSyncCardBody:
-      'Only you know your passphrase. If you forget it, the Recovery Key you keep from set-up opens your notes again.',
+      'Papeliz keeps the vault’s key, so the vault opens on any device you sign in on. It also means Papeliz could read it.',
+  },
+  {
+    PapelizSiteSyncCardIcon: EyeOff,
+    papelizSiteSyncCardTitle: 'End-to-end: only you can read it.',
+    papelizSiteSyncCardBody:
+      'The vault has its own passphrase, which Papeliz never receives. Papeliz can’t read the vault, and can’t recover the passphrase if you forget it.',
   },
   {
     PapelizSiteSyncCardIcon: Sparkles,
     papelizSiteSyncCardTitle: 'Your AI stays yours.',
     papelizSiteSyncCardBody:
-      'Sync never carries an AI request. The assistant talks straight to your provider, and your keys sync only if you turn that on, encrypted like a note.',
+      'Sync never carries an AI request, and your AI provider keys never sync. The assistant talks straight to your provider.',
   },
 ]
 
@@ -136,7 +136,7 @@ export default function PapelizSiteSyncPage() {
   return (
     <div className="mx-auto max-w-6xl space-y-16 px-4 pb-16 sm:px-6 sm:pb-20">
       <PapelizSiteCenteredPageHero papelizSiteCenteredPageHeroHeading="All your notes, on all your devices.">
-        <p>Papeliz Sync keeps your vaults the same on the web, desktop and mobile, end-to-end encrypted.</p>
+        <p>Papeliz Sync keeps your vaults the same on the web, desktop and mobile, with end-to-end encryption for the vaults you choose.</p>
         <div className="mt-7 flex flex-col items-center justify-center gap-3 sm:flex-row">
           {papelizSiteSyncHeroSignUpHref && (
             <a
@@ -159,7 +159,7 @@ export default function PapelizSiteSyncPage() {
         <PapelizSiteSyncSectionHeading
           papelizSiteSyncSectionHeadingId="sync-private-title"
           papelizSiteSyncSectionHeadingTitle="Private by design"
-          papelizSiteSyncSectionHeadingLead="Sync works quietly in the background, and only you can read what it carries."
+          papelizSiteSyncSectionHeadingLead="Sync works quietly in the background. For each vault you sync, you choose Standard or End-to-end."
         />
         <div className="grid gap-4 sm:grid-cols-2">
           {papelizSiteSyncPrivacyCards.map((papelizSiteSyncPrivacyCard) => (

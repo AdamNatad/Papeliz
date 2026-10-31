@@ -7,7 +7,7 @@ import { papelizSitePricingQuestions } from '@/lib/papeliz-site-sync-questions'
 export const metadata = createPapelizSitePageMetadata({
   papelizSitePageTitle: 'Pricing',
   papelizSitePageDescription:
-    'Papeliz is free without limits, with no sign-up. Papeliz Sync, the optional add-on, keeps your notes end-to-end encrypted on every device, from $4 a month billed yearly.',
+    'Papeliz is free without limits, with no sign-up. Papeliz Sync, the optional add-on, keeps your notes on every device, with end-to-end encryption for the vaults you choose, from $4 a month billed yearly.',
   papelizSitePagePath: '/pricing/',
 })
 
