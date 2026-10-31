@@ -88,6 +88,31 @@
   background: var(--color-papeliz-blue);
 }
 
+/* Compact, inside the account page: left-aligned, with the account page's rounded corners. */
+.track[data-papeliz-billing-period-switch-variant='compact'] {
+  gap: 3px;
+  margin-inline: 0;
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--color-papeliz-surface-gray);
+}
+
+.track[data-papeliz-billing-period-switch-variant='compact'] .pill,
+.track[data-papeliz-billing-period-switch-variant='compact'] button {
+  border-radius: 7px;
+}
+
+.track[data-papeliz-billing-period-switch-variant='compact'] .pill {
+  box-shadow: 0 1px 3px rgb(0 40 100 / 0.18);
+}
+
+.track[data-papeliz-billing-period-switch-variant='compact'] button {
+  min-height: 32px;
+  padding: 6px 12px;
+  font-size: 13px;
+  line-height: 18px;
+}
+
 .label,
 .badge {
   position: relative;

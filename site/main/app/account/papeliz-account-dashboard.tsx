@@ -5,7 +5,13 @@ import { ArrowLeft, ChevronRight, CreditCard, Laptop, Mail, Power, RefreshCw, Us
 import { useState, type ReactNode } from 'react'
 import { FaApple } from 'react-icons/fa6'
 import { FcGoogle } from 'react-icons/fc'
-import { PapelizAccountBrand, papelizAccountCompactPrimaryButtonClassName, papelizAccountSecondaryButtonClassName } from './papeliz-account-card-frame'
+import {
+  PapelizAccountBrand,
+  papelizAccountCompactDangerButtonClassName,
+  papelizAccountCompactPrimaryButtonClassName,
+  papelizAccountRowActionWidthClassName,
+  papelizAccountSecondaryButtonClassName,
+} from './papeliz-account-card-frame'
 import { papelizAccountClerkErrorCodes, readPapelizAccountClerkError } from './papeliz-account-clerk-errors'
 import {
   papelizAccountAppPath,
@@ -16,8 +22,11 @@ import {
   papelizAccountSupportPath,
   readPapelizAccountPasskeysAreOn,
 } from './papeliz-account-config'
+import { PapelizAccountBillingSection } from './papeliz-account-billing-section'
 import { PapelizAccountPhoneLaunchButtons, PapelizAccountSidebarLaunchButton } from './papeliz-account-launch-menu'
+import { PapelizAccountRow, PapelizAccountRowDescription, PapelizAccountRowGroup } from './papeliz-account-rows'
 import type { PapelizAccountSyncService } from './papeliz-account-sync-service'
+import { PapelizAccountSyncPlansSection } from './papeliz-account-sync-plans-section'
 
 type PapelizAccountSectionId = 'profile' | 'sync' | 'devices' | 'billing'
 
@@ -28,55 +37,13 @@ const papelizAccountSections: readonly { papelizAccountSectionId: PapelizAccount
   { papelizAccountSectionId: 'billing', papelizAccountSectionLabel: 'Billing', PapelizAccountSectionIcon: CreditCard },
 ]
 
-// One account row. On a computer: the title over a muted value, the action on the right, and a
-// line under it. On a phone: a small label over the value, inside a grouped card.
-function PapelizAccountRow({
-  papelizAccountRowTitle,
-  papelizAccountRowValue,
-  papelizAccountRowAction,
-  papelizAccountRowExtra,
-  papelizAccountRowIsDanger = false,
-}: {
-  papelizAccountRowTitle: string
-  papelizAccountRowValue?: ReactNode
-  papelizAccountRowAction?: ReactNode
-  papelizAccountRowExtra?: ReactNode
-  papelizAccountRowIsDanger?: boolean
-}) {
-  return (
-    <div className="flex min-h-[58px] items-center gap-3 border-b border-papeliz-line px-3.5 py-2.5 last:border-b-0 md:gap-6 md:px-0 md:py-5 md:last:border-b">
-      <div className="min-w-0 flex-1">
-        <h2
-          className={`${papelizAccountRowValue ? 'text-xs font-medium text-papeliz-ink-subtle' : `text-[14.5px] font-semibold ${papelizAccountRowIsDanger ? 'text-papeliz-diff-removed-ink' : ''}`} md:text-base md:font-semibold md:text-papeliz-ink`}
-        >
-          {papelizAccountRowTitle}
-        </h2>
-        {papelizAccountRowValue && (
-          <p className="truncate text-[14.5px] font-semibold md:mt-1 md:text-sm md:font-normal md:whitespace-normal md:text-papeliz-ink-muted">{papelizAccountRowValue}</p>
-        )}
-        {papelizAccountRowExtra}
-      </div>
-      {papelizAccountRowAction}
-    </div>
-  )
-}
-
-// Rows that belong together; a separate card on a phone, one continuous list on a computer.
-function PapelizAccountRowGroup({ children }: { children: ReactNode }) {
-  return (
-    <div className="overflow-hidden rounded-[14px] border border-papeliz-line bg-papeliz-surface [&+&]:mt-3 md:overflow-visible md:rounded-none md:border-0 md:bg-transparent md:[&+&]:mt-0">
-      {children}
-    </div>
-  )
-}
-
 function PapelizAccountSectionIntro({ children }: { children: ReactNode }) {
   return <p className="-mt-1 mb-4 max-w-[560px] text-sm text-pretty text-papeliz-ink-muted md:-mt-2.5 md:mb-2 md:text-[15px]">{children}</p>
 }
 
 function PapelizAccountOpenAppAction({ papelizAccountOpenAppLabel = 'Open Papeliz' }: { papelizAccountOpenAppLabel?: string }) {
   return (
-    <a href={papelizAccountAppPath} target="_blank" rel="noopener" className={papelizAccountCompactPrimaryButtonClassName}>
+    <a href={papelizAccountAppPath} target="_blank" rel="noopener" className={`${papelizAccountCompactPrimaryButtonClassName} ${papelizAccountRowActionWidthClassName}`}>
       {papelizAccountOpenAppLabel}
     </a>
   )
@@ -183,7 +150,7 @@ function PapelizAccountDeleteAccountRow({
                   type="button"
                   disabled={accountDeleteIsRunning}
                   onClick={() => void deletePapelizAccount()}
-                  className="inline-flex min-h-[38px] shrink-0 cursor-pointer items-center justify-center rounded-lg bg-papeliz-diff-removed-ink px-3.5 text-[13px] font-semibold whitespace-nowrap text-papeliz-surface transition-[filter] hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-papeliz-diff-removed-ink"
+                  className={papelizAccountCompactDangerButtonClassName}
                 >
                   {accountDeleteIsRunning ? 'Deleting…' : accountDeleteStageKind === 'failed' ? 'Try again' : 'Delete account'}
                 </button>
@@ -205,7 +172,7 @@ function PapelizAccountDeleteAccountRow({
           <button
             type="button"
             onClick={() => setAccountDeleteStage({ accountDeleteStageKind: 'confirming' })}
-            className={`${papelizAccountSecondaryButtonClassName} border-papeliz-diff-removed-ink/40 bg-transparent text-papeliz-diff-removed-ink hover:bg-papeliz-diff-removed`}
+            className={`${papelizAccountCompactDangerButtonClassName} ${papelizAccountRowActionWidthClassName}`}
           >
             Delete
           </button>
@@ -284,7 +251,12 @@ function PapelizAccountProfileSection({
             papelizAccountRowTitle="Passkeys"
             papelizAccountRowValue={passkeyMessage ?? (passkeyCount === 0 ? 'None yet' : passkeyCount === 1 ? '1 passkey' : `${passkeyCount} passkeys`)}
             papelizAccountRowAction={
-              <button type="button" disabled={passkeyIsBeingAdded} onClick={() => void addPapelizAccountPasskey()} className={papelizAccountSecondaryButtonClassName}>
+              <button
+                type="button"
+                disabled={passkeyIsBeingAdded}
+                onClick={() => void addPapelizAccountPasskey()}
+                className={`${papelizAccountCompactPrimaryButtonClassName} ${papelizAccountRowActionWidthClassName}`}
+              >
                 {passkeyIsBeingAdded ? 'Adding…' : 'Add'}
               </button>
             }
@@ -295,7 +267,10 @@ function PapelizAccountProfileSection({
         <PapelizAccountRow
           papelizAccountRowTitle="Contact support"
           papelizAccountRowAction={
-            <a href={papelizAccountSupportPath} className={`${papelizAccountSecondaryButtonClassName} max-md:border-0 max-md:bg-transparent max-md:px-0`}>
+            <a
+              href={papelizAccountSupportPath}
+              className={`${papelizAccountCompactPrimaryButtonClassName} ${papelizAccountRowActionWidthClassName} max-md:min-w-0 max-md:bg-transparent max-md:px-0 max-md:shadow-none`}
+            >
               <span className="max-md:sr-only">Contact us</span>
               <ChevronRight className="size-4 text-papeliz-ink-subtle md:hidden" aria-hidden="true" />
             </a>
@@ -310,49 +285,33 @@ function PapelizAccountProfileSection({
   )
 }
 
-// Sync, devices and billing are run from the app, where a signed-in device holds Sync's keys.
-function PapelizAccountAppManagedSection({ papelizAccountSectionId }: { papelizAccountSectionId: Exclude<PapelizAccountSectionId, 'profile'> }) {
+// Sync shows the plans to buy; Devices points to the app, where a signed-in device holds Sync's
+// keys; Billing lists what it covers.
+function PapelizAccountPlansDevicesAndBillingSection({ papelizAccountSectionId }: { papelizAccountSectionId: Exclude<PapelizAccountSectionId, 'profile'> }) {
   const papelizAccountSectionHeading = papelizAccountSectionId === 'sync' ? 'Sync' : papelizAccountSectionId === 'devices' ? 'Devices' : 'Billing'
   return (
     <>
       <h1 className="mt-[22px] mb-2.5 text-[22px] font-[650] tracking-[-0.02em] md:mt-0 md:mb-[22px] md:text-[29px]">{papelizAccountSectionHeading}</h1>
-      {papelizAccountSectionId === 'sync' && (
-        <>
-          <PapelizAccountSectionIntro>Your vaults on every device, encrypted before they leave it.</PapelizAccountSectionIntro>
-          <PapelizAccountRowGroup>
-            <PapelizAccountRow
-              papelizAccountRowTitle="Plan and storage"
-              papelizAccountRowValue="Choose a plan and set up Sync in Papeliz: Settings › Sync. Papeliz keeps working without it."
-              papelizAccountRowAction={<PapelizAccountOpenAppAction />}
-            />
-          </PapelizAccountRowGroup>
-        </>
-      )}
+      {papelizAccountSectionId === 'sync' && <PapelizAccountSyncPlansSection />}
       {papelizAccountSectionId === 'devices' && (
         <>
           <PapelizAccountSectionIntro>Devices signed in to Sync. Removing one signs it out; its notes stay on it.</PapelizAccountSectionIntro>
           <PapelizAccountRowGroup>
             <PapelizAccountRow
               papelizAccountRowTitle="Your devices"
-              papelizAccountRowValue="See, rename and remove devices in Papeliz: Settings › Account."
+              papelizAccountRowExtra={<PapelizAccountRowDescription>See, rename and remove devices in Papeliz: Settings › Account.</PapelizAccountRowDescription>}
               papelizAccountRowAction={<PapelizAccountOpenAppAction />}
             />
             <PapelizAccountRow
               papelizAccountRowTitle="Add a device"
-              papelizAccountRowValue="Get Papeliz for your computer or phone with Download, then sign in to Sync there."
+              papelizAccountRowExtra={
+                <PapelizAccountRowDescription>Get Papeliz for your computer or phone with Download, then sign in to Sync there.</PapelizAccountRowDescription>
+              }
             />
           </PapelizAccountRowGroup>
         </>
       )}
-      {papelizAccountSectionId === 'billing' && (
-        <PapelizAccountRowGroup>
-          <PapelizAccountRow
-            papelizAccountRowTitle="Billing"
-            papelizAccountRowValue="Invoices and your payment method open from Papeliz: Settings › Sync › Manage billing."
-            papelizAccountRowAction={<PapelizAccountOpenAppAction />}
-          />
-        </PapelizAccountRowGroup>
-      )}
+      {papelizAccountSectionId === 'billing' && <PapelizAccountBillingSection />}
     </>
   )
 }
@@ -380,7 +339,7 @@ export function PapelizAccountDashboard({
     chosenPapelizAccountSectionId === 'profile' ? (
       <PapelizAccountProfileSection papelizAccountSyncService={papelizAccountSyncService} isPapelizAccountDeleteOpenedAfterSignIn={isPapelizAccountDeleteOpenedAfterSignIn} />
     ) : (
-      <PapelizAccountAppManagedSection papelizAccountSectionId={chosenPapelizAccountSectionId} />
+      <PapelizAccountPlansDevicesAndBillingSection papelizAccountSectionId={chosenPapelizAccountSectionId} />
     )
   const papelizAccountSidebarActionClassName =
     '-mx-2.5 flex min-h-[38px] cursor-pointer items-center gap-[9px] rounded-lg px-2.5 py-1 text-base font-medium text-papeliz-ink-muted transition-colors hover:bg-papeliz-hover hover:text-papeliz-ink disabled:cursor-wait disabled:opacity-60'

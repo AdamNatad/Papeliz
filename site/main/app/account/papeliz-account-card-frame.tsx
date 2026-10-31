@@ -10,7 +10,14 @@ export const papelizAccountPrimaryButtonClassName =
 
 // The blue button at row size, for a row's main action.
 export const papelizAccountCompactPrimaryButtonClassName =
-  'inline-flex min-h-[38px] shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-lg bg-papeliz-gradient-start px-3.5 text-[13px] font-semibold whitespace-nowrap text-white shadow-[inset_0_1px_0_#ffffff1f,0_2px_3px_rgb(0_40_100/0.18)] transition-[filter,scale] hover:brightness-110 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-papeliz-blue'
+  'inline-flex min-h-[38px] shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-lg bg-papeliz-gradient-start px-3.5 text-[13px] font-semibold whitespace-nowrap text-white shadow-[inset_0_1px_0_#ffffff1f,0_2px_3px_rgb(0_40_100/0.18)] transition-[filter,scale] hover:brightness-110 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-papeliz-blue'
+
+// The red button at row size, for deleting.
+export const papelizAccountCompactDangerButtonClassName =
+  'inline-flex min-h-[38px] shrink-0 cursor-pointer items-center justify-center rounded-lg bg-papeliz-diff-removed-ink px-3.5 text-[13px] font-semibold whitespace-nowrap text-papeliz-surface shadow-[inset_0_1px_0_#ffffff1f,0_2px_3px_rgb(100_20_20/0.18)] transition-[filter,scale] hover:brightness-110 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-papeliz-diff-removed-ink'
+
+// A row's action button on a computer: wide enough that a column of them lines up.
+export const papelizAccountRowActionWidthClassName = 'min-w-[84px] md:min-w-[112px]'
 
 export const papelizAccountSecondaryButtonClassName =
   'inline-flex min-h-[38px] shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-papeliz-line bg-papeliz-surface px-3.5 text-[13px] font-semibold whitespace-nowrap text-papeliz-ink transition-colors hover:bg-papeliz-surface-soft disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-papeliz-blue'

@@ -15,6 +15,8 @@ type PapelizSiteBillingPeriodSwitchProps = {
   papelizSiteBillingPeriodChoices: readonly PapelizSiteBillingPeriodChoice[]
   onPapelizSiteBillingPeriodChoose: (papelizSiteBillingPeriod: PapelizSiteSyncBillingPeriod) => void
   papelizSiteBillingPeriodSwitchLabel: string
+  // Round and centered on the Pricing and Sync pages; compact and left-aligned inside the account page.
+  papelizSiteBillingPeriodSwitchVariant?: 'round' | 'compact'
   // Explains the badge: the trigger sits inside the badge, the description is read with its choice.
   papelizSiteBillingPeriodBadgeInfo?: { papelizSiteBillingPeriodBadgeInfoTrigger: ReactNode; papelizSiteBillingPeriodBadgeInfoDescription: string }
 }
@@ -28,6 +30,7 @@ export function PapelizSiteBillingPeriodSwitch({
   papelizSiteBillingPeriodChoices,
   onPapelizSiteBillingPeriodChoose,
   papelizSiteBillingPeriodSwitchLabel,
+  papelizSiteBillingPeriodSwitchVariant = 'round',
   papelizSiteBillingPeriodBadgeInfo,
 }: PapelizSiteBillingPeriodSwitchProps) {
   const papelizSiteBillingPeriodBadgeInfoId = useId()
@@ -88,6 +91,7 @@ export function PapelizSiteBillingPeriodSwitch({
       role="group"
       aria-label={papelizSiteBillingPeriodSwitchLabel}
       className={styles.track}
+      data-papeliz-billing-period-switch-variant={papelizSiteBillingPeriodSwitchVariant}
       data-papeliz-billing-period-chosen-side={papelizSiteChosenBillingPeriodIndex < papelizSiteBillingPeriodChoices.length / 2 ? 'left' : 'right'}
       data-papeliz-billing-period-measured={papelizSiteBillingPeriodPillBounds !== null}
     >
