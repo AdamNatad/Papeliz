@@ -6,7 +6,7 @@ import type { PapelizOpenVault } from '../vault/papeliz-open-vault'
 import type { PapelizRecentVault } from '../vault/papeliz-recent-vaults'
 import { usePapelizWorkspaceStore } from '../workspace/papeliz-workspace-store'
 import { usePapelizSyncEngineStore } from './papeliz-sync-engine-store'
-import { createPapelizSyncFakeEngine, papelizSyncFakeEnginePassphrase } from './papeliz-sync-fake-engine'
+import { createPapelizSyncFakeEngine, papelizSyncFakeEngineVaultPassphrase, type PapelizSyncFakeEngine } from './papeliz-sync-fake-engine'
 import { listPapelizSyncFetchedCopies, listPapelizSyncVaultIdsCopiedHere, rememberPapelizSyncFetchedCopy } from './papeliz-sync-fetched-copies'
 import { createPapelizSyncLocalVaultFiles } from './papeliz-sync-local-vault-files'
 import {
@@ -33,9 +33,15 @@ vi.mock('../vault/papeliz-remembered-vault-folders', async (importOriginal) => {
   }
 })
 
-// Fetch from Sync's downloads from the start screen, against the fake engine's new-device scenarios.
+// The Synced Vaults page's downloads from the start screen, against the fake engine's new-device scenarios.
 
+// "Research notes" is End-to-end: its passphrase opens it on this device before it downloads.
 const researchNotesSyncVaultId = 'pzvault_dddddddddddddddddddddddddd'
+
+async function unlockTestResearchNotes(papelizSyncFakeEngine: PapelizSyncFakeEngine): Promise<void> {
+  const unlockOutcome = await papelizSyncFakeEngine.unlockSyncedVaultWithPassphrase(researchNotesSyncVaultId, papelizSyncFakeEngineVaultPassphrase)
+  if (unlockOutcome.syncActionOutcome !== 'done') throw new Error('The fake didn’t unlock Research notes')
+}
 
 // A new, empty folder on this device for a download to fill (in the fake file system), which the
 // fake engine writes the synced vault's notes into.
@@ -65,12 +71,13 @@ afterEach(() => {
 describe('a download from the start screen', () => {
   it('fills the new vault, keeps it syncing and offers Open', async () => {
     const papelizSyncFakeEngine = createPapelizSyncFakeEngine({ fakeEngineScenario: 'download-stops' })
+    await unlockTestResearchNotes(papelizSyncFakeEngine)
     const { fakeVaultRootHandle, papelizOpenVault } = await createEmptyTestVault('downloaded-vault')
     await startPapelizSyncStartScreenDownload({
       papelizSyncEngine: papelizSyncFakeEngine,
       papelizOpenVault,
       papelizSyncVaultId: researchNotesSyncVaultId,
-      isSyncFetchCopyOnly: false,
+      isSyncDownloadCopyOnly: false,
     })
     expect(papelizSyncFakeEngine.fakeEngineCallNames).toContain('downloadSyncedVaultInto')
     await vi.waitFor(() => expect(readStartScreenDownload('downloaded-vault')).toBeUndefined())
@@ -81,7 +88,7 @@ describe('a download from the start screen', () => {
     const workspaceNotice = usePapelizWorkspaceStore.getState().workspaceNotice
     expect(workspaceNotice?.workspaceNoticeMessage).toBe('“Research notes” is on this device.')
     expect(workspaceNotice?.workspaceNoticeAction?.workspaceNoticeActionLabel).toBe('Open')
-    // The account now lists it as on this device, so Fetch from Sync won't offer it again.
+    // The account now lists it as on this device, so the Synced Vaults page won't offer it again.
     const accountVaultsOutcome = await papelizSyncFakeEngine.listSyncedVaultsOnAccount()
     expect(accountVaultsOutcome.syncActionOutcome === 'done' && accountVaultsOutcome.syncActionDoneValue.find((accountVault) => accountVault.papelizSyncVaultId === researchNotesSyncVaultId)?.papelizVaultIdOnThisDevice).toBe(
       'downloaded-vault',
@@ -90,11 +97,12 @@ describe('a download from the start screen', () => {
 
   it('turns Sync off once a copy is all here', async () => {
     const papelizSyncFakeEngine = createPapelizSyncFakeEngine({ fakeEngineScenario: 'download-stops' })
+    await unlockTestResearchNotes(papelizSyncFakeEngine)
     await startPapelizSyncStartScreenDownload({
       papelizSyncEngine: papelizSyncFakeEngine,
       papelizOpenVault: (await createEmptyTestVault('copied-vault')).papelizOpenVault,
       papelizSyncVaultId: researchNotesSyncVaultId,
-      isSyncFetchCopyOnly: true,
+      isSyncDownloadCopyOnly: true,
     })
     await vi.waitFor(() => expect(usePapelizWorkspaceStore.getState().workspaceNotice).not.toBeNull())
     expect(papelizSyncFakeEngine.fakeEngineCallNames).toContain('turnSyncOffForVault')
@@ -104,12 +112,15 @@ describe('a download from the start screen', () => {
   it('stops where the connection dropped, and picks up from there on Try again', async () => {
     vi.useFakeTimers()
     const papelizSyncFakeEngine = createPapelizSyncFakeEngine({ fakeEngineScenario: 'download-stops', fakeCallDelayMilliseconds: 10 })
+    const unlock = unlockTestResearchNotes(papelizSyncFakeEngine)
+    await vi.advanceTimersByTimeAsync(10)
+    await unlock
     const { fakeVaultRootHandle, papelizOpenVault } = await createEmptyTestVault('stopped-vault')
     const startedDownload = startPapelizSyncStartScreenDownload({
       papelizSyncEngine: papelizSyncFakeEngine,
       papelizOpenVault,
       papelizSyncVaultId: researchNotesSyncVaultId,
-      isSyncFetchCopyOnly: false,
+      isSyncDownloadCopyOnly: false,
     })
     await vi.advanceTimersByTimeAsync(10)
     await startedDownload
@@ -136,7 +147,7 @@ describe('a download from the start screen', () => {
       papelizSyncEngine: papelizSyncFakeEngine,
       papelizOpenVault: (await createEmptyTestVault('refused-vault')).papelizOpenVault,
       papelizSyncVaultId: researchNotesSyncVaultId,
-      isSyncFetchCopyOnly: false,
+      isSyncDownloadCopyOnly: false,
     })
     expect(readStartScreenDownload('refused-vault')?.syncStartScreenDownloadStage).toBe('stopped')
     expect(readStartScreenDownload('refused-vault')?.syncStartScreenDownloadStopWords).not.toBeNull()
@@ -144,21 +155,26 @@ describe('a download from the start screen', () => {
 })
 
 describe('the new-device scenario', () => {
-  it('signs in locked, and lists three vaults with their names once unlocked', async () => {
+  it('signs in to three vaults with readable names, the End-to-end one locked until its passphrase', async () => {
     const papelizSyncFakeEngine = createPapelizSyncFakeEngine({ fakeEngineScenario: 'new-device' })
     expect(papelizSyncFakeEngine.getSyncEngineSnapshot().syncSignIn.syncSignInKind).toBe('signed-out')
     papelizSyncFakeEngine.startSyncSignIn({ papelizSyncStoragePlaceForNewAccount: null })
     papelizSyncFakeEngine.finishFakeSyncSignIn()
-    expect(papelizSyncFakeEngine.getSyncEngineSnapshot().syncAccountKeyState).toBe('locked')
     expect(papelizSyncFakeEngine.getSyncEngineSnapshot().syncAccount?.syncSubscriptionState).toBe('active')
-    const lockedVaultsOutcome = await papelizSyncFakeEngine.listSyncedVaultsOnAccount()
-    expect(lockedVaultsOutcome.syncActionOutcome === 'done' && lockedVaultsOutcome.syncActionDoneValue.map((accountVault) => accountVault.syncVaultName)).toEqual([null, null, null])
-    await papelizSyncFakeEngine.unlockSyncWithPassphrase(papelizSyncFakeEnginePassphrase)
-    const unlockedVaultsOutcome = await papelizSyncFakeEngine.listSyncedVaultsOnAccount()
-    expect(unlockedVaultsOutcome.syncActionOutcome === 'done' && unlockedVaultsOutcome.syncActionDoneValue.map((accountVault) => accountVault.syncVaultName)).toEqual([
-      'Research notes',
-      'Work',
-      'Recipes',
+    const readAccountVaultLocks = async () => {
+      const accountVaultsOutcome = await papelizSyncFakeEngine.listSyncedVaultsOnAccount()
+      return accountVaultsOutcome.syncActionOutcome === 'done' && accountVaultsOutcome.syncActionDoneValue.map((accountVault) => [accountVault.syncVaultName, accountVault.syncVaultLockState])
+    }
+    expect(await readAccountVaultLocks()).toEqual([
+      ['Research notes', 'locked'],
+      ['Work', 'unlocked'],
+      ['Recipes', 'unlocked'],
+    ])
+    await unlockTestResearchNotes(papelizSyncFakeEngine)
+    expect(await readAccountVaultLocks()).toEqual([
+      ['Research notes', 'unlocked'],
+      ['Work', 'unlocked'],
+      ['Recipes', 'unlocked'],
     ])
   })
 })
@@ -199,20 +215,20 @@ describe('a download that closing the tab left unfinished', () => {
     vi.unstubAllGlobals()
   })
 
-  // Signs in and unlocks a new device, starts a download into an empty folder, lets a few files come,
-  // then closes the tab: the timers stop, and the next page load starts a new fake engine from what
-  // the device kept.
-  async function closeTabPartwayThroughTestDownload(isSyncFetchCopyOnly: boolean) {
+  // Signs a new device in and unlocks Research notes, starts its download into an empty folder, lets
+  // a few files come, then closes the tab: the timers stop, and the next page load starts a new fake
+  // engine from what the device kept (its key included).
+  async function closeTabPartwayThroughTestDownload(isSyncDownloadCopyOnly: boolean) {
     vi.useFakeTimers()
     const fakeEngineKeptStateStorage = createTestBrowserStorage()
     const firstPageFakeEngine = createPapelizSyncFakeEngine({ fakeEngineScenario: 'new-device', fakeCallDelayMilliseconds: 10, fakeEngineKeptStateStorage })
     firstPageFakeEngine.startSyncSignIn({ papelizSyncStoragePlaceForNewAccount: null })
     firstPageFakeEngine.finishFakeSyncSignIn()
-    const unlock = firstPageFakeEngine.unlockSyncWithPassphrase(papelizSyncFakeEnginePassphrase)
+    const unlock = unlockTestResearchNotes(firstPageFakeEngine)
     await vi.advanceTimersByTimeAsync(10)
     await unlock
     const { fakeVaultRootHandle, papelizOpenVault } = await createEmptyTestVault('closed-tab-vault')
-    const startedDownload = startPapelizSyncStartScreenDownload({ papelizSyncEngine: firstPageFakeEngine, papelizOpenVault, papelizSyncVaultId: researchNotesSyncVaultId, isSyncFetchCopyOnly })
+    const startedDownload = startPapelizSyncStartScreenDownload({ papelizSyncEngine: firstPageFakeEngine, papelizOpenVault, papelizSyncVaultId: researchNotesSyncVaultId, isSyncDownloadCopyOnly })
     await vi.advanceTimersByTimeAsync(10)
     await startedDownload
     await vi.advanceTimersByTimeAsync(400 * 2)
@@ -225,19 +241,25 @@ describe('a download that closing the tab left unfinished', () => {
 
   it('picks up on the next start screen, still a copy, and finishes as one', async () => {
     const { fakeVaultRootHandle, nextPageFakeEngine } = await closeTabPartwayThroughTestDownload(true)
-    expect(nextPageFakeEngine.getSyncEngineSnapshot().syncAccountKeyState).toBe('unlocked')
+    // The vault's key stayed on this device, so it goes on without asking for the passphrase again.
     expect(nextPageFakeEngine.getSyncEngineSnapshot().syncLinkedLocalVaults).toEqual([
-      { papelizVaultId: 'closed-tab-vault', papelizSyncVaultId: researchNotesSyncVaultId, isFirstDownloadUnfinished: true },
+      {
+        papelizVaultId: 'closed-tab-vault',
+        papelizSyncVaultId: researchNotesSyncVaultId,
+        syncVaultEncryptionKind: 'end-to-end',
+        syncVaultLockState: 'unlocked',
+        isFirstDownloadUnfinished: true,
+      },
     ])
     await resumePapelizSyncStartScreenDownloads(nextPageFakeEngine, [createTestRecentFolderVault('closed-tab-vault', fakeVaultRootHandle)])
-    expect(readStartScreenDownload('closed-tab-vault')).toMatchObject({ syncStartScreenDownloadStage: 'downloading', isSyncFetchCopyOnly: true })
+    expect(readStartScreenDownload('closed-tab-vault')).toMatchObject({ syncStartScreenDownloadStage: 'downloading', isSyncDownloadCopyOnly: true })
     expect(readStartScreenDownload('closed-tab-vault')?.syncTransferredFileCount).toBe(298)
     await vi.advanceTimersByTimeAsync(400 * 9)
     await vi.waitFor(() => expect(readStartScreenDownload('closed-tab-vault')).toBeUndefined())
     expect(Object.keys(await readPapelizFakeVaultFolder(fakeVaultRootHandle))).toContain('Sources/Interviews.md')
     expect(nextPageFakeEngine.fakeEngineCallNames).toContain('turnSyncOffForVault')
     expect(usePapelizWorkspaceStore.getState().workspaceNotice?.workspaceNoticeMessage).toBe('“Research notes” is on this device, as a copy that won’t sync.')
-    // Not linked, yet not offered again: Fetch from Sync calls it a copy on this device.
+    // Not linked, yet not offered again: the Synced Vaults page calls it a copy on this device.
     expect(nextPageFakeEngine.getSyncEngineSnapshot().syncLinkedLocalVaults).toEqual([])
     expect(listPapelizSyncVaultIdsCopiedHere(new Set(['closed-tab-vault']))).toEqual(new Set([researchNotesSyncVaultId]))
     expect(listPapelizSyncVaultIdsCopiedHere(new Set(['another-vault']))).toEqual(new Set())

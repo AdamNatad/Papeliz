@@ -1,5 +1,5 @@
-// The vaults Fetch from Sync brought down as copies that won't sync, each with the synced vault it came
-// from. A copy isn't linked to Sync, so the engine doesn't know it; this record lets Fetch from Sync
+// The vaults the Synced Vaults page brought down as copies that won't sync, each with the synced vault it came
+// from. A copy isn't linked to Sync, so the engine doesn't know it; this record lets the Synced Vaults page
 // show that synced vault as on this device instead of offering it again, and keeps a copy a copy when
 // its download picks up after the tab was closed. It lives in this browser only, as the vaults do.
 
@@ -31,7 +31,7 @@ function writePapelizSyncFetchedCopies(fetchedCopies: readonly PapelizSyncFetche
     if (fetchedCopies.length === 0) localStorage.removeItem(papelizSyncFetchedCopiesStorageKey)
     else localStorage.setItem(papelizSyncFetchedCopiesStorageKey, JSON.stringify(fetchedCopies))
   } catch {
-    // Storage blocked: Fetch from Sync then offers the copy's synced vault again.
+    // Storage blocked: the Synced Vaults page then offers the copy's synced vault again.
   }
 }
 

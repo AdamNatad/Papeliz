@@ -6,17 +6,39 @@ import type {
   PapelizSyncSignInMethod,
   PapelizSyncStatusReading,
   PapelizSyncStoragePlace,
+  PapelizSyncVaultEncryptionKind,
   PapelizSyncVisiblePlanLimits,
   PapelizSyncWaitingReason,
 } from './papeliz-sync-engine-contract'
 
 // The words Papeliz Sync's screens use, kept apart from the screens so tests can read them.
 
+// What the Sync page says Sync is. Only the vaults set to End-to-end are end-to-end encrypted.
+export const papelizSyncPageIntro = 'Keep your vaults in sync across web, desktop and mobile. Choose End-to-end encryption for the vaults you want only you to read.'
+
 export const papelizSyncPlanDisplayNames: Record<PapelizSyncPlanName, string> = {
   standard: 'Standard',
   plus: 'Plus',
   pro: 'Pro',
 }
+
+// A synced vault's kind, as each screen names it and says, in one line, who can read its notes.
+export const papelizSyncVaultEncryptionKindDisplayNames: Record<PapelizSyncVaultEncryptionKind, string> = {
+  standard: 'Standard',
+  'end-to-end': 'End-to-end',
+}
+
+export const papelizSyncVaultEncryptionKindReaderLines: Record<PapelizSyncVaultEncryptionKind, string> = {
+  standard: 'You, on your devices. Papeliz keeps the key, so it could read them too. No passphrase.',
+  'end-to-end': 'Only you. A passphrase you choose locks them, and Papeliz never sees it.',
+}
+
+// Set-up says it before Sync is turned on: names aren't encrypted, for either kind.
+export const papelizSyncVaultNameReadableLine = 'The vault’s name isn’t encrypted, so Papeliz can see it.'
+
+// An End-to-end vault's passphrase can't be recovered: forgetting it means Delete from Sync.
+export const papelizSyncVaultPassphraseNotRecoverableLine =
+  'Papeliz can’t recover it. If you forget it, the synced copy can only be deleted and synced again from a device that still has the notes.'
 
 export const papelizSyncSignInMethodDisplayNames: Record<PapelizSyncSignInMethod, string> = {
   'email-code': 'Signed in with an email code',
@@ -244,7 +266,7 @@ export function describePapelizSyncStatusForStatusBar(
       return {
         syncStatusIconKind: 'locked',
         syncStatusWord: 'Sync locked',
-        syncStatusTitle: 'Enter your Sync passphrase on this device to sync.',
+        syncStatusTitle: 'This vault is End-to-end. Enter its passphrase on this device to sync it.',
         isSyncStatusAttention: true,
       }
     case 'signed-out':
@@ -262,14 +284,14 @@ const papelizSyncActionFailureWords: Record<PapelizSyncActionFailureKind, string
   offline: 'You’re offline. Try again once you’re back online.',
   'signed-out': 'Sign in to Papeliz Sync first.',
   'fresh-sign-in-required': 'Sign in again to confirm it’s you.',
-  locked: 'Unlock Sync on this device first.',
+  locked: 'Enter this vault’s passphrase on this device first.',
   'subscription-required': 'This needs a Papeliz Sync subscription.',
   'read-only': 'Your subscription ended, so Sync can only be read.',
   'limit-reached': 'Your plan’s limit is reached.',
-  'wrong-passphrase': 'That passphrase doesn’t open your synced notes.',
-  'wrong-recovery-key': 'That Recovery Key doesn’t open your synced notes.',
+  'wrong-passphrase': 'That passphrase doesn’t open this vault.',
   'passphrase-too-short': 'Use at least 12 characters.',
   'changed-elsewhere': 'Another device changed this first. Try again.',
+  'standard-vaults-unavailable': 'This Sync service keeps only End-to-end vaults. Choose End-to-end.',
   'not-found': 'That isn’t there any more.',
   'service-error': 'Papeliz Sync didn’t answer. Try again in a moment.',
 }
@@ -284,7 +306,8 @@ export function describePapelizSyncActionFailureNow(failedOutcome: Extract<Papel
   return describePapelizSyncActionFailure(failedOutcome, Date.now())
 }
 
-// The passphrase rule: at least 12 characters, counted after NFC, as the engine counts them.
+// The passphrase rule, for an End-to-end vault: at least 12 characters, counted after NFC, as the
+// engine counts them.
 export const papelizSyncMinimumPassphraseCharacterCount = 12
 
 export function countPapelizSyncPassphraseCharacters(syncPassphrase: string): number {
@@ -308,57 +331,3 @@ export function ratePapelizSyncPassphraseStrength(syncPassphrase: string): 0 | 1
 }
 
 export const papelizSyncPassphraseStrengthWords = ['Too short. Use 12 characters or more.', 'Weak', 'Fair', 'Good', 'Strong'] as const
-
-// A Recovery Key as typed or pasted: any case, with or without dashes or spaces.
-export function tidyPapelizSyncRecoveryKeyText(typedRecoveryKeyText: string): string {
-  return typedRecoveryKeyText.replace(/[\s-]+/g, '').toUpperCase()
-}
-
-// "7H3Q K9WD P2MX 4TBR VN6C 8JFE": the engine's text, shown in groups of four.
-export function groupPapelizSyncRecoveryKeyText(syncRecoveryKeyText: string): string {
-  return (tidyPapelizSyncRecoveryKeyText(syncRecoveryKeyText).match(/.{1,4}/g) ?? []).join(' ')
-}
-
-// The Recovery Kit as a note, which Papeliz's PDF engine prints as the Recovery Kit's PDF
-// (papeliz-sync-recovery-kit-pdf.ts). The key sits in a code block, so it prints in a monospace font
-// where 0 and O, 1 and I can't be mixed up.
-export function buildPapelizSyncRecoveryKitNoteText(syncRecoveryKeyText: string, accountLabel: string | null, recoveryKitMadeAt: Date): string {
-  const recoveryKitMadeDay = new Intl.DateTimeFormat('en-US', { dateStyle: 'long' }).format(recoveryKitMadeAt)
-  return [
-    '# Papeliz Sync Recovery Kit',
-    '',
-    'Your Recovery Key:',
-    '',
-    '```text',
-    groupPapelizSyncRecoveryKeyText(syncRecoveryKeyText),
-    '```',
-    '',
-    accountLabel === null ? null : `- Account: ${accountLabel}`,
-    `- Made on ${recoveryKitMadeDay}`,
-    '',
-    'This key opens your synced notes if you forget your Sync passphrase. Papeliz can’t reset it or your passphrase: without both, the synced copy can’t be opened. The notes on your devices are never affected.',
-    '',
-    'Keep it somewhere safe, away from your devices: printed, or in a password manager.',
-    '',
-  ]
-    .filter((recoveryKitLine): recoveryKitLine is string => recoveryKitLine !== null)
-    .join('\n')
-}
-
-// The Recovery Kit as a text file, for when the PDF can't be made.
-export function buildPapelizSyncRecoveryKitText(syncRecoveryKeyText: string, accountLabel: string | null): string {
-  return [
-    'Papeliz Sync Recovery Kit',
-    '',
-    accountLabel === null ? null : `Account: ${accountLabel}`,
-    `Recovery Key: ${groupPapelizSyncRecoveryKeyText(syncRecoveryKeyText)}`,
-    '',
-    'This key opens your synced notes if you forget your Sync passphrase.',
-    'Papeliz can’t reset it or your passphrase: without both, the synced copy can’t be opened.',
-    'The notes on your devices are never affected.',
-    'Keep it somewhere safe, away from your devices.',
-    '',
-  ]
-    .filter((recoveryKitLine): recoveryKitLine is string => recoveryKitLine !== null)
-    .join('\n')
-}

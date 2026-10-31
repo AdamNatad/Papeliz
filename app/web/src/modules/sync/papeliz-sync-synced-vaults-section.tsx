@@ -1,15 +1,20 @@
-import { LoaderCircle, Trash2, TriangleAlert } from 'lucide-react'
+import { KeyRound, LoaderCircle, Lock, LockOpen, Trash2, TriangleAlert } from 'lucide-react'
 import { useState } from 'react'
 import { PapelizConfirmDialog } from '../ui/papeliz-confirm-dialog'
 import { usePapelizWorkspaceStore } from '../workspace/papeliz-workspace-store'
 import type { PapelizSyncAccountVaultReading, PapelizSyncActionOutcome, PapelizSyncEngine } from './papeliz-sync-engine-contract'
+import { openPapelizSyncSetUpDialog } from './papeliz-sync-flow-store'
 import { PapelizSyncFailureLine, PapelizSyncLoadingLine, PapelizSyncPageBox, PapelizSyncPageLabel, PapelizSyncPageSmallText, PapelizSyncTextButton } from './papeliz-sync-page-parts'
-import { describePapelizSyncActionFailureNow, formatPapelizSyncByteSize } from './papeliz-sync-screen-words'
+import { PapelizSyncPassphraseField } from './papeliz-sync-passphrase-fields'
+import { describePapelizSyncActionFailureNow, formatPapelizSyncByteSize, papelizSyncVaultEncryptionKindDisplayNames } from './papeliz-sync-screen-words'
 
-// The Sync page's "Synced vaults": every vault on the account, with its files, its size and whether
-// it's this vault or on this device, each with Delete from Sync (Adam's pick B, 2026-10-31). Deleting
-// takes the synced copy and its old versions off the account; every device keeps its files and stops
-// syncing that vault. The confirmation asks for the vault's name, as Delete in the Hidden list does.
+// The Sync page's "Synced vaults": every vault on the account, with its files, its size, its kind and
+// whether it's this vault or on this device, each with Delete from Sync (Adam's pick B, 2026-10-31).
+// Deleting takes the synced copy and its old versions off the account; every device keeps its files and
+// stops syncing that vault. The confirmation asks for the vault's name, as Delete in the Hidden list
+// does. An End-to-end vault this device holds the key of has Change passphrase; one here that is
+// locked has Unlock, whose "Forgot it?" leads to Delete from Sync, since its passphrase can't be
+// recovered.
 
 export type PapelizSyncAccountVaultPlace = 'this-vault' | 'on-this-device' | 'not-on-this-device'
 
@@ -18,14 +23,25 @@ export function readPapelizSyncAccountVaultPlace(accountVault: PapelizSyncAccoun
   return accountVault.papelizVaultIdOnThisDevice === openPapelizVaultId ? 'this-vault' : 'on-this-device'
 }
 
-export function readPapelizSyncAccountVaultDisplayName(accountVault: PapelizSyncAccountVaultReading): string {
-  return accountVault.syncVaultName ?? 'Synced vault'
-}
-
 // The name typed in the confirmation matches the vault's (spaces around it aside).
 export function isPapelizSyncVaultDeleteConfirmationTyped(typedSyncVaultName: string, accountVault: PapelizSyncAccountVaultReading): boolean {
-  return typedSyncVaultName.trim() === readPapelizSyncAccountVaultDisplayName(accountVault).trim()
+  return typedSyncVaultName.trim() === accountVault.syncVaultName.trim()
 }
+
+// Change passphrase needs the key here; Unlock is for a vault on this device that lost it.
+export function canPapelizSyncVaultPassphraseChangeHere(accountVault: PapelizSyncAccountVaultReading): boolean {
+  return accountVault.syncVaultEncryptionKind === 'end-to-end' && accountVault.syncVaultLockState === 'unlocked'
+}
+
+export function isPapelizSyncVaultLockedHere(accountVault: PapelizSyncAccountVaultReading): boolean {
+  return accountVault.syncVaultEncryptionKind === 'end-to-end' && accountVault.syncVaultLockState === 'locked' && accountVault.papelizVaultIdOnThisDevice !== null
+}
+
+// Which of a synced vault's dialogs is open; the page opens Unlock too, from its locked notice.
+export type PapelizSyncAccountVaultDialogRequest = { accountVaultDialogKind: 'unlock' | 'delete'; papelizSyncVaultId: string }
+
+const papelizSyncVaultRowButtonClassName =
+  'grid size-7 flex-none place-items-center rounded-full border border-papeliz-line text-papeliz-ink-muted transition-colors disabled:opacity-50'
 
 interface PapelizSyncSyncedVaultsSectionProps {
   papelizSyncEngine: PapelizSyncEngine
@@ -33,26 +49,68 @@ interface PapelizSyncSyncedVaultsSectionProps {
   accountVaultsOutcome: PapelizSyncActionOutcome<PapelizSyncAccountVaultReading[]> | null
   openPapelizVaultId: string | null
   onAccountVaultsReadAgain: () => void
+  accountVaultDialogRequest: PapelizSyncAccountVaultDialogRequest | null
+  onAccountVaultDialogRequest: (accountVaultDialogRequest: PapelizSyncAccountVaultDialogRequest | null) => void
 }
 
-export function PapelizSyncSyncedVaultsSection({ papelizSyncEngine, accountVaultsOutcome, openPapelizVaultId, onAccountVaultsReadAgain }: PapelizSyncSyncedVaultsSectionProps) {
+export function PapelizSyncSyncedVaultsSection({
+  papelizSyncEngine,
+  accountVaultsOutcome,
+  openPapelizVaultId,
+  onAccountVaultsReadAgain,
+  accountVaultDialogRequest,
+  onAccountVaultDialogRequest,
+}: PapelizSyncSyncedVaultsSectionProps) {
   const showWorkspaceNotice = usePapelizWorkspaceStore((workspaceState) => workspaceState.showWorkspaceNotice)
-  const [accountVaultToDelete, setAccountVaultToDelete] = useState<PapelizSyncAccountVaultReading | null>(null)
   const [typedSyncVaultName, setTypedSyncVaultName] = useState('')
+  const [typedSyncVaultPassphrase, setTypedSyncVaultPassphrase] = useState('')
+  const [syncVaultUnlockFailureWords, setSyncVaultUnlockFailureWords] = useState<string | null>(null)
+  const [isSyncVaultUnlockRunning, setSyncVaultUnlockRunning] = useState(false)
   const [deletingPapelizSyncVaultId, setDeletingPapelizSyncVaultId] = useState<string | null>(null)
   const [syncVaultDeleteFailureWords, setSyncVaultDeleteFailureWords] = useState<string | null>(null)
 
+  const accountVaults = accountVaultsOutcome?.syncActionOutcome === 'done' ? accountVaultsOutcome.syncActionDoneValue : []
+  const accountVaultInDialog =
+    accountVaultDialogRequest === null ? undefined : accountVaults.find((accountVault) => accountVault.papelizSyncVaultId === accountVaultDialogRequest.papelizSyncVaultId)
+
+  const openAccountVaultDialog = (accountVaultDialogKind: PapelizSyncAccountVaultDialogRequest['accountVaultDialogKind'], accountVault: PapelizSyncAccountVaultReading) => {
+    setTypedSyncVaultName('')
+    setTypedSyncVaultPassphrase('')
+    setSyncVaultUnlockFailureWords(null)
+    onAccountVaultDialogRequest({ accountVaultDialogKind, papelizSyncVaultId: accountVault.papelizSyncVaultId })
+  }
+
+  const closeAccountVaultDialog = () => {
+    setTypedSyncVaultPassphrase('')
+    onAccountVaultDialogRequest(null)
+  }
+
   const deleteAccountVaultFromSync = async (confirmedAccountVault: PapelizSyncAccountVaultReading) => {
-    setAccountVaultToDelete(null)
+    closeAccountVaultDialog()
     setSyncVaultDeleteFailureWords(null)
     setDeletingPapelizSyncVaultId(confirmedAccountVault.papelizSyncVaultId)
     const syncVaultDeleteOutcome = await papelizSyncEngine.deleteSyncedVaultFromAccount(confirmedAccountVault.papelizSyncVaultId)
     setDeletingPapelizSyncVaultId(null)
     if (syncVaultDeleteOutcome.syncActionOutcome === 'failed') {
-      setSyncVaultDeleteFailureWords(`Couldn’t delete “${readPapelizSyncAccountVaultDisplayName(confirmedAccountVault)}” from Sync. ${describePapelizSyncActionFailureNow(syncVaultDeleteOutcome)}`)
+      setSyncVaultDeleteFailureWords(`Couldn’t delete “${confirmedAccountVault.syncVaultName}” from Sync. ${describePapelizSyncActionFailureNow(syncVaultDeleteOutcome)}`)
       return
     }
-    showWorkspaceNotice('info', `Deleted “${readPapelizSyncAccountVaultDisplayName(confirmedAccountVault)}” from Sync. Your devices keep its files.`)
+    showWorkspaceNotice('info', `Deleted “${confirmedAccountVault.syncVaultName}” from Sync. Your devices keep its files.`)
+    onAccountVaultsReadAgain()
+  }
+
+  const unlockAccountVault = async (accountVaultToUnlock: PapelizSyncAccountVaultReading) => {
+    if (typedSyncVaultPassphrase === '' || isSyncVaultUnlockRunning) return
+    setSyncVaultUnlockFailureWords(null)
+    setSyncVaultUnlockRunning(true)
+    const syncVaultUnlockOutcome = await papelizSyncEngine.unlockSyncedVaultWithPassphrase(accountVaultToUnlock.papelizSyncVaultId, typedSyncVaultPassphrase)
+    setSyncVaultUnlockRunning(false)
+    if (syncVaultUnlockOutcome.syncActionOutcome === 'failed') {
+      setSyncVaultUnlockFailureWords(describePapelizSyncActionFailureNow(syncVaultUnlockOutcome))
+      return
+    }
+    closeAccountVaultDialog()
+    showWorkspaceNotice('info', `Unlocked “${accountVaultToUnlock.syncVaultName}” on this device.`)
     onAccountVaultsReadAgain()
   }
 
@@ -71,9 +129,10 @@ export function PapelizSyncSyncedVaultsSection({ papelizSyncEngine, accountVault
     syncedVaultsBody = (
       <PapelizSyncPageBox>
         {accountVaultsOutcome.syncActionDoneValue.map((accountVault) => {
-          const accountVaultName = readPapelizSyncAccountVaultDisplayName(accountVault)
+          const accountVaultName = accountVault.syncVaultName
           const accountVaultPlace = readPapelizSyncAccountVaultPlace(accountVault, openPapelizVaultId)
           const isAccountVaultDeleting = deletingPapelizSyncVaultId === accountVault.papelizSyncVaultId
+          const isAccountVaultEndToEnd = accountVault.syncVaultEncryptionKind === 'end-to-end'
           return (
             <div key={accountVault.papelizSyncVaultId} className="flex min-h-11 items-center gap-2.5 px-3 py-2">
               <span aria-hidden="true" className="grid size-7 flex-none place-items-center rounded-lg bg-papeliz-blue-soft text-[13px] font-semibold text-papeliz-blue">
@@ -88,21 +147,51 @@ export function PapelizSyncSyncedVaultsSection({ papelizSyncEngine, accountVault
                     </span>
                   )}
                 </div>
-                <div className="text-[11.5px] leading-[1.35] text-papeliz-ink-subtle tabular-nums">
-                  {accountVault.syncVaultFileCount.toLocaleString('en-US')} {accountVault.syncVaultFileCount === 1 ? 'file' : 'files'} · {formatPapelizSyncByteSize(accountVault.syncVaultStoredByteLength)}
-                  {accountVaultPlace === 'not-on-this-device' ? ' · not on this device' : ''}
+                <div className="flex flex-wrap items-center gap-x-1 text-[11.5px] leading-[1.35] text-papeliz-ink-subtle tabular-nums">
+                  <span className="inline-flex items-center gap-1 whitespace-nowrap">
+                    {isAccountVaultEndToEnd && <Lock className="size-3 flex-none" aria-hidden="true" />}
+                    {papelizSyncVaultEncryptionKindDisplayNames[accountVault.syncVaultEncryptionKind]}
+                  </span>
+                  {isPapelizSyncVaultLockedHere(accountVault) && <span className="whitespace-nowrap font-medium text-papeliz-warning-ink">· locked here</span>}
+                  <span className="whitespace-nowrap">
+                    · {accountVault.syncVaultFileCount.toLocaleString('en-US')} {accountVault.syncVaultFileCount === 1 ? 'file' : 'files'} · {formatPapelizSyncByteSize(accountVault.syncVaultStoredByteLength)}
+                  </span>
+                  {accountVaultPlace === 'not-on-this-device' && <span className="whitespace-nowrap">· not on this device</span>}
                 </div>
               </div>
+              {isPapelizSyncVaultLockedHere(accountVault) && (
+                <button
+                  type="button"
+                  aria-label={`Unlock “${accountVaultName}” on this device`}
+                  title={`Unlock “${accountVaultName}” on this device`}
+                  disabled={deletingPapelizSyncVaultId !== null}
+                  onClick={() => openAccountVaultDialog('unlock', accountVault)}
+                  className={`${papelizSyncVaultRowButtonClassName} hover:border-papeliz-blue-line hover:bg-papeliz-blue-soft hover:text-papeliz-blue`}
+                >
+                  <LockOpen className="size-3.5" aria-hidden="true" />
+                </button>
+              )}
+              {canPapelizSyncVaultPassphraseChangeHere(accountVault) && (
+                <button
+                  type="button"
+                  aria-label={`Change the passphrase for “${accountVaultName}”`}
+                  title={`Change the passphrase for “${accountVaultName}”`}
+                  disabled={deletingPapelizSyncVaultId !== null}
+                  onClick={() =>
+                    openPapelizSyncSetUpDialog({ syncSetUpDialogKind: 'change-vault-passphrase', papelizSyncVaultId: accountVault.papelizSyncVaultId, syncVaultName: accountVaultName })
+                  }
+                  className={`${papelizSyncVaultRowButtonClassName} hover:border-papeliz-blue-line hover:bg-papeliz-blue-soft hover:text-papeliz-blue`}
+                >
+                  <KeyRound className="size-3.5" aria-hidden="true" />
+                </button>
+              )}
               <button
                 type="button"
                 aria-label={`Delete “${accountVaultName}” from Sync`}
                 title={`Delete “${accountVaultName}” from Sync`}
                 disabled={deletingPapelizSyncVaultId !== null}
-                onClick={() => {
-                  setTypedSyncVaultName('')
-                  setAccountVaultToDelete(accountVault)
-                }}
-                className="grid size-7 flex-none place-items-center rounded-full border border-papeliz-line text-papeliz-ink-muted transition-colors hover:border-papeliz-diff-removed-ink/40 hover:bg-papeliz-diff-removed hover:text-papeliz-diff-removed-ink focus-visible:text-papeliz-diff-removed-ink disabled:opacity-50"
+                onClick={() => openAccountVaultDialog('delete', accountVault)}
+                className={`${papelizSyncVaultRowButtonClassName} hover:border-papeliz-diff-removed-ink/40 hover:bg-papeliz-diff-removed hover:text-papeliz-diff-removed-ink focus-visible:text-papeliz-diff-removed-ink`}
               >
                 {isAccountVaultDeleting ? <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" /> : <Trash2 className="size-3.5" aria-hidden="true" />}
               </button>
@@ -118,28 +207,66 @@ export function PapelizSyncSyncedVaultsSection({ papelizSyncEngine, accountVault
       <PapelizSyncPageLabel>Synced vaults</PapelizSyncPageLabel>
       {syncedVaultsBody}
       {syncVaultDeleteFailureWords !== null && <PapelizSyncFailureLine className="mt-2">{syncVaultDeleteFailureWords}</PapelizSyncFailureLine>}
-      {accountVaultToDelete !== null && (
+      {accountVaultDialogRequest?.accountVaultDialogKind === 'unlock' && accountVaultInDialog !== undefined && (
         <PapelizConfirmDialog
-          confirmDialogTitle={`Delete “${readPapelizSyncAccountVaultDisplayName(accountVaultToDelete)}” from Sync?`}
+          confirmDialogTitle={`Unlock “${accountVaultInDialog.syncVaultName}” on this device`}
+          confirmDialogBody={
+            <>
+              <p>It’s End-to-end. Enter its passphrase once on this device, and it syncs here again without asking.</p>
+              <form
+                className="mt-4"
+                onSubmit={(submitEvent) => {
+                  submitEvent.preventDefault()
+                  void unlockAccountVault(accountVaultInDialog)
+                }}
+              >
+                <PapelizSyncPassphraseField
+                  syncPassphraseFieldLabel="Passphrase"
+                  syncPassphrase={typedSyncVaultPassphrase}
+                  onSyncPassphraseChange={setTypedSyncVaultPassphrase}
+                  isSyncPassphraseShown={false}
+                  syncPassphraseAutoComplete="current-password"
+                />
+                <button type="submit" hidden aria-hidden="true" tabIndex={-1} />
+              </form>
+              {syncVaultUnlockFailureWords !== null && <PapelizSyncFailureLine className="mt-2">{syncVaultUnlockFailureWords}</PapelizSyncFailureLine>}
+              <p className="mt-3 text-[13px] leading-[1.45]">
+                Forgot it? Papeliz can’t recover it.{' '}
+                <PapelizSyncTextButton disabled={isSyncVaultUnlockRunning} onClick={() => openAccountVaultDialog('delete', accountVaultInDialog)}>
+                  Delete it from Sync
+                </PapelizSyncTextButton>
+                , then turn Sync on again from a device that still has the notes.
+              </p>
+            </>
+          }
+          confirmButtonLabel={isSyncVaultUnlockRunning ? 'Unlocking…' : 'Unlock'}
+          isConfirmButtonDisabled={typedSyncVaultPassphrase === '' || isSyncVaultUnlockRunning}
+          onConfirm={() => void unlockAccountVault(accountVaultInDialog)}
+          onCancel={closeAccountVaultDialog}
+        />
+      )}
+      {accountVaultDialogRequest?.accountVaultDialogKind === 'delete' && accountVaultInDialog !== undefined && (
+        <PapelizConfirmDialog
+          confirmDialogTitle={`Delete “${accountVaultInDialog.syncVaultName}” from Sync?`}
           confirmDialogBody={
             <>
               <p>
-                This deletes the synced copy of “{readPapelizSyncAccountVaultDisplayName(accountVaultToDelete)}” and all its old versions from your Sync account. The notes on
-                your devices stay, but none of them syncs this vault any more.
+                This deletes the synced copy of “{accountVaultInDialog.syncVaultName}” and all its old versions from your Sync account. The notes on your devices stay, but none
+                of them syncs this vault any more.
               </p>
               <p className="mt-3 flex items-start gap-2 rounded-xl bg-papeliz-warning px-3 py-2.5 text-[13px] leading-[1.45] text-papeliz-warning-ink">
                 <TriangleAlert className="mt-0.5 size-[15px] flex-none" aria-hidden="true" />
                 <span>It can’t be undone. Turning Sync on for it again uploads it as a new synced vault.</span>
               </p>
               <label className="mt-4 block text-[13px] font-medium text-papeliz-ink">
-                Type <span className="papeliz-selectable-text font-semibold">{readPapelizSyncAccountVaultDisplayName(accountVaultToDelete)}</span> to delete it
+                Type <span className="papeliz-selectable-text font-semibold">{accountVaultInDialog.syncVaultName}</span> to delete it
                 <input
                   value={typedSyncVaultName}
                   onChange={(changeEvent) => setTypedSyncVaultName(changeEvent.target.value)}
                   onKeyDown={(keyDownEvent) => {
-                    if (keyDownEvent.key !== 'Enter' || !isPapelizSyncVaultDeleteConfirmationTyped(typedSyncVaultName, accountVaultToDelete)) return
+                    if (keyDownEvent.key !== 'Enter' || !isPapelizSyncVaultDeleteConfirmationTyped(typedSyncVaultName, accountVaultInDialog)) return
                     keyDownEvent.preventDefault()
-                    void deleteAccountVaultFromSync(accountVaultToDelete)
+                    void deleteAccountVaultFromSync(accountVaultInDialog)
                   }}
                   autoComplete="off"
                   spellCheck={false}
@@ -150,9 +277,9 @@ export function PapelizSyncSyncedVaultsSection({ papelizSyncEngine, accountVault
           }
           confirmButtonLabel="Delete from Sync"
           isConfirmActionDangerous
-          isConfirmButtonDisabled={!isPapelizSyncVaultDeleteConfirmationTyped(typedSyncVaultName, accountVaultToDelete)}
-          onConfirm={() => void deleteAccountVaultFromSync(accountVaultToDelete)}
-          onCancel={() => setAccountVaultToDelete(null)}
+          isConfirmButtonDisabled={!isPapelizSyncVaultDeleteConfirmationTyped(typedSyncVaultName, accountVaultInDialog)}
+          onConfirm={() => void deleteAccountVaultFromSync(accountVaultInDialog)}
+          onCancel={closeAccountVaultDialog}
         />
       )}
     </>

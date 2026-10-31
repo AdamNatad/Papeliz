@@ -20,7 +20,7 @@ export function PapelizSyncDialogHost({ isSyncDialogDrawnInPlace }: PapelizSyncD
   const syncEngineReading = usePapelizSyncEngineSnapshot()
   const syncSubscribeStep = usePapelizSyncFlowStore((syncFlowState) => syncFlowState.syncSubscribeStep)
   const syncSubscribeFailureWords = usePapelizSyncFlowStore((syncFlowState) => syncFlowState.syncSubscribeFailureWords)
-  const syncSetUpDialogMode = usePapelizSyncFlowStore((syncFlowState) => syncFlowState.syncSetUpDialogMode)
+  const syncSetUpDialogRequest = usePapelizSyncFlowStore((syncFlowState) => syncFlowState.syncSetUpDialogRequest)
   const shownSyncNoteClashId = usePapelizSyncFlowStore((syncFlowState) => syncFlowState.shownSyncNoteClashId)
   const laterSyncNoteClashIds = usePapelizSyncFlowStore((syncFlowState) => syncFlowState.laterSyncNoteClashIds)
   const isSyncOldVersionsDialogShown = usePapelizSyncFlowStore((syncFlowState) => syncFlowState.isSyncOldVersionsDialogShown)
@@ -51,16 +51,16 @@ export function PapelizSyncDialogHost({ isSyncDialogDrawnInPlace }: PapelizSyncD
           isSyncDialogDrawnInPlace={isSyncDialogDrawnInPlace}
         />
       )}
-      {syncSetUpDialogMode !== null && (
+      {syncSetUpDialogRequest !== null && (
         <PapelizSyncSetUpDialog
-          key={syncSetUpDialogMode}
+          key={syncSetUpDialogRequest.syncSetUpDialogKind === 'change-vault-passphrase' ? `change-vault-passphrase-${syncSetUpDialogRequest.papelizSyncVaultId}` : syncSetUpDialogRequest.syncSetUpDialogKind}
           papelizSyncEngine={papelizSyncEngine}
           syncEngineSnapshot={syncEngineReading.syncEngineSnapshot}
-          syncSetUpDialogMode={syncSetUpDialogMode}
+          syncSetUpDialogRequest={syncSetUpDialogRequest}
           isSyncDialogDrawnInPlace={isSyncDialogDrawnInPlace}
         />
       )}
-      {shownSyncNoteClash !== undefined && syncSubscribeStep === null && syncSetUpDialogMode === null && (
+      {shownSyncNoteClash !== undefined && syncSubscribeStep === null && syncSetUpDialogRequest === null && (
         <PapelizSyncNoteClashDialog key={shownSyncNoteClash.papelizSyncClashId} papelizSyncEngine={papelizSyncEngine} syncNoteClash={shownSyncNoteClash} />
       )}
       {isSyncOldVersionsDialogShown && openVaultId !== null && activeVaultNoteRelativePath !== null && (

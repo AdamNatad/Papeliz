@@ -12,7 +12,7 @@ import { forgetPapelizSyncFetchedCopy, listPapelizSyncFetchedCopies, rememberPap
 import { createPapelizSyncLocalVaultFiles } from './papeliz-sync-local-vault-files'
 import { describePapelizSyncActionFailureNow } from './papeliz-sync-screen-words'
 
-// The synced vaults Fetch from Sync is downloading from the start screen, by the new vault on this
+// The synced vaults the Synced Vaults page is downloading from the start screen, by the new vault on this
 // device each goes into. The vault is attached to the engine here rather than by the workspace, so it
 // goes on downloading while the start screen shows Recent Vaults or another vault is open. Once it's
 // all here it's detached, a notice offers Open, and its row is an ordinary recent vault. Closing the
@@ -28,7 +28,7 @@ export interface PapelizSyncStartScreenDownload {
   // The new vault's name on this device (a folder's own name, or the browser vault's).
   papelizVaultDisplayName: string
   // Download a copy only: Sync is turned off for it once it's all here.
-  isSyncFetchCopyOnly: boolean
+  isSyncDownloadCopyOnly: boolean
   syncStartScreenDownloadStage: PapelizSyncStartScreenDownloadStage
   // From the engine's first-download progress; null until it reports.
   syncTransferredFileCount: number | null
@@ -111,7 +111,7 @@ function describeSyncStartScreenDownloadStop(syncLocalVault: PapelizSyncLocalVau
     case 'signed-out':
       return 'Signed out of Sync.'
     case 'locked':
-      return 'Sync is locked on this device.'
+      return 'Its passphrase is needed on this device.'
     default:
       return null
   }
@@ -137,13 +137,13 @@ async function finishSyncStartScreenDownload(papelizVaultId: string): Promise<vo
   const syncStartScreenDownload = usePapelizSyncStartScreenDownloadStore.getState().syncStartScreenDownloadsByVaultId[papelizVaultId]
   const syncStartScreenDownloadAttachment = syncStartScreenDownloadAttachmentsByVaultId.get(papelizVaultId)
   if (syncStartScreenDownload === undefined || syncStartScreenDownloadAttachment === undefined) return
-  if (syncStartScreenDownload.isSyncFetchCopyOnly) await syncStartScreenDownloadAttachment.papelizSyncEngine.turnSyncOffForVault(papelizVaultId)
+  if (syncStartScreenDownload.isSyncDownloadCopyOnly) await syncStartScreenDownloadAttachment.papelizSyncEngine.turnSyncOffForVault(papelizVaultId)
   forgetSyncStartScreenDownload(papelizVaultId)
   usePapelizWorkspaceStore
     .getState()
     .showWorkspaceNotice(
       'info',
-      syncStartScreenDownload.isSyncFetchCopyOnly
+      syncStartScreenDownload.isSyncDownloadCopyOnly
         ? `“${syncStartScreenDownload.papelizVaultDisplayName}” is on this device, as a copy that won’t sync.`
         : `“${syncStartScreenDownload.papelizVaultDisplayName}” is on this device.`,
       { workspaceNoticeActionLabel: 'Open', onWorkspaceNoticeAction: () => void openPapelizSyncDownloadedVaultFromClick(papelizVaultId) },
@@ -193,10 +193,10 @@ export interface PapelizSyncStartScreenDownloadRequest {
   // The new, empty vault on this device: a folder just picked, or a browser vault just made.
   papelizOpenVault: PapelizOpenVault
   papelizSyncVaultId: string
-  isSyncFetchCopyOnly: boolean
+  isSyncDownloadCopyOnly: boolean
 }
 
-function addSyncStartScreenDownloadRow(syncStartScreenDownload: Pick<PapelizSyncStartScreenDownload, 'papelizVaultId' | 'papelizSyncVaultId' | 'papelizVaultDisplayName' | 'isSyncFetchCopyOnly'>): void {
+function addSyncStartScreenDownloadRow(syncStartScreenDownload: Pick<PapelizSyncStartScreenDownload, 'papelizVaultId' | 'papelizSyncVaultId' | 'papelizVaultDisplayName' | 'isSyncDownloadCopyOnly'>): void {
   usePapelizSyncStartScreenDownloadStore.setState((syncStartScreenDownloadState) => ({
     syncStartScreenDownloadsByVaultId: {
       ...syncStartScreenDownloadState.syncStartScreenDownloadsByVaultId,
@@ -217,11 +217,11 @@ function followSyncEngineSnapshotWhileDownloading(papelizSyncEngine: PapelizSync
   }
 }
 
-export async function startPapelizSyncStartScreenDownload({ papelizSyncEngine, papelizOpenVault, papelizSyncVaultId, isSyncFetchCopyOnly }: PapelizSyncStartScreenDownloadRequest): Promise<void> {
+export async function startPapelizSyncStartScreenDownload({ papelizSyncEngine, papelizOpenVault, papelizSyncVaultId, isSyncDownloadCopyOnly }: PapelizSyncStartScreenDownloadRequest): Promise<void> {
   const { papelizVaultId } = papelizOpenVault
-  addSyncStartScreenDownloadRow({ papelizVaultId, papelizSyncVaultId, papelizVaultDisplayName: papelizOpenVault.papelizVaultDisplayName, isSyncFetchCopyOnly })
+  addSyncStartScreenDownloadRow({ papelizVaultId, papelizSyncVaultId, papelizVaultDisplayName: papelizOpenVault.papelizVaultDisplayName, isSyncDownloadCopyOnly })
   // Kept from the start, so a copy whose download picks up after the tab closed stays a copy.
-  if (isSyncFetchCopyOnly) rememberPapelizSyncFetchedCopy({ papelizVaultId, papelizSyncVaultId })
+  if (isSyncDownloadCopyOnly) rememberPapelizSyncFetchedCopy({ papelizVaultId, papelizSyncVaultId })
   syncStartScreenDownloadAttachmentsByVaultId.set(papelizVaultId, {
     papelizSyncEngine,
     papelizOpenVault,
@@ -280,7 +280,7 @@ export async function resumePapelizSyncStartScreenDownloads(papelizSyncEngine: P
       papelizVaultId,
       papelizSyncVaultId,
       papelizVaultDisplayName: unfinishedRecentVault.papelizVaultDisplayName,
-      isSyncFetchCopyOnly: fetchedCopyVaultIds.has(papelizVaultId),
+      isSyncDownloadCopyOnly: fetchedCopyVaultIds.has(papelizVaultId),
     })
     const isFolderStillAllowed =
       unfinishedRecentVault.papelizRecentVaultKind === 'browser-vault-in-opfs' ||
@@ -350,7 +350,7 @@ export async function pickEmptyPapelizVaultFolderForSyncDownload(): Promise<{ pa
 }
 
 // A vault deleted from this device (Delete in the Hidden list): this device stops syncing it and
-// forgets it was a copy, so Fetch from Sync offers its synced vault again rather than calling it on
+// forgets it was a copy, so the Synced Vaults page offers its synced vault again rather than calling it on
 // this device. The synced copy on the account is untouched.
 export function forgetPapelizSyncLinksOfDeletedVault(papelizVaultId: string): void {
   forgetPapelizSyncFetchedCopy(papelizVaultId)

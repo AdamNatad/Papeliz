@@ -1,5 +1,4 @@
 import type {
-  PapelizSyncAccountKeyDraft,
   PapelizSyncAccountReading,
   PapelizSyncAccountVaultReading,
   PapelizSyncActionFailureKind,
@@ -25,10 +24,13 @@ import type {
   PapelizSyncStatusReading,
   PapelizSyncStoragePlace,
   PapelizSyncSubscriptionState,
+  PapelizSyncVaultEncryptionChoice,
+  PapelizSyncVaultEncryptionKind,
+  PapelizSyncVaultLockState,
   PapelizSyncVisiblePlanLimits,
   PapelizSyncWhatSyncsChoices,
 } from './papeliz-sync-engine-contract'
-import { isPapelizSyncPassphraseLongEnough, tidyPapelizSyncRecoveryKeyText } from './papeliz-sync-screen-words'
+import { isPapelizSyncPassphraseLongEnough } from './papeliz-sync-screen-words'
 
 // A stand-in for the Papeliz Sync engine that keeps everything in memory and talks to no server,
 // for the screens' tests and for the dev server's switch (papeliz-sync-engine-store.ts, dev builds
@@ -38,24 +40,27 @@ import { isPapelizSyncPassphraseLongEnough, tidyPapelizSyncRecoveryKeyText } fro
 export type PapelizSyncFakeEngineScenario =
   | 'signed-out'
   | 'not-subscribed'
-  | 'set-up-unfinished'
+  // Subscribed, and no vault syncs yet: the open vault waits for Turn on Sync.
+  | 'nothing-synced-yet'
+  // The open vault syncs End-to-end, and this device lost its key: its passphrase opens it again.
   | 'locked'
   | 'on'
   | 'paused-on-this-device'
   | 'over-storage'
   | 'subscription-ended'
   | 'to-settle'
-  // A new device: signed out, and once signed in, locked, with three synced vaults on the account and
-  // none of them here (Fetch from Sync on the start screen).
+  // A new device: signed out, and once signed in, three synced vaults on the account and none of them
+  // here (the start screen's Synced Vaults page). "Research notes" is End-to-end, so it asks its
+  // passphrase before downloading; "Work" and "Recipes" are Standard.
   | 'new-device'
-  // Signed in and unlocked with the same three vaults; a download stops halfway once, as if the
-  // connection dropped, and goes on when tried again.
+  // Signed in with the same three vaults; a download stops halfway once, as if the connection
+  // dropped, and goes on when tried again.
   | 'download-stops'
 
 export const papelizSyncFakeEngineScenarios: readonly PapelizSyncFakeEngineScenario[] = [
   'signed-out',
   'not-subscribed',
-  'set-up-unfinished',
+  'nothing-synced-yet',
   'locked',
   'on',
   'paused-on-this-device',
@@ -70,10 +75,20 @@ export function isPapelizSyncFakeEngineScenario(fakeEngineScenarioText: string):
   return (papelizSyncFakeEngineScenarios as readonly string[]).includes(fakeEngineScenarioText)
 }
 
-// The fake's own passphrase and Recovery Key for the scenarios that start with keys made.
-export const papelizSyncFakeEnginePassphrase = 'papeliz fake passphrase'
-export const papelizSyncFakeEngineRecoveryKeyText = 'ABCD-EFGH-JKMN-PQRS-TVWX-YZ23'
+// The passphrase of every End-to-end vault the fake starts with.
+export const papelizSyncFakeEngineVaultPassphrase = 'papeliz fake passphrase'
 export const papelizSyncFakeEngineDisplayPrice = '0.00 XTS'
+
+// The scenarios where this device already syncs whatever vault it opens (Standard, or End-to-end and
+// locked); the others sync only what is turned on or downloaded.
+const papelizSyncFakeEngineScenariosSyncingEveryOpenVault: ReadonlySet<PapelizSyncFakeEngineScenario> = new Set([
+  'locked',
+  'on',
+  'paused-on-this-device',
+  'over-storage',
+  'subscription-ended',
+  'to-settle',
+])
 
 const papelizSyncFakeEngineAccountId = 'pzacct_apac_aaaaaaaaaaaaaaaaaaaaaaaaaa'
 const papelizSyncFakeEngineThisDeviceId = 'pzdev_aaaaaaaaaaaaaaaaaaaaaaaaaa'
@@ -117,9 +132,9 @@ export interface PapelizSyncFakeEngineOptions {
   // finish them with finishFakeSyncSignIn and finishFakeSyncCheckout. Null: never by themselves.
   fakeOtherTabFinishMilliseconds?: number | null
   fakeCurrentTime?: () => number
-  // Where the fake keeps its sign-in, unlock and linked vaults between page loads, as a real engine
-  // keeps them on the device: the tab's session storage in the dev server, nothing in tests unless a
-  // test passes its own.
+  // Where the fake keeps its sign-in, the End-to-end vaults it unlocked and its linked vaults between
+  // page loads, as a real engine keeps them on the device: the tab's session storage in the dev
+  // server, nothing in tests unless a test passes its own.
   fakeEngineKeptStateStorage?: Pick<Storage, 'getItem' | 'setItem'> | null
 }
 
@@ -130,19 +145,21 @@ function readPapelizSyncFakeEngineDevServerStorage(): Pick<Storage, 'getItem' | 
   return sessionStorage
 }
 
-const papelizSyncFakeEngineKeptStateStorageKeyPrefix = 'papeliz:sync-dev-fake-engine-kept-state:v1:'
+const papelizSyncFakeEngineKeptStateStorageKeyPrefix = 'papeliz:sync-dev-fake-engine-kept-state:v2:'
 
 // A linked vault as the fake keeps it; the counts are set while its first download is unfinished.
 interface PapelizSyncFakeKeptLinkedVault {
   papelizVaultId: string
   papelizSyncVaultId: string
+  syncVaultEncryptionKind: PapelizSyncVaultEncryptionKind
   syncTransferredFileCount: number | null
   syncTransferFileCount: number | null
 }
 
 interface PapelizSyncFakeEngineKeptState {
   isFakeSignedIn: boolean
-  isFakeUnlocked: boolean
+  // The End-to-end vaults whose key this device holds.
+  fakeUnlockedSyncVaultIds: string[]
   isFakeDownloadStopUsed: boolean
   fakeKeptLinkedVaults: PapelizSyncFakeKeptLinkedVault[]
 }
@@ -170,6 +187,7 @@ interface PapelizSyncFakeAttachedVault {
 interface PapelizSyncFakeAccountOnlyVault {
   papelizSyncVaultId: string
   syncVaultName: string
+  syncVaultEncryptionKind: PapelizSyncVaultEncryptionKind
   syncVaultFileCount: number
   syncVaultStoredByteLength: number
   syncVaultCreatedDaysAgo: number
@@ -180,6 +198,7 @@ const papelizSyncFakeEngineNewDeviceAccountVaults: readonly PapelizSyncFakeAccou
   {
     papelizSyncVaultId: 'pzvault_dddddddddddddddddddddddddd',
     syncVaultName: 'Research notes',
+    syncVaultEncryptionKind: 'end-to-end',
     syncVaultFileCount: 1482,
     syncVaultStoredByteLength: 310e6,
     syncVaultCreatedDaysAgo: 60,
@@ -191,6 +210,7 @@ const papelizSyncFakeEngineNewDeviceAccountVaults: readonly PapelizSyncFakeAccou
   {
     papelizSyncVaultId: 'pzvault_eeeeeeeeeeeeeeeeeeeeeeeeee',
     syncVaultName: 'Work',
+    syncVaultEncryptionKind: 'standard',
     syncVaultFileCount: 2140,
     syncVaultStoredByteLength: 1.2e9,
     syncVaultCreatedDaysAgo: 45,
@@ -202,6 +222,7 @@ const papelizSyncFakeEngineNewDeviceAccountVaults: readonly PapelizSyncFakeAccou
   {
     papelizSyncVaultId: 'pzvault_ffffffffffffffffffffffffff',
     syncVaultName: 'Recipes',
+    syncVaultEncryptionKind: 'standard',
     syncVaultFileCount: 64,
     syncVaultStoredByteLength: 3.1e6,
     syncVaultCreatedDaysAgo: 12,
@@ -214,7 +235,7 @@ const papelizSyncFakeEngineNewDeviceAccountVaults: readonly PapelizSyncFakeAccou
 
 function listPapelizSyncFakeAccountOnlyVaults(fakeEngineScenario: PapelizSyncFakeEngineScenario): PapelizSyncFakeAccountOnlyVault[] {
   if (fakeEngineScenario === 'new-device' || fakeEngineScenario === 'download-stops') return [...papelizSyncFakeEngineNewDeviceAccountVaults]
-  // The Sync page's locked state lists one vault to connect once unlocked.
+  // The locked scenario's account has one more End-to-end vault, not on this device.
   if (fakeEngineScenario === 'locked') return papelizSyncFakeEngineNewDeviceAccountVaults.slice(0, 1)
   return []
 }
@@ -231,12 +252,14 @@ function createFakeFailedOutcome<SyncActionDoneValue>(syncActionFailureKind: Pap
   return { syncActionOutcome: 'failed', syncActionFailureKind, syncActionFailureMessage: `Fake engine: ${syncActionFailureKind}`, syncRetryAt: null }
 }
 
-// The new device's synced vaults as the account lists them, for Fetch from Sync's page previewer:
-// none of them on this device, or every one of them.
+// The new device's synced vaults as the account lists them, for the Synced Vaults page's previewer:
+// none of them on this device (the End-to-end one locked), or every one of them.
 export function listPapelizSyncFakeNewDeviceAccountVaultReadings(currentTime: number, isEveryFakeVaultOnThisDevice: boolean): PapelizSyncAccountVaultReading[] {
   return papelizSyncFakeEngineNewDeviceAccountVaults.map((fakeAccountOnlyVault) => ({
     papelizSyncVaultId: fakeAccountOnlyVault.papelizSyncVaultId,
     syncVaultName: fakeAccountOnlyVault.syncVaultName,
+    syncVaultEncryptionKind: fakeAccountOnlyVault.syncVaultEncryptionKind,
+    syncVaultLockState: isEveryFakeVaultOnThisDevice || fakeAccountOnlyVault.syncVaultEncryptionKind === 'standard' ? 'unlocked' : 'locked',
     syncVaultFileCount: fakeAccountOnlyVault.syncVaultFileCount,
     syncVaultStoredByteLength: fakeAccountOnlyVault.syncVaultStoredByteLength,
     syncVaultCreatedAt: currentTime - fakeAccountOnlyVault.syncVaultCreatedDaysAgo * 24 * 60 * 60_000,
@@ -262,13 +285,15 @@ export class PapelizSyncFakeEngine implements PapelizSyncEngine {
   private readonly fakeCurrentTime: () => number
   private readonly fakeEngineScenario: PapelizSyncFakeEngineScenario
   private readonly fakeAttachedVaultsById = new Map<string, PapelizSyncFakeAttachedVault>()
-  private fakeSyncPassphrase: string | null
-  private fakeSyncRecoveryKeyText: string | null
-  private fakePendingKeyDraft: { syncAccountKeyDraftId: string; syncPassphrase: string; syncRecoveryKeyText: string } | null = null
+  // Each synced vault's kind and, for End-to-end, its passphrase, by its synced vault; the account's
+  // own vaults read theirs from the list when they aren't here.
+  private readonly fakeVaultEncryptionKindsBySyncVaultId = new Map<string, PapelizSyncVaultEncryptionKind>()
+  private readonly fakeVaultPassphrasesBySyncVaultId = new Map<string, string>()
+  // The End-to-end vaults whose key this device holds; a Standard vault's key always comes when needed.
+  private readonly fakeUnlockedSyncVaultIds = new Set<string>()
   private fakeSignedInAt: number
   private fakePendingSignIn: { resolveSignIn: (signInOutcome: PapelizSyncSignInOutcome) => void } | null = null
   private fakePendingCheckoutPlanName: PapelizSyncPlanName | null = null
-  private fakeKeyDraftCount = 0
   private fakeThisDeviceName: string | null = null
   private fakeRemovedDeviceIds = new Set<string>()
   private readonly fakeAccountOnlyVaults: PapelizSyncFakeAccountOnlyVault[]
@@ -294,10 +319,7 @@ export class PapelizSyncFakeEngine implements PapelizSyncEngine {
     this.fakeEngineKeptStateStorage = fakeEngineKeptStateStorage
     this.fakeAccountOnlyVaults = listPapelizSyncFakeAccountOnlyVaults(fakeEngineScenario)
     const isSignedIn = fakeEngineScenario !== 'signed-out' && fakeEngineScenario !== 'new-device'
-    const hasKeys = !['signed-out', 'not-subscribed', 'set-up-unfinished'].includes(fakeEngineScenario)
-    this.fakeSyncPassphrase = hasKeys ? papelizSyncFakeEnginePassphrase : null
-    this.fakeSyncRecoveryKeyText = hasKeys ? papelizSyncFakeEngineRecoveryKeyText : null
-    // Long enough ago that changing the passphrase, Start over and Delete account ask to sign in again.
+    // Long enough ago that changing a passphrase, Start over and Delete account ask to sign in again.
     this.fakeSignedInAt = fakeCurrentTime() - 2 * 60 * 60_000
     this.fakeEngineSnapshot = {
       syncSignIn: isSignedIn
@@ -310,9 +332,8 @@ export class PapelizSyncFakeEngine implements PapelizSyncEngine {
           }
         : { syncSignInKind: 'signed-out' },
       syncAccount: isSignedIn ? this.buildFakeAccountReading(fakeEngineScenario === 'not-subscribed' ? null : 'plus') : null,
-      syncAccountKeyState: !isSignedIn ? 'unknown' : fakeEngineScenario === 'locked' ? 'locked' : hasKeys ? 'unlocked' : 'not-set-up',
       isSyncPausedOnThisDevice: fakeEngineScenario === 'paused-on-this-device',
-      syncWhatSyncsChoices: { isAssistantChatSyncOn: true, isAppSettingSyncOn: true, isAiProviderKeySyncOn: false },
+      syncWhatSyncsChoices: { isAssistantChatSyncOn: true, isAppSettingSyncOn: true },
       syncLocalVaults: [],
       syncLinkedLocalVaults: [],
       syncNoteClashesToSettle: [],
@@ -321,16 +342,17 @@ export class PapelizSyncFakeEngine implements PapelizSyncEngine {
     if (fakeEngineKeptState !== null) this.applyFakeEngineKeptState(fakeEngineKeptState)
   }
 
-  // What the last page load kept: signed in or out, unlocked or not, and its linked vaults.
+  // What the last page load kept: signed in or out, the vaults it unlocked, and its linked vaults.
   private applyFakeEngineKeptState(fakeEngineKeptState: PapelizSyncFakeEngineKeptState): void {
     this.isFakeDownloadStopUsed = fakeEngineKeptState.isFakeDownloadStopUsed
     for (const fakeKeptLinkedVault of fakeEngineKeptState.fakeKeptLinkedVaults) {
       this.fakeKeptLinkedVaultsById.set(fakeKeptLinkedVault.papelizVaultId, fakeKeptLinkedVault)
+      this.fakeVaultEncryptionKindsBySyncVaultId.set(fakeKeptLinkedVault.papelizSyncVaultId, fakeKeptLinkedVault.syncVaultEncryptionKind)
       if (this.fakeAccountOnlyVaults.some((accountOnlyVault) => accountOnlyVault.papelizSyncVaultId === fakeKeptLinkedVault.papelizSyncVaultId)) {
         this.fakeDownloadedPapelizVaultIdsBySyncVaultId.set(fakeKeptLinkedVault.papelizSyncVaultId, fakeKeptLinkedVault.papelizVaultId)
       }
     }
-    const isFakeUnlocked = fakeEngineKeptState.isFakeSignedIn && fakeEngineKeptState.isFakeUnlocked && this.fakeSyncPassphrase !== null
+    if (fakeEngineKeptState.isFakeSignedIn) for (const papelizSyncVaultId of fakeEngineKeptState.fakeUnlockedSyncVaultIds) this.fakeUnlockedSyncVaultIds.add(papelizSyncVaultId)
     this.fakeEngineSnapshot = fakeEngineKeptState.isFakeSignedIn
       ? {
           ...this.fakeEngineSnapshot,
@@ -341,12 +363,27 @@ export class PapelizSyncFakeEngine implements PapelizSyncEngine {
             syncSignInEmailAddress: 'you@example.com',
             syncSignInMethod: 'email-code',
           },
-          // A new device signed in to an account that already has a plan and keys.
+          // A new device signed in to an account that already has a plan.
           syncAccount: this.fakeEngineSnapshot.syncAccount ?? this.buildFakeAccountReading(isPapelizSyncFakeNewDeviceScenario(this.fakeEngineScenario) ? 'plus' : null),
-          syncAccountKeyState: isFakeUnlocked ? 'unlocked' : this.fakeSyncPassphrase === null ? 'not-set-up' : 'locked',
         }
-      : { ...this.fakeEngineSnapshot, syncSignIn: { syncSignInKind: 'signed-out' }, syncAccount: null, syncAccountKeyState: 'unknown' }
+      : { ...this.fakeEngineSnapshot, syncSignIn: { syncSignInKind: 'signed-out' }, syncAccount: null }
     this.fakeEngineSnapshot = { ...this.fakeEngineSnapshot, syncLinkedLocalVaults: this.listFakeLinkedLocalVaults(this.fakeEngineSnapshot.syncLocalVaults) }
+  }
+
+  private readFakeVaultEncryptionKind(papelizSyncVaultId: string): PapelizSyncVaultEncryptionKind {
+    return (
+      this.fakeVaultEncryptionKindsBySyncVaultId.get(papelizSyncVaultId) ??
+      this.fakeAccountOnlyVaults.find((accountOnlyVault) => accountOnlyVault.papelizSyncVaultId === papelizSyncVaultId)?.syncVaultEncryptionKind ??
+      'standard'
+    )
+  }
+
+  private readFakeVaultLockState(papelizSyncVaultId: string): PapelizSyncVaultLockState {
+    return this.readFakeVaultEncryptionKind(papelizSyncVaultId) === 'standard' || this.fakeUnlockedSyncVaultIds.has(papelizSyncVaultId) ? 'unlocked' : 'locked'
+  }
+
+  private readFakeVaultPassphrase(papelizSyncVaultId: string): string {
+    return this.fakeVaultPassphrasesBySyncVaultId.get(papelizSyncVaultId) ?? papelizSyncFakeEngineVaultPassphrase
   }
 
   // Every vault the fake syncs here, attached or not: its local vaults, and those kept from the last
@@ -355,6 +392,8 @@ export class PapelizSyncFakeEngine implements PapelizSyncEngine {
     const syncLinkedLocalVaults: PapelizSyncLinkedLocalVaultReading[] = syncLocalVaults.map((syncLocalVault) => ({
       papelizVaultId: syncLocalVault.papelizVaultId,
       papelizSyncVaultId: syncLocalVault.papelizSyncVaultId,
+      syncVaultEncryptionKind: syncLocalVault.syncVaultEncryptionKind,
+      syncVaultLockState: syncLocalVault.syncVaultLockState,
       isFirstDownloadUnfinished: syncLocalVault.syncVaultTransferProgress?.syncVaultTransferKind === 'first-download',
     }))
     for (const fakeKeptLinkedVault of this.fakeKeptLinkedVaultsById.values()) {
@@ -362,6 +401,8 @@ export class PapelizSyncFakeEngine implements PapelizSyncEngine {
       syncLinkedLocalVaults.push({
         papelizVaultId: fakeKeptLinkedVault.papelizVaultId,
         papelizSyncVaultId: fakeKeptLinkedVault.papelizSyncVaultId,
+        syncVaultEncryptionKind: fakeKeptLinkedVault.syncVaultEncryptionKind,
+        syncVaultLockState: this.readFakeVaultLockState(fakeKeptLinkedVault.papelizSyncVaultId),
         isFirstDownloadUnfinished: fakeKeptLinkedVault.syncTransferFileCount !== null,
       })
     }
@@ -370,13 +411,14 @@ export class PapelizSyncFakeEngine implements PapelizSyncEngine {
 
   private keepFakeEngineState(): void {
     if (this.fakeEngineKeptStateStorage === null) return
-    const { syncLocalVaults, syncLinkedLocalVaults, syncAccountKeyState } = this.fakeEngineSnapshot
+    const { syncLocalVaults, syncLinkedLocalVaults } = this.fakeEngineSnapshot
     const fakeKeptLinkedVaults = syncLinkedLocalVaults.map((syncLinkedLocalVault): PapelizSyncFakeKeptLinkedVault => {
       const syncVaultTransferProgress = syncLocalVaults.find((syncLocalVault) => syncLocalVault.papelizVaultId === syncLinkedLocalVault.papelizVaultId)?.syncVaultTransferProgress ?? null
       const fakeKeptLinkedVault = this.fakeKeptLinkedVaultsById.get(syncLinkedLocalVault.papelizVaultId)
       return {
         papelizVaultId: syncLinkedLocalVault.papelizVaultId,
         papelizSyncVaultId: syncLinkedLocalVault.papelizSyncVaultId,
+        syncVaultEncryptionKind: syncLinkedLocalVault.syncVaultEncryptionKind,
         syncTransferredFileCount: syncLinkedLocalVault.isFirstDownloadUnfinished
           ? (syncVaultTransferProgress?.syncTransferredFileCount ?? fakeKeptLinkedVault?.syncTransferredFileCount ?? 0)
           : null,
@@ -385,7 +427,7 @@ export class PapelizSyncFakeEngine implements PapelizSyncEngine {
     })
     const fakeEngineKeptState: PapelizSyncFakeEngineKeptState = {
       isFakeSignedIn: this.isFakeSignedIn(),
-      isFakeUnlocked: syncAccountKeyState === 'unlocked',
+      fakeUnlockedSyncVaultIds: [...this.fakeUnlockedSyncVaultIds],
       isFakeDownloadStopUsed: this.isFakeDownloadStopUsed,
       fakeKeptLinkedVaults,
     }
@@ -413,10 +455,18 @@ export class PapelizSyncFakeEngine implements PapelizSyncEngine {
       syncVisiblePlanLimits,
       syncStorageUsedByteLength:
         syncVisiblePlanLimits === null ? 0 : this.fakeEngineScenario === 'over-storage' ? syncVisiblePlanLimits.syncStorageByteLimit : 0.24 * syncVisiblePlanLimits.syncStorageByteLimit,
-      syncedVaultCount: 0,
+      // The account's own vaults; the ones synced here are counted as they're added.
+      syncedVaultCount: this.fakeAccountOnlyVaults.length,
       isSyncAccountPaused: false,
       syncAccountReadAt: currentTime,
     }
+  }
+
+  // The account's synced vaults: those only on the account, and those synced here (a downloaded one
+  // counts once).
+  private countFakeSyncedVaults(): number {
+    const accountOnlySyncVaultIds = new Set(this.fakeAccountOnlyVaults.map((accountOnlyVault) => accountOnlyVault.papelizSyncVaultId))
+    return this.fakeAccountOnlyVaults.length + this.fakeEngineSnapshot.syncLocalVaults.filter((syncLocalVault) => !accountOnlySyncVaultIds.has(syncLocalVault.papelizSyncVaultId)).length
   }
 
   private async waitForFakeCall(fakeEngineCallName: string): Promise<void> {
@@ -442,9 +492,10 @@ export class PapelizSyncFakeEngine implements PapelizSyncEngine {
   }
 
   // The status a vault shows once the fake syncs it, following the scenario.
-  private readFakeSteadySyncVaultStatus(): PapelizSyncStatusReading {
+  private readFakeSteadySyncVaultStatus(papelizSyncVaultId: string): PapelizSyncStatusReading {
     const currentTime = this.fakeCurrentTime()
-    if (this.fakeEngineSnapshot.syncAccountKeyState === 'locked') return { syncStatusKind: 'locked' }
+    if (!this.isFakeSignedIn()) return { syncStatusKind: 'signed-out' }
+    if (this.readFakeVaultLockState(papelizSyncVaultId) === 'locked') return { syncStatusKind: 'locked' }
     if (this.fakeEngineSnapshot.isSyncPausedOnThisDevice) return { syncStatusKind: 'paused-on-this-device', syncWaitingFileCount: 2 }
     if (this.fakeEngineSnapshot.syncAccount?.syncSubscriptionState === 'ended-read-only') {
       return { syncStatusKind: 'subscription-ended', syncReadOnlyUntil: this.fakeEngineSnapshot.syncAccount.syncReadOnlyUntil }
@@ -460,31 +511,43 @@ export class PapelizSyncFakeEngine implements PapelizSyncEngine {
 
   private refreshFakeLocalVaultStatuses(): void {
     this.changeFakeSnapshot({
-      syncLocalVaults: this.fakeEngineSnapshot.syncLocalVaults.map((syncLocalVault) =>
-        syncLocalVault.syncVaultTransferProgress === null ? { ...syncLocalVault, syncVaultStatus: this.readFakeSteadySyncVaultStatus() } : syncLocalVault,
-      ),
+      syncLocalVaults: this.fakeEngineSnapshot.syncLocalVaults.map((syncLocalVault) => ({
+        ...syncLocalVault,
+        syncVaultLockState: this.readFakeVaultLockState(syncLocalVault.papelizSyncVaultId),
+        syncVaultStatus: syncLocalVault.syncVaultTransferProgress === null ? this.readFakeSteadySyncVaultStatus(syncLocalVault.papelizSyncVaultId) : syncLocalVault.syncVaultStatus,
+      })),
     })
   }
 
-  private addFakeLocalVault(papelizVaultId: string, syncVaultTransferProgress: PapelizSyncLocalVaultReading['syncVaultTransferProgress']): PapelizSyncLocalVaultReading {
-    // A downloaded vault syncs with the account's vault it came from.
+  // The synced vault a vault here syncs with: the account's vault it was downloaded from, the one it
+  // was linked to before the last page load, or a new one named after it.
+  private readFakeSyncVaultIdForLocalVault(papelizVaultId: string): string {
     const downloadedSyncVaultId = [...this.fakeDownloadedPapelizVaultIdsBySyncVaultId].find(([, downloadedPapelizVaultId]) => downloadedPapelizVaultId === papelizVaultId)?.[0]
+    return (
+      this.fakeEngineSnapshot.syncLocalVaults.find((syncLocalVault) => syncLocalVault.papelizVaultId === papelizVaultId)?.papelizSyncVaultId ??
+      downloadedSyncVaultId ??
+      this.fakeKeptLinkedVaultsById.get(papelizVaultId)?.papelizSyncVaultId ??
+      `pzvault_${papelizVaultId.replace(/[^a-z2-7]/g, '').padEnd(26, 'a').slice(0, 26)}`
+    )
+  }
+
+  private addFakeLocalVault(papelizVaultId: string, syncVaultTransferProgress: PapelizSyncLocalVaultReading['syncVaultTransferProgress']): PapelizSyncLocalVaultReading {
+    const papelizSyncVaultId = this.readFakeSyncVaultIdForLocalVault(papelizVaultId)
     const syncLocalVault: PapelizSyncLocalVaultReading = {
       papelizVaultId,
-      papelizSyncVaultId:
-        downloadedSyncVaultId ??
-        this.fakeKeptLinkedVaultsById.get(papelizVaultId)?.papelizSyncVaultId ??
-        `pzvault_${papelizVaultId.replace(/[^a-z2-7]/g, '').padEnd(26, 'a').slice(0, 26)}`,
+      papelizSyncVaultId,
+      syncVaultEncryptionKind: this.readFakeVaultEncryptionKind(papelizSyncVaultId),
+      syncVaultLockState: this.readFakeVaultLockState(papelizSyncVaultId),
       syncVaultStatus:
         syncVaultTransferProgress === null
-          ? this.readFakeSteadySyncVaultStatus()
+          ? this.readFakeSteadySyncVaultStatus(papelizSyncVaultId)
           : { syncStatusKind: 'syncing', syncingFileCount: syncVaultTransferProgress.syncTransferFileCount - syncVaultTransferProgress.syncTransferredFileCount },
       syncVaultTransferProgress,
     }
     this.changeFakeSnapshot({
       syncLocalVaults: [...this.fakeEngineSnapshot.syncLocalVaults.filter((otherLocalVault) => otherLocalVault.papelizVaultId !== papelizVaultId), syncLocalVault],
     })
-    this.changeFakeAccount({ syncedVaultCount: this.fakeEngineSnapshot.syncLocalVaults.length })
+    this.changeFakeAccount({ syncedVaultCount: this.countFakeSyncedVaults() })
     return syncLocalVault
   }
 
@@ -505,10 +568,10 @@ export class PapelizSyncFakeEngine implements PapelizSyncEngine {
           syncSignInEmailAddress: 'you@example.com',
           syncSignInMethod: 'email-code',
         },
-        // A new device signs in to an account that already has a plan and keys.
+        // A new device signs in to an account that already has a plan.
         syncAccount: wasSignedInBefore ? this.fakeEngineSnapshot.syncAccount : this.buildFakeAccountReading(this.fakeEngineScenario === 'new-device' ? 'plus' : null),
-        syncAccountKeyState: this.fakeSyncPassphrase === null ? 'not-set-up' : this.fakeEngineSnapshot.syncAccountKeyState === 'unlocked' ? 'unlocked' : 'locked',
       })
+      this.refreshFakeLocalVaultStatuses()
       for (const fakeEventListener of [...this.fakeEventListeners]) fakeEventListener({ syncEngineEventKind: 'signed-in' })
     } else {
       this.changeFakeSnapshot({ syncSignIn: this.fakeEngineSnapshot.syncAccount === null ? { syncSignInKind: 'signed-out' } : this.fakeEngineSnapshot.syncSignIn })
@@ -619,10 +682,10 @@ export class PapelizSyncFakeEngine implements PapelizSyncEngine {
 
   async signOutOfSync(): Promise<PapelizSyncActionOutcome> {
     await this.waitForFakeCall('signOutOfSync')
+    this.fakeUnlockedSyncVaultIds.clear()
     this.changeFakeSnapshot({
       syncSignIn: { syncSignInKind: 'signed-out' },
       syncAccount: null,
-      syncAccountKeyState: 'unknown',
       syncLocalVaults: this.fakeEngineSnapshot.syncLocalVaults.map((syncLocalVault) => ({ ...syncLocalVault, syncVaultStatus: { syncStatusKind: 'signed-out' } })),
     })
     return createFakeDoneOutcome(null)
@@ -701,76 +764,65 @@ export class PapelizSyncFakeEngine implements PapelizSyncEngine {
   async deleteSyncAccount(): Promise<PapelizSyncActionOutcome> {
     await this.waitForFakeCall('deleteSyncAccount')
     if (!this.isFakeSignInFresh()) return createFakeFailedOutcome('fresh-sign-in-required')
-    this.fakeSyncPassphrase = null
-    this.fakeSyncRecoveryKeyText = null
+    this.forgetFakeSyncedVaults()
+    this.changeFakeSnapshot({ syncSignIn: { syncSignInKind: 'signed-out' }, syncAccount: null, syncLocalVaults: [], syncNoteClashesToSettle: [] })
+    return createFakeDoneOutcome(null)
+  }
+
+  // Every synced vault gone: the account's, and what this device kept of them.
+  private forgetFakeSyncedVaults(): void {
     this.fakeKeptLinkedVaultsById.clear()
-    this.changeFakeSnapshot({ syncSignIn: { syncSignInKind: 'signed-out' }, syncAccount: null, syncAccountKeyState: 'unknown', syncLocalVaults: [], syncNoteClashesToSettle: [] })
-    return createFakeDoneOutcome(null)
+    this.fakeDownloadedPapelizVaultIdsBySyncVaultId.clear()
+    this.fakeUnlockedSyncVaultIds.clear()
+    this.fakeVaultEncryptionKindsBySyncVaultId.clear()
+    this.fakeVaultPassphrasesBySyncVaultId.clear()
+    this.fakeAccountOnlyVaults.splice(0, this.fakeAccountOnlyVaults.length)
   }
 
-  private makeFakeKeyDraft(syncPassphrase: string): PapelizSyncAccountKeyDraft {
-    this.fakeKeyDraftCount += 1
-    const syncAccountKeyDraftId = `fake-key-draft-${this.fakeKeyDraftCount}`
-    this.fakePendingKeyDraft = { syncAccountKeyDraftId, syncPassphrase, syncRecoveryKeyText: papelizSyncFakeEngineRecoveryKeyText }
-    return { syncAccountKeyDraftId, syncRecoveryKeyText: papelizSyncFakeEngineRecoveryKeyText }
-  }
-
-  async prepareSyncAccountKeys(syncPassphrase: string): Promise<PapelizSyncActionOutcome<PapelizSyncAccountKeyDraft>> {
-    await this.waitForFakeCall('prepareSyncAccountKeys')
-    if (!isPapelizSyncPassphraseLongEnough(syncPassphrase)) return createFakeFailedOutcome('passphrase-too-short')
-    if (this.fakeEngineSnapshot.syncAccountKeyState !== 'not-set-up') return createFakeFailedOutcome('changed-elsewhere')
-    return createFakeDoneOutcome(this.makeFakeKeyDraft(syncPassphrase))
-  }
-
-  async confirmSyncAccountKeys(syncAccountKeyDraftId: string): Promise<PapelizSyncActionOutcome> {
-    await this.waitForFakeCall('confirmSyncAccountKeys')
-    if (this.fakePendingKeyDraft?.syncAccountKeyDraftId !== syncAccountKeyDraftId) return createFakeFailedOutcome('not-found')
-    this.fakeSyncPassphrase = this.fakePendingKeyDraft.syncPassphrase
-    this.fakeSyncRecoveryKeyText = this.fakePendingKeyDraft.syncRecoveryKeyText
-    this.fakePendingKeyDraft = null
-    this.changeFakeSnapshot({ syncAccountKeyState: 'unlocked' })
-    this.refreshFakeLocalVaultStatuses()
-    return createFakeDoneOutcome(null)
-  }
-
-  async unlockSyncWithPassphrase(syncPassphrase: string): Promise<PapelizSyncActionOutcome> {
-    await this.waitForFakeCall('unlockSyncWithPassphrase')
-    if (this.fakeSyncPassphrase === null) return createFakeFailedOutcome('not-found')
-    if (syncPassphrase.normalize('NFC') !== this.fakeSyncPassphrase.normalize('NFC')) return createFakeFailedOutcome('wrong-passphrase')
-    this.changeFakeSnapshot({ syncAccountKeyState: 'unlocked' })
-    this.refreshFakeLocalVaultStatuses()
-    return createFakeDoneOutcome(null)
-  }
-
-  async unlockSyncWithRecoveryKey(syncRecoveryKeyText: string, newSyncPassphrase: string): Promise<PapelizSyncActionOutcome> {
-    await this.waitForFakeCall('unlockSyncWithRecoveryKey')
-    if (this.fakeSyncRecoveryKeyText === null) return createFakeFailedOutcome('not-found')
-    if (tidyPapelizSyncRecoveryKeyText(syncRecoveryKeyText) !== tidyPapelizSyncRecoveryKeyText(this.fakeSyncRecoveryKeyText)) return createFakeFailedOutcome('wrong-recovery-key')
-    if (!isPapelizSyncPassphraseLongEnough(newSyncPassphrase)) return createFakeFailedOutcome('passphrase-too-short')
-    this.fakeSyncPassphrase = newSyncPassphrase
-    this.changeFakeSnapshot({ syncAccountKeyState: 'unlocked' })
-    this.refreshFakeLocalVaultStatuses()
-    return createFakeDoneOutcome(null)
-  }
-
-  async changeSyncPassphrase(newSyncPassphrase: string): Promise<PapelizSyncActionOutcome> {
-    await this.waitForFakeCall('changeSyncPassphrase')
-    if (!this.isFakeSignInFresh()) return createFakeFailedOutcome('fresh-sign-in-required')
-    if (!isPapelizSyncPassphraseLongEnough(newSyncPassphrase)) return createFakeFailedOutcome('passphrase-too-short')
-    this.fakeSyncPassphrase = newSyncPassphrase
-    return createFakeDoneOutcome(null)
-  }
-
-  async startSyncOver(newSyncPassphrase: string): Promise<PapelizSyncActionOutcome<PapelizSyncAccountKeyDraft>> {
+  async startSyncOver(): Promise<PapelizSyncActionOutcome> {
     await this.waitForFakeCall('startSyncOver')
     if (!this.isFakeSignInFresh()) return createFakeFailedOutcome('fresh-sign-in-required')
-    if (!isPapelizSyncPassphraseLongEnough(newSyncPassphrase)) return createFakeFailedOutcome('passphrase-too-short')
-    this.fakeSyncPassphrase = null
-    this.fakeSyncRecoveryKeyText = null
-    this.fakeKeptLinkedVaultsById.clear()
-    this.changeFakeSnapshot({ syncAccountKeyState: 'not-set-up', syncLocalVaults: [], syncNoteClashesToSettle: [] })
+    this.forgetFakeSyncedVaults()
+    this.changeFakeSnapshot({ syncLocalVaults: [], syncNoteClashesToSettle: [] })
     this.changeFakeAccount({ syncStorageUsedByteLength: 0, syncedVaultCount: 0 })
-    return createFakeDoneOutcome(this.makeFakeKeyDraft(newSyncPassphrase))
+    return createFakeDoneOutcome(null)
+  }
+
+  // The synced vault on the account, here or not; undefined when the account has none by that ID.
+  private findFakeAccountVaultName(papelizSyncVaultId: string): string | undefined {
+    const syncLocalVault = this.fakeEngineSnapshot.syncLocalVaults.find((otherLocalVault) => otherLocalVault.papelizSyncVaultId === papelizSyncVaultId)
+    if (syncLocalVault !== undefined) return this.fakeAttachedVaultsById.get(syncLocalVault.papelizVaultId)?.papelizVaultDisplayName ?? 'Synced vault'
+    return this.fakeAccountOnlyVaults.find((accountOnlyVault) => accountOnlyVault.papelizSyncVaultId === papelizSyncVaultId)?.syncVaultName
+  }
+
+  async unlockSyncedVaultWithPassphrase(papelizSyncVaultId: string, syncVaultPassphrase: string): Promise<PapelizSyncActionOutcome> {
+    await this.waitForFakeCall('unlockSyncedVaultWithPassphrase')
+    if (!this.isFakeSignedIn()) return createFakeFailedOutcome('signed-out')
+    if (this.findFakeAccountVaultName(papelizSyncVaultId) === undefined) return createFakeFailedOutcome('not-found')
+    if (this.readFakeVaultLockState(papelizSyncVaultId) === 'unlocked') return createFakeDoneOutcome(null)
+    if (syncVaultPassphrase.normalize('NFC') !== this.readFakeVaultPassphrase(papelizSyncVaultId).normalize('NFC')) return createFakeFailedOutcome('wrong-passphrase')
+    this.fakeUnlockedSyncVaultIds.add(papelizSyncVaultId)
+    this.refreshFakeLocalVaultStatuses()
+    // A first download that waited on the passphrase goes on, as the real engine's does.
+    for (const syncLocalVault of this.fakeEngineSnapshot.syncLocalVaults) {
+      const syncVaultTransferProgress = syncLocalVault.syncVaultTransferProgress
+      if (syncLocalVault.papelizSyncVaultId !== papelizSyncVaultId || syncVaultTransferProgress === null || syncLocalVault.syncVaultStatus.syncStatusKind !== 'locked') continue
+      if (this.fakeAttachedVaultsById.has(syncLocalVault.papelizVaultId)) {
+        this.runFakeFirstTransfer(syncLocalVault.papelizVaultId, syncVaultTransferProgress.syncVaultTransferKind, syncVaultTransferProgress.syncTransferFileCount, syncVaultTransferProgress.syncTransferredFileCount)
+      }
+    }
+    return createFakeDoneOutcome(null)
+  }
+
+  async changeSyncVaultPassphrase(papelizSyncVaultId: string, newSyncVaultPassphrase: string): Promise<PapelizSyncActionOutcome> {
+    await this.waitForFakeCall('changeSyncVaultPassphrase')
+    if (!this.isFakeSignedIn()) return createFakeFailedOutcome('signed-out')
+    if (this.findFakeAccountVaultName(papelizSyncVaultId) === undefined || this.readFakeVaultEncryptionKind(papelizSyncVaultId) !== 'end-to-end') return createFakeFailedOutcome('not-found')
+    if (this.readFakeVaultLockState(papelizSyncVaultId) === 'locked') return createFakeFailedOutcome('locked')
+    if (!this.isFakeSignInFresh()) return createFakeFailedOutcome('fresh-sign-in-required')
+    if (!isPapelizSyncPassphraseLongEnough(newSyncVaultPassphrase)) return createFakeFailedOutcome('passphrase-too-short')
+    this.fakeVaultPassphrasesBySyncVaultId.set(papelizSyncVaultId, newSyncVaultPassphrase)
+    return createFakeDoneOutcome(null)
   }
 
   attachSyncToOpenVault(openLocalVault: PapelizSyncOpenLocalVault): () => void {
@@ -781,19 +833,19 @@ export class PapelizSyncFakeEngine implements PapelizSyncEngine {
       this.fakeEngineCallNames.push('detachSyncFromOpenVault')
       this.fakeAttachedVaultsById.delete(papelizVaultId)
     }
-    // The scenarios past set-up start with this device already syncing whatever vault it opens; a new
-    // device syncs only what it downloads.
-    const isSyncedInScenario =
-      (this.fakeEngineSnapshot.syncAccountKeyState === 'unlocked' || this.fakeEngineSnapshot.syncAccountKeyState === 'locked') && !isPapelizSyncFakeNewDeviceScenario(this.fakeEngineScenario)
+    // Some scenarios start with this device already syncing whatever vault it opens (End-to-end and
+    // locked in `locked`, Standard in the others); the rest sync only what is turned on or downloaded.
+    const isSyncedInScenario = this.isFakeSignedIn() && papelizSyncFakeEngineScenariosSyncingEveryOpenVault.has(this.fakeEngineScenario)
     const attachedLocalVault = this.fakeEngineSnapshot.syncLocalVaults.find((syncLocalVault) => syncLocalVault.papelizVaultId === papelizVaultId)
     // A vault linked before the last page load syncs again; its unfinished first download picks up
-    // where it was once Sync is unlocked, as the real engine's does.
+    // where it was once its key is here, as the real engine's does.
     const fakeKeptLinkedVault = this.fakeKeptLinkedVaultsById.get(papelizVaultId)
     if (fakeKeptLinkedVault !== undefined && attachedLocalVault === undefined) {
       const { syncTransferredFileCount, syncTransferFileCount } = fakeKeptLinkedVault
       if (syncTransferFileCount === null) this.addFakeLocalVault(papelizVaultId, null)
-      else if (this.fakeEngineSnapshot.syncAccountKeyState === 'unlocked') this.runFakeFirstTransfer(papelizVaultId, 'first-download', syncTransferFileCount, syncTransferredFileCount ?? 0)
-      else {
+      else if (this.isFakeSignedIn() && this.readFakeVaultLockState(fakeKeptLinkedVault.papelizSyncVaultId) === 'unlocked') {
+        this.runFakeFirstTransfer(papelizVaultId, 'first-download', syncTransferFileCount, syncTransferredFileCount ?? 0)
+      } else {
         this.setFakeSyncVaultStatus(papelizVaultId, this.isFakeSignedIn() ? { syncStatusKind: 'locked' } : { syncStatusKind: 'signed-out' }, {
           syncVaultTransferKind: 'first-download',
           syncTransferredFileCount: syncTransferredFileCount ?? 0,
@@ -804,14 +856,19 @@ export class PapelizSyncFakeEngine implements PapelizSyncEngine {
       return detachSyncFromOpenVault
     }
     if (isSyncedInScenario && attachedLocalVault === undefined) {
+      if (this.fakeEngineScenario === 'locked') this.fakeVaultEncryptionKindsBySyncVaultId.set(this.readFakeSyncVaultIdForLocalVault(papelizVaultId), 'end-to-end')
       this.addFakeLocalVault(papelizVaultId, null)
       if (this.fakeEngineScenario === 'to-settle' && this.fakeEngineSnapshot.syncNoteClashesToSettle.length === 0) this.addFakeSyncNoteClash(papelizVaultId, 'Welcome.md')
     }
-    // A download that stopped (offline, or locked and unlocked since) goes on when its vault is
-    // attached again, as the real engine's does.
+    // A download that stopped (offline, or locked or signed out and unlocked since) goes on when its
+    // vault is attached again, as the real engine's does.
     const stoppedSyncStatusKind = attachedLocalVault?.syncVaultStatus.syncStatusKind
     const isStoppedTransferGoingOn =
-      stoppedSyncStatusKind === 'offline' || ((stoppedSyncStatusKind === 'locked' || stoppedSyncStatusKind === 'signed-out') && this.fakeEngineSnapshot.syncAccountKeyState === 'unlocked')
+      stoppedSyncStatusKind === 'offline' ||
+      ((stoppedSyncStatusKind === 'locked' || stoppedSyncStatusKind === 'signed-out') &&
+        this.isFakeSignedIn() &&
+        attachedLocalVault !== undefined &&
+        this.readFakeVaultLockState(attachedLocalVault.papelizSyncVaultId) === 'unlocked')
     const stoppedTransferProgress = isStoppedTransferGoingOn ? attachedLocalVault?.syncVaultTransferProgress : null
     if (stoppedTransferProgress !== null && stoppedTransferProgress !== undefined) {
       this.runFakeFirstTransfer(papelizVaultId, stoppedTransferProgress.syncVaultTransferKind, stoppedTransferProgress.syncTransferFileCount, stoppedTransferProgress.syncTransferredFileCount)
@@ -822,14 +879,15 @@ export class PapelizSyncFakeEngine implements PapelizSyncEngine {
   async listSyncedVaultsOnAccount(): Promise<PapelizSyncActionOutcome<PapelizSyncAccountVaultReading[]>> {
     await this.waitForFakeCall('listSyncedVaultsOnAccount')
     if (!this.isFakeSignedIn()) return createFakeFailedOutcome('signed-out')
-    const isLocked = this.fakeEngineSnapshot.syncAccountKeyState !== 'unlocked'
     const currentTime = this.fakeCurrentTime()
     const downloadedPapelizVaultIds = new Set(this.fakeDownloadedPapelizVaultIdsBySyncVaultId.values())
     const fakeAccountVaults: PapelizSyncAccountVaultReading[] = this.fakeEngineSnapshot.syncLocalVaults
       .filter((syncLocalVault) => !downloadedPapelizVaultIds.has(syncLocalVault.papelizVaultId))
       .map((syncLocalVault) => ({
         papelizSyncVaultId: syncLocalVault.papelizSyncVaultId,
-        syncVaultName: isLocked ? null : (this.fakeAttachedVaultsById.get(syncLocalVault.papelizVaultId)?.papelizVaultDisplayName ?? 'Synced vault'),
+        syncVaultName: this.fakeAttachedVaultsById.get(syncLocalVault.papelizVaultId)?.papelizVaultDisplayName ?? 'Synced vault',
+        syncVaultEncryptionKind: syncLocalVault.syncVaultEncryptionKind,
+        syncVaultLockState: this.readFakeVaultLockState(syncLocalVault.papelizSyncVaultId),
         syncVaultFileCount: 128,
         syncVaultStoredByteLength: 42e6,
         syncVaultCreatedAt: currentTime - 30 * 24 * 60 * 60_000,
@@ -838,7 +896,9 @@ export class PapelizSyncFakeEngine implements PapelizSyncEngine {
     for (const fakeAccountOnlyVault of this.fakeAccountOnlyVaults) {
       fakeAccountVaults.push({
         papelizSyncVaultId: fakeAccountOnlyVault.papelizSyncVaultId,
-        syncVaultName: isLocked ? null : fakeAccountOnlyVault.syncVaultName,
+        syncVaultName: fakeAccountOnlyVault.syncVaultName,
+        syncVaultEncryptionKind: fakeAccountOnlyVault.syncVaultEncryptionKind,
+        syncVaultLockState: this.readFakeVaultLockState(fakeAccountOnlyVault.papelizSyncVaultId),
         syncVaultFileCount: fakeAccountOnlyVault.syncVaultFileCount,
         syncVaultStoredByteLength: fakeAccountOnlyVault.syncVaultStoredByteLength,
         syncVaultCreatedAt: currentTime - fakeAccountOnlyVault.syncVaultCreatedDaysAgo * 24 * 60 * 60_000,
@@ -873,13 +933,17 @@ export class PapelizSyncFakeEngine implements PapelizSyncEngine {
     syncTransferFileCount = 40,
     syncAlreadyTransferredFileCount = 0,
   ): void {
+    const finishFakeFirstTransfer = () =>
+      void this.writeFakeDownloadedVaultFiles(papelizVaultId).then(() =>
+        this.setFakeSyncVaultStatus(papelizVaultId, this.readFakeSteadySyncVaultStatus(this.readFakeSyncVaultIdForLocalVault(papelizVaultId)), null),
+      )
     if (this.fakeCallDelayMilliseconds === 0) {
       if (syncVaultTransferKind !== 'first-download') {
         this.addFakeLocalVault(papelizVaultId, null)
         return
       }
       this.addFakeLocalVault(papelizVaultId, { syncVaultTransferKind, syncTransferredFileCount: syncAlreadyTransferredFileCount, syncTransferFileCount })
-      void this.writeFakeDownloadedVaultFiles(papelizVaultId).then(() => this.setFakeSyncVaultStatus(papelizVaultId, this.readFakeSteadySyncVaultStatus(), null))
+      finishFakeFirstTransfer()
       return
     }
     this.addFakeLocalVault(papelizVaultId, { syncVaultTransferKind, syncTransferredFileCount: syncAlreadyTransferredFileCount, syncTransferFileCount })
@@ -899,7 +963,7 @@ export class PapelizSyncFakeEngine implements PapelizSyncEngine {
       }
       if (syncTransferredFileCount >= syncTransferFileCount) {
         clearInterval(fakeTransferTimer)
-        void this.writeFakeDownloadedVaultFiles(papelizVaultId).then(() => this.setFakeSyncVaultStatus(papelizVaultId, this.readFakeSteadySyncVaultStatus(), null))
+        finishFakeFirstTransfer()
         return
       }
       this.setFakeSyncVaultStatus(
@@ -910,30 +974,50 @@ export class PapelizSyncFakeEngine implements PapelizSyncEngine {
     }, 400)
   }
 
-  async turnSyncOnForVault(papelizVaultId: string): Promise<PapelizSyncActionOutcome<{ papelizSyncVaultId: string }>> {
+  // The vault turned on here, with what was passed for its kind (the passphrases the fake was given,
+  // so tests can check the screens passed the one typed).
+  readonly fakeTurnedOnSyncVaultEncryptionChoices: Array<{ papelizVaultId: string; syncVaultEncryptionChoice: PapelizSyncVaultEncryptionChoice }> = []
+
+  async turnSyncOnForVault(papelizVaultId: string, syncVaultEncryptionChoice: PapelizSyncVaultEncryptionChoice): Promise<PapelizSyncActionOutcome<{ papelizSyncVaultId: string }>> {
     await this.waitForFakeCall('turnSyncOnForVault')
-    if (this.fakeEngineSnapshot.syncAccountKeyState !== 'unlocked') return createFakeFailedOutcome('locked')
+    if (!this.isFakeSignedIn()) return createFakeFailedOutcome('signed-out')
     const syncAccount = this.fakeEngineSnapshot.syncAccount
     if (syncAccount === null || syncAccount.syncSubscriptionState === 'not-subscribed') return createFakeFailedOutcome('subscription-required')
     if (syncAccount.syncSubscriptionState === 'ended-read-only' || syncAccount.syncSubscriptionState === 'ended-held') return createFakeFailedOutcome('read-only')
+    if (syncVaultEncryptionChoice.syncVaultEncryptionKind === 'end-to-end' && !isPapelizSyncPassphraseLongEnough(syncVaultEncryptionChoice.syncVaultPassphrase)) {
+      return createFakeFailedOutcome('passphrase-too-short')
+    }
+    const existingLocalVault = this.fakeEngineSnapshot.syncLocalVaults.find((otherLocalVault) => otherLocalVault.papelizVaultId === papelizVaultId)
+    if (existingLocalVault !== undefined) return createFakeDoneOutcome({ papelizSyncVaultId: existingLocalVault.papelizSyncVaultId })
+    this.fakeTurnedOnSyncVaultEncryptionChoices.push({ papelizVaultId, syncVaultEncryptionChoice })
+    const papelizSyncVaultId = this.readFakeSyncVaultIdForLocalVault(papelizVaultId)
+    this.fakeVaultEncryptionKindsBySyncVaultId.set(papelizSyncVaultId, syncVaultEncryptionChoice.syncVaultEncryptionKind)
+    if (syncVaultEncryptionChoice.syncVaultEncryptionKind === 'end-to-end') {
+      // The vault's key is made here, so this device holds it from the start.
+      this.fakeVaultPassphrasesBySyncVaultId.set(papelizSyncVaultId, syncVaultEncryptionChoice.syncVaultPassphrase)
+      this.fakeUnlockedSyncVaultIds.add(papelizSyncVaultId)
+    }
     this.runFakeFirstTransfer(papelizVaultId, 'first-upload')
-    const syncLocalVault = this.fakeEngineSnapshot.syncLocalVaults.find((otherLocalVault) => otherLocalVault.papelizVaultId === papelizVaultId)
-    return createFakeDoneOutcome({ papelizSyncVaultId: syncLocalVault?.papelizSyncVaultId ?? '' })
+    return createFakeDoneOutcome({ papelizSyncVaultId })
   }
 
   async downloadSyncedVaultInto(papelizSyncVaultId: string, papelizVaultId: string): Promise<PapelizSyncActionOutcome> {
     await this.waitForFakeCall('downloadSyncedVaultInto')
     if (!this.isFakeSignedIn()) return createFakeFailedOutcome('signed-out')
-    if (this.fakeEngineSnapshot.syncAccountKeyState !== 'unlocked') return createFakeFailedOutcome('locked')
+    if (this.readFakeVaultLockState(papelizSyncVaultId) === 'locked') return createFakeFailedOutcome('locked')
     const fakeAccountOnlyVault = this.fakeAccountOnlyVaults.find((accountOnlyVault) => accountOnlyVault.papelizSyncVaultId === papelizSyncVaultId)
     if (fakeAccountOnlyVault !== undefined) this.fakeDownloadedPapelizVaultIdsBySyncVaultId.set(papelizSyncVaultId, papelizVaultId)
     this.runFakeFirstTransfer(papelizVaultId, 'first-download', fakeAccountOnlyVault?.syncVaultFileCount)
     return createFakeDoneOutcome(null)
   }
 
-  async connectVaultToSyncedVault(papelizVaultId: string, _papelizSyncVaultId: string): Promise<PapelizSyncActionOutcome> {
+  async connectVaultToSyncedVault(papelizVaultId: string, papelizSyncVaultId: string): Promise<PapelizSyncActionOutcome> {
     await this.waitForFakeCall('connectVaultToSyncedVault')
-    if (this.fakeEngineSnapshot.syncAccountKeyState !== 'unlocked') return createFakeFailedOutcome('locked')
+    if (!this.isFakeSignedIn()) return createFakeFailedOutcome('signed-out')
+    if (this.readFakeVaultLockState(papelizSyncVaultId) === 'locked') return createFakeFailedOutcome('locked')
+    if (this.fakeAccountOnlyVaults.some((accountOnlyVault) => accountOnlyVault.papelizSyncVaultId === papelizSyncVaultId)) {
+      this.fakeDownloadedPapelizVaultIdsBySyncVaultId.set(papelizSyncVaultId, papelizVaultId)
+    }
     this.runFakeFirstTransfer(papelizVaultId, 'connect')
     return createFakeDoneOutcome(null)
   }
@@ -945,15 +1029,18 @@ export class PapelizSyncFakeEngine implements PapelizSyncEngine {
     }
     this.fakeKeptLinkedVaultsById.delete(papelizVaultId)
     this.changeFakeSnapshot({ syncLocalVaults: this.fakeEngineSnapshot.syncLocalVaults.filter((syncLocalVault) => syncLocalVault.papelizVaultId !== papelizVaultId) })
-    this.changeFakeAccount({ syncedVaultCount: this.fakeEngineSnapshot.syncLocalVaults.length })
+    this.changeFakeAccount({ syncedVaultCount: this.countFakeSyncedVaults() })
     return createFakeDoneOutcome(null)
   }
 
   async deleteSyncedVaultFromAccount(papelizSyncVaultId: string): Promise<PapelizSyncActionOutcome> {
     await this.waitForFakeCall('deleteSyncedVaultFromAccount')
     if (!this.isFakeSignedIn()) return createFakeFailedOutcome('signed-out')
-    // Gone from the account: no device syncs it any more, and Fetch from Sync no longer lists it.
+    // Gone from the account: no device syncs it any more, and the Synced Vaults page no longer lists it.
     this.fakeDownloadedPapelizVaultIdsBySyncVaultId.delete(papelizSyncVaultId)
+    this.fakeUnlockedSyncVaultIds.delete(papelizSyncVaultId)
+    this.fakeVaultEncryptionKindsBySyncVaultId.delete(papelizSyncVaultId)
+    this.fakeVaultPassphrasesBySyncVaultId.delete(papelizSyncVaultId)
     for (const [papelizVaultId, fakeKeptLinkedVault] of this.fakeKeptLinkedVaultsById) {
       if (fakeKeptLinkedVault.papelizSyncVaultId === papelizSyncVaultId) this.fakeKeptLinkedVaultsById.delete(papelizVaultId)
     }
@@ -962,7 +1049,7 @@ export class PapelizSyncFakeEngine implements PapelizSyncEngine {
     this.changeFakeSnapshot({
       syncLocalVaults: this.fakeEngineSnapshot.syncLocalVaults.filter((syncLocalVault) => syncLocalVault.papelizSyncVaultId !== papelizSyncVaultId),
     })
-    this.changeFakeAccount({ syncedVaultCount: this.fakeEngineSnapshot.syncLocalVaults.length })
+    this.changeFakeAccount({ syncedVaultCount: this.countFakeSyncedVaults() })
     return createFakeDoneOutcome(null)
   }
 
@@ -1024,9 +1111,11 @@ export class PapelizSyncFakeEngine implements PapelizSyncEngine {
     return createFakeDoneOutcome(null)
   }
 
-  async listSyncFileVersions(_papelizVaultId: string, _vaultFileRelativePath: string): Promise<PapelizSyncActionOutcome<PapelizSyncFileVersionReading[]>> {
+  async listSyncFileVersions(papelizVaultId: string, _vaultFileRelativePath: string): Promise<PapelizSyncActionOutcome<PapelizSyncFileVersionReading[]>> {
     await this.waitForFakeCall('listSyncFileVersions')
-    if (this.fakeEngineSnapshot.syncAccountKeyState !== 'unlocked') return createFakeFailedOutcome('locked')
+    const syncLocalVault = this.fakeEngineSnapshot.syncLocalVaults.find((otherLocalVault) => otherLocalVault.papelizVaultId === papelizVaultId)
+    if (syncLocalVault === undefined) return createFakeFailedOutcome('not-found')
+    if (syncLocalVault.syncVaultLockState === 'locked') return createFakeFailedOutcome('locked')
     const currentTime = this.fakeCurrentTime()
     return createFakeDoneOutcome([
       { syncFileVersion: 3, syncFileChangedAt: currentTime - 5 * 60_000, syncFileChangedOnDeviceName: null, syncFileStoredByteLength: 2048, isSyncFileDeletedInVersion: false },

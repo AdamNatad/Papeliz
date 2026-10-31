@@ -7,11 +7,14 @@ import {
   describePapelizSyncStatusForStatusBar,
   describePapelizSyncStoragePlaceLine,
   formatPapelizSyncByteSize,
-  groupPapelizSyncRecoveryKeyText,
   isPapelizSyncPassphraseLongEnough,
+  papelizSyncPageIntro,
+  papelizSyncVaultEncryptionKindDisplayNames,
+  papelizSyncVaultEncryptionKindReaderLines,
+  papelizSyncVaultNameReadableLine,
+  papelizSyncVaultPassphraseNotRecoverableLine,
   pickNearestPapelizSyncStoragePlace,
   ratePapelizSyncPassphraseStrength,
-  tidyPapelizSyncRecoveryKeyText,
 } from './papeliz-sync-screen-words'
 
 const testCurrentTime = new Date(2026, 9, 30, 15, 0).getTime()
@@ -39,13 +42,21 @@ describe('the Sync passphrase rule', () => {
   })
 })
 
-describe('the Recovery Key', () => {
-  it('reads back in any case, with or without dashes and spaces', () => {
-    expect(tidyPapelizSyncRecoveryKeyText(' abcd-efgh jkmn-pqrs tvwx-yz23 ')).toBe('ABCDEFGHJKMNPQRSTVWXYZ23')
+describe('encryption, vault by vault', () => {
+  it('never says all of Sync is end-to-end encrypted, only the vaults chosen', () => {
+    expect(papelizSyncPageIntro).not.toMatch(/,\s*end-to-end encrypted\.?$/i)
+    expect(papelizSyncPageIntro).toContain('End-to-end encryption for the vaults you want')
   })
 
-  it('shows in six groups of four', () => {
-    expect(groupPapelizSyncRecoveryKeyText('ABCD-EFGH-JKMN-PQRS-TVWX-YZ23')).toBe('ABCD EFGH JKMN PQRS TVWX YZ23')
+  it('names both kinds and says plainly who can read each one', () => {
+    expect(papelizSyncVaultEncryptionKindDisplayNames).toEqual({ standard: 'Standard', 'end-to-end': 'End-to-end' })
+    expect(papelizSyncVaultEncryptionKindReaderLines.standard).toContain('Papeliz keeps the key, so it could read them')
+    expect(papelizSyncVaultEncryptionKindReaderLines['end-to-end']).toContain('Papeliz never sees it')
+  })
+
+  it('says the vault name is readable, and that an End-to-end passphrase can’t be recovered', () => {
+    expect(papelizSyncVaultNameReadableLine).toContain('isn’t encrypted')
+    expect(papelizSyncVaultPassphraseNotRecoverableLine).toMatch(/^Papeliz can’t recover it\./)
   })
 })
 

@@ -30,16 +30,18 @@ export type PapelizSyncSubscribeStep =
   | { syncSubscribeStepKind: 'ready-for-checkout'; syncChosenPlan: PapelizSyncChosenPlan }
   | { syncSubscribeStepKind: 'checking-out'; syncChosenPlan: PapelizSyncChosenPlan }
 
-// - `set-up`: the account has no keys yet: passphrase, Recovery Key, vaults, first upload.
-// - `unlock`: keys exist; this device needs the passphrase (or the Recovery Key) once.
-// - `start-over`: neither is known any more: a new passphrase and Recovery Key, the synced copy goes.
-// - `change-passphrase`: a new passphrase on an unlocked device.
-export type PapelizSyncSetUpDialogMode = 'set-up' | 'unlock' | 'start-over' | 'change-passphrase'
+// What the set-up dialog is for:
+// - `turn-on-vault-sync`: Turn on Sync for the open vault: Standard or End-to-end, a passphrase for
+//   End-to-end, then the first upload.
+// - `change-vault-passphrase`: a new passphrase for an End-to-end vault this device holds the key of.
+export type PapelizSyncSetUpDialogRequest =
+  | { syncSetUpDialogKind: 'turn-on-vault-sync' }
+  | { syncSetUpDialogKind: 'change-vault-passphrase'; papelizSyncVaultId: string; syncVaultName: string }
 
 interface PapelizSyncFlowState {
   syncSubscribeStep: PapelizSyncSubscribeStep | null
   syncSubscribeFailureWords: string | null
-  syncSetUpDialogMode: PapelizSyncSetUpDialogMode | null
+  syncSetUpDialogRequest: PapelizSyncSetUpDialogRequest | null
   // The clash the dialog shows, and the ones put off with Later (until Settle on the Sync page).
   shownSyncNoteClashId: string | null
   laterSyncNoteClashIds: readonly string[]
@@ -49,7 +51,7 @@ interface PapelizSyncFlowState {
 export const usePapelizSyncFlowStore = create<PapelizSyncFlowState>()(() => ({
   syncSubscribeStep: null,
   syncSubscribeFailureWords: null,
-  syncSetUpDialogMode: null,
+  syncSetUpDialogRequest: null,
   shownSyncNoteClashId: null,
   laterSyncNoteClashIds: [],
   isSyncOldVersionsDialogShown: false,
@@ -90,7 +92,7 @@ export function cancelPapelizSyncSignIn(): void {
   currentSyncSignInAttempt = null
 }
 
-// The same from a click made before the engine has loaded (Fetch from Sync on the start screen): a
+// The same from a click made before the engine has loaded (Synced Vaults on the start screen): a
 // blank tab opens from the click, then goes to the sign-in page once the engine is there. The tab
 // closes again when the engine doesn't load, or finds this device signed in already.
 export async function startPapelizSyncSignInFromClickBeforeEngineLoads(
@@ -175,7 +177,7 @@ export async function continuePapelizSyncSubscribeToSignIn(papelizSyncEngine: Pa
     })
     return
   }
-  // A returning subscriber needs no checkout: straight on to unlocking this device.
+  // A returning subscriber needs no checkout: straight on to turning Sync on, if nothing syncs here yet.
   const syncEngineSnapshot = papelizSyncEngine.getSyncEngineSnapshot()
   if (isPapelizSyncSubscriptionCurrent(syncEngineSnapshot.syncAccount?.syncSubscriptionState)) {
     finishPapelizSyncSubscribeFlow(syncEngineSnapshot)
@@ -205,17 +207,18 @@ export function closePapelizSyncSubscribeFlow(): void {
   setSyncFlowState({ syncSubscribeStep: null, syncSubscribeFailureWords: null })
 }
 
-// Which set-up the account needs on this device now, if any.
-export function readPapelizSyncSetUpDialogModeNeeded(syncEngineSnapshot: PapelizSyncEngineSnapshot): PapelizSyncSetUpDialogMode | null {
+// What set-up to show once a subscription starts here: Turn on Sync for this vault, while no vault on
+// this device syncs yet. A device that already syncs, or a new device with synced vaults to download,
+// goes on from the Sync page or Synced Vaults instead.
+export function readPapelizSyncSetUpDialogRequestAfterSubscribing(syncEngineSnapshot: PapelizSyncEngineSnapshot): PapelizSyncSetUpDialogRequest | null {
   if (syncEngineSnapshot.syncSignIn.syncSignInKind !== 'signed-in') return null
   if (!isPapelizSyncSubscriptionCurrent(syncEngineSnapshot.syncAccount?.syncSubscriptionState)) return null
-  if (syncEngineSnapshot.syncAccountKeyState === 'not-set-up') return 'set-up'
-  if (syncEngineSnapshot.syncAccountKeyState === 'locked') return 'unlock'
-  return null
+  if (syncEngineSnapshot.syncLinkedLocalVaults.length > 0 || (syncEngineSnapshot.syncAccount?.syncedVaultCount ?? 0) > 0) return null
+  return { syncSetUpDialogKind: 'turn-on-vault-sync' }
 }
 
 function finishPapelizSyncSubscribeFlow(syncEngineSnapshot: PapelizSyncEngineSnapshot): void {
-  setSyncFlowState({ syncSubscribeStep: null, syncSubscribeFailureWords: null, syncSetUpDialogMode: readPapelizSyncSetUpDialogModeNeeded(syncEngineSnapshot) })
+  setSyncFlowState({ syncSubscribeStep: null, syncSubscribeFailureWords: null, syncSetUpDialogRequest: readPapelizSyncSetUpDialogRequestAfterSubscribing(syncEngineSnapshot) })
 }
 
 // Each new snapshot moves the flow on: checkout done (the subscription is current) closes the
@@ -231,12 +234,12 @@ export function followPapelizSyncSnapshotInFlows(syncEngineSnapshot: PapelizSync
   }
 }
 
-export function openPapelizSyncSetUpDialog(syncSetUpDialogMode: PapelizSyncSetUpDialogMode): void {
-  setSyncFlowState({ syncSetUpDialogMode })
+export function openPapelizSyncSetUpDialog(syncSetUpDialogRequest: PapelizSyncSetUpDialogRequest): void {
+  setSyncFlowState({ syncSetUpDialogRequest })
 }
 
 export function closePapelizSyncSetUpDialog(): void {
-  setSyncFlowState({ syncSetUpDialogMode: null })
+  setSyncFlowState({ syncSetUpDialogRequest: null })
 }
 
 // Clashes: the dialog opens by itself for each new one; Later puts it off until Settle.
@@ -264,7 +267,7 @@ export function resetPapelizSyncFlowsForTests(): void {
   setSyncFlowState({
     syncSubscribeStep: null,
     syncSubscribeFailureWords: null,
-    syncSetUpDialogMode: null,
+    syncSetUpDialogRequest: null,
     shownSyncNoteClashId: null,
     laterSyncNoteClashIds: [],
     isSyncOldVersionsDialogShown: false,

@@ -9,8 +9,8 @@
 //   plus one-off events for notices.
 // - The platform passes in what only it has, once, through `startSyncEngine`: the three-way merge for
 //   notes and the service's origin. Each open vault's files come through `attachSyncToOpenVault`.
-// - The Sync passphrase and the Recovery Key pass through here on their way into the engine; the
-//   screens never keep them. No key ever leaves the engine.
+// - An End-to-end vault's passphrase passes through here on its way into the engine; the screens
+//   never keep it. No key ever leaves the engine.
 //
 // This file imports nothing, so the engine can implement it without the rest of the app. Times are
 // milliseconds since 1970 (Date.now()), sizes are bytes.
@@ -102,10 +102,23 @@ export type PapelizSyncSignInReading =
   // Its notes are untouched.
   | { syncSignInKind: 'device-removed' }
 
-// - `unknown`: not read yet (signed out, or offline since signing in).
-// - `not-set-up`: the account has no keys yet; the set-up dialog makes them.
-// - `locked`: keys exist, this device needs the passphrase or the Recovery Key once.
-export type PapelizSyncAccountKeyState = 'unknown' | 'not-set-up' | 'locked' | 'unlocked'
+// How a synced vault's key is kept, chosen when Sync is turned on for it. Switching is only by Delete
+// from Sync, then turning Sync on again with the other kind. Either way the files are encrypted on the
+// device before upload, and the vault's name is readable by Papeliz.
+// - `standard`: Papeliz keeps the vault's key, so there's no passphrase, and Papeliz could read it.
+// - `end-to-end`: the vault's own passphrase wraps its key. Papeliz never receives the passphrase and
+//   can't recover it.
+export type PapelizSyncVaultEncryptionKind = 'standard' | 'end-to-end'
+export const papelizSyncVaultEncryptionKinds: readonly PapelizSyncVaultEncryptionKind[] = ['standard', 'end-to-end']
+
+// Whether this device holds a synced vault's key. A Standard vault's key comes from the service when
+// it's needed, so only an End-to-end vault is ever `locked`: its passphrase opens it once on each device.
+export type PapelizSyncVaultLockState = 'unlocked' | 'locked'
+
+// Turning Sync on for a vault: its kind, and for End-to-end its passphrase (12 characters or more).
+export type PapelizSyncVaultEncryptionChoice =
+  | { syncVaultEncryptionKind: 'standard' }
+  | { syncVaultEncryptionKind: 'end-to-end'; syncVaultPassphrase: string }
 
 // Why changes are waiting while the device is online.
 // - `pacing-to-allowance`: near the plan's fair-use allowance, sync slows to its refill rate.
@@ -149,6 +162,10 @@ export interface PapelizSyncVaultTransferProgress {
 export interface PapelizSyncLocalVaultReading {
   papelizVaultId: string
   papelizSyncVaultId: string
+  syncVaultEncryptionKind: PapelizSyncVaultEncryptionKind
+  // Locked: an End-to-end vault whose key this device lost (signed out elsewhere, say); its status is
+  // `locked` until its passphrase is entered again.
+  syncVaultLockState: PapelizSyncVaultLockState
   syncVaultStatus: PapelizSyncStatusReading
   syncVaultTransferProgress: PapelizSyncVaultTransferProgress | null
 }
@@ -158,14 +175,20 @@ export interface PapelizSyncLocalVaultReading {
 export interface PapelizSyncLinkedLocalVaultReading {
   papelizVaultId: string
   papelizSyncVaultId: string
+  syncVaultEncryptionKind: PapelizSyncVaultEncryptionKind
+  syncVaultLockState: PapelizSyncVaultLockState
   isFirstDownloadUnfinished: boolean
 }
 
-// A synced vault on the account, for a new device's Download and Connect.
+// A synced vault on the account, for the Synced Vaults page, Download and Connect.
 export interface PapelizSyncAccountVaultReading {
   papelizSyncVaultId: string
-  // Decrypted on this device; null while locked.
-  syncVaultName: string | null
+  // As the account keeps it: names are readable by Papeliz, for both kinds.
+  syncVaultName: string
+  syncVaultEncryptionKind: PapelizSyncVaultEncryptionKind
+  // Locked: an End-to-end vault this device has no key for yet. Its passphrase opens it before a
+  // download or Connect.
+  syncVaultLockState: PapelizSyncVaultLockState
   syncVaultFileCount: number
   syncVaultStoredByteLength: number
   syncVaultCreatedAt: number
@@ -175,7 +198,7 @@ export interface PapelizSyncAccountVaultReading {
 
 export interface PapelizSyncDeviceReading {
   papelizSyncDeviceId: string
-  // Decrypted on this device; null until named, and while locked.
+  // Readable by Papeliz, as the account keeps it; null until named.
   syncDeviceName: string | null
   syncDevicePlatform: PapelizSyncDevicePlatform
   syncDeviceAddedAt: number
@@ -184,11 +207,10 @@ export interface PapelizSyncDeviceReading {
 }
 
 // What syncs besides notes, attachments and the vault's own `.papeliz/` files (which always sync).
+// Each follows its vault's kind. AI provider keys never sync: they're pasted on each device.
 export interface PapelizSyncWhatSyncsChoices {
   isAssistantChatSyncOn: boolean
   isAppSettingSyncOn: boolean
-  // Off until the user turns it on; then encrypted like a note.
-  isAiProviderKeySyncOn: boolean
 }
 
 // A note both this device and another changed on the same lines. The clash dialog settles it.
@@ -196,7 +218,7 @@ export interface PapelizSyncNoteClashSummary {
   papelizSyncClashId: string
   papelizVaultId: string
   vaultNoteRelativePath: string
-  // "On Phone": decrypted on this device; null when the other device has no name yet.
+  // "On Phone"; null when the other device has no name yet.
   otherSyncDeviceName: string | null
   otherSyncDevicePlatform: PapelizSyncDevicePlatform | null
   syncClashFoundAt: number
@@ -212,7 +234,6 @@ export interface PapelizSyncNoteClashTexts {
 export interface PapelizSyncEngineSnapshot {
   syncSignIn: PapelizSyncSignInReading
   syncAccount: PapelizSyncAccountReading | null
-  syncAccountKeyState: PapelizSyncAccountKeyState
   isSyncPausedOnThisDevice: boolean
   syncWhatSyncsChoices: PapelizSyncWhatSyncsChoices
   // The vaults attached now (open in the workspace, or downloading from the start screen) that sync.
@@ -245,9 +266,12 @@ export type PapelizSyncEngineEvent =
   | { syncEngineEventKind: 'file-too-large-to-sync'; papelizVaultId: string; vaultFileRelativePath: string }
 
 // Why an action didn't happen. Screens map each to their own words.
-// - `fresh-sign-in-required`: changing the passphrase, Start over and Delete account need a sign-in
-//   from the last few minutes; the screen starts one and tries again.
-// - `changed-elsewhere`: another device changed the same thing first (set up the keys, say).
+// - `fresh-sign-in-required`: changing a vault's passphrase, Start over and Delete account need a
+//   sign-in from the last few minutes; the screen starts one and tries again.
+// - `locked`: an End-to-end vault this device has no key for; its passphrase opens it first.
+// - `changed-elsewhere`: another device changed the same thing first (the vault's passphrase, say).
+// - `standard-vaults-unavailable`: this Sync service keeps no Standard vault keys, so only End-to-end
+//   vaults sync on it.
 export type PapelizSyncActionFailureKind =
   | 'offline'
   | 'signed-out'
@@ -257,9 +281,9 @@ export type PapelizSyncActionFailureKind =
   | 'read-only'
   | 'limit-reached'
   | 'wrong-passphrase'
-  | 'wrong-recovery-key'
   | 'passphrase-too-short'
   | 'changed-elsewhere'
+  | 'standard-vaults-unavailable'
   | 'not-found'
   | 'service-error'
 
@@ -293,18 +317,10 @@ export interface PapelizSyncSignInOptions {
   papelizSyncStoragePlaceForNewAccount: PapelizSyncStoragePlace | null
 }
 
-// Made on this device and not sent anywhere until confirmed, so leaving set-up before the Recovery
-// Key is saved leaves nothing behind.
-export interface PapelizSyncAccountKeyDraft {
-  syncAccountKeyDraftId: string
-  // 24 characters in six groups of four, shown once (and in the Recovery Kit).
-  syncRecoveryKeyText: string
-}
-
 export interface PapelizSyncFileVersionReading {
   syncFileVersion: number
   syncFileChangedAt: number
-  // "On Phone": decrypted on this device; null when unnamed or locked.
+  // "On Phone"; null when that device has no name.
   syncFileChangedOnDeviceName: string | null
   syncFileStoredByteLength: number
   isSyncFileDeletedInVersion: boolean
@@ -383,27 +399,27 @@ export interface PapelizSyncEngine {
   // Deletes the subscription, every synced copy and the version history; notes on devices stay.
   deleteSyncAccount(): Promise<PapelizSyncActionOutcome>
 
-  // Keys: set-up, unlock, change, Start over.
-  prepareSyncAccountKeys(syncPassphrase: string): Promise<PapelizSyncActionOutcome<PapelizSyncAccountKeyDraft>>
-  // After the user has saved the Recovery Key: stores both wrapped copies and unlocks this device.
-  confirmSyncAccountKeys(syncAccountKeyDraftId: string): Promise<PapelizSyncActionOutcome>
-  unlockSyncWithPassphrase(syncPassphrase: string): Promise<PapelizSyncActionOutcome>
-  // A lost passphrase: the Recovery Key unlocks and sets a new passphrase.
-  unlockSyncWithRecoveryKey(syncRecoveryKeyText: string, newSyncPassphrase: string): Promise<PapelizSyncActionOutcome>
-  // Re-wraps only the account key; nothing is uploaded again.
-  changeSyncPassphrase(newSyncPassphrase: string): Promise<PapelizSyncActionOutcome>
-  // With neither the passphrase nor the Recovery Key: deletes the synced copy and its history, makes
-  // new keys (a new draft to confirm), and every device uploads its vaults again.
-  startSyncOver(newSyncPassphrase: string): Promise<PapelizSyncActionOutcome<PapelizSyncAccountKeyDraft>>
+  // Every synced vault and its history are deleted from the account; every device keeps its files and
+  // stops syncing them. Each vault is turned on again one by one, choosing its kind.
+  startSyncOver(): Promise<PapelizSyncActionOutcome>
 
   // Vaults. The workspace attaches each vault it opens and calls the returned function when it closes.
   attachSyncToOpenVault(openLocalVault: PapelizSyncOpenLocalVault): () => void
   listSyncedVaultsOnAccount(): Promise<PapelizSyncActionOutcome<PapelizSyncAccountVaultReading[]>>
-  // An attached vault becomes a synced vault on the account and starts its first upload.
-  turnSyncOnForVault(papelizVaultId: string): Promise<PapelizSyncActionOutcome<{ papelizSyncVaultId: string }>>
-  // An attached vault (new and empty) is filled from a synced vault.
+  // An attached vault becomes a synced vault on the account, of the chosen kind, and starts its first
+  // upload. The vault's key is made here; an End-to-end vault's passphrase wraps it before it's sent.
+  turnSyncOnForVault(papelizVaultId: string, syncVaultEncryptionChoice: PapelizSyncVaultEncryptionChoice): Promise<PapelizSyncActionOutcome<{ papelizSyncVaultId: string }>>
+  // An End-to-end vault's passphrase, once on this device: a vault on the account before its download
+  // or Connect, or a vault here that is locked. The key is then kept here, sealed by this device's own
+  // key, so the vault opens without asking again.
+  unlockSyncedVaultWithPassphrase(papelizSyncVaultId: string, syncVaultPassphrase: string): Promise<PapelizSyncActionOutcome>
+  // An End-to-end vault this device holds the key of: its key is wrapped again with the new
+  // passphrase. Nothing uploads again, and devices that hold the key stay unlocked.
+  changeSyncVaultPassphrase(papelizSyncVaultId: string, newSyncVaultPassphrase: string): Promise<PapelizSyncActionOutcome>
+  // An attached vault (new and empty) is filled from a synced vault. An End-to-end one is unlocked first.
   downloadSyncedVaultInto(papelizSyncVaultId: string, papelizVaultId: string): Promise<PapelizSyncActionOutcome>
-  // An attached vault with notes of its own joins a synced vault; the two are merged.
+  // An attached vault with notes of its own joins a synced vault; the two are merged. An End-to-end one
+  // is unlocked first.
   connectVaultToSyncedVault(papelizVaultId: string, papelizSyncVaultId: string): Promise<PapelizSyncActionOutcome>
   // This device stops syncing the vault; the synced copy and other devices are untouched.
   turnSyncOffForVault(papelizVaultId: string): Promise<PapelizSyncActionOutcome>

@@ -1,111 +1,91 @@
-import { Check, Copy, Download, KeyRound, LoaderCircle } from 'lucide-react'
-import { useEffect, useState, type ReactNode } from 'react'
+import { CloudUpload, KeyRound, LoaderCircle, Lock, ShieldCheck, TriangleAlert, type LucideIcon } from 'lucide-react'
+import { useState, type ReactNode } from 'react'
 import { PapelizPillButton } from '../ui/papeliz-buttons'
+import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { usePapelizWorkspaceStore } from '../workspace/papeliz-workspace-store'
-import type { PapelizSyncAccountKeyDraft, PapelizSyncAccountVaultReading, PapelizSyncActionOutcome, PapelizSyncEngine, PapelizSyncEngineSnapshot } from './papeliz-sync-engine-contract'
-import { closePapelizSyncSetUpDialog, describePapelizSyncSignInFromClickFailure, openPapelizSyncSetUpDialog, startPapelizSyncSignInFromClick, type PapelizSyncSetUpDialogMode } from './papeliz-sync-flow-store'
-import { isPapelizSyncNewPassphraseReady, PapelizSyncNewPassphraseFields, PapelizSyncPassphraseField, papelizSyncTextFieldClassName } from './papeliz-sync-passphrase-fields'
-import { PapelizSyncDialogFrame, PapelizSyncDialogSteps, PapelizSyncFailureLine, PapelizSyncLoadingLine, PapelizSyncProgressBar, PapelizSyncTextButton } from './papeliz-sync-page-parts'
-import { buildPapelizSyncRecoveryKitText, describePapelizSyncActionFailureNow, formatPapelizSyncByteSize, groupPapelizSyncRecoveryKeyText } from './papeliz-sync-screen-words'
+import type { PapelizSyncActionOutcome, PapelizSyncEngine, PapelizSyncEngineSnapshot, PapelizSyncVaultEncryptionKind } from './papeliz-sync-engine-contract'
+import { closePapelizSyncSetUpDialog, describePapelizSyncSignInFromClickFailure, startPapelizSyncSignInFromClick, type PapelizSyncSetUpDialogRequest } from './papeliz-sync-flow-store'
+import { isPapelizSyncNewPassphraseReady, PapelizSyncNewPassphraseFields } from './papeliz-sync-passphrase-fields'
+import { PapelizSyncDialogFrame, PapelizSyncDialogSteps, PapelizSyncFailureLine, PapelizSyncLoadingLine, PapelizSyncProgressBar } from './papeliz-sync-page-parts'
+import {
+  describePapelizSyncActionFailureNow,
+  papelizSyncVaultEncryptionKindDisplayNames,
+  papelizSyncVaultEncryptionKindReaderLines,
+  papelizSyncVaultNameReadableLine,
+  papelizSyncVaultPassphraseNotRecoverableLine,
+} from './papeliz-sync-screen-words'
 
-// The set-up dialog (B): on the first device a Sync passphrase, the Recovery Key, then which vaults
-// sync and the first upload. A second device unlocks with the passphrase (or the Recovery Key) and
-// then picks what its open vault does. Start over and Change passphrase use the same dialog. The
-// passphrase and the Recovery Key pass straight to the engine and are kept only while typed.
+// The set-up dialog. Turn on Sync for this vault: Standard (selected) or End-to-end, the passphrase
+// typed twice for End-to-end, then the first upload. Change passphrase: a new one for an End-to-end
+// vault this device holds the key of. A passphrase passes straight to the engine and is kept only
+// while typed.
 
 type PapelizSyncSetUpStep =
-  | { syncSetUpStepKind: 'passphrase' }
-  | { syncSetUpStepKind: 'recovery-key-unlock' }
-  | { syncSetUpStepKind: 'recovery-key'; syncAccountKeyDraft: PapelizSyncAccountKeyDraft }
-  | { syncSetUpStepKind: 'vaults' }
+  | { syncSetUpStepKind: 'encryption-kind' }
+  | { syncSetUpStepKind: 'vault-passphrase' }
   | { syncSetUpStepKind: 'first-transfer'; transferredPapelizVaultId: string }
-  | { syncSetUpStepKind: 'passphrase-changed' }
+  | { syncSetUpStepKind: 'new-vault-passphrase' }
+  | { syncSetUpStepKind: 'vault-passphrase-changed' }
 
 type PapelizSyncSetUpActionState =
   | { setUpActionKind: 'idle' }
   | { setUpActionKind: 'running' }
   | { setUpActionKind: 'failed'; setUpFailureWords: string }
-  // Changing the passphrase and Start over need a sign-in from the last few minutes.
+  // Changing a passphrase needs a sign-in from the last few minutes.
   | { setUpActionKind: 'fresh-sign-in-needed'; retrySetUpActionAfterSignIn: () => Promise<void> }
 
-// What the open vault does after unlocking: sync as a vault of its own, join (Connect) one of the
-// account's synced vaults, or nothing for now.
-type PapelizSyncOpenVaultChoice = { openVaultChoiceKind: 'sync-as-new' } | { openVaultChoiceKind: 'connect'; papelizSyncVaultId: string } | { openVaultChoiceKind: 'not-now' }
-
-function isSameOpenVaultChoice(firstOpenVaultChoice: PapelizSyncOpenVaultChoice, secondOpenVaultChoice: PapelizSyncOpenVaultChoice): boolean {
-  if (firstOpenVaultChoice.openVaultChoiceKind === 'connect' && secondOpenVaultChoice.openVaultChoiceKind === 'connect') {
-    return firstOpenVaultChoice.papelizSyncVaultId === secondOpenVaultChoice.papelizSyncVaultId
-  }
-  return firstOpenVaultChoice.openVaultChoiceKind === secondOpenVaultChoice.openVaultChoiceKind
+const papelizSyncEncryptionKindIcons: Record<PapelizSyncVaultEncryptionKind, LucideIcon> = {
+  standard: ShieldCheck,
+  'end-to-end': Lock,
 }
 
-const papelizSyncSetUpStepLabels: Record<PapelizSyncSetUpDialogMode, readonly string[]> = {
-  'set-up': ['Passphrase', 'Recovery Key', 'Vaults'],
-  'start-over': ['New passphrase', 'Recovery Key', 'Vaults'],
-  unlock: ['Passphrase', 'Vaults'],
-  'change-passphrase': [],
+function readTurnOnStepLabels(chosenSyncVaultEncryptionKind: PapelizSyncVaultEncryptionKind): readonly string[] {
+  return chosenSyncVaultEncryptionKind === 'end-to-end' ? ['Encryption', 'Passphrase', 'Upload'] : ['Encryption', 'Upload']
 }
 
-function readSetUpStepIndex(syncSetUpDialogMode: PapelizSyncSetUpDialogMode, syncSetUpStep: PapelizSyncSetUpStep): number {
-  if (syncSetUpStep.syncSetUpStepKind === 'passphrase' || syncSetUpStep.syncSetUpStepKind === 'recovery-key-unlock') return 0
-  if (syncSetUpStep.syncSetUpStepKind === 'recovery-key') return 1
-  return syncSetUpDialogMode === 'unlock' ? 1 : 2
+function readTurnOnStepIndex(syncSetUpStep: PapelizSyncSetUpStep, chosenSyncVaultEncryptionKind: PapelizSyncVaultEncryptionKind): number {
+  if (syncSetUpStep.syncSetUpStepKind === 'encryption-kind') return 0
+  if (syncSetUpStep.syncSetUpStepKind === 'vault-passphrase') return 1
+  return readTurnOnStepLabels(chosenSyncVaultEncryptionKind).length - 1
 }
 
-function saveRecoveryKitFile(recoveryKitFileBlob: Blob, recoveryKitFileName: string): void {
-  const recoveryKitUrl = URL.createObjectURL(recoveryKitFileBlob)
-  const recoveryKitLink = document.createElement('a')
-  recoveryKitLink.href = recoveryKitUrl
-  recoveryKitLink.download = recoveryKitFileName
-  recoveryKitLink.click()
-  setTimeout(() => URL.revokeObjectURL(recoveryKitUrl), 10_000)
-}
-
-// The Recovery Kit as a PDF made on this device; a text file when the PDF can't be made. Says which.
-async function downloadPapelizSyncRecoveryKit(syncRecoveryKeyText: string, accountLabel: string | null): Promise<'pdf' | 'text'> {
-  try {
-    const { makePapelizSyncRecoveryKitPdf } = await import('./papeliz-sync-recovery-kit-pdf')
-    const { recoveryKitPdfFileName, recoveryKitPdfFileBlob } = await makePapelizSyncRecoveryKitPdf(syncRecoveryKeyText, accountLabel)
-    saveRecoveryKitFile(recoveryKitPdfFileBlob, recoveryKitPdfFileName)
-    return 'pdf'
-  } catch (recoveryKitPdfError) {
-    console.warn('The Recovery Kit PDF wasn’t made:', recoveryKitPdfError)
-    saveRecoveryKitFile(new Blob([buildPapelizSyncRecoveryKitText(syncRecoveryKeyText, accountLabel)], { type: 'text/plain;charset=utf-8' }), 'Papeliz Sync Recovery Kit.txt')
-    return 'text'
-  }
+// The warning under every new End-to-end passphrase.
+function PapelizSyncPassphraseNotRecoverableNote() {
+  return (
+    <p className="mt-3 flex items-start gap-2 rounded-xl bg-papeliz-warning px-3 py-2.5 text-[12.5px] leading-[1.45] text-papeliz-warning-ink">
+      <TriangleAlert className="mt-0.5 size-[15px] flex-none" aria-hidden="true" />
+      <span>{papelizSyncVaultPassphraseNotRecoverableLine}</span>
+    </p>
+  )
 }
 
 interface PapelizSyncSetUpDialogProps {
   papelizSyncEngine: PapelizSyncEngine
   syncEngineSnapshot: PapelizSyncEngineSnapshot
-  syncSetUpDialogMode: PapelizSyncSetUpDialogMode
+  syncSetUpDialogRequest: PapelizSyncSetUpDialogRequest
   isSyncDialogDrawnInPlace: boolean
 }
 
-export function PapelizSyncSetUpDialog({ papelizSyncEngine, syncEngineSnapshot, syncSetUpDialogMode, isSyncDialogDrawnInPlace }: PapelizSyncSetUpDialogProps) {
+export function PapelizSyncSetUpDialog({ papelizSyncEngine, syncEngineSnapshot, syncSetUpDialogRequest, isSyncDialogDrawnInPlace }: PapelizSyncSetUpDialogProps) {
   const openVault = usePapelizWorkspaceStore((workspaceState) => workspaceState.openVault)
-  const [syncSetUpStep, setSyncSetUpStep] = useState<PapelizSyncSetUpStep>({ syncSetUpStepKind: 'passphrase' })
-  const [setUpActionState, setSetUpActionState] = useState<PapelizSyncSetUpActionState>({ setUpActionKind: 'idle' })
-  const [typedSyncPassphrase, setTypedSyncPassphrase] = useState('')
-  const [repeatedSyncPassphrase, setRepeatedSyncPassphrase] = useState('')
-  const [typedRecoveryKeyText, setTypedRecoveryKeyText] = useState('')
-  const [isRecoveryKeySavedTicked, setIsRecoveryKeySavedTicked] = useState(false)
-  const [isRecoveryKeyCopied, setIsRecoveryKeyCopied] = useState(false)
-  // The Recovery Kit's download: its PDF being made, then which file it came as.
-  const [recoveryKitDownloadState, setRecoveryKitDownloadState] = useState<'idle' | 'making-pdf' | 'pdf-saved' | 'text-saved'>('idle')
-  const [accountVaultsOutcome, setAccountVaultsOutcome] = useState<PapelizSyncActionOutcome<PapelizSyncAccountVaultReading[]> | null>(null)
-  const [openVaultChoice, setOpenVaultChoice] = useState<PapelizSyncOpenVaultChoice | null>(
-    syncSetUpDialogMode === 'unlock' ? null : { openVaultChoiceKind: 'sync-as-new' },
-  )
-  const isSetUpActionRunning = setUpActionState.setUpActionKind === 'running'
   const isOpenVaultSyncable = openVault !== null && openVault.papelizVaultAdapter.papelizVaultKind !== 'sample-vault-in-memory'
   const openVaultSyncReading =
     openVault === null ? undefined : syncEngineSnapshot.syncLocalVaults.find((syncLocalVault) => syncLocalVault.papelizVaultId === openVault.papelizVaultId)
+  const [syncSetUpStep, setSyncSetUpStep] = useState<PapelizSyncSetUpStep>(() => {
+    if (syncSetUpDialogRequest.syncSetUpDialogKind === 'change-vault-passphrase') return { syncSetUpStepKind: 'new-vault-passphrase' }
+    // An open vault that already syncs needs no choice: its upload shows.
+    if (openVault !== null && openVaultSyncReading !== undefined) return { syncSetUpStepKind: 'first-transfer', transferredPapelizVaultId: openVault.papelizVaultId }
+    return { syncSetUpStepKind: 'encryption-kind' }
+  })
+  const [setUpActionState, setSetUpActionState] = useState<PapelizSyncSetUpActionState>({ setUpActionKind: 'idle' })
+  const [chosenSyncVaultEncryptionKind, setChosenSyncVaultEncryptionKind] = useState<PapelizSyncVaultEncryptionKind>('standard')
+  const [typedSyncVaultPassphrase, setTypedSyncVaultPassphrase] = useState('')
+  const [repeatedSyncVaultPassphrase, setRepeatedSyncVaultPassphrase] = useState('')
+  const isSetUpActionRunning = setUpActionState.setUpActionKind === 'running'
 
-  const forgetTypedSecrets = () => {
-    setTypedSyncPassphrase('')
-    setRepeatedSyncPassphrase('')
-    setTypedRecoveryKeyText('')
+  const forgetTypedPassphrase = () => {
+    setTypedSyncVaultPassphrase('')
+    setRepeatedSyncVaultPassphrase('')
   }
 
   const runSetUpAction = async <SyncActionDoneValue,>(
@@ -125,33 +105,6 @@ export function PapelizSyncSetUpDialog({ papelizSyncEngine, syncEngineSnapshot, 
     }
     setSetUpActionState({ setUpActionKind: 'failed', setUpFailureWords: describePapelizSyncActionFailureNow(setUpActionOutcome) })
   }
-
-  // The account's synced vaults, for a second device's Connect.
-  const isVaultsStepShown = syncSetUpStep.syncSetUpStepKind === 'vaults'
-  useEffect(() => {
-    if (!isVaultsStepShown || syncSetUpDialogMode !== 'unlock') return
-    let isVaultsStepLeft = false
-    void papelizSyncEngine.listSyncedVaultsOnAccount().then((listedAccountVaultsOutcome) => {
-      if (!isVaultsStepLeft) setAccountVaultsOutcome(listedAccountVaultsOutcome)
-    })
-    return () => {
-      isVaultsStepLeft = true
-    }
-  }, [isVaultsStepShown, syncSetUpDialogMode, papelizSyncEngine])
-
-  const goToVaultsStep = () => {
-    forgetTypedSecrets()
-    // An open vault that already syncs needs no choice.
-    if (openVault !== null && papelizSyncEngine.getSyncEngineSnapshot().syncLocalVaults.some((syncLocalVault) => syncLocalVault.papelizVaultId === openVault.papelizVaultId)) {
-      setSyncSetUpStep({ syncSetUpStepKind: 'first-transfer', transferredPapelizVaultId: openVault.papelizVaultId })
-      return
-    }
-    setSyncSetUpStep({ syncSetUpStepKind: 'vaults' })
-  }
-
-  const syncSetUpStepLabels = papelizSyncSetUpStepLabels[syncSetUpDialogMode]
-  const syncDialogSteps =
-    syncSetUpStepLabels.length === 0 ? undefined : <PapelizSyncDialogSteps syncDialogStepLabels={syncSetUpStepLabels} currentSyncDialogStepIndex={readSetUpStepIndex(syncSetUpDialogMode, syncSetUpStep)} />
 
   const setUpActionLine =
     setUpActionState.setUpActionKind === 'failed' ? (
@@ -180,15 +133,6 @@ export function PapelizSyncSetUpDialog({ papelizSyncEngine, syncEngineSnapshot, 
       </div>
     ) : null
 
-  const cancelButton = (
-    <PapelizPillButton pillButtonVariant="gray" disabled={isSetUpActionRunning} onClick={closePapelizSyncSetUpDialog}>
-      {syncSetUpStep.syncSetUpStepKind === 'first-transfer' || syncSetUpStep.syncSetUpStepKind === 'passphrase-changed'
-        ? 'Close'
-        : syncSetUpStep.syncSetUpStepKind === 'vaults' && !isOpenVaultSyncable
-          ? 'Done'
-          : 'Not now'}
-    </PapelizPillButton>
-  )
   const runningButtonContent = (buttonLabel: string): ReactNode =>
     isSetUpActionRunning ? (
       <>
@@ -199,67 +143,68 @@ export function PapelizSyncSetUpDialog({ papelizSyncEngine, syncEngineSnapshot, 
       buttonLabel
     )
 
+  const isTurnOnDialog = syncSetUpDialogRequest.syncSetUpDialogKind === 'turn-on-vault-sync'
   const dialogFrameProps = {
     syncDialogTitleId: 'papeliz-sync-set-up-dialog-title',
-    SyncDialogIcon: KeyRound,
-    syncDialogSteps,
+    SyncDialogIcon: isTurnOnDialog ? CloudUpload : KeyRound,
+    syncDialogSteps:
+      isTurnOnDialog && isOpenVaultSyncable ? (
+        <PapelizSyncDialogSteps
+          syncDialogStepLabels={readTurnOnStepLabels(chosenSyncVaultEncryptionKind)}
+          currentSyncDialogStepIndex={readTurnOnStepIndex(syncSetUpStep, chosenSyncVaultEncryptionKind)}
+        />
+      ) : undefined,
     isSyncDialogDrawnInPlace,
     onSyncDialogCancel: () => {
       if (!isSetUpActionRunning) closePapelizSyncSetUpDialog()
     },
   }
+  const notNowButton = (
+    <PapelizPillButton pillButtonVariant="gray" disabled={isSetUpActionRunning} onClick={closePapelizSyncSetUpDialog}>
+      Not now
+    </PapelizPillButton>
+  )
 
-  // A new passphrase: set-up, Start over and Change passphrase.
-  if (syncSetUpStep.syncSetUpStepKind === 'passphrase' && syncSetUpDialogMode !== 'unlock') {
-    const isNewPassphraseReady = isPapelizSyncNewPassphraseReady(typedSyncPassphrase, repeatedSyncPassphrase)
-    const submitNewPassphrase = () => {
-      const newSyncPassphrase = typedSyncPassphrase
-      if (syncSetUpDialogMode === 'change-passphrase') {
-        void runSetUpAction(
-          () => papelizSyncEngine.changeSyncPassphrase(newSyncPassphrase),
-          () => {
-            forgetTypedSecrets()
-            setSyncSetUpStep({ syncSetUpStepKind: 'passphrase-changed' })
-          },
-        )
-        return
-      }
+  // Change passphrase: the new one twice, for a vault this device holds the key of.
+  if (syncSetUpDialogRequest.syncSetUpDialogKind === 'change-vault-passphrase') {
+    const { papelizSyncVaultId, syncVaultName } = syncSetUpDialogRequest
+    if (syncSetUpStep.syncSetUpStepKind === 'vault-passphrase-changed') {
+      return (
+        <PapelizSyncDialogFrame
+          {...dialogFrameProps}
+          syncDialogTitle="The passphrase is changed"
+          syncDialogIntro={`Use the new one when a device asks for “${syncVaultName}”.`}
+          syncDialogFooter={
+            <PapelizPillButton pillButtonVariant="primary" onClick={closePapelizSyncSetUpDialog}>
+              Done
+            </PapelizPillButton>
+          }
+        />
+      )
+    }
+    const isNewPassphraseReady = isPapelizSyncNewPassphraseReady(typedSyncVaultPassphrase, repeatedSyncVaultPassphrase)
+    const changeVaultPassphrase = () => {
+      const newSyncVaultPassphrase = typedSyncVaultPassphrase
       void runSetUpAction(
-        () => (syncSetUpDialogMode === 'start-over' ? papelizSyncEngine.startSyncOver(newSyncPassphrase) : papelizSyncEngine.prepareSyncAccountKeys(newSyncPassphrase)),
-        (syncAccountKeyDraft) => {
-          forgetTypedSecrets()
-          setIsRecoveryKeySavedTicked(false)
-          setSyncSetUpStep({ syncSetUpStepKind: 'recovery-key', syncAccountKeyDraft })
+        () => papelizSyncEngine.changeSyncVaultPassphrase(papelizSyncVaultId, newSyncVaultPassphrase),
+        () => {
+          forgetTypedPassphrase()
+          setSyncSetUpStep({ syncSetUpStepKind: 'vault-passphrase-changed' })
         },
       )
     }
     return (
       <PapelizSyncDialogFrame
         {...dialogFrameProps}
-        syncDialogTitle={
-          syncSetUpDialogMode === 'start-over' ? 'Start over with new keys' : syncSetUpDialogMode === 'change-passphrase' ? 'Change your Sync passphrase' : 'Create your Sync passphrase'
-        }
-        syncDialogIntro={
-          syncSetUpDialogMode === 'start-over' ? (
-            <>
-              With neither your passphrase nor your Recovery Key, nobody can open the synced copy, Papeliz included. Starting over <b>deletes the synced copy and its old
-              versions</b> and makes new keys; then each device uploads its vaults again. The notes on your devices aren’t touched.
-            </>
-          ) : syncSetUpDialogMode === 'change-passphrase' ? (
-            'Your other devices stay unlocked; a device that unlocks later uses the new one. Nothing has to upload again.'
-          ) : (
-            'It locks your notes before they leave this device. It’s separate from how you sign in, and Papeliz never sees it, so Papeliz can’t reset it.'
-          )
-        }
+        syncDialogTitle={`Change the passphrase for “${syncVaultName}”`}
+        syncDialogIntro="Devices that already have this vault stay unlocked; a device that downloads it later uses the new one. Nothing uploads again."
         syncDialogFooter={
           <>
-            {cancelButton}
-            <PapelizPillButton
-              pillButtonVariant={syncSetUpDialogMode === 'start-over' ? 'red-primary' : 'primary'}
-              disabled={!isNewPassphraseReady || isSetUpActionRunning}
-              onClick={submitNewPassphrase}
-            >
-              {runningButtonContent(syncSetUpDialogMode === 'start-over' ? 'Start over' : syncSetUpDialogMode === 'change-passphrase' ? 'Change passphrase' : 'Continue')}
+            <PapelizPillButton pillButtonVariant="gray" disabled={isSetUpActionRunning} onClick={closePapelizSyncSetUpDialog}>
+              Cancel
+            </PapelizPillButton>
+            <PapelizPillButton pillButtonVariant="primary" disabled={!isNewPassphraseReady || isSetUpActionRunning} onClick={changeVaultPassphrase}>
+              {runningButtonContent('Change passphrase')}
             </PapelizPillButton>
           </>
         }
@@ -267,230 +212,31 @@ export function PapelizSyncSetUpDialog({ papelizSyncEngine, syncEngineSnapshot, 
         <form
           onSubmit={(submitEvent) => {
             submitEvent.preventDefault()
-            if (isNewPassphraseReady && !isSetUpActionRunning) submitNewPassphrase()
+            if (isNewPassphraseReady && !isSetUpActionRunning) changeVaultPassphrase()
           }}
         >
           <PapelizSyncNewPassphraseFields
-            newSyncPassphrase={typedSyncPassphrase}
-            onNewSyncPassphraseChange={setTypedSyncPassphrase}
-            repeatedSyncPassphrase={repeatedSyncPassphrase}
-            onRepeatedSyncPassphraseChange={setRepeatedSyncPassphrase}
-            newSyncPassphraseFieldLabel={syncSetUpDialogMode === 'set-up' ? 'Sync passphrase' : 'New Sync passphrase'}
+            newSyncPassphrase={typedSyncVaultPassphrase}
+            onNewSyncPassphraseChange={setTypedSyncVaultPassphrase}
+            repeatedSyncPassphrase={repeatedSyncVaultPassphrase}
+            onRepeatedSyncPassphraseChange={setRepeatedSyncVaultPassphrase}
+            newSyncPassphraseFieldLabel="New passphrase"
           />
           <button type="submit" hidden aria-hidden="true" tabIndex={-1} />
         </form>
+        <PapelizSyncPassphraseNotRecoverableNote />
         {setUpActionLine}
       </PapelizSyncDialogFrame>
     )
   }
 
-  // A second device: the passphrase once.
-  if (syncSetUpStep.syncSetUpStepKind === 'passphrase') {
-    const isPassphraseTyped = typedSyncPassphrase !== ''
-    const unlockWithPassphrase = () => {
-      const syncPassphrase = typedSyncPassphrase
-      void runSetUpAction(() => papelizSyncEngine.unlockSyncWithPassphrase(syncPassphrase), goToVaultsStep)
-    }
+  // No vault to turn Sync on for: the sample vault, or none open.
+  if (!isOpenVaultSyncable || openVault === null) {
     return (
       <PapelizSyncDialogFrame
         {...dialogFrameProps}
-        syncDialogTitle="Unlock Sync on this device"
-        syncDialogIntro="Enter your Sync passphrase. Papeliz asks for it once on each device."
-        syncDialogFooter={
-          <>
-            {cancelButton}
-            <PapelizPillButton pillButtonVariant="primary" disabled={!isPassphraseTyped || isSetUpActionRunning} onClick={unlockWithPassphrase}>
-              {runningButtonContent('Unlock')}
-            </PapelizPillButton>
-          </>
-        }
-      >
-        <form
-          className="mt-4"
-          onSubmit={(submitEvent) => {
-            submitEvent.preventDefault()
-            if (isPassphraseTyped && !isSetUpActionRunning) unlockWithPassphrase()
-          }}
-        >
-          <PapelizSyncPassphraseField
-            syncPassphraseFieldLabel="Sync passphrase"
-            syncPassphrase={typedSyncPassphrase}
-            onSyncPassphraseChange={setTypedSyncPassphrase}
-            isSyncPassphraseShown={false}
-            syncPassphraseAutoComplete="current-password"
-            isSyncPassphraseFieldFocusedFirst
-          />
-          <button type="submit" hidden aria-hidden="true" tabIndex={-1} />
-        </form>
-        {setUpActionLine}
-        <p className="mt-4 text-[12.5px] leading-[1.5] text-papeliz-ink-muted">
-          Forgot it?{' '}
-          <PapelizSyncTextButton
-            onClick={() => {
-              forgetTypedSecrets()
-              setSetUpActionState({ setUpActionKind: 'idle' })
-              setSyncSetUpStep({ syncSetUpStepKind: 'recovery-key-unlock' })
-            }}
-          >
-            Use your Recovery Key
-          </PapelizSyncTextButton>
-          . Lost both?{' '}
-          <PapelizSyncTextButton onClick={() => openPapelizSyncSetUpDialog('start-over')}>Start over</PapelizSyncTextButton>
-        </p>
-      </PapelizSyncDialogFrame>
-    )
-  }
-
-  // A lost passphrase: the Recovery Key unlocks and sets a new one.
-  if (syncSetUpStep.syncSetUpStepKind === 'recovery-key-unlock') {
-    const isRecoveryUnlockReady = typedRecoveryKeyText.trim() !== '' && isPapelizSyncNewPassphraseReady(typedSyncPassphrase, repeatedSyncPassphrase)
-    const unlockWithRecoveryKey = () => {
-      const syncRecoveryKeyText = typedRecoveryKeyText
-      const newSyncPassphrase = typedSyncPassphrase
-      void runSetUpAction(() => papelizSyncEngine.unlockSyncWithRecoveryKey(syncRecoveryKeyText, newSyncPassphrase), goToVaultsStep)
-    }
-    return (
-      <PapelizSyncDialogFrame
-        {...dialogFrameProps}
-        syncDialogTitle="Unlock with your Recovery Key"
-        syncDialogIntro="Type or paste the 24 characters from your Recovery Kit, then choose a new Sync passphrase."
-        syncDialogFooter={
-          <>
-            <PapelizPillButton
-              pillButtonVariant="gray"
-              disabled={isSetUpActionRunning}
-              onClick={() => {
-                forgetTypedSecrets()
-                setSetUpActionState({ setUpActionKind: 'idle' })
-                setSyncSetUpStep({ syncSetUpStepKind: 'passphrase' })
-              }}
-            >
-              Back
-            </PapelizPillButton>
-            <PapelizPillButton pillButtonVariant="primary" disabled={!isRecoveryUnlockReady || isSetUpActionRunning} onClick={unlockWithRecoveryKey}>
-              {runningButtonContent('Unlock')}
-            </PapelizPillButton>
-          </>
-        }
-      >
-        <label className="mt-4 block">
-          <span className="mb-1 block text-[12px] font-medium text-papeliz-ink-subtle">Recovery Key</span>
-          <input
-            type="text"
-            value={typedRecoveryKeyText}
-            onChange={(changeEvent) => setTypedRecoveryKeyText(changeEvent.target.value)}
-            autoComplete="off"
-            autoCapitalize="characters"
-            autoCorrect="off"
-            spellCheck={false}
-            placeholder="XXXX-XXXX-XXXX-XXXX-XXXX-XXXX"
-            className={`${papelizSyncTextFieldClassName} font-mono tracking-wide`}
-          />
-        </label>
-        <PapelizSyncNewPassphraseFields
-          newSyncPassphrase={typedSyncPassphrase}
-          onNewSyncPassphraseChange={setTypedSyncPassphrase}
-          repeatedSyncPassphrase={repeatedSyncPassphrase}
-          onRepeatedSyncPassphraseChange={setRepeatedSyncPassphrase}
-          newSyncPassphraseFieldLabel="New Sync passphrase"
-        />
-        {setUpActionLine}
-      </PapelizSyncDialogFrame>
-    )
-  }
-
-  // The Recovery Key, shown once. Nothing is sent until Continue, so leaving here leaves nothing behind.
-  if (syncSetUpStep.syncSetUpStepKind === 'recovery-key') {
-    const { syncAccountKeyDraft } = syncSetUpStep
-    const signInEmailAddress = syncEngineSnapshot.syncSignIn.syncSignInKind === 'signed-in' ? syncEngineSnapshot.syncSignIn.syncSignInEmailAddress : null
-    return (
-      <PapelizSyncDialogFrame
-        {...dialogFrameProps}
-        syncDialogTitle="Save your Recovery Key"
-        syncDialogIntro="It opens your synced notes if you forget your Sync passphrase. Papeliz can’t reset either one: without both, the synced copy can’t be opened. The notes on your devices are never affected."
-        syncDialogFooter={
-          <>
-            <PapelizPillButton
-              pillButtonVariant="gray"
-              disabled={isSetUpActionRunning}
-              onClick={() => {
-                setSetUpActionState({ setUpActionKind: 'idle' })
-                setSyncSetUpStep({ syncSetUpStepKind: 'passphrase' })
-              }}
-            >
-              Back
-            </PapelizPillButton>
-            <PapelizPillButton
-              pillButtonVariant="primary"
-              disabled={!isRecoveryKeySavedTicked || isSetUpActionRunning}
-              onClick={() => void runSetUpAction(() => papelizSyncEngine.confirmSyncAccountKeys(syncAccountKeyDraft.syncAccountKeyDraftId), goToVaultsStep)}
-            >
-              {runningButtonContent('Continue')}
-            </PapelizPillButton>
-          </>
-        }
-      >
-        <p
-          className="papeliz-selectable-text mt-4 rounded-2xl border border-papeliz-blue-line bg-papeliz-blue-soft px-4 py-3 text-center font-mono text-[17px] font-medium tracking-[0.08em] break-words text-papeliz-ink max-sm:text-[15px]"
-          aria-label="Recovery Key"
-        >
-          {groupPapelizSyncRecoveryKeyText(syncAccountKeyDraft.syncRecoveryKeyText)}
-        </p>
-        <div className="mt-2.5 flex flex-wrap gap-2">
-          <PapelizPillButton
-            pillButtonVariant="line"
-            pillButtonSize="small"
-            disabled={recoveryKitDownloadState === 'making-pdf'}
-            onClick={() => {
-              setRecoveryKitDownloadState('making-pdf')
-              void downloadPapelizSyncRecoveryKit(syncAccountKeyDraft.syncRecoveryKeyText, signInEmailAddress).then((recoveryKitFileKind) =>
-                setRecoveryKitDownloadState(recoveryKitFileKind === 'pdf' ? 'pdf-saved' : 'text-saved'),
-              )
-            }}
-          >
-            {recoveryKitDownloadState === 'making-pdf' ? (
-              <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" />
-            ) : recoveryKitDownloadState === 'pdf-saved' || recoveryKitDownloadState === 'text-saved' ? (
-              <Check className="size-3.5" aria-hidden="true" />
-            ) : (
-              <Download className="size-3.5" aria-hidden="true" />
-            )}
-            {recoveryKitDownloadState === 'making-pdf' ? 'Making the PDF…' : recoveryKitDownloadState === 'idle' ? 'Download Recovery Kit' : 'Downloaded'}
-          </PapelizPillButton>
-          <PapelizPillButton
-            pillButtonVariant="line"
-            pillButtonSize="small"
-            onClick={() => {
-              void navigator.clipboard.writeText(groupPapelizSyncRecoveryKeyText(syncAccountKeyDraft.syncRecoveryKeyText)).then(() => setIsRecoveryKeyCopied(true))
-            }}
-          >
-            {isRecoveryKeyCopied ? <Check className="size-3.5" aria-hidden="true" /> : <Copy className="size-3.5" aria-hidden="true" />}
-            {isRecoveryKeyCopied ? 'Copied' : 'Copy'}
-          </PapelizPillButton>
-        </div>
-        <label className="mt-4 flex cursor-pointer items-start gap-2 text-[13px] leading-[1.45]">
-          <input
-            type="checkbox"
-            checked={isRecoveryKeySavedTicked}
-            onChange={(changeEvent) => setIsRecoveryKeySavedTicked(changeEvent.target.checked)}
-            className="mt-0.5 size-[15px] flex-none accent-papeliz-blue"
-          />
-          <span>I saved my Recovery Key somewhere safe, away from this device.</span>
-        </label>
-        {recoveryKitDownloadState === 'text-saved' && (
-          <PapelizSyncFailureLine className="mt-2">The PDF couldn’t be made here, so the Recovery Kit downloaded as a text file.</PapelizSyncFailureLine>
-        )}
-        {setUpActionLine}
-      </PapelizSyncDialogFrame>
-    )
-  }
-
-  if (syncSetUpStep.syncSetUpStepKind === 'passphrase-changed') {
-    return (
-      <PapelizSyncDialogFrame
-        {...dialogFrameProps}
-        syncDialogTitle="Your passphrase is changed"
-        syncDialogIntro="Use the new one when a device asks for it. Your Recovery Key stays the same."
+        syncDialogTitle="Turn on Sync for a vault"
+        syncDialogIntro="Open a folder or a browser vault, then turn Sync on for it in Settings."
         syncDialogFooter={
           <PapelizPillButton pillButtonVariant="primary" onClick={closePapelizSyncSetUpDialog}>
             Done
@@ -500,96 +246,141 @@ export function PapelizSyncSetUpDialog({ papelizSyncEngine, syncEngineSnapshot, 
     )
   }
 
-  // Which vaults sync: the vault open here. Others sync from Sync in the gear once they're open.
-  if (syncSetUpStep.syncSetUpStepKind === 'vaults') {
-    const accountVaultsToConnect =
-      accountVaultsOutcome?.syncActionOutcome === 'done'
-        ? accountVaultsOutcome.syncActionDoneValue.filter((accountVault) => accountVault.papelizVaultIdOnThisDevice === null)
-        : []
-    const applyOpenVaultChoice = () => {
-      if (openVault === null || openVaultChoice === null || openVaultChoice.openVaultChoiceKind === 'not-now') {
-        closePapelizSyncSetUpDialog()
-        return
-      }
-      const papelizVaultId = openVault.papelizVaultId
-      void runSetUpAction<unknown>(
-        () =>
-          openVaultChoice.openVaultChoiceKind === 'connect'
-            ? papelizSyncEngine.connectVaultToSyncedVault(papelizVaultId, openVaultChoice.papelizSyncVaultId)
-            : papelizSyncEngine.turnSyncOnForVault(papelizVaultId),
-        () => setSyncSetUpStep({ syncSetUpStepKind: 'first-transfer', transferredPapelizVaultId: papelizVaultId }),
-      )
-    }
-    const openVaultChoiceRow = (openVaultChoiceKey: string, rowOpenVaultChoice: PapelizSyncOpenVaultChoice, openVaultChoiceTitle: ReactNode, openVaultChoiceDetail: ReactNode) => (
-      <label key={openVaultChoiceKey} className="flex cursor-pointer items-start gap-2.5 px-3 py-2.5 has-checked:bg-papeliz-blue-soft">
-        <input
-          type="radio"
-          name="papeliz-sync-open-vault-choice"
-          checked={openVaultChoice !== null && isSameOpenVaultChoice(openVaultChoice, rowOpenVaultChoice)}
-          onChange={() => setOpenVaultChoice(rowOpenVaultChoice)}
-          className="mt-0.5 size-[15px] flex-none accent-papeliz-blue"
-        />
-        <span className="min-w-0 flex-1">
-          <span className="block text-[13px] font-medium">{openVaultChoiceTitle}</span>
-          <span className="block text-[12px] leading-[1.4] text-papeliz-ink-subtle">{openVaultChoiceDetail}</span>
-        </span>
-      </label>
+  const openVaultName = openVault.papelizVaultDisplayName
+  const papelizVaultId = openVault.papelizVaultId
+  const startSyncingOpenVault = () => {
+    const syncVaultPassphrase = typedSyncVaultPassphrase
+    void runSetUpAction(
+      () =>
+        papelizSyncEngine.turnSyncOnForVault(
+          papelizVaultId,
+          chosenSyncVaultEncryptionKind === 'end-to-end' ? { syncVaultEncryptionKind: 'end-to-end', syncVaultPassphrase } : { syncVaultEncryptionKind: 'standard' },
+        ),
+      () => {
+        forgetTypedPassphrase()
+        setSyncSetUpStep({ syncSetUpStepKind: 'first-transfer', transferredPapelizVaultId: papelizVaultId })
+      },
     )
+  }
+
+  // 1. Who can read it: Standard (selected) or End-to-end.
+  if (syncSetUpStep.syncSetUpStepKind === 'encryption-kind') {
     return (
       <PapelizSyncDialogFrame
         {...dialogFrameProps}
-        syncDialogTitle="Choose what syncs"
-        syncDialogIntro={
-          isOpenVaultSyncable
-            ? 'A vault syncs while it’s open in Papeliz. To sync another vault, open it and turn Sync on in Settings.'
-            : 'Sync is set up. Open a folder or a browser vault, then turn Sync on for it in Settings.'
-        }
+        syncDialogTitle="Turn on Sync for this vault"
+        syncDialogIntro={`“${openVaultName}” uploads encrypted, and your other devices can download it. Choose who can read it.`}
         syncDialogFooter={
           <>
-            {cancelButton}
-            {isOpenVaultSyncable && (
-              <PapelizPillButton pillButtonVariant="primary" disabled={openVaultChoice === null || isSetUpActionRunning} onClick={applyOpenVaultChoice}>
-                {runningButtonContent(openVaultChoice?.openVaultChoiceKind === 'not-now' ? 'Done' : 'Start syncing')}
-              </PapelizPillButton>
-            )}
+            {notNowButton}
+            <PapelizPillButton
+              pillButtonVariant="primary"
+              disabled={isSetUpActionRunning}
+              onClick={() => {
+                if (chosenSyncVaultEncryptionKind === 'standard') {
+                  startSyncingOpenVault()
+                  return
+                }
+                setSetUpActionState({ setUpActionKind: 'idle' })
+                setSyncSetUpStep({ syncSetUpStepKind: 'vault-passphrase' })
+              }}
+            >
+              {runningButtonContent(chosenSyncVaultEncryptionKind === 'standard' ? 'Start syncing' : 'Continue')}
+            </PapelizPillButton>
           </>
         }
       >
-        {isOpenVaultSyncable && openVault !== null && (
-          <div className="mt-4 divide-y divide-papeliz-line overflow-hidden rounded-2xl border border-papeliz-line" role="radiogroup" aria-label={`What “${openVault.papelizVaultDisplayName}” does`}>
-            {openVaultChoiceRow(
-              'sync-as-new',
-              { openVaultChoiceKind: 'sync-as-new' },
-              <>Sync “{openVault.papelizVaultDisplayName}”</>,
-              'It uploads, encrypted, and your other devices can download it.',
-            )}
-            {syncSetUpDialogMode === 'unlock' && accountVaultsOutcome === null && (
-              <div className="px-3">
-                <PapelizSyncLoadingLine>Reading your synced vaults…</PapelizSyncLoadingLine>
-              </div>
-            )}
-            {accountVaultsToConnect.map((accountVault) =>
-              openVaultChoiceRow(
-                `connect-${accountVault.papelizSyncVaultId}`,
-                { openVaultChoiceKind: 'connect', papelizSyncVaultId: accountVault.papelizSyncVaultId },
-                <>Join “{accountVault.syncVaultName ?? 'a synced vault'}”</>,
-                `Merges the two, note by note: ${accountVault.syncVaultFileCount.toLocaleString('en-US')} files, ${formatPapelizSyncByteSize(accountVault.syncVaultStoredByteLength)} synced.`,
-              ),
-            )}
-            {openVaultChoiceRow('not-now', { openVaultChoiceKind: 'not-now' }, 'Not now', 'This vault stays on this device only. You can turn Sync on later.')}
-          </div>
-        )}
-        {accountVaultsOutcome?.syncActionOutcome === 'failed' && (
-          <PapelizSyncFailureLine className="mt-3">{describePapelizSyncActionFailureNow(accountVaultsOutcome)}</PapelizSyncFailureLine>
-        )}
+        <div className="mt-4 flex flex-col gap-2" role="radiogroup" aria-label={`Who can read “${openVaultName}”`}>
+          {(['standard', 'end-to-end'] as const).map((syncVaultEncryptionKind) => {
+            const EncryptionKindIcon = papelizSyncEncryptionKindIcons[syncVaultEncryptionKind]
+            const isEncryptionKindChosen = syncVaultEncryptionKind === chosenSyncVaultEncryptionKind
+            return (
+              <label
+                key={syncVaultEncryptionKind}
+                className={joinPapelizClassNames(
+                  'flex cursor-pointer items-start gap-2.5 rounded-2xl border px-3 py-2.5 transition-colors',
+                  isEncryptionKindChosen ? 'border-papeliz-blue-line bg-papeliz-blue-soft' : 'border-papeliz-line bg-papeliz-surface hover:bg-papeliz-hover',
+                )}
+              >
+                <input
+                  type="radio"
+                  name="papeliz-sync-vault-encryption-kind"
+                  checked={isEncryptionKindChosen}
+                  disabled={isSetUpActionRunning}
+                  onChange={() => setChosenSyncVaultEncryptionKind(syncVaultEncryptionKind)}
+                  className="mt-[3px] size-[15px] flex-none accent-papeliz-blue"
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center gap-1.5 text-[13.5px] font-semibold">
+                    <EncryptionKindIcon className="size-[15px] flex-none text-papeliz-blue" aria-hidden="true" />
+                    {papelizSyncVaultEncryptionKindDisplayNames[syncVaultEncryptionKind]}
+                  </span>
+                  <span className="mt-0.5 block text-[12.5px] leading-[1.45] text-papeliz-ink-muted">{papelizSyncVaultEncryptionKindReaderLines[syncVaultEncryptionKind]}</span>
+                </span>
+              </label>
+            )
+          })}
+        </div>
+        <p className="mt-3 text-[12px] leading-[1.45] text-papeliz-ink-subtle">
+          {papelizSyncVaultNameReadableLine} To switch later, delete it from Sync and turn Sync on again.
+        </p>
         {setUpActionLine}
       </PapelizSyncDialogFrame>
     )
   }
 
-  // The first upload (or Connect's merge), with its progress. It goes on with the dialog closed.
-  const transferredVaultReading = syncEngineSnapshot.syncLocalVaults.find((syncLocalVault) => syncLocalVault.papelizVaultId === syncSetUpStep.transferredPapelizVaultId) ?? openVaultSyncReading
-  const transferredVaultName = openVault?.papelizVaultId === syncSetUpStep.transferredPapelizVaultId ? openVault.papelizVaultDisplayName : 'This vault'
+  // 2. End-to-end: its passphrase, twice.
+  if (syncSetUpStep.syncSetUpStepKind === 'vault-passphrase') {
+    const isNewPassphraseReady = isPapelizSyncNewPassphraseReady(typedSyncVaultPassphrase, repeatedSyncVaultPassphrase)
+    return (
+      <PapelizSyncDialogFrame
+        {...dialogFrameProps}
+        syncDialogTitle={`Choose a passphrase for “${openVaultName}”`}
+        syncDialogIntro="It locks this vault before anything leaves this device. You type it once on each device that downloads the vault."
+        syncDialogFooter={
+          <>
+            <PapelizPillButton
+              pillButtonVariant="gray"
+              disabled={isSetUpActionRunning}
+              onClick={() => {
+                forgetTypedPassphrase()
+                setSetUpActionState({ setUpActionKind: 'idle' })
+                setSyncSetUpStep({ syncSetUpStepKind: 'encryption-kind' })
+              }}
+            >
+              Back
+            </PapelizPillButton>
+            <PapelizPillButton pillButtonVariant="primary" disabled={!isNewPassphraseReady || isSetUpActionRunning} onClick={startSyncingOpenVault}>
+              {runningButtonContent('Start syncing')}
+            </PapelizPillButton>
+          </>
+        }
+      >
+        <form
+          onSubmit={(submitEvent) => {
+            submitEvent.preventDefault()
+            if (isNewPassphraseReady && !isSetUpActionRunning) startSyncingOpenVault()
+          }}
+        >
+          <PapelizSyncNewPassphraseFields
+            newSyncPassphrase={typedSyncVaultPassphrase}
+            onNewSyncPassphraseChange={setTypedSyncVaultPassphrase}
+            repeatedSyncPassphrase={repeatedSyncVaultPassphrase}
+            onRepeatedSyncPassphraseChange={setRepeatedSyncVaultPassphrase}
+            newSyncPassphraseFieldLabel="Passphrase"
+          />
+          <button type="submit" hidden aria-hidden="true" tabIndex={-1} />
+        </form>
+        <PapelizSyncPassphraseNotRecoverableNote />
+        {setUpActionLine}
+      </PapelizSyncDialogFrame>
+    )
+  }
+
+  // 3. The first upload, with its progress. It goes on with the dialog closed.
+  const transferredPapelizVaultId = syncSetUpStep.syncSetUpStepKind === 'first-transfer' ? syncSetUpStep.transferredPapelizVaultId : papelizVaultId
+  const transferredVaultReading = syncEngineSnapshot.syncLocalVaults.find((syncLocalVault) => syncLocalVault.papelizVaultId === transferredPapelizVaultId) ?? openVaultSyncReading
+  const transferredVaultName = papelizVaultId === transferredPapelizVaultId ? openVaultName : 'This vault'
   const syncVaultTransferProgress = transferredVaultReading?.syncVaultTransferProgress ?? null
   const isTransferDone = transferredVaultReading !== undefined && syncVaultTransferProgress === null && transferredVaultReading.syncVaultStatus.syncStatusKind !== 'syncing'
   return (

@@ -3,7 +3,7 @@ import { buildPapelizBrowserVaultWritesLockName } from '../vault/papeliz-browser
 import { createPapelizBrowserVault, openPapelizBrowserVault } from '../vault/papeliz-browser-vaults'
 import { createPapelizFakeBrowserVaultEnvironment } from '../vault/papeliz-fake-browser-vault-environment.test-support'
 import { PapelizInMemoryVaultAdapter } from '../vault/papeliz-in-memory-vault-adapter'
-import { createPapelizSyncFakeEngine, papelizSyncFakeEnginePassphrase, papelizSyncFakeEngineRecoveryKeyText, readPapelizSyncFakeEngineStoragePlaceForNewAccount } from './papeliz-sync-fake-engine'
+import { createPapelizSyncFakeEngine, papelizSyncFakeEngineVaultPassphrase, readPapelizSyncFakeEngineStoragePlaceForNewAccount, type PapelizSyncFakeEngine } from './papeliz-sync-fake-engine'
 import {
   choosePapelizSyncPlan,
   continuePapelizSyncSubscribeToCheckout,
@@ -11,7 +11,7 @@ import {
   followPapelizSyncSnapshotInFlows,
   goBackInPapelizSyncSubscribeFlow,
   putOffPapelizSyncNoteClash,
-  readPapelizSyncSetUpDialogModeNeeded,
+  readPapelizSyncSetUpDialogRequestAfterSubscribing,
   resetPapelizSyncFlowsForTests,
   showPapelizSyncNoteClash,
   startPapelizSyncSignInFromClick,
@@ -31,7 +31,12 @@ import {
 import { createPapelizFakeVaultFolder } from '../vault/papeliz-fake-file-system-access.test-support'
 import { PapelizFolderOnDiskVaultAdapter } from '../vault/papeliz-folder-on-disk-vault-adapter'
 import type { PapelizSyncAccountVaultReading } from './papeliz-sync-engine-contract'
-import { isPapelizSyncVaultDeleteConfirmationTyped, readPapelizSyncAccountVaultPlace } from './papeliz-sync-synced-vaults-section'
+import {
+  canPapelizSyncVaultPassphraseChangeHere,
+  isPapelizSyncVaultDeleteConfirmationTyped,
+  isPapelizSyncVaultLockedHere,
+  readPapelizSyncAccountVaultPlace,
+} from './papeliz-sync-synced-vaults-section'
 
 // The screens' flows, run against the fake engine. The browser's new tabs are stood in for by a
 // fake `window.open` that records what each tab was sent to.
@@ -72,8 +77,22 @@ afterEach(() => {
 
 const settleFakeCalls = () => new Promise((resolveSettled) => setTimeout(resolveSettled, 0))
 
+// A vault opened in the workspace, as the fake engine sees it.
+function attachTestVaultToFakeEngine(papelizSyncFakeEngine: PapelizSyncFakeEngine, papelizVaultId: string, papelizVaultDisplayName: string): void {
+  papelizSyncFakeEngine.attachSyncToOpenVault({
+    papelizVaultId,
+    papelizVaultKind: 'browser-vault-in-opfs',
+    papelizVaultDisplayName,
+    syncLocalVaultFiles: createPapelizSyncLocalVaultFiles(new PapelizInMemoryVaultAdapter([])),
+  })
+}
+
+function readFakeLocalVault(papelizSyncFakeEngine: PapelizSyncFakeEngine, papelizVaultId: string) {
+  return papelizSyncFakeEngine.getSyncEngineSnapshot().syncLocalVaults.find((syncLocalVault) => syncLocalVault.papelizVaultId === papelizVaultId)
+}
+
 describe('the subscribe flow', () => {
-  it('goes Choose a plan → storage place → sign in in a new tab → checkout in a new tab → set-up', async () => {
+  it('goes Choose a plan → storage place → sign in in a new tab → checkout in a new tab → Turn on Sync', async () => {
     const papelizSyncFakeEngine = createPapelizSyncFakeEngine({ fakeEngineScenario: 'signed-out' })
 
     choosePapelizSyncPlan(papelizSyncFakeEngine, papelizSyncFakeEngine.getSyncEngineSnapshot(), { syncPlanName: 'plus', syncBillingPeriod: 'yearly' })
@@ -105,7 +124,7 @@ describe('the subscribe flow', () => {
     papelizSyncFakeEngine.finishFakeSyncCheckout()
     followPapelizSyncSnapshotInFlows(papelizSyncFakeEngine.getSyncEngineSnapshot())
     expect(usePapelizSyncFlowStore.getState().syncSubscribeStep).toBeNull()
-    expect(usePapelizSyncFlowStore.getState().syncSetUpDialogMode).toBe('set-up')
+    expect(usePapelizSyncFlowStore.getState().syncSetUpDialogRequest).toEqual({ syncSetUpDialogKind: 'turn-on-vault-sync' })
   })
 
   it('opens checkout straight from Choose when already signed in', async () => {
@@ -139,46 +158,94 @@ describe('the subscribe flow', () => {
   })
 })
 
-describe('which set-up a device needs', () => {
-  it('follows the account and this device’s keys', () => {
-    const readModeNeeded = (fakeEngineScenario: Parameters<typeof createPapelizSyncFakeEngine>[0]['fakeEngineScenario']) =>
-      readPapelizSyncSetUpDialogModeNeeded(createPapelizSyncFakeEngine({ fakeEngineScenario }).getSyncEngineSnapshot())
-    expect(readModeNeeded('signed-out')).toBeNull()
-    expect(readModeNeeded('not-subscribed')).toBeNull()
-    expect(readModeNeeded('set-up-unfinished')).toBe('set-up')
-    expect(readModeNeeded('locked')).toBe('unlock')
-    expect(readModeNeeded('on')).toBeNull()
+describe('the set-up a subscription opens', () => {
+  it('is Turn on Sync for this vault, only while no vault syncs on the account yet', async () => {
+    const readSetUpRequest = (papelizSyncFakeEngine: PapelizSyncFakeEngine) => readPapelizSyncSetUpDialogRequestAfterSubscribing(papelizSyncFakeEngine.getSyncEngineSnapshot())
+    expect(readSetUpRequest(createPapelizSyncFakeEngine({ fakeEngineScenario: 'signed-out' }))).toBeNull()
+    expect(readSetUpRequest(createPapelizSyncFakeEngine({ fakeEngineScenario: 'not-subscribed' }))).toBeNull()
+    expect(readSetUpRequest(createPapelizSyncFakeEngine({ fakeEngineScenario: 'nothing-synced-yet' }))).toEqual({ syncSetUpDialogKind: 'turn-on-vault-sync' })
+    // A device that syncs a vault already, or a new device whose account has synced vaults to download.
+    const syncingFakeEngine = createPapelizSyncFakeEngine({ fakeEngineScenario: 'on' })
+    attachTestVaultToFakeEngine(syncingFakeEngine, 'vault-work', 'Work')
+    expect(readSetUpRequest(syncingFakeEngine)).toBeNull()
+    expect(readSetUpRequest(createPapelizSyncFakeEngine({ fakeEngineScenario: 'download-stops' }))).toBeNull()
   })
 })
 
-describe('the fake engine, as the set-up dialog drives it', () => {
-  it('makes keys only after the Recovery Key is confirmed, and refuses a short passphrase', async () => {
-    const papelizSyncFakeEngine = createPapelizSyncFakeEngine({ fakeEngineScenario: 'set-up-unfinished' })
-    expect(await papelizSyncFakeEngine.prepareSyncAccountKeys('too short')).toMatchObject({ syncActionOutcome: 'failed', syncActionFailureKind: 'passphrase-too-short' })
-    const keyDraftOutcome = await papelizSyncFakeEngine.prepareSyncAccountKeys('maple river cloud lantern')
-    if (keyDraftOutcome.syncActionOutcome !== 'done') throw new Error('The fake refused a good passphrase')
-    expect(papelizSyncFakeEngine.getSyncEngineSnapshot().syncAccountKeyState).toBe('not-set-up')
-    expect(await papelizSyncFakeEngine.confirmSyncAccountKeys(keyDraftOutcome.syncActionDoneValue.syncAccountKeyDraftId)).toMatchObject({ syncActionOutcome: 'done' })
-    expect(papelizSyncFakeEngine.getSyncEngineSnapshot().syncAccountKeyState).toBe('unlocked')
+describe('the fake engine, as Turn on Sync and the Sync page drive it', () => {
+  it('turns Sync on as Standard with no passphrase, or End-to-end with one of 12 characters or more', async () => {
+    const papelizSyncFakeEngine = createPapelizSyncFakeEngine({ fakeEngineScenario: 'nothing-synced-yet' })
+    attachTestVaultToFakeEngine(papelizSyncFakeEngine, 'vault-work', 'Work')
+    attachTestVaultToFakeEngine(papelizSyncFakeEngine, 'vault-journal', 'Journal')
+    // Opening a vault doesn't sync it in this scenario.
+    expect(papelizSyncFakeEngine.getSyncEngineSnapshot().syncLocalVaults).toEqual([])
+
+    expect(await papelizSyncFakeEngine.turnSyncOnForVault('vault-work', { syncVaultEncryptionKind: 'standard' })).toMatchObject({ syncActionOutcome: 'done' })
+    expect(readFakeLocalVault(papelizSyncFakeEngine, 'vault-work')).toMatchObject({ syncVaultEncryptionKind: 'standard', syncVaultLockState: 'unlocked' })
+
+    expect(await papelizSyncFakeEngine.turnSyncOnForVault('vault-journal', { syncVaultEncryptionKind: 'end-to-end', syncVaultPassphrase: 'too short' })).toMatchObject({
+      syncActionFailureKind: 'passphrase-too-short',
+    })
+    expect(readFakeLocalVault(papelizSyncFakeEngine, 'vault-journal')).toBeUndefined()
+    const journalPassphrase = 'maple river cloud lantern'
+    expect(await papelizSyncFakeEngine.turnSyncOnForVault('vault-journal', { syncVaultEncryptionKind: 'end-to-end', syncVaultPassphrase: journalPassphrase })).toMatchObject({
+      syncActionOutcome: 'done',
+    })
+    // The key is made on this device, so it holds it from the start.
+    expect(readFakeLocalVault(papelizSyncFakeEngine, 'vault-journal')).toMatchObject({ syncVaultEncryptionKind: 'end-to-end', syncVaultLockState: 'unlocked' })
+    expect(papelizSyncFakeEngine.fakeTurnedOnSyncVaultEncryptionChoices).toEqual([
+      { papelizVaultId: 'vault-work', syncVaultEncryptionChoice: { syncVaultEncryptionKind: 'standard' } },
+      { papelizVaultId: 'vault-journal', syncVaultEncryptionChoice: { syncVaultEncryptionKind: 'end-to-end', syncVaultPassphrase: journalPassphrase } },
+    ])
+    const listedOutcome = await papelizSyncFakeEngine.listSyncedVaultsOnAccount()
+    expect(listedOutcome.syncActionOutcome === 'done' && listedOutcome.syncActionDoneValue.map((accountVault) => [accountVault.syncVaultName, accountVault.syncVaultEncryptionKind])).toEqual([
+      ['Work', 'standard'],
+      ['Journal', 'end-to-end'],
+    ])
   })
 
-  it('unlocks a second device with the passphrase, or with the Recovery Key in any case', async () => {
-    const lockedFakeEngine = createPapelizSyncFakeEngine({ fakeEngineScenario: 'locked' })
-    expect(await lockedFakeEngine.unlockSyncWithPassphrase('not the passphrase')).toMatchObject({ syncActionFailureKind: 'wrong-passphrase' })
-    expect(await lockedFakeEngine.unlockSyncWithPassphrase(papelizSyncFakeEnginePassphrase)).toMatchObject({ syncActionOutcome: 'done' })
-
-    const otherLockedFakeEngine = createPapelizSyncFakeEngine({ fakeEngineScenario: 'locked' })
-    const typedRecoveryKeyText = papelizSyncFakeEngineRecoveryKeyText.toLowerCase().replaceAll('-', ' ')
-    expect(await otherLockedFakeEngine.unlockSyncWithRecoveryKey(typedRecoveryKeyText, 'a new passphrase here')).toMatchObject({ syncActionOutcome: 'done' })
-  })
-
-  it('asks for a fresh sign-in before Start over, then lets it through', async () => {
+  it('unlocks an End-to-end vault that is locked here with its passphrase only, and it syncs again', async () => {
     const papelizSyncFakeEngine = createPapelizSyncFakeEngine({ fakeEngineScenario: 'locked' })
-    expect(await papelizSyncFakeEngine.startSyncOver('a brand new passphrase')).toMatchObject({ syncActionFailureKind: 'fresh-sign-in-required' })
+    attachTestVaultToFakeEngine(papelizSyncFakeEngine, 'vault-work', 'Work')
+    const lockedLocalVault = readFakeLocalVault(papelizSyncFakeEngine, 'vault-work')
+    expect(lockedLocalVault).toMatchObject({ syncVaultEncryptionKind: 'end-to-end', syncVaultLockState: 'locked', syncVaultStatus: { syncStatusKind: 'locked' } })
+    const papelizSyncVaultId = lockedLocalVault?.papelizSyncVaultId ?? ''
+    expect(await papelizSyncFakeEngine.listSyncFileVersions('vault-work', 'Plan.md')).toMatchObject({ syncActionFailureKind: 'locked' })
+
+    expect(await papelizSyncFakeEngine.unlockSyncedVaultWithPassphrase(papelizSyncVaultId, 'not the passphrase')).toMatchObject({ syncActionFailureKind: 'wrong-passphrase' })
+    expect(readFakeLocalVault(papelizSyncFakeEngine, 'vault-work')?.syncVaultLockState).toBe('locked')
+    expect(await papelizSyncFakeEngine.unlockSyncedVaultWithPassphrase(papelizSyncVaultId, papelizSyncFakeEngineVaultPassphrase)).toMatchObject({ syncActionOutcome: 'done' })
+    expect(readFakeLocalVault(papelizSyncFakeEngine, 'vault-work')).toMatchObject({ syncVaultLockState: 'unlocked', syncVaultStatus: { syncStatusKind: 'synced' } })
+  })
+
+  it('changes an End-to-end vault’s passphrase after a fresh sign-in, and has none to change for a Standard one', async () => {
+    const papelizSyncFakeEngine = createPapelizSyncFakeEngine({ fakeEngineScenario: 'nothing-synced-yet' })
+    attachTestVaultToFakeEngine(papelizSyncFakeEngine, 'vault-journal', 'Journal')
+    attachTestVaultToFakeEngine(papelizSyncFakeEngine, 'vault-work', 'Work')
+    const journalTurnOnOutcome = await papelizSyncFakeEngine.turnSyncOnForVault('vault-journal', { syncVaultEncryptionKind: 'end-to-end', syncVaultPassphrase: 'maple river cloud lantern' })
+    const workTurnOnOutcome = await papelizSyncFakeEngine.turnSyncOnForVault('vault-work', { syncVaultEncryptionKind: 'standard' })
+    if (journalTurnOnOutcome.syncActionOutcome !== 'done' || workTurnOnOutcome.syncActionOutcome !== 'done') throw new Error('The fake didn’t turn Sync on')
+    const journalSyncVaultId = journalTurnOnOutcome.syncActionDoneValue.papelizSyncVaultId
+
+    expect(await papelizSyncFakeEngine.changeSyncVaultPassphrase(journalSyncVaultId, 'a newer passphrase here')).toMatchObject({ syncActionFailureKind: 'fresh-sign-in-required' })
     const freshSignIn = startPapelizSyncSignInFromClick(papelizSyncFakeEngine, null)
     papelizSyncFakeEngine.finishFakeSyncSignIn()
     expect(await freshSignIn).toEqual({ syncSignInOutcome: 'signed-in' })
-    expect(await papelizSyncFakeEngine.startSyncOver('a brand new passphrase')).toMatchObject({ syncActionOutcome: 'done' })
+    expect(await papelizSyncFakeEngine.changeSyncVaultPassphrase(journalSyncVaultId, 'short')).toMatchObject({ syncActionFailureKind: 'passphrase-too-short' })
+    expect(await papelizSyncFakeEngine.changeSyncVaultPassphrase(journalSyncVaultId, 'a newer passphrase here')).toMatchObject({ syncActionOutcome: 'done' })
+    expect(await papelizSyncFakeEngine.changeSyncVaultPassphrase(workTurnOnOutcome.syncActionDoneValue.papelizSyncVaultId, 'a newer passphrase here')).toMatchObject({
+      syncActionFailureKind: 'not-found',
+    })
+  })
+
+  it('asks for a fresh sign-in before Start over, then deletes every synced vault', async () => {
+    const papelizSyncFakeEngine = createPapelizSyncFakeEngine({ fakeEngineScenario: 'download-stops' })
+    expect(await papelizSyncFakeEngine.startSyncOver()).toMatchObject({ syncActionFailureKind: 'fresh-sign-in-required' })
+    const freshSignIn = startPapelizSyncSignInFromClick(papelizSyncFakeEngine, null)
+    papelizSyncFakeEngine.finishFakeSyncSignIn()
+    expect(await freshSignIn).toEqual({ syncSignInOutcome: 'signed-in' })
+    expect(await papelizSyncFakeEngine.startSyncOver()).toMatchObject({ syncActionOutcome: 'done' })
+    expect(await papelizSyncFakeEngine.listSyncedVaultsOnAccount()).toEqual({ syncActionOutcome: 'done', syncActionDoneValue: [] })
   })
 
   it('offers plans only in the test currency', async () => {
@@ -255,7 +322,7 @@ describe('the open vault’s files, as Sync reads them', () => {
   })
 })
 
-describe('signing in from Fetch from Sync, before the engine has loaded', () => {
+describe('signing in from Synced Vaults, before the engine has loaded', () => {
   it('opens a blank tab from the click, then sends it to the sign-in page', async () => {
     const papelizSyncFakeEngine = createPapelizSyncFakeEngine({ fakeEngineScenario: 'new-device' })
     const signInFromClick = startPapelizSyncSignInFromClickBeforeEngineLoads(async () => papelizSyncFakeEngine)
@@ -327,6 +394,8 @@ describe('Delete from Sync on the Sync page', () => {
   const workAccountVault: PapelizSyncAccountVaultReading = {
     papelizSyncVaultId: 'pzvault_eeeeeeeeeeeeeeeeeeeeeeeeee',
     syncVaultName: 'Work',
+    syncVaultEncryptionKind: 'standard',
+    syncVaultLockState: 'unlocked',
     syncVaultFileCount: 2140,
     syncVaultStoredByteLength: 1.2e9,
     syncVaultCreatedAt: 0,
@@ -344,19 +413,23 @@ describe('Delete from Sync on the Sync page', () => {
     expect(isPapelizSyncVaultDeleteConfirmationTyped('', workAccountVault)).toBe(false)
     expect(isPapelizSyncVaultDeleteConfirmationTyped('work', workAccountVault)).toBe(false)
     expect(isPapelizSyncVaultDeleteConfirmationTyped(' Work ', workAccountVault)).toBe(true)
-    expect(isPapelizSyncVaultDeleteConfirmationTyped('Synced vault', { ...workAccountVault, syncVaultName: null })).toBe(true)
+  })
+
+  it('offers Change passphrase only for an End-to-end vault whose key is here, and Unlock only for one here that lost it', () => {
+    const endToEndAccountVault: PapelizSyncAccountVaultReading = { ...workAccountVault, syncVaultEncryptionKind: 'end-to-end' }
+    expect(canPapelizSyncVaultPassphraseChangeHere(workAccountVault)).toBe(false)
+    expect(canPapelizSyncVaultPassphraseChangeHere(endToEndAccountVault)).toBe(true)
+    expect(canPapelizSyncVaultPassphraseChangeHere({ ...endToEndAccountVault, syncVaultLockState: 'locked' })).toBe(false)
+    expect(isPapelizSyncVaultLockedHere(endToEndAccountVault)).toBe(false)
+    expect(isPapelizSyncVaultLockedHere({ ...endToEndAccountVault, syncVaultLockState: 'locked' })).toBe(true)
+    // Not on this device: its passphrase is asked when it's downloaded, not here.
+    expect(isPapelizSyncVaultLockedHere({ ...endToEndAccountVault, syncVaultLockState: 'locked', papelizVaultIdOnThisDevice: null })).toBe(false)
   })
 
   it('takes the vault off the account and stops this device syncing it, leaving the others', async () => {
     const papelizSyncFakeEngine = createPapelizSyncFakeEngine({ fakeEngineScenario: 'on' })
-    for (const papelizVaultId of ['vault-work', 'vault-home']) {
-      papelizSyncFakeEngine.attachSyncToOpenVault({
-        papelizVaultId,
-        papelizVaultKind: 'browser-vault-in-opfs',
-        papelizVaultDisplayName: papelizVaultId === 'vault-work' ? 'Work' : 'Home',
-        syncLocalVaultFiles: createPapelizSyncLocalVaultFiles(new PapelizInMemoryVaultAdapter([])),
-      })
-    }
+    attachTestVaultToFakeEngine(papelizSyncFakeEngine, 'vault-work', 'Work')
+    attachTestVaultToFakeEngine(papelizSyncFakeEngine, 'vault-home', 'Home')
     const listedBeforeOutcome = await papelizSyncFakeEngine.listSyncedVaultsOnAccount()
     if (listedBeforeOutcome.syncActionOutcome !== 'done') throw new Error('The fake didn’t list the vaults')
     const workSyncVaultId = listedBeforeOutcome.syncActionDoneValue.find((accountVault) => accountVault.syncVaultName === 'Work')?.papelizSyncVaultId ?? ''
@@ -371,5 +444,35 @@ describe('Delete from Sync on the Sync page', () => {
     expect(await papelizSyncFakeEngine.deleteSyncedVaultFromAccount('pzvault_ffffffffffffffffffffffffff')).toMatchObject({ syncActionOutcome: 'done' })
     const listedAfterOutcome = await papelizSyncFakeEngine.listSyncedVaultsOnAccount()
     expect(listedAfterOutcome.syncActionOutcome === 'done' && listedAfterOutcome.syncActionDoneValue.map((accountVault) => accountVault.syncVaultName)).toEqual(['Research notes', 'Work'])
+  })
+})
+
+describe('Synced Vaults, vault by vault', () => {
+  it('lists each vault’s kind, and an End-to-end one locked until its passphrase opens it', async () => {
+    const papelizSyncFakeEngine = createPapelizSyncFakeEngine({ fakeEngineScenario: 'download-stops' })
+    const listedOutcome = await papelizSyncFakeEngine.listSyncedVaultsOnAccount()
+    expect(
+      listedOutcome.syncActionOutcome === 'done' &&
+        listedOutcome.syncActionDoneValue.map((accountVault) => [accountVault.syncVaultName, accountVault.syncVaultEncryptionKind, accountVault.syncVaultLockState]),
+    ).toEqual([
+      ['Research notes', 'end-to-end', 'locked'],
+      ['Work', 'standard', 'unlocked'],
+      ['Recipes', 'standard', 'unlocked'],
+    ])
+  })
+
+  it('downloads an End-to-end vault only once its passphrase is in, and a Standard one straight away', async () => {
+    const papelizSyncFakeEngine = createPapelizSyncFakeEngine({ fakeEngineScenario: 'download-stops' })
+    const researchSyncVaultId = 'pzvault_dddddddddddddddddddddddddd'
+    attachTestVaultToFakeEngine(papelizSyncFakeEngine, 'vault-research', 'Research notes')
+    expect(await papelizSyncFakeEngine.downloadSyncedVaultInto(researchSyncVaultId, 'vault-research')).toMatchObject({ syncActionFailureKind: 'locked' })
+    expect(await papelizSyncFakeEngine.unlockSyncedVaultWithPassphrase(researchSyncVaultId, 'not the passphrase')).toMatchObject({ syncActionFailureKind: 'wrong-passphrase' })
+    expect(await papelizSyncFakeEngine.unlockSyncedVaultWithPassphrase(researchSyncVaultId, papelizSyncFakeEngineVaultPassphrase)).toMatchObject({ syncActionOutcome: 'done' })
+    expect(await papelizSyncFakeEngine.downloadSyncedVaultInto(researchSyncVaultId, 'vault-research')).toMatchObject({ syncActionOutcome: 'done' })
+    await vi.waitFor(() => expect(readFakeLocalVault(papelizSyncFakeEngine, 'vault-research')?.syncVaultTransferProgress).toBeNull())
+    expect(readFakeLocalVault(papelizSyncFakeEngine, 'vault-research')).toMatchObject({ syncVaultEncryptionKind: 'end-to-end', syncVaultLockState: 'unlocked' })
+
+    attachTestVaultToFakeEngine(papelizSyncFakeEngine, 'vault-work', 'Work')
+    expect(await papelizSyncFakeEngine.downloadSyncedVaultInto('pzvault_eeeeeeeeeeeeeeeeeeeeeeeeee', 'vault-work')).toMatchObject({ syncActionOutcome: 'done' })
   })
 })

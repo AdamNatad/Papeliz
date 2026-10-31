@@ -1,4 +1,4 @@
-import { Check, CirclePause, CloudOff, FolderOpen, History, KeyRound, Lock, Play, TriangleAlert, type LucideIcon } from 'lucide-react'
+import { Check, CirclePause, CloudOff, FolderOpen, History, Play, TriangleAlert, type LucideIcon } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { PapelizPillButton } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
@@ -38,18 +38,19 @@ import {
   describePapelizSyncStoragePlaceLine,
   describePapelizSyncTimeAgo,
   formatPapelizSyncByteSize,
+  papelizSyncPageIntro,
   papelizSyncPlanDisplayNames,
+  papelizSyncVaultEncryptionKindDisplayNames,
 } from './papeliz-sync-screen-words'
 import { papelizSyncStatusIcons } from './papeliz-sync-status-icons'
-import { PapelizSyncSyncedVaultsSection } from './papeliz-sync-synced-vaults-section'
+import { PapelizSyncSyncedVaultsSection, type PapelizSyncAccountVaultDialogRequest } from './papeliz-sync-synced-vaults-section'
 import { usePapelizSyncClockTime } from './papeliz-sync-clock'
 import { getVaultNoteTitle } from '../vault/papeliz-vault-relative-paths'
 
-// The gear's Sync page in each of its states: the plans before subscribing (A), set-up unfinished,
-// locked on this device, and on: this vault's switch, what syncs, storage, Old versions and Pause on
-// this device, with what to do when storage is full, a payment failed or the subscription ended.
-
-const papelizSyncPageIntro = 'Keep your vaults in sync across web, desktop and mobile, end-to-end encrypted.'
+// The gear's Sync page in each of its states: the plans before subscribing (A), and on: this vault's
+// switch (turning it on opens Turn on Sync, which asks Standard or End-to-end), the synced vaults
+// with their kinds, what syncs, storage, Old versions and Pause on this device, with what to do when
+// storage is full, a payment failed, the subscription ended or an End-to-end vault is locked here.
 
 function PapelizSyncManageSubscriptionButton({ papelizSyncEngine, manageButtonLabel = 'Manage subscription' }: { papelizSyncEngine: PapelizSyncEngine; manageButtonLabel?: string }) {
   const [manageFailureWords, setManageFailureWords] = useState<string | null>(null)
@@ -148,19 +149,20 @@ function readSyncEndedNotice(syncAccount: PapelizSyncAccountReading, currentTime
   return undefined
 }
 
+// Each follows its vault's kind. AI provider keys never sync; they're pasted on each device.
 const papelizSyncWhatSyncsSwitchRows: ReadonlyArray<{ whatSyncsChoiceName: keyof PapelizSyncWhatSyncsChoices; whatSyncsTitle: string; whatSyncsDetail?: string }> = [
   { whatSyncsChoiceName: 'isAppSettingSyncOn', whatSyncsTitle: 'Settings', whatSyncsDetail: 'Theme, text, key bindings' },
   { whatSyncsChoiceName: 'isAssistantChatSyncOn', whatSyncsTitle: 'Assistant chats' },
-  { whatSyncsChoiceName: 'isAiProviderKeySyncOn', whatSyncsTitle: 'AI provider keys', whatSyncsDetail: 'Off until you turn it on. Encrypted like your notes.' },
 ]
 
-// Sync on: this account is subscribed and this device is unlocked.
+// Sync on: this account is subscribed (or its subscription ended with vaults syncing here).
 function PapelizSyncOnState({ papelizSyncEngine, syncEngineSnapshot, syncAccount }: { papelizSyncEngine: PapelizSyncEngine; syncEngineSnapshot: PapelizSyncEngineSnapshot; syncAccount: PapelizSyncAccountReading }) {
   const openVault = usePapelizWorkspaceStore((workspaceState) => workspaceState.openVault)
   const activeVaultNoteRelativePath = usePapelizWorkspaceStore((workspaceState) => workspaceState.activeVaultNoteRelativePath)
   const [syncPageActionFailureWords, setSyncPageActionFailureWords] = useState<string | null>(null)
   const [isVaultSwitchBusy, setIsVaultSwitchBusy] = useState(false)
   const [accountVaultsOutcome, setAccountVaultsOutcome] = useState<PapelizSyncActionOutcome<PapelizSyncAccountVaultReading[]> | null>(null)
+  const [accountVaultDialogRequest, setAccountVaultDialogRequest] = useState<PapelizSyncAccountVaultDialogRequest | null>(null)
   const currentTime = usePapelizSyncClockTime()
   const isOpenVaultSyncable = openVault !== null && openVault.papelizVaultAdapter.papelizVaultKind !== 'sample-vault-in-memory'
   const openVaultSyncReading = openVault === null ? undefined : syncEngineSnapshot.syncLocalVaults.find((syncLocalVault) => syncLocalVault.papelizVaultId === openVault.papelizVaultId)
@@ -206,14 +208,20 @@ function PapelizSyncOnState({ papelizSyncEngine, syncEngineSnapshot, syncAccount
   const reportSyncPageActionOutcome = (syncPageActionOutcome: PapelizSyncActionOutcome<unknown>) =>
     setSyncPageActionFailureWords(syncPageActionOutcome.syncActionOutcome === 'failed' ? describePapelizSyncActionFailureNow(syncPageActionOutcome) : null)
 
+  // On opens Turn on Sync, which asks Standard or End-to-end; off stops syncing it on this device.
   const toggleOpenVaultSync = async () => {
     if (openVault === null) return
+    setSyncPageActionFailureWords(null)
+    if (openVaultSyncReading === undefined) {
+      openPapelizSyncSetUpDialog({ syncSetUpDialogKind: 'turn-on-vault-sync' })
+      return
+    }
     setIsVaultSwitchBusy(true)
-    const vaultSwitchOutcome =
-      openVaultSyncReading === undefined ? await papelizSyncEngine.turnSyncOnForVault(openVault.papelizVaultId) : await papelizSyncEngine.turnSyncOffForVault(openVault.papelizVaultId)
+    const vaultSwitchOutcome = await papelizSyncEngine.turnSyncOffForVault(openVault.papelizVaultId)
     setIsVaultSwitchBusy(false)
     reportSyncPageActionOutcome(vaultSwitchOutcome)
   }
+  const isOpenVaultLockedHere = openVaultSyncReading?.syncVaultLockState === 'locked'
 
   return (
     <div>
@@ -275,6 +283,21 @@ function PapelizSyncOnState({ papelizSyncEngine, syncEngineSnapshot, syncAccount
           Sync is paused on this device. Changes wait here; other devices go on syncing.
         </PapelizSyncPageNotice>
       )}
+      {isOpenVaultLockedHere && openVaultSyncReading !== undefined && openVault !== null && (
+        <PapelizSyncPageNotice
+          syncPageNoticeAction={
+            <PapelizPillButton
+              pillButtonVariant="line"
+              pillButtonSize="small"
+              onClick={() => setAccountVaultDialogRequest({ accountVaultDialogKind: 'unlock', papelizSyncVaultId: openVaultSyncReading.papelizSyncVaultId })}
+            >
+              Unlock
+            </PapelizPillButton>
+          }
+        >
+          “{openVault.papelizVaultDisplayName}” is End-to-end and locked on this device. Enter its passphrase to sync it here; your changes are saved on this device meanwhile.
+        </PapelizSyncPageNotice>
+      )}
 
       {openVaultClashes.length > 0 && (
         <>
@@ -302,11 +325,13 @@ function PapelizSyncOnState({ papelizSyncEngine, syncEngineSnapshot, syncAccount
           <PapelizSyncPageRow
             SyncPageRowIcon={FolderOpen}
             syncPageRowTitle="Sync this vault"
-            syncPageRowDetail={
-              openAccountVault === undefined
-                ? openVault.papelizVaultDisplayName
-                : `${openVault.papelizVaultDisplayName} · ${openAccountVault.syncVaultFileCount.toLocaleString('en-US')} notes and files`
-            }
+            syncPageRowDetail={[
+              openVault.papelizVaultDisplayName,
+              openVaultSyncReading === undefined ? null : papelizSyncVaultEncryptionKindDisplayNames[openVaultSyncReading.syncVaultEncryptionKind],
+              openAccountVault === undefined ? null : `${openAccountVault.syncVaultFileCount.toLocaleString('en-US')} notes and files`,
+            ]
+              .filter((syncPageRowDetailPart) => syncPageRowDetailPart !== null)
+              .join(' · ')}
             syncPageRowEnd={
               <PapelizSyncSwitch
                 syncSwitchLabel={`Sync “${openVault.papelizVaultDisplayName}”`}
@@ -348,6 +373,8 @@ function PapelizSyncOnState({ papelizSyncEngine, syncEngineSnapshot, syncAccount
         accountVaultsOutcome={accountVaultsOutcome}
         openPapelizVaultId={openVault?.papelizVaultId ?? null}
         onAccountVaultsReadAgain={() => setAccountVaultsReadCount((readCount) => readCount + 1)}
+        accountVaultDialogRequest={accountVaultDialogRequest}
+        onAccountVaultDialogRequest={setAccountVaultDialogRequest}
       />
 
       <PapelizSyncPageLabel>What syncs</PapelizSyncPageLabel>
@@ -406,16 +433,13 @@ function PapelizSyncOnState({ papelizSyncEngine, syncEngineSnapshot, syncAccount
           {syncEngineSnapshot.isSyncPausedOnThisDevice ? 'Resume on this device' : 'Pause on this device'}
         </PapelizPillButton>
       </div>
-      <PapelizSyncPageSmallText className="mt-3">
-        <PapelizSyncTextButton onClick={() => openPapelizSyncSetUpDialog('change-passphrase')}>Change Sync passphrase</PapelizSyncTextButton>
-      </PapelizSyncPageSmallText>
     </div>
   )
 }
 
 function PapelizSyncPageForSnapshot({ papelizSyncEngine, syncEngineSnapshot }: { papelizSyncEngine: PapelizSyncEngine; syncEngineSnapshot: PapelizSyncEngineSnapshot }) {
   const currentTime = usePapelizSyncClockTime()
-  const { syncSignIn, syncAccount, syncAccountKeyState } = syncEngineSnapshot
+  const { syncSignIn, syncAccount, syncLinkedLocalVaults } = syncEngineSnapshot
   if (syncSignIn.syncSignInKind === 'device-removed') {
     return (
       <PapelizSyncCenteredStep SyncStepIcon={CloudOff} syncStepTitle="This device is signed out of Sync">
@@ -429,46 +453,14 @@ function PapelizSyncPageForSnapshot({ papelizSyncEngine, syncEngineSnapshot }: {
   if (syncSignIn.syncSignInKind !== 'signed-in') return <PapelizSyncPlansState papelizSyncEngine={papelizSyncEngine} syncEngineSnapshot={syncEngineSnapshot} />
   if (syncAccount === null) return <PapelizSyncLoadingLine>Reading your account…</PapelizSyncLoadingLine>
   const isSubscriptionEnded = syncAccount.syncSubscriptionState === 'ended-read-only' || syncAccount.syncSubscriptionState === 'ended-held'
-  if (!isPapelizSyncSubscriptionCurrent(syncAccount.syncSubscriptionState) && !(isSubscriptionEnded && syncAccountKeyState === 'unlocked')) {
+  // After a subscription ended, a device that syncs vaults still shows them, read-only.
+  if (!isPapelizSyncSubscriptionCurrent(syncAccount.syncSubscriptionState) && !(isSubscriptionEnded && syncLinkedLocalVaults.length > 0)) {
     return (
       <PapelizSyncPlansState
         papelizSyncEngine={papelizSyncEngine}
         syncEngineSnapshot={syncEngineSnapshot}
         plansStateNotice={isSubscriptionEnded ? readSyncEndedNotice(syncAccount, currentTime) : undefined}
       />
-    )
-  }
-  if (syncAccountKeyState === 'unknown') {
-    return (
-      <PapelizSyncCenteredStep SyncStepIcon={CloudOff} syncStepTitle="Can’t reach Sync right now">
-        <PapelizSyncPageText className="max-w-[240px]">Papeliz couldn’t read your account yet. Your notes are saved on this device meanwhile.</PapelizSyncPageText>
-        <PapelizPillButton pillButtonVariant="line" pillButtonSize="small" onClick={() => void papelizSyncEngine.refreshSyncAccountReading()}>
-          Try again
-        </PapelizPillButton>
-      </PapelizSyncCenteredStep>
-    )
-  }
-  if (syncAccountKeyState === 'not-set-up') {
-    return (
-      <PapelizSyncCenteredStep SyncStepIcon={KeyRound} syncStepTitle="Finish setting up Sync">
-        <PapelizSyncPageText className="max-w-[240px]">Three short steps: a Sync passphrase, your Recovery Key, then which vaults sync.</PapelizSyncPageText>
-        <PapelizPillButton pillButtonVariant="primary" pillButtonSize="small" onClick={() => openPapelizSyncSetUpDialog('set-up')}>
-          Continue set-up
-        </PapelizPillButton>
-      </PapelizSyncCenteredStep>
-    )
-  }
-  if (syncAccountKeyState === 'locked') {
-    return (
-      <PapelizSyncCenteredStep SyncStepIcon={Lock} syncStepTitle="Unlock Sync on this device">
-        <PapelizSyncPageText className="max-w-[240px]">Enter your Sync passphrase once on this device, and your synced vaults can come here.</PapelizSyncPageText>
-        <PapelizPillButton pillButtonVariant="primary" pillButtonSize="small" onClick={() => openPapelizSyncSetUpDialog('unlock')}>
-          Unlock
-        </PapelizPillButton>
-        <PapelizSyncPageSmallText className="mt-2 max-w-[250px]">
-          Lost your passphrase and your Recovery Key? <PapelizSyncTextButton onClick={() => openPapelizSyncSetUpDialog('start-over')}>Start over</PapelizSyncTextButton>
-        </PapelizSyncPageSmallText>
-      </PapelizSyncCenteredStep>
     )
   }
   return <PapelizSyncOnState papelizSyncEngine={papelizSyncEngine} syncEngineSnapshot={syncEngineSnapshot} syncAccount={syncAccount} />

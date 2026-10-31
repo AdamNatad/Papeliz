@@ -1,4 +1,4 @@
-import { AppWindow, Check, Cloud, CloudCheck, CloudDownload, CloudOff, Ellipsis, FolderOpen, KeyRound, LoaderCircle, Lock, RefreshCw, TriangleAlert, type LucideIcon } from 'lucide-react'
+import { AppWindow, Check, Cloud, CloudCheck, CloudDownload, CloudOff, Ellipsis, FolderOpen, LoaderCircle, Lock, LockOpen, RefreshCw, TriangleAlert, type LucideIcon } from 'lucide-react'
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { PapelizConfirmDialog } from '../ui/papeliz-confirm-dialog'
@@ -27,26 +27,27 @@ import {
   type PapelizSyncSignInFromClickOutcome,
 } from './papeliz-sync-flow-store'
 import { usePapelizSyncClockTime } from './papeliz-sync-clock'
-import { usePapelizSyncFetchFromSyncPagePreviewStore, type PapelizSyncFetchFromSyncStep } from './papeliz-sync-fetch-from-sync-page-preview-store'
+import { usePapelizSyncSyncedVaultsPagePreviewStore, type PapelizSyncSyncedVaultsPageStep } from './papeliz-sync-synced-vaults-page-preview-store'
 import { PapelizSyncFailureLine, PapelizSyncLoadingLine, PapelizSyncTextButton } from './papeliz-sync-page-parts'
 import { PapelizSyncPassphraseField } from './papeliz-sync-passphrase-fields'
-import { describePapelizSyncActionFailureNow, describePapelizSyncDay, formatPapelizSyncByteSize } from './papeliz-sync-screen-words'
+import { describePapelizSyncActionFailureNow, describePapelizSyncDay, formatPapelizSyncByteSize, papelizSyncVaultEncryptionKindDisplayNames } from './papeliz-sync-screen-words'
 import { listPapelizSyncVaultIdsCopiedHere } from './papeliz-sync-fetched-copies'
 import { requestPapelizSettingsGearSyncPage } from './papeliz-sync-settings-gear-request-store'
 import { pickEmptyPapelizVaultFolderForSyncDownload, startPapelizSyncStartScreenDownload } from './papeliz-sync-start-screen-download-store'
 
-// Fetch from Sync, in the start card in place of Recent Vaults (as New Vault's form is). On a device
+// Synced Vaults, in the start card in place of Recent Vaults (as New Vault's form is). On a device
 // not signed in to Sync it opens on a Fetch button and reads nothing before it's pressed; signed in,
-// it reads the account's vaults at once. Signed out it waits for the sign-in tab Fetch opened, locked
-// it asks for the Sync passphrase, and unlocked it lists the account's vaults to download one into a
-// new folder or browser vault. A downloaded vault keeps syncing; the "…" menu at the top right can
-// make it a copy that won't sync, after a warning. Refresh beside it reads the account and its vaults
-// again. In development builds its previewer can hold any step with a made-up account and vaults.
+// it reads the account's vaults at once. Signed out it waits for the sign-in tab Fetch opened; signed
+// in it lists the account's vaults, each with its kind (a lock for End-to-end), to download one into
+// a new folder or browser vault. An End-to-end vault asks its passphrase first, once on this device. A
+// downloaded vault keeps syncing; the "…" menu at the top right can make it a copy that won't sync,
+// after a warning. Refresh beside it reads the account and its vaults again. In development builds
+// its previewer can hold any step with a made-up account and vaults.
 
-type PapelizSyncFetchDownloadPlace = 'folder-on-disk' | 'browser-vault-in-opfs'
+type PapelizSyncDownloadPlace = 'folder-on-disk' | 'browser-vault-in-opfs'
 
 // The steps before the account is signed in, where Refresh has nothing to read.
-const papelizSyncFetchFromSyncStepsBeforeSignIn: ReadonlySet<PapelizSyncFetchFromSyncStep> = new Set([
+const papelizSyncSyncedVaultsPageStepsBeforeSignIn: ReadonlySet<PapelizSyncSyncedVaultsPageStep> = new Set([
   'waiting-for-fetch',
   'loading-engine',
   'engine-not-loaded',
@@ -55,15 +56,15 @@ const papelizSyncFetchFromSyncStepsBeforeSignIn: ReadonlySet<PapelizSyncFetchFro
   'waiting-for-sign-in',
 ])
 
-function readFetchFromSyncStep(
+function readSyncedVaultsPageStep(
   isSyncedVaultFetchStarted: boolean,
   syncEngineLoadState: PapelizSyncEngineLoadState,
   syncEngineSnapshot: PapelizSyncEngineSnapshot | null,
-): PapelizSyncFetchFromSyncStep {
+): PapelizSyncSyncedVaultsPageStep {
   if (!isSyncedVaultFetchStarted) return 'waiting-for-fetch'
   if (syncEngineLoadState === 'failed-to-load' || syncEngineLoadState === 'not-in-this-build') return 'engine-not-loaded'
   if (syncEngineSnapshot === null) return 'loading-engine'
-  const { syncSignIn, syncAccount, syncAccountKeyState } = syncEngineSnapshot
+  const { syncSignIn, syncAccount } = syncEngineSnapshot
   if (syncSignIn.syncSignInKind === 'device-removed') return 'device-removed'
   if (syncSignIn.syncSignInKind === 'waiting-for-sign-in-page') return 'waiting-for-sign-in'
   if (syncSignIn.syncSignInKind === 'signed-out') return 'signed-out'
@@ -72,70 +73,67 @@ function readFetchFromSyncStep(
   // Read-only after a subscription ended still downloads.
   if (syncSubscriptionState === 'ended-held') return 'subscription-held'
   if (!isPapelizSyncSubscriptionCurrent(syncSubscriptionState) && syncSubscriptionState !== 'ended-read-only') return 'no-subscription'
-  if (syncAccountKeyState === 'unknown') return 'cannot-reach-sync'
-  if (syncAccountKeyState === 'not-set-up') return 'keys-not-set-up'
-  if (syncAccountKeyState === 'locked') return 'locked'
   return 'synced-vault-list'
 }
 
-function PapelizSyncFetchCenteredStep({ FetchStepIcon, fetchStepTitle, children }: { FetchStepIcon: LucideIcon; fetchStepTitle: string; children?: ReactNode }) {
+function PapelizSyncSyncedVaultsPageCenteredStep({ SyncedVaultsPageStepIcon, syncedVaultsPageStepTitle, children }: { SyncedVaultsPageStepIcon: LucideIcon; syncedVaultsPageStepTitle: string; children?: ReactNode }) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-1.5 px-2 pb-3 text-center">
       <span className="grid size-[52px] place-items-center rounded-full bg-papeliz-blue-soft text-papeliz-blue">
-        <FetchStepIcon className="size-6" aria-hidden="true" />
+        <SyncedVaultsPageStepIcon className="size-6" aria-hidden="true" />
       </span>
-      <p className="mt-1 text-[15px] font-semibold">{fetchStepTitle}</p>
+      <p className="mt-1 text-[15px] font-semibold">{syncedVaultsPageStepTitle}</p>
       {children}
     </div>
   )
 }
 
-function PapelizSyncFetchStepText({ children }: { children: ReactNode }) {
+function PapelizSyncSyncedVaultsPageStepText({ children }: { children: ReactNode }) {
   return <p className="max-w-[310px] text-[12.5px] leading-[1.5] text-papeliz-ink-muted">{children}</p>
 }
 
 // The "…" button at the top right of the vault list: its tooltip says what it's for, and its menu
 // picks whether the vault keeps syncing or comes down as a copy (which asks first).
-function PapelizSyncFetchOptionsButton({ isSyncFetchCopyOnly, onKeepInSyncChoose, onCopyOnlyChoose }: { isSyncFetchCopyOnly: boolean; onKeepInSyncChoose: () => void; onCopyOnlyChoose: () => void }) {
-  const syncFetchOptionsButtonRef = useRef<HTMLButtonElement>(null)
-  const syncFetchOptionsTooltipId = useId()
-  const [syncFetchOptionsMenuPosition, setSyncFetchOptionsMenuPosition] = useState<PapelizPopoverMenuPosition | null>(null)
+function PapelizSyncDownloadOptionsButton({ isSyncDownloadCopyOnly, onKeepInSyncChoose, onCopyOnlyChoose }: { isSyncDownloadCopyOnly: boolean; onKeepInSyncChoose: () => void; onCopyOnlyChoose: () => void }) {
+  const syncDownloadOptionsButtonRef = useRef<HTMLButtonElement>(null)
+  const syncDownloadOptionsTooltipId = useId()
+  const [syncDownloadOptionsMenuPosition, setSyncDownloadOptionsMenuPosition] = useState<PapelizPopoverMenuPosition | null>(null)
   return (
-    <div className="group/fetch-options relative flex-none">
+    <div className="group/download-options relative flex-none">
       <button
-        ref={syncFetchOptionsButtonRef}
+        ref={syncDownloadOptionsButtonRef}
         type="button"
         aria-label="Sync options"
-        aria-describedby={syncFetchOptionsTooltipId}
+        aria-describedby={syncDownloadOptionsTooltipId}
         aria-haspopup="menu"
-        aria-expanded={syncFetchOptionsMenuPosition !== null}
+        aria-expanded={syncDownloadOptionsMenuPosition !== null}
         onClick={() => {
-          const syncFetchOptionsButtonRect = syncFetchOptionsButtonRef.current?.getBoundingClientRect()
-          if (syncFetchOptionsButtonRect === undefined) return
-          setSyncFetchOptionsMenuPosition({ menuAnchorLeft: syncFetchOptionsButtonRect.right - 236, menuAnchorTop: syncFetchOptionsButtonRect.bottom + 6 })
+          const syncDownloadOptionsButtonRect = syncDownloadOptionsButtonRef.current?.getBoundingClientRect()
+          if (syncDownloadOptionsButtonRect === undefined) return
+          setSyncDownloadOptionsMenuPosition({ menuAnchorLeft: syncDownloadOptionsButtonRect.right - 236, menuAnchorTop: syncDownloadOptionsButtonRect.bottom + 6 })
         }}
         className="grid size-8 place-items-center rounded-full border border-papeliz-line text-papeliz-ink-muted transition-colors hover:bg-papeliz-hover hover:text-papeliz-ink aria-expanded:border-papeliz-blue-line aria-expanded:bg-papeliz-blue-soft aria-expanded:text-papeliz-blue"
       >
         <Ellipsis className="size-4" aria-hidden="true" />
       </button>
-      {syncFetchOptionsMenuPosition === null && (
+      {syncDownloadOptionsMenuPosition === null && (
         <span
-          id={syncFetchOptionsTooltipId}
+          id={syncDownloadOptionsTooltipId}
           role="tooltip"
-          className="pointer-events-none absolute top-full right-0 z-20 mt-1.5 w-[220px] rounded-lg bg-papeliz-ink px-2.5 py-1.5 text-[11.5px] leading-snug text-papeliz-surface opacity-0 shadow-papeliz-pop transition-opacity duration-150 group-focus-within/fetch-options:opacity-100 group-hover/fetch-options:opacity-100"
+          className="pointer-events-none absolute top-full right-0 z-20 mt-1.5 w-[220px] rounded-lg bg-papeliz-ink px-2.5 py-1.5 text-[11.5px] leading-snug text-papeliz-surface opacity-0 shadow-papeliz-pop transition-opacity duration-150 group-focus-within/download-options:opacity-100 group-hover/download-options:opacity-100"
         >
           <b className="block font-semibold">Sync options</b>
           It keeps syncing after it downloads. Choose Download a copy only to keep it off Sync.
         </span>
       )}
-      {syncFetchOptionsMenuPosition !== null && (
+      {syncDownloadOptionsMenuPosition !== null && (
         <PapelizPopoverMenu
           menuLabel="Sync options"
-          menuPosition={syncFetchOptionsMenuPosition}
-          onMenuClose={() => setSyncFetchOptionsMenuPosition(null)}
+          menuPosition={syncDownloadOptionsMenuPosition}
+          onMenuClose={() => setSyncDownloadOptionsMenuPosition(null)}
           menuItems={[
-            { menuItemKey: 'keep-synced-vault-in-sync', menuItemLabel: 'Keep it in sync', MenuItemIcon: CloudCheck, isMenuItemChecked: !isSyncFetchCopyOnly, onMenuItemSelect: onKeepInSyncChoose },
-            { menuItemKey: 'download-synced-vault-copy-only', menuItemLabel: 'Download a copy only', MenuItemIcon: CloudOff, isMenuItemChecked: isSyncFetchCopyOnly, onMenuItemSelect: onCopyOnlyChoose },
+            { menuItemKey: 'keep-synced-vault-in-sync', menuItemLabel: 'Keep it in sync', MenuItemIcon: CloudCheck, isMenuItemChecked: !isSyncDownloadCopyOnly, onMenuItemSelect: onKeepInSyncChoose },
+            { menuItemKey: 'download-synced-vault-copy-only', menuItemLabel: 'Download a copy only', MenuItemIcon: CloudOff, isMenuItemChecked: isSyncDownloadCopyOnly, onMenuItemSelect: onCopyOnlyChoose },
           ]}
         />
       )}
@@ -143,8 +141,8 @@ function PapelizSyncFetchOptionsButton({ isSyncFetchCopyOnly, onKeepInSyncChoose
   )
 }
 
-interface PapelizSyncFetchFromSyncPageProps {
-  fetchFromSyncPageHeadingId: string
+interface PapelizSyncSyncedVaultsPageProps {
+  syncedVaultsPageHeadingId: string
   // Where a vault can go in this browser. With both (Chrome and Edge) the page asks; with one it
   // uses that one.
   isFolderStorageOn: boolean
@@ -153,62 +151,66 @@ interface PapelizSyncFetchFromSyncPageProps {
   // Every vault on this device, hidden ones too: a synced vault downloaded into one of them as a copy
   // shows as on this device.
   papelizVaultIdsOnThisDevice: ReadonlySet<string>
-  onFetchFromSyncPageClose: () => void
+  onSyncedVaultsPageClose: () => void
   // A download started: back to Recent Vaults, where its row shows how far it is.
   onSyncDownloadStarted: () => void
 }
 
-export function PapelizSyncFetchFromSyncPage({
-  fetchFromSyncPageHeadingId,
+export function PapelizSyncSyncedVaultsPage({
+  syncedVaultsPageHeadingId,
   isFolderStorageOn,
   isBrowserStorageOn,
   existingBrowserVaultRecords,
   papelizVaultIdsOnThisDevice,
-  onFetchFromSyncPageClose,
+  onSyncedVaultsPageClose,
   onSyncDownloadStarted,
-}: PapelizSyncFetchFromSyncPageProps) {
+}: PapelizSyncSyncedVaultsPageProps) {
   const syncEngineLoadState = usePapelizSyncEngineStore((syncEngineState) => syncEngineState.syncEngineLoadState)
   const loadPapelizSyncEngine = usePapelizSyncEngineStore((syncEngineState) => syncEngineState.loadPapelizSyncEngine)
   const askBrowserToKeepStorage = usePapelizBrowserStorageStore((browserStorageState) => browserStorageState.askBrowserToKeepStorage)
   const syncEngineReading = usePapelizSyncEngineSnapshot()
-  const fetchFromSyncFooterRef = usePapelizFooterEqualButtonWidthRef(128)
-  const fetchFromSyncIdPrefix = useId()
+  const syncedVaultsPageFooterRef = usePapelizFooterEqualButtonWidthRef(128)
+  const syncedVaultsPageIdPrefix = useId()
   // A held preview (development builds only) stands in for the engine: the page shows its step,
   // account and vaults, and its buttons reach no engine.
-  const heldFetchFromSyncPagePreview = usePapelizSyncFetchFromSyncPagePreviewStore((fetchFromSyncPagePreviewState) => fetchFromSyncPagePreviewState.heldFetchFromSyncPagePreview)
+  const heldSyncedVaultsPagePreview = usePapelizSyncSyncedVaultsPagePreviewStore((syncedVaultsPagePreviewState) => syncedVaultsPagePreviewState.heldSyncedVaultsPagePreview)
   // Fetch pressed since the page opened, or not needed: a device signed in to Sync before (or on the
   // dev fake engine) reads its vaults at once. Until then the page reads nothing.
   const [isSyncedVaultFetchStarted, setSyncedVaultFetchStarted] = useState(() => isPapelizSyncUsedOnThisDevice() || readPapelizSyncDevFakeEngineScenarioText() !== null)
-  const fetchFromSyncStep =
-    heldFetchFromSyncPagePreview?.previewFetchFromSyncStep ?? readFetchFromSyncStep(isSyncedVaultFetchStarted, syncEngineLoadState, syncEngineReading?.syncEngineSnapshot ?? null)
+  const syncedVaultsPageStep =
+    heldSyncedVaultsPagePreview?.previewSyncedVaultsPageStep ?? readSyncedVaultsPageStep(isSyncedVaultFetchStarted, syncEngineLoadState, syncEngineReading?.syncEngineSnapshot ?? null)
 
   const syncClockTime = usePapelizSyncClockTime()
   // Why the sign-in Fetch started didn't happen, when it didn't.
-  const [fetchFromSyncSignInFailureWords, setFetchFromSyncSignInFailureWords] = useState<string | null>(null)
-  const [fetchFromSyncActionWords, setFetchFromSyncActionWords] = useState<string | null>(null)
-  const [isFetchFromSyncActionRunning, setFetchFromSyncActionRunning] = useState(false)
+  const [syncedVaultsPageSignInFailureWords, setSyncedVaultsPageSignInFailureWords] = useState<string | null>(null)
+  const [syncedVaultsPageActionWords, setSyncedVaultsPageActionWords] = useState<string | null>(null)
+  const [isSyncedVaultsPageActionRunning, setSyncedVaultsPageActionRunning] = useState(false)
   const [isSyncAccountRefreshRunning, setSyncAccountRefreshRunning] = useState(false)
-  const [typedSyncPassphrase, setTypedSyncPassphrase] = useState('')
+  // The chosen End-to-end vault's passphrase, kept only while typed.
+  const [typedSyncVaultPassphrase, setTypedSyncVaultPassphrase] = useState('')
+  // End-to-end vaults unlocked on this page since the list was read, so they read as unlocked without
+  // reading the list again.
+  const [syncVaultIdsUnlockedHere, setSyncVaultIdsUnlockedHere] = useState<ReadonlySet<string>>(() => new Set())
   // The account's vaults, with the read they answer; an earlier read's answer isn't shown.
   const [accountVaultsReading, setAccountVaultsReading] = useState<{
     accountVaultsReadCount: number
     accountVaultsOutcome: PapelizSyncActionOutcome<PapelizSyncAccountVaultReading[]>
   } | null>(null)
   const [accountVaultsReadCount, setAccountVaultsReadCount] = useState(0)
-  const [chosenPapelizSyncVaultId, setChosenPapelizSyncVaultId] = useState<string | null>(null)
-  const [chosenDownloadPlace, setChosenDownloadPlace] = useState<PapelizSyncFetchDownloadPlace>(isFolderStorageOn ? 'folder-on-disk' : 'browser-vault-in-opfs')
-  const [isSyncFetchCopyOnly, setSyncFetchCopyOnly] = useState(false)
+  const [chosenPapelizSyncVaultId, setChosenPapelizSyncVaultId] = useState<string | null>(() => heldSyncedVaultsPagePreview?.previewChosenPapelizSyncVaultId ?? null)
+  const [chosenDownloadPlace, setChosenDownloadPlace] = useState<PapelizSyncDownloadPlace>(isFolderStorageOn ? 'folder-on-disk' : 'browser-vault-in-opfs')
+  const [isSyncDownloadCopyOnly, setSyncDownloadCopyOnly] = useState(false)
   const [isCopyOnlyWarningShown, setCopyOnlyWarningShown] = useState(false)
 
   // Once fetching, the engine loads; also when the browser blocked Fetch's tab, so the page goes on to
   // Sign in or the vaults.
   useEffect(() => {
-    if (isSyncedVaultFetchStarted && heldFetchFromSyncPagePreview === null) void loadPapelizSyncEngine()
-  }, [isSyncedVaultFetchStarted, heldFetchFromSyncPagePreview, loadPapelizSyncEngine])
+    if (isSyncedVaultFetchStarted && heldSyncedVaultsPagePreview === null) void loadPapelizSyncEngine()
+  }, [isSyncedVaultFetchStarted, heldSyncedVaultsPagePreview, loadPapelizSyncEngine])
 
   // The account's vaults, read when the list shows and again on Try again or Refresh.
-  const papelizSyncEngine = heldFetchFromSyncPagePreview === null ? (syncEngineReading?.papelizSyncEngine ?? null) : null
-  const isSyncedVaultListShown = fetchFromSyncStep === 'synced-vault-list'
+  const papelizSyncEngine = heldSyncedVaultsPagePreview === null ? (syncEngineReading?.papelizSyncEngine ?? null) : null
+  const isSyncedVaultListShown = syncedVaultsPageStep === 'synced-vault-list'
   useEffect(() => {
     if (!isSyncedVaultListShown || papelizSyncEngine === null) return
     let isVaultListLeft = false
@@ -221,7 +223,7 @@ export function PapelizSyncFetchFromSyncPage({
   }, [isSyncedVaultListShown, papelizSyncEngine, accountVaultsReadCount])
 
   const liveAccountVaultsOutcome = accountVaultsReading?.accountVaultsReadCount === accountVaultsReadCount ? accountVaultsReading.accountVaultsOutcome : null
-  const accountVaultsOutcome = heldFetchFromSyncPagePreview === null ? liveAccountVaultsOutcome : heldFetchFromSyncPagePreview.previewAccountVaultsOutcome
+  const accountVaultsOutcome = heldSyncedVaultsPagePreview === null ? liveAccountVaultsOutcome : heldSyncedVaultsPagePreview.previewAccountVaultsOutcome
   const accountVaults = accountVaultsOutcome?.syncActionOutcome === 'done' ? accountVaultsOutcome.syncActionDoneValue : null
   // A synced vault is never offered again once it's here: syncing, or downloaded as a copy (which
   // isn't linked to Sync, so only this device's own record knows it).
@@ -229,21 +231,28 @@ export function PapelizSyncFetchFromSyncPage({
   const isAccountVaultCopiedHere = (accountVault: PapelizSyncAccountVaultReading) =>
     accountVault.papelizVaultIdOnThisDevice === null && syncVaultIdsCopiedHere.has(accountVault.papelizSyncVaultId)
   const accountVaultsToDownload = accountVaults?.filter((accountVault) => accountVault.papelizVaultIdOnThisDevice === null && !isAccountVaultCopiedHere(accountVault)) ?? []
-  // The first one to download is picked until another is.
-  const chosenAccountVault = accountVaultsToDownload.find((accountVault) => accountVault.papelizSyncVaultId === chosenPapelizSyncVaultId) ?? accountVaultsToDownload[0] ?? null
+  const isAccountVaultLockedHere = (accountVault: PapelizSyncAccountVaultReading) => accountVault.syncVaultLockState === 'locked' && !syncVaultIdsUnlockedHere.has(accountVault.papelizSyncVaultId)
+  // The first one to download is picked until another is, one that needs no passphrase if any.
+  const chosenAccountVault =
+    accountVaultsToDownload.find((accountVault) => accountVault.papelizSyncVaultId === chosenPapelizSyncVaultId) ??
+    accountVaultsToDownload.find((accountVault) => !isAccountVaultLockedHere(accountVault)) ??
+    accountVaultsToDownload[0] ??
+    null
+  // An End-to-end vault this device has no key for asks its passphrase before anything downloads.
+  const isChosenVaultPassphraseAsked = chosenAccountVault !== null && isAccountVaultLockedHere(chosenAccountVault)
   const isDownloadPlaceChoiceShown = isFolderStorageOn && isBrowserStorageOn
-  const syncAccount = heldFetchFromSyncPagePreview === null ? (syncEngineReading?.syncEngineSnapshot.syncAccount ?? null) : heldFetchFromSyncPagePreview.previewSyncAccount
+  const syncAccount = heldSyncedVaultsPagePreview === null ? (syncEngineReading?.syncEngineSnapshot.syncAccount ?? null) : heldSyncedVaultsPagePreview.previewSyncAccount
 
-  const closeFetchFromSyncPage = () => {
-    if (fetchFromSyncStep === 'waiting-for-sign-in') cancelPapelizSyncSignIn()
-    onFetchFromSyncPageClose()
+  const closeSyncedVaultsPage = () => {
+    if (syncedVaultsPageStep === 'waiting-for-sign-in') cancelPapelizSyncSignIn()
+    onSyncedVaultsPageClose()
   }
 
   const signInFromClick = () => {
     if (papelizSyncEngine === null) return
-    setFetchFromSyncActionWords(null)
+    setSyncedVaultsPageActionWords(null)
     void startPapelizSyncSignInFromClick(papelizSyncEngine, null).then((signInFromClickOutcome) =>
-      setFetchFromSyncActionWords(describePapelizSyncSignInFromClickFailure(signInFromClickOutcome)),
+      setSyncedVaultsPageActionWords(describePapelizSyncSignInFromClickFailure(signInFromClickOutcome)),
     )
   }
 
@@ -252,12 +261,12 @@ export function PapelizSyncFetchFromSyncPage({
   // signed in after all), then the engine loads and the account's vaults are read once the list shows.
   // Only the click itself may open the tab.
   const fetchSyncedVaultsFromClick = () => {
-    if (heldFetchFromSyncPagePreview !== null) return
+    if (heldSyncedVaultsPagePreview !== null) return
     setSyncedVaultFetchStarted(true)
-    setFetchFromSyncSignInFailureWords(null)
-    setFetchFromSyncActionWords(null)
+    setSyncedVaultsPageSignInFailureWords(null)
+    setSyncedVaultsPageActionWords(null)
     const followSignInFromClick = (signInFromClick: Promise<PapelizSyncSignInFromClickOutcome>) =>
-      void signInFromClick.then((signInFromClickOutcome) => setFetchFromSyncSignInFailureWords(describePapelizSyncSignInFromClickFailure(signInFromClickOutcome)))
+      void signInFromClick.then((signInFromClickOutcome) => setSyncedVaultsPageSignInFailureWords(describePapelizSyncSignInFromClickFailure(signInFromClickOutcome)))
     if (papelizSyncEngine === null) {
       followSignInFromClick(startPapelizSyncSignInFromClickBeforeEngineLoads(loadPapelizSyncEngine))
       return
@@ -270,34 +279,38 @@ export function PapelizSyncFetchFromSyncPage({
   // reads does nothing.
   const refreshSyncAccountAndVaults = () => {
     if (papelizSyncEngine === null || isSyncAccountRefreshRunning) return
-    setFetchFromSyncActionWords(null)
+    setSyncedVaultsPageActionWords(null)
     setSyncAccountRefreshRunning(true)
     void papelizSyncEngine
       .refreshSyncAccountReading()
       .then((accountRefreshOutcome) => {
-        if (accountRefreshOutcome.syncActionOutcome === 'failed') setFetchFromSyncActionWords(describePapelizSyncActionFailureNow(accountRefreshOutcome))
+        if (accountRefreshOutcome.syncActionOutcome === 'failed') setSyncedVaultsPageActionWords(describePapelizSyncActionFailureNow(accountRefreshOutcome))
         setAccountVaultsReadCount((readCount) => readCount + 1)
       })
       .finally(() => setSyncAccountRefreshRunning(false))
   }
 
-  const runFetchFromSyncAction = async (fetchFromSyncAction: () => Promise<string | null>) => {
-    setFetchFromSyncActionWords(null)
-    setFetchFromSyncActionRunning(true)
+  const runSyncedVaultsPageAction = async (syncedVaultsPageAction: () => Promise<string | null>) => {
+    setSyncedVaultsPageActionWords(null)
+    setSyncedVaultsPageActionRunning(true)
     try {
-      setFetchFromSyncActionWords(await fetchFromSyncAction())
+      setSyncedVaultsPageActionWords(await syncedVaultsPageAction())
     } finally {
-      setFetchFromSyncActionRunning(false)
+      setSyncedVaultsPageActionRunning(false)
     }
   }
 
-  const unlockWithPassphrase = () => {
-    if (papelizSyncEngine === null || typedSyncPassphrase === '') return
-    const syncPassphrase = typedSyncPassphrase
-    void runFetchFromSyncAction(async () => {
-      const unlockOutcome = await papelizSyncEngine.unlockSyncWithPassphrase(syncPassphrase)
+  // Unlock, for the chosen End-to-end vault: its key comes to this device, then Pick Folder or
+  // Download shows (the folder window needs a click of its own).
+  const unlockChosenAccountVault = () => {
+    if (papelizSyncEngine === null || chosenAccountVault === null || typedSyncVaultPassphrase === '') return
+    const syncVaultPassphrase = typedSyncVaultPassphrase
+    const papelizSyncVaultIdToUnlock = chosenAccountVault.papelizSyncVaultId
+    void runSyncedVaultsPageAction(async () => {
+      const unlockOutcome = await papelizSyncEngine.unlockSyncedVaultWithPassphrase(papelizSyncVaultIdToUnlock, syncVaultPassphrase)
       if (unlockOutcome.syncActionOutcome === 'failed') return describePapelizSyncActionFailureNow(unlockOutcome)
-      setTypedSyncPassphrase('')
+      setTypedSyncVaultPassphrase('')
+      setSyncVaultIdsUnlockedHere((unlockedSyncVaultIds) => new Set([...unlockedSyncVaultIds, papelizSyncVaultIdToUnlock]))
       return null
     })
   }
@@ -305,8 +318,8 @@ export function PapelizSyncFetchFromSyncPage({
   // Makes the new vault, then hands it to the download store. Runs from Pick Folder's or Download's
   // click: the folder window needs it.
   const downloadChosenAccountVault = (chosenSyncEngine: PapelizSyncEngine, accountVaultToDownload: PapelizSyncAccountVaultReading) => {
-    const syncVaultName = accountVaultToDownload.syncVaultName ?? 'Synced vault'
-    void runFetchFromSyncAction(async () => {
+    const syncVaultName = accountVaultToDownload.syncVaultName
+    void runSyncedVaultsPageAction(async () => {
       let papelizOpenVault: PapelizOpenVault
       if (chosenDownloadPlace === 'folder-on-disk') {
         const syncDownloadFolderPickResult = await pickEmptyPapelizVaultFolderForSyncDownload()
@@ -323,23 +336,23 @@ export function PapelizSyncFetchFromSyncPage({
           return `Couldn’t make “${syncVaultName}” (${describePapelizVaultError(browserVaultCreateError)})`
         }
       }
-      void startPapelizSyncStartScreenDownload({ papelizSyncEngine: chosenSyncEngine, papelizOpenVault, papelizSyncVaultId: accountVaultToDownload.papelizSyncVaultId, isSyncFetchCopyOnly })
+      void startPapelizSyncStartScreenDownload({ papelizSyncEngine: chosenSyncEngine, papelizOpenVault, papelizSyncVaultId: accountVaultToDownload.papelizSyncVaultId, isSyncDownloadCopyOnly })
       onSyncDownloadStarted()
       return null
     })
   }
 
   // The page's heading line, body and footer action, for the step it's on.
-  let fetchFromSyncSubtitle = 'Download a vault from your Papeliz Sync account.'
-  let fetchFromSyncBody: ReactNode = null
-  let fetchFromSyncPrimaryAction: { primaryActionLabel: string; isPrimaryActionDisabled?: boolean; onPrimaryActionSelect: () => void } | null = null
-  let fetchFromSyncCancelLabel = 'Cancel'
+  let syncedVaultsPageSubtitle = 'Download a vault from your Papeliz Sync account.'
+  let syncedVaultsPageBody: ReactNode = null
+  let syncedVaultsPagePrimaryAction: { primaryActionLabel: string; isPrimaryActionDisabled?: boolean; onPrimaryActionSelect: () => void } | null = null
+  let syncedVaultsPageCancelLabel = 'Cancel'
 
-  switch (fetchFromSyncStep) {
+  switch (syncedVaultsPageStep) {
     case 'waiting-for-fetch':
-      fetchFromSyncBody = (
-        <PapelizSyncFetchCenteredStep FetchStepIcon={CloudDownload} fetchStepTitle="Fetch your synced vaults">
-          <PapelizSyncFetchStepText>Fetch opens the Sync sign-in page in a new tab, then reads your vaults.</PapelizSyncFetchStepText>
+      syncedVaultsPageBody = (
+        <PapelizSyncSyncedVaultsPageCenteredStep SyncedVaultsPageStepIcon={CloudDownload} syncedVaultsPageStepTitle="Fetch your synced vaults">
+          <PapelizSyncSyncedVaultsPageStepText>Fetch opens the Sync sign-in page in a new tab, then reads your vaults.</PapelizSyncSyncedVaultsPageStepText>
           <button
             type="button"
             onClick={fetchSyncedVaultsFromClick}
@@ -348,144 +361,100 @@ export function PapelizSyncFetchFromSyncPage({
             <CloudDownload className="size-[15px] flex-none" aria-hidden="true" />
             Fetch
           </button>
-        </PapelizSyncFetchCenteredStep>
+        </PapelizSyncSyncedVaultsPageCenteredStep>
       )
       break
     case 'loading-engine':
-      fetchFromSyncBody = <PapelizSyncLoadingLine>Loading Sync…</PapelizSyncLoadingLine>
+      syncedVaultsPageBody = <PapelizSyncLoadingLine>Loading Sync…</PapelizSyncLoadingLine>
       break
     case 'engine-not-loaded':
-      fetchFromSyncBody = (
-        <PapelizSyncFetchCenteredStep FetchStepIcon={CloudOff} fetchStepTitle="Papeliz Sync didn’t load">
-          <PapelizSyncFetchStepText>Check your connection, then try again.</PapelizSyncFetchStepText>
-        </PapelizSyncFetchCenteredStep>
+      syncedVaultsPageBody = (
+        <PapelizSyncSyncedVaultsPageCenteredStep SyncedVaultsPageStepIcon={CloudOff} syncedVaultsPageStepTitle="Papeliz Sync didn’t load">
+          <PapelizSyncSyncedVaultsPageStepText>Check your connection, then try again.</PapelizSyncSyncedVaultsPageStepText>
+        </PapelizSyncSyncedVaultsPageCenteredStep>
       )
-      fetchFromSyncPrimaryAction = {
+      syncedVaultsPagePrimaryAction = {
         primaryActionLabel: 'Try again',
         onPrimaryActionSelect: () => {
-          if (heldFetchFromSyncPagePreview === null) void loadPapelizSyncEngine()
+          if (heldSyncedVaultsPagePreview === null) void loadPapelizSyncEngine()
         },
       }
       break
     case 'signed-out':
     case 'device-removed':
-      fetchFromSyncBody = (
-        <PapelizSyncFetchCenteredStep FetchStepIcon={Cloud} fetchStepTitle="Sign in to see your synced vaults">
-          <PapelizSyncFetchStepText>
-            {fetchFromSyncStep === 'device-removed' ? 'This device was signed out of Sync. ' : ''}The sign-in page opens in a new tab.
-          </PapelizSyncFetchStepText>
+      syncedVaultsPageBody = (
+        <PapelizSyncSyncedVaultsPageCenteredStep SyncedVaultsPageStepIcon={Cloud} syncedVaultsPageStepTitle="Sign in to see your synced vaults">
+          <PapelizSyncSyncedVaultsPageStepText>
+            {syncedVaultsPageStep === 'device-removed' ? 'This device was signed out of Sync. ' : ''}The sign-in page opens in a new tab.
+          </PapelizSyncSyncedVaultsPageStepText>
           <p className="mt-1 text-[12px] text-papeliz-ink-subtle">
             No subscription? Sync is a paid add-on. <PapelizSyncTextButton onClick={requestPapelizSettingsGearSyncPage}>See plans</PapelizSyncTextButton>
           </p>
-        </PapelizSyncFetchCenteredStep>
+        </PapelizSyncSyncedVaultsPageCenteredStep>
       )
-      fetchFromSyncPrimaryAction = { primaryActionLabel: 'Sign in', onPrimaryActionSelect: signInFromClick }
+      syncedVaultsPagePrimaryAction = { primaryActionLabel: 'Sign in', onPrimaryActionSelect: signInFromClick }
       break
     case 'waiting-for-sign-in':
-      fetchFromSyncBody = (
-        <PapelizSyncFetchCenteredStep FetchStepIcon={Cloud} fetchStepTitle="Finish signing in in the new tab">
-          <PapelizSyncFetchStepText>Papeliz carries on here once you’re signed in.</PapelizSyncFetchStepText>
+      syncedVaultsPageBody = (
+        <PapelizSyncSyncedVaultsPageCenteredStep SyncedVaultsPageStepIcon={Cloud} syncedVaultsPageStepTitle="Finish signing in in the new tab">
+          <PapelizSyncSyncedVaultsPageStepText>Papeliz carries on here once you’re signed in.</PapelizSyncSyncedVaultsPageStepText>
           <p className="mt-1 text-[12px] text-papeliz-ink-subtle">
             Tab didn’t open? <PapelizSyncTextButton onClick={signInFromClick}>Open the sign-in page</PapelizSyncTextButton>
           </p>
-        </PapelizSyncFetchCenteredStep>
+        </PapelizSyncSyncedVaultsPageCenteredStep>
       )
       break
     case 'reading-account':
-      fetchFromSyncBody = <PapelizSyncLoadingLine>Reading your account…</PapelizSyncLoadingLine>
+      syncedVaultsPageBody = <PapelizSyncLoadingLine>Reading your account…</PapelizSyncLoadingLine>
       break
     case 'no-subscription':
-      fetchFromSyncBody = (
-        <PapelizSyncFetchCenteredStep FetchStepIcon={Cloud} fetchStepTitle="No Sync subscription on this account">
-          <PapelizSyncFetchStepText>Papeliz Sync is a paid add-on. Choose a plan, then turn Sync on for a vault on another device to fetch it here.</PapelizSyncFetchStepText>
-        </PapelizSyncFetchCenteredStep>
+      syncedVaultsPageBody = (
+        <PapelizSyncSyncedVaultsPageCenteredStep SyncedVaultsPageStepIcon={Cloud} syncedVaultsPageStepTitle="No Sync subscription on this account">
+          <PapelizSyncSyncedVaultsPageStepText>Papeliz Sync is a paid add-on. Choose a plan, then turn Sync on for a vault on another device to fetch it here.</PapelizSyncSyncedVaultsPageStepText>
+        </PapelizSyncSyncedVaultsPageCenteredStep>
       )
-      fetchFromSyncPrimaryAction = { primaryActionLabel: 'See plans', onPrimaryActionSelect: requestPapelizSettingsGearSyncPage }
+      syncedVaultsPagePrimaryAction = { primaryActionLabel: 'See plans', onPrimaryActionSelect: requestPapelizSettingsGearSyncPage }
       break
     case 'subscription-held':
-      fetchFromSyncBody = (
-        <PapelizSyncFetchCenteredStep FetchStepIcon={CloudOff} fetchStepTitle="Your subscription ended">
-          <PapelizSyncFetchStepText>
+      syncedVaultsPageBody = (
+        <PapelizSyncSyncedVaultsPageCenteredStep SyncedVaultsPageStepIcon={CloudOff} syncedVaultsPageStepTitle="Your subscription ended">
+          <PapelizSyncSyncedVaultsPageStepText>
             {syncAccount?.syncSyncedCopyDeletedAt == null
               ? 'The synced copy is kept for a while, then deleted.'
               : `The synced copy is kept until ${describePapelizSyncDay(syncAccount.syncSyncedCopyDeletedAt, syncClockTime)}, then deleted.`}{' '}
             Subscribe again to download it.
-          </PapelizSyncFetchStepText>
-        </PapelizSyncFetchCenteredStep>
+          </PapelizSyncSyncedVaultsPageStepText>
+        </PapelizSyncSyncedVaultsPageCenteredStep>
       )
-      fetchFromSyncPrimaryAction = { primaryActionLabel: 'See plans', onPrimaryActionSelect: requestPapelizSettingsGearSyncPage }
-      break
-    case 'cannot-reach-sync':
-      fetchFromSyncBody = (
-        <PapelizSyncFetchCenteredStep FetchStepIcon={CloudOff} fetchStepTitle="Can’t reach Sync right now">
-          <PapelizSyncFetchStepText>Papeliz couldn’t read your account yet. Check your connection, then try again.</PapelizSyncFetchStepText>
-        </PapelizSyncFetchCenteredStep>
-      )
-      fetchFromSyncPrimaryAction = { primaryActionLabel: 'Try again', onPrimaryActionSelect: () => void papelizSyncEngine?.refreshSyncAccountReading() }
-      break
-    case 'keys-not-set-up':
-      fetchFromSyncBody = (
-        <PapelizSyncFetchCenteredStep FetchStepIcon={KeyRound} fetchStepTitle="No synced vaults yet">
-          <PapelizSyncFetchStepText>Finish setting up Sync, then turn it on for a vault in Settings.</PapelizSyncFetchStepText>
-        </PapelizSyncFetchCenteredStep>
-      )
-      fetchFromSyncPrimaryAction = { primaryActionLabel: 'Set up Sync', onPrimaryActionSelect: requestPapelizSettingsGearSyncPage }
-      break
-    case 'locked':
-      fetchFromSyncBody = (
-        <PapelizSyncFetchCenteredStep FetchStepIcon={Lock} fetchStepTitle="Unlock Sync on this device">
-          <PapelizSyncFetchStepText>Your vault names are encrypted. Enter your Sync passphrase once on this device.</PapelizSyncFetchStepText>
-          <form
-            className="mt-2 w-full max-w-[300px] text-left"
-            onSubmit={(submitEvent) => {
-              submitEvent.preventDefault()
-              if (!isFetchFromSyncActionRunning) unlockWithPassphrase()
-            }}
-          >
-            <PapelizSyncPassphraseField
-              syncPassphraseFieldLabel="Sync passphrase"
-              syncPassphrase={typedSyncPassphrase}
-              onSyncPassphraseChange={setTypedSyncPassphrase}
-              isSyncPassphraseShown={false}
-              syncPassphraseAutoComplete="current-password"
-              isSyncPassphraseFieldFocusedFirst
-            />
-            <button type="submit" hidden aria-hidden="true" tabIndex={-1} />
-          </form>
-          <p className="mt-1 text-[12px] text-papeliz-ink-subtle">
-            Forgot it? <PapelizSyncTextButton onClick={requestPapelizSettingsGearSyncPage}>Use your Recovery Key in Settings</PapelizSyncTextButton>
-          </p>
-        </PapelizSyncFetchCenteredStep>
-      )
-      fetchFromSyncPrimaryAction = { primaryActionLabel: 'Unlock', isPrimaryActionDisabled: typedSyncPassphrase === '' || isFetchFromSyncActionRunning, onPrimaryActionSelect: unlockWithPassphrase }
+      syncedVaultsPagePrimaryAction = { primaryActionLabel: 'See plans', onPrimaryActionSelect: requestPapelizSettingsGearSyncPage }
       break
     case 'synced-vault-list': {
       if (accountVaultsOutcome === null) {
-        fetchFromSyncBody = <PapelizSyncLoadingLine>Reading your synced vaults…</PapelizSyncLoadingLine>
+        syncedVaultsPageBody = <PapelizSyncLoadingLine>Reading your synced vaults…</PapelizSyncLoadingLine>
         break
       }
       if (accountVaultsOutcome.syncActionOutcome === 'failed') {
-        fetchFromSyncBody = <PapelizSyncFailureLine>{describePapelizSyncActionFailureNow(accountVaultsOutcome)}</PapelizSyncFailureLine>
-        fetchFromSyncPrimaryAction = { primaryActionLabel: 'Try again', onPrimaryActionSelect: () => setAccountVaultsReadCount((readCount) => readCount + 1) }
+        syncedVaultsPageBody = <PapelizSyncFailureLine>{describePapelizSyncActionFailureNow(accountVaultsOutcome)}</PapelizSyncFailureLine>
+        syncedVaultsPagePrimaryAction = { primaryActionLabel: 'Try again', onPrimaryActionSelect: () => setAccountVaultsReadCount((readCount) => readCount + 1) }
         break
       }
       const accountVaultCount = accountVaultsOutcome.syncActionDoneValue.length
       if (accountVaultCount === 0) {
-        fetchFromSyncSubtitle = 'No synced vaults on your account yet.'
-        fetchFromSyncBody = (
-          <PapelizSyncFetchCenteredStep FetchStepIcon={Cloud} fetchStepTitle="No synced vaults yet">
-            <PapelizSyncFetchStepText>Turn Sync on for a vault in Settings, on this device or another one.</PapelizSyncFetchStepText>
-          </PapelizSyncFetchCenteredStep>
+        syncedVaultsPageSubtitle = 'No synced vaults on your account yet.'
+        syncedVaultsPageBody = (
+          <PapelizSyncSyncedVaultsPageCenteredStep SyncedVaultsPageStepIcon={Cloud} syncedVaultsPageStepTitle="No synced vaults yet">
+            <PapelizSyncSyncedVaultsPageStepText>Turn Sync on for a vault in Settings, on this device or another one.</PapelizSyncSyncedVaultsPageStepText>
+          </PapelizSyncSyncedVaultsPageCenteredStep>
         )
-        fetchFromSyncCancelLabel = 'Close'
+        syncedVaultsPageCancelLabel = 'Close'
         break
       }
       const isEveryAccountVaultHere = accountVaultsToDownload.length === 0
-      fetchFromSyncSubtitle = isEveryAccountVaultHere
+      syncedVaultsPageSubtitle = isEveryAccountVaultHere
         ? 'Every vault on your account is on this device.'
-        : `${accountVaultCount} ${accountVaultCount === 1 ? 'vault' : 'vaults'} on your account. ${isSyncFetchCopyOnly ? 'Pick one to download as a copy that won’t sync.' : 'Pick one to download; it stays in sync.'}`
-      if (isEveryAccountVaultHere) fetchFromSyncCancelLabel = 'Close'
-      fetchFromSyncBody = (
+        : `${accountVaultCount} ${accountVaultCount === 1 ? 'vault' : 'vaults'} on your account. ${isSyncDownloadCopyOnly ? 'Pick one to download as a copy that won’t sync.' : 'Pick one to download; it stays in sync.'}`
+      if (isEveryAccountVaultHere) syncedVaultsPageCancelLabel = 'Close'
+      syncedVaultsPageBody = (
         <>
           {syncAccount?.syncSubscriptionState === 'ended-read-only' && (
             <p className="rounded-xl bg-papeliz-warning px-3 py-2 text-[12.5px] leading-[1.45] text-papeliz-warning-ink">
@@ -493,15 +462,17 @@ export function PapelizSyncFetchFromSyncPage({
               {syncAccount.syncReadOnlyUntil === null ? '' : ` until ${describePapelizSyncDay(syncAccount.syncReadOnlyUntil, syncClockTime)}`}. You can still download it.
             </p>
           )}
-          <p id={`${fetchFromSyncIdPrefix}-vault-label`} className="px-0.5 text-[12px] font-semibold text-papeliz-ink-muted">
+          <p id={`${syncedVaultsPageIdPrefix}-vault-label`} className="px-0.5 text-[12px] font-semibold text-papeliz-ink-muted">
             Vault
           </p>
-          <div role="radiogroup" aria-labelledby={`${fetchFromSyncIdPrefix}-vault-label`} className="flex flex-col gap-1.5">
+          <div role="radiogroup" aria-labelledby={`${syncedVaultsPageIdPrefix}-vault-label`} className="flex flex-col gap-1.5">
             {accountVaultsOutcome.syncActionDoneValue.map((accountVault) => {
               const isAccountVaultCopy = isAccountVaultCopiedHere(accountVault)
               const isAccountVaultHere = accountVault.papelizVaultIdOnThisDevice !== null || isAccountVaultCopy
               const isAccountVaultChosen = !isAccountVaultHere && accountVault.papelizSyncVaultId === chosenAccountVault?.papelizSyncVaultId
-              const accountVaultName = accountVault.syncVaultName ?? 'Synced vault'
+              const accountVaultName = accountVault.syncVaultName
+              const isAccountVaultEndToEnd = accountVault.syncVaultEncryptionKind === 'end-to-end'
+              const AccountVaultLockIcon = isAccountVaultLockedHere(accountVault) ? Lock : LockOpen
               return (
                 <label
                   key={accountVault.papelizSyncVaultId}
@@ -522,8 +493,17 @@ export function PapelizSyncFetchFromSyncPage({
                   </span>
                   <span className={joinPapelizClassNames('flex min-w-0 flex-1 flex-col gap-0.5', isAccountVaultHere && 'opacity-60')}>
                     <span className="truncate text-[13.5px] font-semibold">{accountVaultName}</span>
-                    <span className="text-[11.5px] text-papeliz-ink-subtle tabular-nums">
-                      {accountVault.syncVaultFileCount.toLocaleString('en-US')} files · {formatPapelizSyncByteSize(accountVault.syncVaultStoredByteLength)}
+                    <span className="flex flex-wrap items-center gap-x-1 text-[11.5px] text-papeliz-ink-subtle tabular-nums">
+                      <span
+                        className={joinPapelizClassNames('inline-flex items-center gap-1 whitespace-nowrap', isAccountVaultEndToEnd && 'font-medium text-papeliz-ink-muted')}
+                        title={isAccountVaultEndToEnd ? (isAccountVaultLockedHere(accountVault) ? 'End-to-end: its passphrase is asked once on this device' : 'End-to-end, unlocked on this device') : undefined}
+                      >
+                        {isAccountVaultEndToEnd && <AccountVaultLockIcon className="size-3 flex-none" aria-hidden="true" />}
+                        {papelizSyncVaultEncryptionKindDisplayNames[accountVault.syncVaultEncryptionKind]}
+                      </span>
+                      <span className="whitespace-nowrap">
+                        · {accountVault.syncVaultFileCount.toLocaleString('en-US')} files · {formatPapelizSyncByteSize(accountVault.syncVaultStoredByteLength)}
+                      </span>
                     </span>
                   </span>
                   {isAccountVaultHere ? (
@@ -534,9 +514,13 @@ export function PapelizSyncFetchFromSyncPage({
                   ) : (
                     <input
                       type="radio"
-                      name={`${fetchFromSyncIdPrefix}-synced-vault`}
+                      name={`${syncedVaultsPageIdPrefix}-synced-vault`}
                       checked={isAccountVaultChosen}
-                      onChange={() => setChosenPapelizSyncVaultId(accountVault.papelizSyncVaultId)}
+                      onChange={() => {
+                        setChosenPapelizSyncVaultId(accountVault.papelizSyncVaultId)
+                        setTypedSyncVaultPassphrase('')
+                        setSyncedVaultsPageActionWords(null)
+                      }}
                       className="size-4 flex-none cursor-pointer accent-papeliz-blue"
                     />
                   )}
@@ -544,12 +528,36 @@ export function PapelizSyncFetchFromSyncPage({
               )
             })}
           </div>
-          {!isEveryAccountVaultHere && isDownloadPlaceChoiceShown && (
+          {isChosenVaultPassphraseAsked && chosenAccountVault !== null && (
+            <form
+              className="mt-1"
+              onSubmit={(submitEvent) => {
+                submitEvent.preventDefault()
+                if (!isSyncedVaultsPageActionRunning) unlockChosenAccountVault()
+              }}
+            >
+              <PapelizSyncPassphraseField
+                key={chosenAccountVault.papelizSyncVaultId}
+                syncPassphraseFieldLabel={`Passphrase for “${chosenAccountVault.syncVaultName}”`}
+                syncPassphrase={typedSyncVaultPassphrase}
+                onSyncPassphraseChange={setTypedSyncVaultPassphrase}
+                isSyncPassphraseShown={false}
+                syncPassphraseAutoComplete="current-password"
+                isSyncPassphraseFieldFocusedFirst
+              />
+              <button type="submit" hidden aria-hidden="true" tabIndex={-1} />
+              <p className="mt-1.5 px-0.5 text-[12px] leading-[1.45] text-papeliz-ink-subtle">
+                It’s End-to-end, so it’s asked once on this device. Forgot it? Papeliz can’t recover it:{' '}
+                <PapelizSyncTextButton onClick={requestPapelizSettingsGearSyncPage}>delete it from Sync in Settings</PapelizSyncTextButton>.
+              </p>
+            </form>
+          )}
+          {!isEveryAccountVaultHere && !isChosenVaultPassphraseAsked && isDownloadPlaceChoiceShown && (
             <>
-              <p id={`${fetchFromSyncIdPrefix}-place-label`} className="mt-1 px-0.5 text-[12px] font-semibold text-papeliz-ink-muted">
+              <p id={`${syncedVaultsPageIdPrefix}-place-label`} className="mt-1 px-0.5 text-[12px] font-semibold text-papeliz-ink-muted">
                 Keep it in
               </p>
-              <div role="radiogroup" aria-labelledby={`${fetchFromSyncIdPrefix}-place-label`} className="grid grid-cols-2 gap-2 max-sm:grid-cols-1">
+              <div role="radiogroup" aria-labelledby={`${syncedVaultsPageIdPrefix}-place-label`} className="grid grid-cols-2 gap-2 max-sm:grid-cols-1">
                 {(
                   [
                     { downloadPlace: 'folder-on-disk', DownloadPlaceIcon: FolderOpen, downloadPlaceTitle: 'Folder Storage', downloadPlaceLine: 'An empty folder on your machine', isDownloadPlaceRecommended: true },
@@ -576,7 +584,7 @@ export function PapelizSyncFetchFromSyncPage({
                       </span>
                       <input
                         type="radio"
-                        name={`${fetchFromSyncIdPrefix}-download-place`}
+                        name={`${syncedVaultsPageIdPrefix}-download-place`}
                         checked={isDownloadPlaceChosen}
                         onChange={() => setChosenDownloadPlace(downloadPlace)}
                         className="sr-only"
@@ -598,7 +606,7 @@ export function PapelizSyncFetchFromSyncPage({
               </div>
             </>
           )}
-          {!isEveryAccountVaultHere && !isFolderStorageOn && (
+          {!isEveryAccountVaultHere && !isChosenVaultPassphraseAsked && !isFolderStorageOn && (
             <p className="mt-1 flex items-center gap-1.5 px-0.5 text-[12px] text-papeliz-ink-muted">
               <AppWindow className="size-3.5 flex-none" aria-hidden="true" />
               It’s kept in this browser, and Sync is its backup.
@@ -606,10 +614,18 @@ export function PapelizSyncFetchFromSyncPage({
           )}
         </>
       )
+      if (isChosenVaultPassphraseAsked) {
+        syncedVaultsPagePrimaryAction = {
+          primaryActionLabel: 'Unlock',
+          isPrimaryActionDisabled: typedSyncVaultPassphrase === '' || isSyncedVaultsPageActionRunning,
+          onPrimaryActionSelect: unlockChosenAccountVault,
+        }
+        break
+      }
       const isFolderPickedNext = chosenDownloadPlace === 'folder-on-disk' && isFolderStorageOn
-      fetchFromSyncPrimaryAction = {
+      syncedVaultsPagePrimaryAction = {
         primaryActionLabel: isFolderPickedNext ? 'Pick Folder' : 'Download',
-        isPrimaryActionDisabled: chosenAccountVault === null || isFetchFromSyncActionRunning,
+        isPrimaryActionDisabled: chosenAccountVault === null || isSyncedVaultsPageActionRunning,
         onPrimaryActionSelect: () => {
           if (chosenAccountVault !== null && papelizSyncEngine !== null) downloadChosenAccountVault(papelizSyncEngine, chosenAccountVault)
         },
@@ -618,13 +634,13 @@ export function PapelizSyncFetchFromSyncPage({
     }
   }
 
-  const isSyncFetchOptionsButtonShown = isSyncedVaultListShown && accountVaultsToDownload.length > 0
+  const isSyncDownloadOptionsButtonShown = isSyncedVaultListShown && accountVaultsToDownload.length > 0
   // Refresh shows once signed in; its icon turns while the account or its vaults are read.
-  const isSyncFetchRefreshButtonShown = !papelizSyncFetchFromSyncStepsBeforeSignIn.has(fetchFromSyncStep)
-  const isSyncFetchRefreshTurning = isSyncAccountRefreshRunning || fetchFromSyncStep === 'reading-account' || (isSyncedVaultListShown && accountVaultsOutcome === null)
+  const isSyncedVaultsRefreshButtonShown = !papelizSyncSyncedVaultsPageStepsBeforeSignIn.has(syncedVaultsPageStep)
+  const isSyncedVaultsRefreshTurning = isSyncAccountRefreshRunning || syncedVaultsPageStep === 'reading-account' || (isSyncedVaultListShown && accountVaultsOutcome === null)
   // The sign-in the button started counts only while the page still waits on signing in.
-  const isSignInStepShown = fetchFromSyncStep === 'signed-out' || fetchFromSyncStep === 'device-removed' || fetchFromSyncStep === 'waiting-for-sign-in'
-  const shownFetchFromSyncFailureWords = fetchFromSyncActionWords ?? (isSignInStepShown ? fetchFromSyncSignInFailureWords : null)
+  const isSignInStepShown = syncedVaultsPageStep === 'signed-out' || syncedVaultsPageStep === 'device-removed' || syncedVaultsPageStep === 'waiting-for-sign-in'
+  const shownSyncedVaultsPageFailureWords = syncedVaultsPageActionWords ?? (isSignInStepShown ? syncedVaultsPageSignInFailureWords : null)
   const chosenAccountVaultName = chosenAccountVault?.syncVaultName ?? 'This vault'
 
   return (
@@ -632,44 +648,44 @@ export function PapelizSyncFetchFromSyncPage({
       onKeyDown={(keyDownEvent) => {
         if (keyDownEvent.key !== 'Escape' || keyDownEvent.defaultPrevented) return
         keyDownEvent.preventDefault()
-        closeFetchFromSyncPage()
+        closeSyncedVaultsPage()
       }}
       className="papeliz-welcome-enter flex min-h-0 flex-1 flex-col"
     >
       <div className="flex items-start justify-between gap-2 px-3 pt-[11px] pb-1">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <h2 id={fetchFromSyncPageHeadingId} className="text-[18px] font-semibold tracking-[-0.01em]">
+            <h2 id={syncedVaultsPageHeadingId} className="text-[18px] font-semibold tracking-[-0.01em]">
               Synced Vaults
             </h2>
-            {isSyncFetchOptionsButtonShown && isSyncFetchCopyOnly && (
+            {isSyncDownloadOptionsButtonShown && isSyncDownloadCopyOnly && (
               <span className="inline-flex h-5 items-center gap-1 rounded-full bg-papeliz-surface-gray px-2 text-[11px] font-semibold text-papeliz-ink-muted">
                 <CloudOff className="size-3" aria-hidden="true" />
                 Copy only
               </span>
             )}
           </div>
-          <p className="mt-0.5 text-[12.5px] text-papeliz-ink-muted">{fetchFromSyncSubtitle}</p>
+          <p className="mt-0.5 text-[12.5px] text-papeliz-ink-muted">{syncedVaultsPageSubtitle}</p>
         </div>
         <div className="flex flex-none items-center gap-2">
-          {isSyncFetchRefreshButtonShown && (
+          {isSyncedVaultsRefreshButtonShown && (
             <button
               type="button"
               aria-label="Refresh"
               title="Refresh"
-              aria-busy={isSyncFetchRefreshTurning || undefined}
+              aria-busy={isSyncedVaultsRefreshTurning || undefined}
               onClick={refreshSyncAccountAndVaults}
               className="grid size-8 flex-none place-items-center rounded-full border border-papeliz-line text-papeliz-ink-muted transition-colors hover:bg-papeliz-hover hover:text-papeliz-ink"
             >
-              <RefreshCw className={joinPapelizClassNames('size-4', isSyncFetchRefreshTurning && 'animate-spin')} aria-hidden="true" />
+              <RefreshCw className={joinPapelizClassNames('size-4', isSyncedVaultsRefreshTurning && 'animate-spin')} aria-hidden="true" />
             </button>
           )}
-          {isSyncFetchOptionsButtonShown && (
-            <PapelizSyncFetchOptionsButton
-              isSyncFetchCopyOnly={isSyncFetchCopyOnly}
-              onKeepInSyncChoose={() => setSyncFetchCopyOnly(false)}
+          {isSyncDownloadOptionsButtonShown && (
+            <PapelizSyncDownloadOptionsButton
+              isSyncDownloadCopyOnly={isSyncDownloadCopyOnly}
+              onKeepInSyncChoose={() => setSyncDownloadCopyOnly(false)}
               onCopyOnlyChoose={() => {
-                if (!isSyncFetchCopyOnly) setCopyOnlyWarningShown(true)
+                if (!isSyncDownloadCopyOnly) setCopyOnlyWarningShown(true)
               }}
             />
           )}
@@ -677,25 +693,25 @@ export function PapelizSyncFetchFromSyncPage({
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto px-3 pt-2.5 pb-3">
-        {fetchFromSyncBody}
-        {shownFetchFromSyncFailureWords !== null && <PapelizSyncFailureLine className="mt-1 px-0.5">{shownFetchFromSyncFailureWords}</PapelizSyncFailureLine>}
+        {syncedVaultsPageBody}
+        {shownSyncedVaultsPageFailureWords !== null && <PapelizSyncFailureLine className="mt-1 px-0.5">{shownSyncedVaultsPageFailureWords}</PapelizSyncFailureLine>}
       </div>
 
       {/* Cancel at the left edge, the action at the right, as in New Vault's form. */}
-      <div ref={fetchFromSyncFooterRef} className="flex items-center justify-between gap-2 border-t border-papeliz-line p-3">
-        <button type="button" onClick={closeFetchFromSyncPage} className={joinPapelizClassNames(newVaultFormFooterButtonClassName, 'bg-papeliz-red-gradient-start')}>
+      <div ref={syncedVaultsPageFooterRef} className="flex items-center justify-between gap-2 border-t border-papeliz-line p-3">
+        <button type="button" onClick={closeSyncedVaultsPage} className={joinPapelizClassNames(newVaultFormFooterButtonClassName, 'bg-papeliz-red-gradient-start')}>
           <PapelizSolidCircleXIcon className="size-[15px] flex-none" />
-          {fetchFromSyncCancelLabel}
+          {syncedVaultsPageCancelLabel}
         </button>
-        {fetchFromSyncPrimaryAction !== null && (
+        {syncedVaultsPagePrimaryAction !== null && (
           <button
             type="button"
-            disabled={fetchFromSyncPrimaryAction.isPrimaryActionDisabled}
-            onClick={fetchFromSyncPrimaryAction.onPrimaryActionSelect}
+            disabled={syncedVaultsPagePrimaryAction.isPrimaryActionDisabled}
+            onClick={syncedVaultsPagePrimaryAction.onPrimaryActionSelect}
             className={joinPapelizClassNames(newVaultFormFooterButtonClassName, 'bg-papeliz-chosen-tab-ground')}
           >
-            {isFetchFromSyncActionRunning ? <LoaderCircle className="size-[15px] flex-none animate-spin" aria-hidden="true" /> : <PapelizSolidCircleCheckIcon className="size-[15px] flex-none" />}
-            {fetchFromSyncPrimaryAction.primaryActionLabel}
+            {isSyncedVaultsPageActionRunning ? <LoaderCircle className="size-[15px] flex-none animate-spin" aria-hidden="true" /> : <PapelizSolidCircleCheckIcon className="size-[15px] flex-none" />}
+            {syncedVaultsPagePrimaryAction.primaryActionLabel}
           </button>
         )}
       </div>
@@ -714,7 +730,7 @@ export function PapelizSyncFetchFromSyncPage({
           }
           confirmButtonLabel="Download a copy"
           onConfirm={() => {
-            setSyncFetchCopyOnly(true)
+            setSyncDownloadCopyOnly(true)
             setCopyOnlyWarningShown(false)
           }}
           onCancel={() => setCopyOnlyWarningShown(false)}
