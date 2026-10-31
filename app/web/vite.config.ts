@@ -9,10 +9,12 @@ import { papelizSyncEnginePlugin } from '../../build_tools/webapp/papeliz-sync-e
 // The built app's Content-Security-Policy. The user's API keys live in this origin, so: scripts only
 // from the app itself, no plugins or frames. Network calls go to the app, to any https host (the
 // user's provider, which can be any OpenAI-compatible API on a Custom base URL; Adam, 2026-10-28)
-// and to local model servers on this computer. Styles allow inline because the note editor writes
-// its own style rules. Remote images (https) may show in notes; small font files are inlined as
-// data: URLs by the build. Added to the built page only: the dev server needs inline scripts for
-// hot reload.
+// and to local model servers on this computer. Papeliz Sync needs nothing more: its API and live
+// connection are on the app's own origin ('self' covers wss: to it too) and its storage links are
+// https. Styles allow inline because the note editor writes its own style rules. Remote images
+// (https) may show in notes; small font files are inlined as data: URLs by the build. Added to the
+// built page only: the dev server needs inline scripts for hot reload, and `webapp start sync-local`
+// proxies Sync onto the dev origin (papeliz-sync-engine-vite-plugin.mjs).
 function buildPapelizContentSecurityPolicy(): string {
   return [
     "default-src 'self'",
