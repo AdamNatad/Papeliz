@@ -1,4 +1,5 @@
-import { readFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import { expect, test, type Browser, type Page } from '@playwright/test'
 import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs'
 
@@ -52,7 +53,7 @@ async function addSampleVaultNote(page: Page, noteName: string, noteText: string
 // Presses Export and keeps the downloaded file; answers the computer-fonts question when it comes.
 async function exportAndDownload(page: Page, computerFontsAnswer: 'Print them as pictures' | null = null): Promise<{ exportFileName: string; exportFileBytes: Uint8Array }> {
   const exportDownload = page.waitForEvent('download', { timeout: 120_000 })
-  await page.getByRole('button', { name: /^Export as PDF/ }).click()
+  await page.getByRole('button', { name: /^Export (all notes |\d+ notes )?as PDF/ }).click()
   if (computerFontsAnswer !== null) {
     const computerFontsQuestion = page.getByText('Papeliz can use fonts on this computer. Nothing leaves your computer.')
     const isQuestionAsked = await computerFontsQuestion.waitFor({ timeout: 30_000 }).then(
@@ -149,5 +150,41 @@ test('uses the computer’s fonts without asking where the browser already allow
   })
   const embeddedFontNames = Array.from(new TextDecoder('latin1').decode(exportFileBytes).matchAll(/\/BaseFont \/[A-Z]{6}\+([^\s/]+)/g), (fontNameMatch) => fontNameMatch[1] ?? '')
   if (hasKnownCjkFamily) expect(embeddedFontNames.some((embeddedFontName) => !/^(Figtree|NotoSans|PapelizCharacterPictures|CharisSIL|JetBrainsMono)/.test(embeddedFontName))).toBe(true)
+  await page.context().close()
+})
+
+// For veraPDF's PDF/UA-1 check (`verapdf --flavour ua1 <folder>`, once the .zip is unpacked): the
+// sample vault with every export test note added, exported from the Export page into the folder
+// PAPELIZ_PDF_EXPORT_VERAPDF_FOLDER names. Skipped when it isn't set.
+const pdfExportVerapdfFolderPath = process.env.PAPELIZ_PDF_EXPORT_VERAPDF_FOLDER ?? ''
+
+async function exportEveryNoteForVerapdf(page: Page, verapdfZipFileName: string, computerFontsAnswer: 'Print them as pictures' | null): Promise<void> {
+  await prepareExportPage(page)
+  const exportTestNotesFolderUrl = new URL('../src/modules/export-print-style/papeliz-export-test-notes/', import.meta.url)
+  for (const testNoteFileName of (await readdir(exportTestNotesFolderUrl)).sort()) {
+    const testNoteNameSlug = /^papeliz-export-test-note-([\w-]+)\.md$/.exec(testNoteFileName)?.[1]
+    if (testNoteNameSlug === undefined || testNoteNameSlug === 'empty') continue
+    const testNoteName = testNoteNameSlug.charAt(0).toUpperCase() + testNoteNameSlug.slice(1).replace(/-/g, ' ')
+    await addSampleVaultNote(page, testNoteName, await readFile(new URL(testNoteFileName, exportTestNotesFolderUrl), 'utf8'))
+  }
+  await openExportPageWithPdf(page)
+  await page.getByRole('button', { name: 'Select all' }).click()
+  const { exportFileBytes } = await exportAndDownload(page, computerFontsAnswer)
+  await mkdir(pdfExportVerapdfFolderPath, { recursive: true })
+  await writeFile(join(pdfExportVerapdfFolderPath, verapdfZipFileName), exportFileBytes)
+}
+
+test('writes every note as a PDF for veraPDF, with pictures of the characters', async ({ page, browserName }) => {
+  test.skip(pdfExportVerapdfFolderPath === '', 'Set PAPELIZ_PDF_EXPORT_VERAPDF_FOLDER to write the files.')
+  test.setTimeout(300_000)
+  await exportEveryNoteForVerapdf(page, `${browserName} character pictures.zip`, 'Print them as pictures')
+})
+
+test('writes every note as a PDF for veraPDF, in the computer’s fonts (Edge)', async ({ browser, browserName }) => {
+  test.skip(pdfExportVerapdfFolderPath === '', 'Set PAPELIZ_PDF_EXPORT_VERAPDF_FOLDER to write the files.')
+  test.skip(browserName !== 'chromium', 'Only Chrome and Edge have Local Font Access.')
+  test.setTimeout(300_000)
+  const page = await createPageWithComputerFonts(browser)
+  await exportEveryNoteForVerapdf(page, `${browserName} computer fonts.zip`, null)
   await page.context().close()
 })

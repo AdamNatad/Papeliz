@@ -264,6 +264,9 @@ interface PapelizPdfExportNoteLayout {
   bookmarks: PapelizPdfExportBookmark[]
   // The levels of the headings the next bookmark may hang under, outermost first.
   openHeadingLevels: PapelizPdfExportHeadingLevel[]
+  // The level of the last heading's tag (0 before the first): PDF/UA lets a tag go at most one
+  // level deeper than the one before it.
+  lastHeadingTagLevel: number
   missingCharacterCount: number
   nextStructureElementNumber: number
   nextContainerNumber: number
@@ -538,7 +541,11 @@ function getNoteTextFontStyle(noteLayout: PapelizPdfExportNoteLayout, wantedFont
 function layOutHeading(headingBlock: Extract<PapelizPdfExportNoteBlock, { noteBlockKind: 'heading' }>, blockPlace: PapelizPdfExportBlockPlace, noteLayout: PapelizPdfExportNoteLayout): void {
   const headingPrintLook = papelizPdfExportHeadingPrintLooks[headingBlock.headingLevel]
   const blockFontWeight = getPapelizPdfExportBlockFontWeight(headingBlock)
-  const structureElementKey = addStructureElement(`H${headingBlock.headingLevel}`, blockPlace.parentStructureElementKey, noteLayout)
+  // A heading that skips levels (## then ####) keeps its look but is tagged one level below the
+  // heading before it, so a screen reader's heading list has no gaps.
+  const headingTagLevel = Math.min(headingBlock.headingLevel, noteLayout.lastHeadingTagLevel + 1) as PapelizPdfExportHeadingLevel
+  noteLayout.lastHeadingTagLevel = headingTagLevel
+  const structureElementKey = addStructureElement(`H${headingTagLevel}`, blockPlace.parentStructureElementKey, noteLayout)
   const blockTextLook: PapelizPdfExportBlockTextLook = {
     noteFontFamilyName: noteLayout.noteFontFamilyName,
     blockFontWeight,
@@ -1669,6 +1676,7 @@ export function layOutPapelizPdfExportNoteBlocks({ pdfExportNoteDocument, conten
     linkStructureElementKeys: new Set(),
     bookmarks: [],
     openHeadingLevels: [],
+    lastHeadingTagLevel: 0,
     missingCharacterCount: 0,
     nextStructureElementNumber: 1,
     nextContainerNumber: 1,

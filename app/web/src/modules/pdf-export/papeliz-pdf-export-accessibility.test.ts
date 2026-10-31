@@ -11,12 +11,12 @@ import {
   removePapelizPdfExportTestWhitespace,
 } from './papeliz-pdf-export.test-support'
 
-// Phase 6 of the PDF export: the accessibility check. veraPDF and a screen reader aren't on this
-// computer, so these are the PDF/UA-1 (Matterhorn Protocol) checks that can be made from the file
-// itself, on every sample and test note: the catalog (language, marked, structure tree, title shown,
+// Phase 6 of the PDF export: the accessibility check. veraPDF runs by hand on the files
+// `papeliz-pdf-export-verapdf-files.test.ts` writes; these are the PDF/UA-1 (Matterhorn Protocol)
+// checks that can be made from the file itself, on every sample and test note, on every test run: the catalog (language, marked, structure tree, title shown,
 // metadata, and no PDF/UA claim yet); every page's tab order and structure parents; every mark on a
-// page inside tagged content or an artifact; only standard structure types; alternate text on every
-// figure; a scope on every table header; an ID on every note; a structure parent and a description on
+// page inside tagged content or an artifact; only standard structure types; heading tags that start
+// at H1 and skip no level; alternate text on every figure; a scope on every table header; an ID on every note; a structure parent and a description on
 // every link; every font embedded with its map to Unicode; and the text read through the tags, as a
 // screen reader reads it, in the note's own order.
 
@@ -144,7 +144,7 @@ async function readTextThroughTags(pdfFileBytes: Uint8Array): Promise<{ taggedTe
 describe('PDF export accessibility', () => {
   it('passes the PDF/UA checks that can be made from the file, on every sample and test note', async () => {
     // What the checks met, so they can't pass by meeting nothing.
-    const checkedCounts = { tableHeaderCells: 0, notes: 0, linkAnnotations: 0, markingOperators: 0, artifactOperators: 0, structureNodes: 0 }
+    const checkedCounts = { tableHeaderCells: 0, notes: 0, linkAnnotations: 0, markingOperators: 0, artifactOperators: 0, structureNodes: 0, headingTags: 0 }
     for (const { vaultNoteRelativePath, vaultNoteText } of papelizPdfExportTestVaultNotes) {
       const notePdfJob = await buildPapelizPdfExportTestNotePdfJob(vaultNoteRelativePath, vaultNoteText)
       const { pdfFileBytes } = await writePapelizPdfExportNotePdf(notePdfJob)
@@ -197,10 +197,18 @@ describe('PDF export accessibility', () => {
       }
       const { taggedText, structureNodes } = await readTextThroughTags(pdfFileBytes)
       checkedCounts.structureNodes += structureNodes.length
+      let lastHeadingTagLevel = 0
       for (const structureNode of structureNodes) {
         if (structureNode.role === undefined) continue
         expect(papelizStandardStructureRoles.has(structureNode.role) || structureNode.role === 'Root', `${vaultNoteRelativePath}: ${structureNode.role}`).toBe(true)
         if (structureNode.role === 'Figure') expect((structureNode.alt ?? '').trim().length, `${vaultNoteRelativePath}: a figure without alternate text`).toBeGreaterThan(0)
+        // Heading tags start at H1 and never skip a level going down.
+        const headingTagLevel = Number(/^H([1-6])$/.exec(structureNode.role)?.[1] ?? 0)
+        if (headingTagLevel > 0) {
+          checkedCounts.headingTags += 1
+          expect(headingTagLevel, `${vaultNoteRelativePath}: heading tag H${headingTagLevel} after H${lastHeadingTagLevel}`).toBeLessThanOrEqual(lastHeadingTagLevel + 1)
+          lastHeadingTagLevel = headingTagLevel
+        }
       }
       // Read through the tags, the note's text comes in its own order (characters no bundled font
       // has print as boxes in these tests, so only the printed ones are compared).

@@ -124,6 +124,8 @@ declare module 'pdfkit' {
     end(): void
     // Writes the XMP metadata from `info`; called once, by `end()`.
     _addInfo(): void
+    // Adds raw XML to the XMP metadata packet.
+    appendXML(xmpXmlText: string, isNewLineAdded?: boolean): void
   }
 }
 

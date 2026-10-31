@@ -47,6 +47,12 @@ function escapePapelizPdfExportXmpText(xmpText: string): string {
   return xmpText.replace(/&/g, '&amp;').replace(/\r/g, '&#xD;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;')
 }
 
+// Whether the file says it meets PDF/UA-1. veraPDF's check passes; the claim waits for a screen
+// reader read-through. The claim is written here, not with pdfkit's `subset: 'PDF/UA'`: pdfkit 0.20
+// numbers that subset 1, as it does PDF/A-1, and so also writes PDF/A-1's CIDSet, which lists only
+// the glyphs used and breaks PDF/UA's font rule.
+const isPapelizPdfExportPdfUaClaimed = false
+
 class PapelizPdfExportPdfKitDocument extends PDFDocument {
   override _addInfo(): void {
     const rawPdfKitInfo = this.info
@@ -60,6 +66,9 @@ class PapelizPdfExportPdfKitDocument extends PDFDocument {
       super._addInfo()
     } finally {
       this.info = rawPdfKitInfo
+    }
+    if (isPapelizPdfExportPdfUaClaimed) {
+      this.appendXML('<rdf:Description rdf:about="" xmlns:pdfuaid="http://www.aiim.org/pdfua/ns/id/"><pdfuaid:part>1</pdfuaid:part></rdf:Description>')
     }
   }
 }
