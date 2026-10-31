@@ -5,6 +5,7 @@ import { ClerkFailed, ClerkLoaded, ClerkLoading, ClerkProvider, useAuth } from '
 import { useEffect, useState } from 'react'
 import {
   isPapelizAccountProductionHost,
+  papelizAccountChangePassphraseAfterSignInParameterName,
   papelizAccountDeleteAfterSignInParameterName,
   papelizAccountDeletedParameterName,
   papelizAccountPagePath,
@@ -85,17 +86,20 @@ function PapelizAccountPageScreen({ isPapelizAccountProductionHost }: { isPapeli
 
   // Delete account sent the user to sign in again; once signed in, it opens again, and only once.
   const [isPapelizAccountDeleteOpenedAfterSignIn] = useState(() => papelizAccountPageSearchParameters.has(papelizAccountDeleteAfterSignInParameterName))
+  // Change Passphrase did the same for one vault; its dialog opens again, and only once.
+  const [papelizSyncVaultIdToChangePassphraseAfterSignIn] = useState(() => papelizAccountPageSearchParameters.get(papelizAccountChangePassphraseAfterSignInParameterName))
 
   useEffect(() => {
     if (isSignedIn) forgetPapelizAccountSsoPendingProvider()
   }, [isSignedIn])
 
   useEffect(() => {
-    if (!isSignedIn || !isPapelizAccountDeleteOpenedAfterSignIn) return
-    const papelizAccountAddressWithoutDeleteFlag = new URL(window.location.href)
-    papelizAccountAddressWithoutDeleteFlag.searchParams.delete(papelizAccountDeleteAfterSignInParameterName)
-    window.history.replaceState(window.history.state, '', papelizAccountAddressWithoutDeleteFlag.href)
-  }, [isSignedIn, isPapelizAccountDeleteOpenedAfterSignIn])
+    if (!isSignedIn || (!isPapelizAccountDeleteOpenedAfterSignIn && papelizSyncVaultIdToChangePassphraseAfterSignIn === null)) return
+    const papelizAccountAddressWithoutAfterSignInFlags = new URL(window.location.href)
+    papelizAccountAddressWithoutAfterSignInFlags.searchParams.delete(papelizAccountDeleteAfterSignInParameterName)
+    papelizAccountAddressWithoutAfterSignInFlags.searchParams.delete(papelizAccountChangePassphraseAfterSignInParameterName)
+    window.history.replaceState(window.history.state, '', papelizAccountAddressWithoutAfterSignInFlags.href)
+  }, [isSignedIn, isPapelizAccountDeleteOpenedAfterSignIn, papelizSyncVaultIdToChangePassphraseAfterSignIn])
 
   if (!isSignedIn && papelizAccountPageSearchParameters.has(papelizAccountDeletedParameterName)) {
     return (
@@ -140,6 +144,7 @@ function PapelizAccountPageScreen({ isPapelizAccountProductionHost }: { isPapeli
     <PapelizAccountDashboard
       papelizAccountSyncService={papelizAccountSyncService}
       isPapelizAccountDeleteOpenedAfterSignIn={isPapelizAccountDeleteOpenedAfterSignIn}
+      papelizSyncVaultIdToChangePassphraseAfterSignIn={papelizSyncVaultIdToChangePassphraseAfterSignIn}
     />
   )
 }

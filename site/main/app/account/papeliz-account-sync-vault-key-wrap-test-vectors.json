@@ -1,0 +1,63 @@
+{
+  "papelizSyncTestVectorsFormat": "papeliz-sync-encryption-test-vectors-v2",
+  "passphraseWrapVectors": [
+    {
+      "testVectorName": "passphrase, default Argon2id settings",
+      "papelizSyncAccountId": "pzacct_eu_testvectoraccount222222222",
+      "papelizSyncVaultId": "pzvault_testvectorvault22222222222",
+      "syncVaultKeyHex": "202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+      "syncVaultPassphrase": "paper lantern river orbit",
+      "syncVaultPassphraseVariants": [],
+      "argon2idSettings": {
+        "argon2idMemoryKibibytes": 65536,
+        "argon2idPassCount": 3,
+        "argon2idParallelism": 1
+      },
+      "syncKeyDerivationSaltHex": "404142434445464748494a4b4c4d4e4f",
+      "syncKeyWrapNonceHex": "505152535455565758595a5b",
+      "passphraseKeyHex": "f98c08227ae4c01c7382127fa11f363b49ae8dfdbf599a8fd167d27b7b5a5cc4",
+      "passphraseWrappedSyncVaultKey": {
+        "syncVaultKeyWrapFormat": "papeliz-sync-vault-key-wrap-v2",
+        "syncKeyDerivation": {
+          "syncKeyDerivationAlgorithm": "argon2id",
+          "argon2idMemoryKibibytes": 65536,
+          "argon2idPassCount": 3,
+          "argon2idParallelism": 1,
+          "syncKeyDerivationSalt": "QEFCQ0RFRkdISUpLTE1OTw"
+        },
+        "syncKeyWrapNonce": "UFFSU1RVVldYWVpb",
+        "wrappedSyncVaultKey": "ey1B_ynbU8VcpLDL-Ip9OzaxnXd-gZJpSztB_Nw_UkzB_yr_1LW_fHEkUKDdEY-p"
+      }
+    },
+    {
+      "testVectorName": "passphrase with accents and an emoji, lightest allowed Argon2id settings",
+      "papelizSyncAccountId": "pzacct_eu_testvectoraccount222222222",
+      "papelizSyncVaultId": "pzvault_testvectorvault22222222222",
+      "syncVaultKeyHex": "202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+      "syncVaultPassphrase": "Crème brûlée für alle 📝",
+      "syncVaultPassphraseVariants": [
+        "Crème brûlée für alle 📝"
+      ],
+      "argon2idSettings": {
+        "argon2idMemoryKibibytes": 19456,
+        "argon2idPassCount": 1,
+        "argon2idParallelism": 1
+      },
+      "syncKeyDerivationSaltHex": "505152535455565758595a5b5c5d5e5f",
+      "syncKeyWrapNonceHex": "606162636465666768696a6b",
+      "passphraseKeyHex": "ec5bb367e2fe9bf2416d6a4f4eed017052cf7f3a21feab6149cd7f2383de07ed",
+      "passphraseWrappedSyncVaultKey": {
+        "syncVaultKeyWrapFormat": "papeliz-sync-vault-key-wrap-v2",
+        "syncKeyDerivation": {
+          "syncKeyDerivationAlgorithm": "argon2id",
+          "argon2idMemoryKibibytes": 19456,
+          "argon2idPassCount": 1,
+          "argon2idParallelism": 1,
+          "syncKeyDerivationSalt": "UFFSU1RVVldYWVpbXF1eXw"
+        },
+        "syncKeyWrapNonce": "YGFiY2RlZmdoaWpr",
+        "wrappedSyncVaultKey": "B-McxiUQmluQKitvPCH2i4OncodkEJp63McS5UmBSjCNMlFwBCl50sc_k7P8NT_G"
+      }
+    }
+  ]
+}

@@ -14,6 +14,7 @@ import { papelizAccountPagePath } from './papeliz-account-config'
 import { PapelizAccountDialog } from './papeliz-account-dialog'
 import { PapelizAccountRowGroup, PapelizAccountSectionIntro } from './papeliz-account-rows'
 import type { PapelizAccountSyncDevicePlatform, PapelizAccountSyncDeviceRecord, PapelizAccountSyncService } from './papeliz-account-sync-service'
+import { describePapelizAccountPastDay, describePapelizAccountTimeAgo } from './papeliz-account-time-descriptions'
 
 export type PapelizAccountSyncDeviceListStage =
   | { syncDeviceListStageKind: 'not-loaded' }
@@ -27,7 +28,7 @@ export interface PapelizAccountSyncDeviceList {
   forgetRemovedPapelizAccountSyncDevice: (papelizSyncDeviceId: string) => void
 }
 
-const papelizAccountSyncUnreachableMessage = 'Couldn’t reach Papeliz Sync. Check your connection, then try again.'
+export const papelizAccountSyncUnreachableMessage = 'Couldn’t reach Papeliz Sync. Check your connection, then try again.'
 
 // The most recently synced first; a device that never synced goes last.
 function sortPapelizAccountSyncDeviceRecords(syncDeviceRecords: PapelizAccountSyncDeviceRecord[]): PapelizAccountSyncDeviceRecord[] {
@@ -101,28 +102,10 @@ function titlePapelizAccountSyncDeviceRemoval(syncDeviceRecord: PapelizAccountSy
     : `Remove “${syncDeviceRecord.syncDeviceName}”?`
 }
 
-const papelizAccountSyncDeviceRelativeTimeFormat = new Intl.RelativeTimeFormat('en', { numeric: 'auto' })
-
-function describePapelizAccountSyncDeviceDay(pastTime: number, currentTime: number): string {
-  const pastTimeIsThisYear = new Date(pastTime).getFullYear() === new Date(currentTime).getFullYear()
-  return new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: pastTimeIsThisYear ? undefined : 'numeric' }).format(pastTime)
-}
-
-function describePapelizAccountSyncDeviceTimeAgo(pastTime: number, currentTime: number): string {
-  const minutesAgo = Math.round((currentTime - pastTime) / 60_000)
-  if (minutesAgo < 1) return 'just now'
-  if (minutesAgo < 60) return papelizAccountSyncDeviceRelativeTimeFormat.format(-minutesAgo, 'minute')
-  const hoursAgo = Math.round(minutesAgo / 60)
-  if (hoursAgo < 24) return papelizAccountSyncDeviceRelativeTimeFormat.format(-hoursAgo, 'hour')
-  const daysAgo = Math.round(hoursAgo / 24)
-  if (daysAgo < 30) return papelizAccountSyncDeviceRelativeTimeFormat.format(-daysAgo, 'day')
-  return `on ${describePapelizAccountSyncDeviceDay(pastTime, currentTime)}`
-}
-
 function describePapelizAccountSyncDevice(syncDeviceRecord: PapelizAccountSyncDeviceRecord, currentTime: number): string {
   const syncDeviceLastSeenText =
-    syncDeviceRecord.syncDeviceLastSeenAt === null ? 'Not synced yet' : `Synced ${describePapelizAccountSyncDeviceTimeAgo(syncDeviceRecord.syncDeviceLastSeenAt, currentTime)}`
-  return `${syncDeviceLastSeenText} · Added ${describePapelizAccountSyncDeviceDay(syncDeviceRecord.syncDeviceAddedAt, currentTime)}`
+    syncDeviceRecord.syncDeviceLastSeenAt === null ? 'Not synced yet' : `Synced ${describePapelizAccountTimeAgo(syncDeviceRecord.syncDeviceLastSeenAt, currentTime)}`
+  return `${syncDeviceLastSeenText} · Added ${describePapelizAccountPastDay(syncDeviceRecord.syncDeviceAddedAt, currentTime)}`
 }
 
 type PapelizAccountSyncDeviceRemoval = {

@@ -11,6 +11,7 @@
     "site:typecheck": "pnpm --filter @papeliz/site typecheck",
     "site:lint": "pnpm --filter @papeliz/site lint",
     "site:verify": "pnpm --filter @papeliz/site verify",
+    "site:test": "pnpm --filter @papeliz/site test",
     "help:dev": "pnpm --filter @papeliz/help-site dev",
     "help:build": "pnpm --filter @papeliz/help-site build && node build_tools/site/papeliz-site-repair-windows-segment-files.mjs site/help/out",
     "help:typecheck": "pnpm --filter @papeliz/help-site typecheck",

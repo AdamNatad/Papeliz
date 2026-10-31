@@ -4,6 +4,7 @@ import {
   type PapelizSyncDeviceSessionReply,
   type PapelizSyncStoragePlace,
 } from './papeliz-account-sync-hand-over'
+import { isPapelizAccountSyncPassphraseWrappedVaultKey, type PapelizAccountSyncPassphraseWrappedVaultKey } from './papeliz-account-sync-vault-key-wrap'
 
 // How this page reaches Papeliz Sync's Account Worker (`/api/account/v1/` on the same origin). On
 // papeliz.com it calls the Worker. Everywhere else it calls the Worker too when this origin has one
@@ -18,6 +19,12 @@ export const papelizAccountSyncAccountDeletionFromSignInPagePath = '/api/account
 // `{ syncDeviceRecords }` (an empty list when the sign-in has no Sync account); DELETE with a device ID
 // answers `{ removedPapelizSyncDeviceId }`, with any valid sign-in.
 export const papelizAccountSyncDevicesFromSignInPagePath = '/api/account/v1/devices-from-sign-in-page'
+// The Vaults section's list, Change Passphrase and Delete from Sync, from a sign-in token and
+// no device: GET answers `{ papelizSyncAccountId, syncAccountVaultRecords }` (an empty list when the
+// sign-in has no Sync account); PUT `…/:papelizSyncVaultId/passphrase-wrapped-key` answers
+// `{ syncAccountVaultRecord }`, and needs a sign-in in the last 10 minutes; DELETE
+// `…/:papelizSyncVaultId` answers `{ deletedPapelizSyncVaultId }`, with any valid sign-in.
+export const papelizAccountSyncVaultsFromSignInPagePath = '/api/account/v1/vaults-from-sign-in-page'
 // The word the deletion routes ask for in the body, so no request deletes an account by accident.
 const papelizAccountSyncAccountDeletionConfirmation = 'delete-my-papeliz-sync-account'
 
@@ -58,6 +65,49 @@ export type PapelizAccountSyncDeviceRemovalOutcome =
   | { syncDeviceRemovalOutcomeKind: 'removed' }
   | { syncDeviceRemovalOutcomeKind: 'refused'; syncDeviceRemovalRefusalMessage: string }
 
+export type PapelizAccountSyncVaultEncryptionKind = 'standard' | 'end-to-end'
+
+// A synced vault as this page sees it. Its name is readable by Papeliz, for both kinds. Only an
+// End-to-end vault has a copy of its key wrapped with its passphrase, which this page can wrap again
+// with a new passphrase but never open without the current one.
+export interface PapelizAccountSyncVaultRecord {
+  papelizSyncVaultId: string
+  syncVaultName: string
+  syncVaultEncryptionKind: PapelizAccountSyncVaultEncryptionKind
+  passphraseWrappedSyncVaultKey: PapelizAccountSyncPassphraseWrappedVaultKey | null
+  // 1 when the vault is made, then up by one on each Change Passphrase.
+  syncVaultKeyWrapRevision: number
+  // Sync keeps no last-sync time for a vault, only when it was made.
+  syncVaultCreatedAt: number
+  syncVaultFileCount: number
+  // Old versions count.
+  syncVaultStoredByteLength: number
+}
+
+// The Sync account's ID comes with the list: an End-to-end vault's wrapped copy is bound to it. Null
+// when the sign-in has no Sync account.
+export type PapelizAccountSyncVaultListOutcome =
+  | { syncVaultListOutcomeKind: 'listed'; papelizSyncAccountId: string | null; syncVaultRecords: PapelizAccountSyncVaultRecord[] }
+  | { syncVaultListOutcomeKind: 'refused'; syncVaultListRefusalMessage: string }
+
+export interface PapelizAccountSyncVaultPassphraseWrappedKeyReplacement {
+  // The revision the new copy replaces; Sync refuses it when another device changed the passphrase first.
+  syncVaultKeyWrapBaseRevision: number
+  passphraseWrappedSyncVaultKey: PapelizAccountSyncPassphraseWrappedVaultKey
+}
+
+// `list-out-of-date`: the vault changed after the list loaded (its passphrase changed on another
+// device, or it was deleted from Sync), so the list loads again before another try.
+export type PapelizAccountSyncVaultPassphraseChangeOutcome =
+  | { syncVaultPassphraseChangeOutcomeKind: 'changed'; syncVaultRecord: PapelizAccountSyncVaultRecord }
+  | { syncVaultPassphraseChangeOutcomeKind: 'fresh-sign-in-required' }
+  | { syncVaultPassphraseChangeOutcomeKind: 'list-out-of-date' }
+  | { syncVaultPassphraseChangeOutcomeKind: 'refused'; syncVaultPassphraseChangeRefusalMessage: string }
+
+export type PapelizAccountSyncVaultDeletionOutcome =
+  | { syncVaultDeletionOutcomeKind: 'deleted' }
+  | { syncVaultDeletionOutcomeKind: 'refused'; syncVaultDeletionRefusalMessage: string }
+
 export interface PapelizAccountSyncService {
   papelizAccountSyncServiceIsLocalFake: boolean
   // `signInToken` is a fresh session token from Clerk, sent in `Authorization: Bearer`.
@@ -70,6 +120,15 @@ export interface PapelizAccountSyncService {
   // The Devices section: every device signed in to Sync, and Remove, which signs one out.
   listPapelizSyncDevices(signInToken: string): Promise<PapelizAccountSyncDeviceListOutcome>
   removePapelizSyncDeviceFromSignInPage(signInToken: string, papelizSyncDeviceId: string): Promise<PapelizAccountSyncDeviceRemovalOutcome>
+  // The Vaults section: every synced vault, Change Passphrase for an End-to-end one (its new
+  // wrapped copy is made on this page), and Delete from Sync, which leaves every device's files.
+  listPapelizSyncVaults(signInToken: string): Promise<PapelizAccountSyncVaultListOutcome>
+  replacePapelizSyncVaultPassphraseWrappedKey(
+    signInToken: string,
+    papelizSyncVaultId: string,
+    passphraseWrappedKeyReplacement: PapelizAccountSyncVaultPassphraseWrappedKeyReplacement,
+  ): Promise<PapelizAccountSyncVaultPassphraseChangeOutcome>
+  deletePapelizSyncVaultFromSignInPage(signInToken: string, papelizSyncVaultId: string): Promise<PapelizAccountSyncVaultDeletionOutcome>
 }
 
 const papelizAccountSyncDevicePlatforms: readonly PapelizAccountSyncDevicePlatform[] = ['web', 'desktop', 'mobile']
@@ -101,6 +160,71 @@ function readPapelizAccountSyncDeviceRecords(deviceListReplyCandidate: unknown):
     })
   }
   return papelizAccountSyncDeviceRecords
+}
+
+const papelizAccountSyncVaultEncryptionKinds: readonly PapelizAccountSyncVaultEncryptionKind[] = ['standard', 'end-to-end']
+
+function isPapelizAccountSyncCount(countCandidate: unknown): countCandidate is number {
+  return Number.isSafeInteger(countCandidate) && (countCandidate as number) >= 0
+}
+
+// Null for anything not laid out as Sync's vault record, or an End-to-end vault without a wrapped
+// copy of its key. A Standard vault's key never comes here.
+function readPapelizAccountSyncVaultRecord(syncVaultRecordCandidate: unknown): PapelizAccountSyncVaultRecord | null {
+  if (typeof syncVaultRecordCandidate !== 'object' || syncVaultRecordCandidate === null) return null
+  const {
+    papelizSyncVaultId,
+    syncVaultName,
+    syncVaultEncryptionKind,
+    passphraseWrappedSyncVaultKey,
+    syncVaultKeyWrapRevision,
+    syncVaultCreatedAt,
+    syncVaultFileCount,
+    syncVaultStoredByteLength,
+  } = syncVaultRecordCandidate as Record<string, unknown>
+  if (
+    typeof papelizSyncVaultId !== 'string' ||
+    typeof syncVaultName !== 'string' ||
+    syncVaultName.trim() === '' ||
+    !papelizAccountSyncVaultEncryptionKinds.includes(syncVaultEncryptionKind as PapelizAccountSyncVaultEncryptionKind) ||
+    !Number.isSafeInteger(syncVaultKeyWrapRevision) ||
+    (syncVaultKeyWrapRevision as number) < 1 ||
+    typeof syncVaultCreatedAt !== 'number' ||
+    !isPapelizAccountSyncCount(syncVaultFileCount) ||
+    !isPapelizAccountSyncCount(syncVaultStoredByteLength)
+  ) {
+    return null
+  }
+  const syncVaultIsEndToEnd = syncVaultEncryptionKind === 'end-to-end'
+  if (syncVaultIsEndToEnd && !isPapelizAccountSyncPassphraseWrappedVaultKey(passphraseWrappedSyncVaultKey)) return null
+  return {
+    papelizSyncVaultId,
+    syncVaultName,
+    syncVaultEncryptionKind: syncVaultEncryptionKind as PapelizAccountSyncVaultEncryptionKind,
+    passphraseWrappedSyncVaultKey: syncVaultIsEndToEnd ? (passphraseWrappedSyncVaultKey as PapelizAccountSyncPassphraseWrappedVaultKey) : null,
+    syncVaultKeyWrapRevision: syncVaultKeyWrapRevision as number,
+    syncVaultCreatedAt,
+    syncVaultFileCount,
+    syncVaultStoredByteLength,
+  }
+}
+
+function readPapelizAccountSyncVaultList(
+  vaultListReplyCandidate: unknown,
+): { papelizSyncAccountId: string | null; syncVaultRecords: PapelizAccountSyncVaultRecord[] } | null {
+  if (typeof vaultListReplyCandidate !== 'object' || vaultListReplyCandidate === null) return null
+  const { papelizSyncAccountId, syncAccountVaultRecords } = vaultListReplyCandidate as { papelizSyncAccountId?: unknown; syncAccountVaultRecords?: unknown }
+  if (!Array.isArray(syncAccountVaultRecords)) return null
+  const papelizAccountSyncVaultRecords: PapelizAccountSyncVaultRecord[] = []
+  for (const syncVaultRecordCandidate of syncAccountVaultRecords) {
+    const papelizAccountSyncVaultRecord = readPapelizAccountSyncVaultRecord(syncVaultRecordCandidate)
+    if (papelizAccountSyncVaultRecord === null) return null
+    papelizAccountSyncVaultRecords.push(papelizAccountSyncVaultRecord)
+  }
+  return {
+    papelizSyncAccountId: typeof papelizSyncAccountId === 'string' && papelizSyncAccountId.startsWith('pzacct_') ? papelizSyncAccountId : null,
+    syncVaultRecords: papelizAccountSyncVaultRecords,
+  }
 }
 
 function readPapelizSyncErrorReplyMessage(errorReplyCandidate: unknown): { syncErrorCode: string | null; syncErrorMessage: string | null } {
@@ -193,6 +317,72 @@ async function requestPapelizSyncDeviceRemovalFromAccountWorker(signInToken: str
   return { syncDeviceRemovalOutcomeKind: 'refused', syncDeviceRemovalRefusalMessage: syncErrorMessage ?? `Papeliz Sync answered ${deviceRemovalResponse.status}.` }
 }
 
+// The Account Worker's answer, or null when no Account Worker is on this origin (as above).
+async function requestPapelizSyncVaultListFromAccountWorker(signInToken: string): Promise<PapelizAccountSyncVaultListOutcome | null> {
+  const vaultListResponse = await fetch(papelizAccountSyncVaultsFromSignInPagePath, {
+    method: 'GET',
+    credentials: 'omit',
+    cache: 'no-store',
+    headers: { Authorization: `Bearer ${signInToken}` },
+  })
+  const vaultListReplyBody: unknown = await vaultListResponse.json().catch(() => null)
+  const papelizAccountSyncVaultList = vaultListResponse.ok ? readPapelizAccountSyncVaultList(vaultListReplyBody) : null
+  if (papelizAccountSyncVaultList !== null) return { syncVaultListOutcomeKind: 'listed', ...papelizAccountSyncVaultList }
+  const { syncErrorCode, syncErrorMessage } = readPapelizSyncErrorReplyMessage(vaultListReplyBody)
+  if (vaultListResponse.status === 404 && syncErrorCode === null) return null
+  return { syncVaultListOutcomeKind: 'refused', syncVaultListRefusalMessage: syncErrorMessage ?? `Papeliz Sync answered ${vaultListResponse.status}.` }
+}
+
+// The Account Worker's answer, or null when no Account Worker is on this origin (as above).
+async function requestPapelizSyncVaultPassphraseChangeFromAccountWorker(
+  signInToken: string,
+  papelizSyncVaultId: string,
+  passphraseWrappedKeyReplacement: PapelizAccountSyncVaultPassphraseWrappedKeyReplacement,
+): Promise<PapelizAccountSyncVaultPassphraseChangeOutcome | null> {
+  const passphraseChangeResponse = await fetch(`${papelizAccountSyncVaultsFromSignInPagePath}/${encodeURIComponent(papelizSyncVaultId)}/passphrase-wrapped-key`, {
+    method: 'PUT',
+    credentials: 'omit',
+    cache: 'no-store',
+    headers: { Authorization: `Bearer ${signInToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      syncVaultKeyWrapBaseRevision: passphraseWrappedKeyReplacement.syncVaultKeyWrapBaseRevision,
+      passphraseWrappedSyncVaultKey: passphraseWrappedKeyReplacement.passphraseWrappedSyncVaultKey,
+    }),
+  })
+  const passphraseChangeReplyBody: unknown = await passphraseChangeResponse.json().catch(() => null)
+  const changedSyncVaultRecord =
+    passphraseChangeResponse.ok && typeof passphraseChangeReplyBody === 'object' && passphraseChangeReplyBody !== null
+      ? readPapelizAccountSyncVaultRecord((passphraseChangeReplyBody as { syncAccountVaultRecord?: unknown }).syncAccountVaultRecord)
+      : null
+  if (changedSyncVaultRecord !== null) return { syncVaultPassphraseChangeOutcomeKind: 'changed', syncVaultRecord: changedSyncVaultRecord }
+  const { syncErrorCode, syncErrorMessage } = readPapelizSyncErrorReplyMessage(passphraseChangeReplyBody)
+  if (passphraseChangeResponse.status === 404 && syncErrorCode === null) return null
+  if (syncErrorCode === 'fresh-sign-in-required') return { syncVaultPassphraseChangeOutcomeKind: 'fresh-sign-in-required' }
+  if (syncErrorCode === 'vault-key-changed-elsewhere' || syncErrorCode === 'vault-not-found' || syncErrorCode === 'vault-encryption-kind-mismatch') {
+    return { syncVaultPassphraseChangeOutcomeKind: 'list-out-of-date' }
+  }
+  return {
+    syncVaultPassphraseChangeOutcomeKind: 'refused',
+    syncVaultPassphraseChangeRefusalMessage: syncErrorMessage ?? `Papeliz Sync answered ${passphraseChangeResponse.status}.`,
+  }
+}
+
+// The Account Worker's answer, or null when no Account Worker is on this origin (as above).
+async function requestPapelizSyncVaultDeletionFromAccountWorker(signInToken: string, papelizSyncVaultId: string): Promise<PapelizAccountSyncVaultDeletionOutcome | null> {
+  const vaultDeletionResponse = await fetch(`${papelizAccountSyncVaultsFromSignInPagePath}/${encodeURIComponent(papelizSyncVaultId)}`, {
+    method: 'DELETE',
+    credentials: 'omit',
+    cache: 'no-store',
+    headers: { Authorization: `Bearer ${signInToken}` },
+  })
+  if (vaultDeletionResponse.ok) return { syncVaultDeletionOutcomeKind: 'deleted' }
+  const { syncErrorCode, syncErrorMessage } = readPapelizSyncErrorReplyMessage(await vaultDeletionResponse.json().catch(() => null))
+  if (vaultDeletionResponse.status === 404 && syncErrorCode === null) return null
+  // Already gone (deleted from another tab or device): the list drops it as if this deletion did.
+  if (syncErrorCode === 'vault-not-found') return { syncVaultDeletionOutcomeKind: 'deleted' }
+  return { syncVaultDeletionOutcomeKind: 'refused', syncVaultDeletionRefusalMessage: syncErrorMessage ?? `Papeliz Sync answered ${vaultDeletionResponse.status}.` }
+}
+
 const papelizAccountSyncWorkerService: PapelizAccountSyncService = {
   papelizAccountSyncServiceIsLocalFake: false,
   async createPapelizSyncDeviceSession(signInToken, deviceSessionRequest) {
@@ -235,6 +425,30 @@ const papelizAccountSyncWorkerService: PapelizAccountSyncService = {
       }
     )
   },
+  async listPapelizSyncVaults(signInToken) {
+    return (
+      (await requestPapelizSyncVaultListFromAccountWorker(signInToken)) ?? {
+        syncVaultListOutcomeKind: 'refused',
+        syncVaultListRefusalMessage: 'Papeliz Sync answered 404.',
+      }
+    )
+  },
+  async replacePapelizSyncVaultPassphraseWrappedKey(signInToken, papelizSyncVaultId, passphraseWrappedKeyReplacement) {
+    return (
+      (await requestPapelizSyncVaultPassphraseChangeFromAccountWorker(signInToken, papelizSyncVaultId, passphraseWrappedKeyReplacement)) ?? {
+        syncVaultPassphraseChangeOutcomeKind: 'refused',
+        syncVaultPassphraseChangeRefusalMessage: 'Papeliz Sync answered 404.',
+      }
+    )
+  },
+  async deletePapelizSyncVaultFromSignInPage(signInToken, papelizSyncVaultId) {
+    return (
+      (await requestPapelizSyncVaultDeletionFromAccountWorker(signInToken, papelizSyncVaultId)) ?? {
+        syncVaultDeletionOutcomeKind: 'refused',
+        syncVaultDeletionRefusalMessage: 'Papeliz Sync answered 404.',
+      }
+    )
+  },
 }
 
 // ---- The local fake ----------------------------------------------------------------------------
@@ -247,6 +461,9 @@ interface PapelizAccountLocalFakeSyncAccount {
   papelizSyncDeviceIds: string[]
   // When each device was added; missing for accounts the fake kept before it recorded this.
   papelizSyncDeviceAddedAts?: Record<string, number>
+  // The fake's synced vaults. Nothing on the fake's origin makes one, so the list stays empty unless
+  // one is written into the fake's storage by hand.
+  papelizSyncVaultRecords?: PapelizAccountSyncVaultRecord[]
 }
 
 function createPapelizAccountLocalFakeBase32Part(): string {
@@ -367,6 +584,42 @@ export const papelizAccountLocalFakeSyncService: PapelizAccountSyncService = {
     }
     return { syncDeviceRemovalOutcomeKind: 'removed' }
   },
+  async listPapelizSyncVaults(signInToken) {
+    const localFakeSyncAccount = readPapelizAccountLocalFakeSyncAccounts()[readPapelizAccountLocalFakeSignInSubject(signInToken)]
+    return {
+      syncVaultListOutcomeKind: 'listed',
+      papelizSyncAccountId: localFakeSyncAccount?.papelizSyncAccountId ?? null,
+      syncVaultRecords: localFakeSyncAccount?.papelizSyncVaultRecords ?? [],
+    }
+  },
+  // Compare and set on the revision, as Sync does. The fake doesn't check how recent the sign-in is.
+  async replacePapelizSyncVaultPassphraseWrappedKey(signInToken, papelizSyncVaultId, passphraseWrappedKeyReplacement) {
+    const localFakeSyncAccounts = readPapelizAccountLocalFakeSyncAccounts()
+    const localFakeSyncAccount = localFakeSyncAccounts[readPapelizAccountLocalFakeSignInSubject(signInToken)]
+    const localFakeSyncVaultRecord = localFakeSyncAccount?.papelizSyncVaultRecords?.find((syncVaultRecord) => syncVaultRecord.papelizSyncVaultId === papelizSyncVaultId)
+    if (
+      !localFakeSyncVaultRecord ||
+      localFakeSyncVaultRecord.syncVaultEncryptionKind !== 'end-to-end' ||
+      localFakeSyncVaultRecord.syncVaultKeyWrapRevision !== passphraseWrappedKeyReplacement.syncVaultKeyWrapBaseRevision
+    ) {
+      return { syncVaultPassphraseChangeOutcomeKind: 'list-out-of-date' }
+    }
+    localFakeSyncVaultRecord.passphraseWrappedSyncVaultKey = passphraseWrappedKeyReplacement.passphraseWrappedSyncVaultKey
+    localFakeSyncVaultRecord.syncVaultKeyWrapRevision += 1
+    writePapelizAccountLocalFakeSyncAccounts(localFakeSyncAccounts)
+    return { syncVaultPassphraseChangeOutcomeKind: 'changed', syncVaultRecord: localFakeSyncVaultRecord }
+  },
+  async deletePapelizSyncVaultFromSignInPage(signInToken, papelizSyncVaultId) {
+    const localFakeSyncAccounts = readPapelizAccountLocalFakeSyncAccounts()
+    const localFakeSyncAccount = localFakeSyncAccounts[readPapelizAccountLocalFakeSignInSubject(signInToken)]
+    if (localFakeSyncAccount?.papelizSyncVaultRecords) {
+      localFakeSyncAccount.papelizSyncVaultRecords = localFakeSyncAccount.papelizSyncVaultRecords.filter(
+        (syncVaultRecord) => syncVaultRecord.papelizSyncVaultId !== papelizSyncVaultId,
+      )
+      writePapelizAccountLocalFakeSyncAccounts(localFakeSyncAccounts)
+    }
+    return { syncVaultDeletionOutcomeKind: 'deleted' }
+  },
 }
 
 // Away from papeliz.com: asks the Worker first, and only when nothing on this origin answers the
@@ -401,6 +654,28 @@ function createPapelizAccountSyncServiceWithLocalFakeFallback(): PapelizAccountS
       const accountWorkerOutcome = await requestPapelizSyncDeviceRemovalFromAccountWorker(signInToken, papelizSyncDeviceId)
       papelizAccountChosenSyncService = accountWorkerOutcome === null ? papelizAccountLocalFakeSyncService : papelizAccountSyncWorkerService
       return accountWorkerOutcome ?? papelizAccountLocalFakeSyncService.removePapelizSyncDeviceFromSignInPage(signInToken, papelizSyncDeviceId)
+    },
+    async listPapelizSyncVaults(signInToken) {
+      if (papelizAccountChosenSyncService !== null) return papelizAccountChosenSyncService.listPapelizSyncVaults(signInToken)
+      const accountWorkerOutcome = await requestPapelizSyncVaultListFromAccountWorker(signInToken)
+      papelizAccountChosenSyncService = accountWorkerOutcome === null ? papelizAccountLocalFakeSyncService : papelizAccountSyncWorkerService
+      return accountWorkerOutcome ?? papelizAccountLocalFakeSyncService.listPapelizSyncVaults(signInToken)
+    },
+    async replacePapelizSyncVaultPassphraseWrappedKey(signInToken, papelizSyncVaultId, passphraseWrappedKeyReplacement) {
+      if (papelizAccountChosenSyncService !== null) {
+        return papelizAccountChosenSyncService.replacePapelizSyncVaultPassphraseWrappedKey(signInToken, papelizSyncVaultId, passphraseWrappedKeyReplacement)
+      }
+      const accountWorkerOutcome = await requestPapelizSyncVaultPassphraseChangeFromAccountWorker(signInToken, papelizSyncVaultId, passphraseWrappedKeyReplacement)
+      papelizAccountChosenSyncService = accountWorkerOutcome === null ? papelizAccountLocalFakeSyncService : papelizAccountSyncWorkerService
+      return (
+        accountWorkerOutcome ?? papelizAccountLocalFakeSyncService.replacePapelizSyncVaultPassphraseWrappedKey(signInToken, papelizSyncVaultId, passphraseWrappedKeyReplacement)
+      )
+    },
+    async deletePapelizSyncVaultFromSignInPage(signInToken, papelizSyncVaultId) {
+      if (papelizAccountChosenSyncService !== null) return papelizAccountChosenSyncService.deletePapelizSyncVaultFromSignInPage(signInToken, papelizSyncVaultId)
+      const accountWorkerOutcome = await requestPapelizSyncVaultDeletionFromAccountWorker(signInToken, papelizSyncVaultId)
+      papelizAccountChosenSyncService = accountWorkerOutcome === null ? papelizAccountLocalFakeSyncService : papelizAccountSyncWorkerService
+      return accountWorkerOutcome ?? papelizAccountLocalFakeSyncService.deletePapelizSyncVaultFromSignInPage(signInToken, papelizSyncVaultId)
     },
   }
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import { useAuth, useClerk, useSession, useUser } from '@clerk/react'
-import { ArrowLeft, Check, ChevronRight, CreditCard, FingerprintPattern, Laptop, Mail, Power, RefreshCw, UserRound, type LucideIcon } from 'lucide-react'
+import { ArrowLeft, Check, ChevronRight, CreditCard, FingerprintPattern, FolderSync, Laptop, Mail, Power, RefreshCw, UserRound, type LucideIcon } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import type { IconType } from 'react-icons'
 import { FaApple } from 'react-icons/fa6'
@@ -16,8 +16,8 @@ import {
 import { papelizAccountClerkErrorCodes, readPapelizAccountClerkError } from './papeliz-account-clerk-errors'
 import {
   papelizAccountDeleteAfterSignInParameterName,
+  isPapelizAccountSignInFresh,
   papelizAccountDeletedParameterName,
-  papelizAccountFreshSignInMinutes,
   papelizAccountPagePath,
   papelizAccountSupportPath,
   readPapelizAccountPasskeysAreOn,
@@ -29,12 +29,21 @@ import { PapelizAccountPhoneLaunchButtons, PapelizAccountSidebarLaunchButton } f
 import { PapelizAccountRow, PapelizAccountRowGroup, papelizAccountPhoneChevronRowActionClassName } from './papeliz-account-rows'
 import type { PapelizAccountSyncService } from './papeliz-account-sync-service'
 import { PapelizAccountSyncPlansSection } from './papeliz-account-sync-plans-section'
+import {
+  PapelizAccountSyncedVaultsDialogs,
+  PapelizAccountSyncedVaultsSection,
+  usePapelizAccountSyncedVaults,
+  type PapelizAccountSyncedVaults,
+} from './papeliz-account-synced-vaults-section'
 
-type PapelizAccountSectionId = 'profile' | 'sync' | 'devices' | 'billing'
+type PapelizAccountSectionId = 'profile' | 'sync' | 'synced-vaults' | 'devices' | 'billing'
 
+// Vaults, the synced vaults, sits between Sync and Devices (Adam, 2026-11-01: "on our account page
+// just call them Vaults").
 const papelizAccountSections: readonly { papelizAccountSectionId: PapelizAccountSectionId; papelizAccountSectionLabel: string; PapelizAccountSectionIcon: LucideIcon }[] = [
   { papelizAccountSectionId: 'profile', papelizAccountSectionLabel: 'Profile', PapelizAccountSectionIcon: UserRound },
   { papelizAccountSectionId: 'sync', papelizAccountSectionLabel: 'Sync', PapelizAccountSectionIcon: RefreshCw },
+  { papelizAccountSectionId: 'synced-vaults', papelizAccountSectionLabel: 'Vaults', PapelizAccountSectionIcon: FolderSync },
   { papelizAccountSectionId: 'devices', papelizAccountSectionLabel: 'Devices', PapelizAccountSectionIcon: Laptop },
   { papelizAccountSectionId: 'billing', papelizAccountSectionLabel: 'Billing', PapelizAccountSectionIcon: CreditCard },
 ]
@@ -45,13 +54,6 @@ type PapelizAccountDeleteStage =
   | { accountDeleteStageKind: 'deleting' }
   | { accountDeleteStageKind: 'fresh-sign-in-needed' }
   | { accountDeleteStageKind: 'failed'; accountDeleteFailureMessage: string }
-
-// Deleting needs a sign-in from the last 10 minutes: Clerk's session says how many minutes ago the
-// first factor was verified (-1 for never).
-function isPapelizAccountSignInFresh(factorVerificationAge: [number, number] | null | undefined): boolean {
-  const firstFactorVerificationAgeMinutes = factorVerificationAge?.[0] ?? -1
-  return firstFactorVerificationAgeMinutes >= 0 && firstFactorVerificationAgeMinutes < papelizAccountFreshSignInMinutes
-}
 
 // Delete account, run here and only here: first Papeliz Sync (the subscription, every synced copy and
 // its history), then the sign-in itself. Notes on devices stay.
@@ -386,22 +388,27 @@ function PapelizAccountProfileSection({
   )
 }
 
-// Sync shows the plans to buy; Devices lists the devices signed in to Sync, with Remove (Adam,
+// Sync shows the plans to buy; Vaults lists the synced vaults, with Change Passphrase and
+// Delete from Sync (Adam, 2026-11-01); Devices lists the devices signed in to Sync, with Remove (Adam,
 // 2026-10-31); Billing lists what it covers.
-function PapelizAccountPlansDevicesAndBillingSection({
+function PapelizAccountPlansVaultsDevicesAndBillingSection({
   papelizAccountSectionId,
   papelizAccountSyncService,
+  papelizAccountSyncedVaults,
   papelizAccountSyncDeviceList,
 }: {
   papelizAccountSectionId: Exclude<PapelizAccountSectionId, 'profile'>
   papelizAccountSyncService: PapelizAccountSyncService
+  papelizAccountSyncedVaults: PapelizAccountSyncedVaults
   papelizAccountSyncDeviceList: PapelizAccountSyncDeviceList
 }) {
-  const papelizAccountSectionHeading = papelizAccountSectionId === 'sync' ? 'Sync' : papelizAccountSectionId === 'devices' ? 'Devices' : 'Billing'
+  const papelizAccountSectionHeading = papelizAccountSections.find((papelizAccountSection) => papelizAccountSection.papelizAccountSectionId === papelizAccountSectionId)
+    ?.papelizAccountSectionLabel
   return (
     <>
       <h1 className="mt-[22px] mb-2.5 text-[22px] font-[650] tracking-[-0.02em] md:mt-0 md:mb-[22px] md:text-[29px]">{papelizAccountSectionHeading}</h1>
       {papelizAccountSectionId === 'sync' && <PapelizAccountSyncPlansSection />}
+      {papelizAccountSectionId === 'synced-vaults' && <PapelizAccountSyncedVaultsSection papelizAccountSyncedVaults={papelizAccountSyncedVaults} />}
       {papelizAccountSectionId === 'devices' && (
         <PapelizAccountDevicesSection papelizAccountSyncService={papelizAccountSyncService} papelizAccountSyncDeviceList={papelizAccountSyncDeviceList} />
       )}
@@ -414,13 +421,19 @@ function PapelizAccountPlansDevicesAndBillingSection({
 export function PapelizAccountDashboard({
   papelizAccountSyncService,
   isPapelizAccountDeleteOpenedAfterSignIn = false,
+  papelizSyncVaultIdToChangePassphraseAfterSignIn = null,
 }: {
   papelizAccountSyncService: PapelizAccountSyncService
   isPapelizAccountDeleteOpenedAfterSignIn?: boolean
+  // Change Passphrase sent the user to sign in again; its vault's dialog opens again on Vaults.
+  papelizSyncVaultIdToChangePassphraseAfterSignIn?: string | null
 }) {
   const papelizAccountClerk = useClerk()
-  const [chosenPapelizAccountSectionId, setChosenPapelizAccountSectionId] = useState<PapelizAccountSectionId>('profile')
+  const [chosenPapelizAccountSectionId, setChosenPapelizAccountSectionId] = useState<PapelizAccountSectionId>(
+    papelizSyncVaultIdToChangePassphraseAfterSignIn ? 'synced-vaults' : 'profile',
+  )
   const [papelizAccountIsSigningOut, setPapelizAccountIsSigningOut] = useState(false)
+  const papelizAccountSyncedVaults = usePapelizAccountSyncedVaults(papelizAccountSyncService, papelizSyncVaultIdToChangePassphraseAfterSignIn)
   const papelizAccountSyncDeviceList = usePapelizAccountSyncDeviceList(papelizAccountSyncService)
 
   function signOutOfPapelizAccount() {
@@ -453,9 +466,10 @@ export function PapelizAccountDashboard({
         papelizAccountPhoneLeaveCard={papelizAccountPhoneLeaveCard}
       />
     ) : (
-      <PapelizAccountPlansDevicesAndBillingSection
+      <PapelizAccountPlansVaultsDevicesAndBillingSection
         papelizAccountSectionId={chosenPapelizAccountSectionId}
         papelizAccountSyncService={papelizAccountSyncService}
+        papelizAccountSyncedVaults={papelizAccountSyncedVaults}
         papelizAccountSyncDeviceList={papelizAccountSyncDeviceList}
       />
     )
@@ -517,14 +531,14 @@ export function PapelizAccountDashboard({
           <PapelizAccountBrand papelizAccountBrandSize="small" />
         </div>
         <PapelizAccountPhoneLaunchButtons />
-        <nav aria-label="Account sections" className="grid grid-cols-4 gap-0.5 rounded-[11px] bg-papeliz-surface-gray p-[3px] shadow-[inset_0_0_0_1px_var(--color-papeliz-line)]">
+        <nav aria-label="Account sections" className="grid grid-cols-5 gap-0.5 rounded-[11px] bg-papeliz-surface-gray p-[3px] shadow-[inset_0_0_0_1px_var(--color-papeliz-line)]">
           {papelizAccountSections.map(({ papelizAccountSectionId, papelizAccountSectionLabel }) => (
             <button
               key={papelizAccountSectionId}
               type="button"
               aria-current={chosenPapelizAccountSectionId === papelizAccountSectionId ? 'page' : undefined}
               onClick={() => setChosenPapelizAccountSectionId(papelizAccountSectionId)}
-              className={`h-[34px] cursor-pointer rounded-lg text-[13px] font-semibold transition-colors ${
+              className={`h-[34px] min-w-0 cursor-pointer rounded-lg text-[13px] font-semibold transition-colors ${
                 chosenPapelizAccountSectionId === papelizAccountSectionId ? 'bg-papeliz-gradient-start text-white' : 'text-papeliz-ink-muted hover:text-papeliz-ink'
               }`}
             >
@@ -535,6 +549,9 @@ export function PapelizAccountDashboard({
         <div className="px-0.5">{papelizAccountSectionContent}</div>
         {chosenPapelizAccountSectionId !== 'profile' && <div className="mt-3 px-0.5">{papelizAccountPhoneLeaveCard}</div>}
       </div>
+
+      {/* The Vaults section's dialogs, once for both layouts. */}
+      <PapelizAccountSyncedVaultsDialogs papelizAccountSyncService={papelizAccountSyncService} papelizAccountSyncedVaults={papelizAccountSyncedVaults} />
     </>
   )
 }

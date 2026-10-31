@@ -27,7 +27,15 @@ export const papelizAccountSignUpNeedsMoreParameterName = 'papeliz-account-sign-
 // after the fresh sign-in it needs (the Account Worker accepts a sign-in from the last 10 minutes).
 export const papelizAccountDeletedParameterName = 'papeliz-account-deleted'
 export const papelizAccountDeleteAfterSignInParameterName = 'papeliz-account-delete-after-sign-in'
+// Change Passphrase needs the same recent sign-in; its flag names the vault whose dialog opens again.
+export const papelizAccountChangePassphraseAfterSignInParameterName = 'papeliz-account-change-passphrase-after-sign-in'
 export const papelizAccountFreshSignInMinutes = 10
+
+// Clerk's session says how many minutes ago the first factor was verified (-1 for never).
+export function isPapelizAccountSignInFresh(factorVerificationAge: [number, number] | null | undefined): boolean {
+  const firstFactorVerificationAgeMinutes = factorVerificationAge?.[0] ?? -1
+  return firstFactorVerificationAgeMinutes >= 0 && firstFactorVerificationAgeMinutes < papelizAccountFreshSignInMinutes
+}
 // The way in last used on this tab, for the hand-over's sign-in method and the hand-back's wording.
 export const papelizAccountSignInWayStorageKey = 'papelizAccountSignInWay'
 export type PapelizAccountSignInWay = 'email-code' | 'google' | 'apple' | 'passkey'
