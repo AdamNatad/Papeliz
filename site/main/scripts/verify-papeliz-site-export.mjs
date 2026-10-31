@@ -40,7 +40,10 @@ const papelizSiteExpectedFiles = ['404.html', 'robots.txt', 'sitemap.xml', '_hea
 // Served by the other packages once everything is assembled into one folder.
 const papelizSiteLinkPrefixesServedElsewhere = ['/app/', '/help/']
 
-const papelizSiteBannedTextPatterns = [/panulat/i, /hackathon/i, /cerebral valley/i, /\bllama\b/i]
+const papelizSiteBannedTextPatterns = [/panulat/i, /cerebral valley/i, /\bllama\b/i]
+// Papeliz is built for this hackathon, so any page may name it (Adam, 2026-10-31); its "Meta" is not
+// the default provider.
+const papelizSiteHackathonName = 'Meta Global AI Developer Hackathon 2026'
 // The Adam Natad page is kept as it is on Adam's other site, so it names his other apps (Adam, 2026-10-28).
 const papelizSiteBannedTextAllowedByPage = { 'adam-natad/index.html': [/panulat/i] }
 const papelizSiteProviderNamePatterns = [/\bMeta\b/, /\bMuse\b/]
@@ -117,7 +120,7 @@ for (const exportHtmlPath of papelizSiteExportHtmlPaths) {
     }
   }
 
-  const exportPageText = visibleTextOfHtml(exportHtmlText)
+  const exportPageText = visibleTextOfHtml(exportHtmlText).replaceAll(papelizSiteHackathonName, '')
   const papelizSiteBannedTextAllowedHere = papelizSiteBannedTextAllowedByPage[exportHtmlName] ?? []
   for (const bannedTextPattern of papelizSiteBannedTextPatterns) {
     if (papelizSiteBannedTextAllowedHere.some((allowedTextPattern) => allowedTextPattern.source === bannedTextPattern.source)) continue

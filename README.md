@@ -21,6 +21,11 @@
   <a href="https://papeliz.com/app/"><img src="https://img.shields.io/badge/app-live-5B70FF.svg" alt="App: live" /></a>
 </p>
 
+<p align="center">
+  Developed on and for the <strong>Meta Global AI Developer Hackathon 2026</strong>.<br />
+  <a href="https://papeliz.com/adam-natad/">Adam Natad</a> built the MVP in under 24 hours.
+</p>
+
 Papeliz is a free, open-source, cross-platform Markdown editor and AI-powered note-taking app for
 building your personal knowledge base. Create, edit, organize, and connect your notes and ideas in
 MD Code and MD View, with a built-in AI assistant that runs on your own API key — no account, and

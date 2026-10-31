@@ -18,7 +18,10 @@ const papelizHelpBasePath = '/help'
 // Only this guide may name the recommended provider preset.
 const papelizHelpProviderArticleSlug = 'choose-a-provider'
 
-const papelizHelpBannedWordPatterns = [/\bpanulat\b/i, /hackathon/i, /cerebral\s+valley/i, /\bllama\b/i]
+const papelizHelpBannedWordPatterns = [/\bpanulat\b/i, /cerebral\s+valley/i, /\bllama\b/i]
+// Papeliz is built for this hackathon, so any guide may name it (Adam, 2026-10-31); its "Meta" is not
+// the default provider.
+const papelizHelpHackathonName = 'Meta Global AI Developer Hackathon 2026'
 const papelizHelpProviderOnlyWordPatterns = [/\bmeta\b/i, /\bmuse\b/i]
 
 const exportProblems = []
@@ -103,7 +106,7 @@ for (const exportedHtmlPath of exportedHtmlPaths) {
     }
   }
 
-  const visibleText = describeVisibleText(exportedHtml)
+  const visibleText = describeVisibleText(exportedHtml).replaceAll(papelizHelpHackathonName, '')
   const isProviderGuide = exportedPageName === `${papelizHelpProviderArticleSlug}/index.html`
   const checkedWordPatterns = isProviderGuide ? papelizHelpBannedWordPatterns : [...papelizHelpBannedWordPatterns, ...papelizHelpProviderOnlyWordPatterns]
   for (const checkedWordPattern of checkedWordPatterns) {
