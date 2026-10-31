@@ -1,14 +1,14 @@
 'use client'
 
 import { useState } from 'react'
-import { papelizSiteSyncEducationAndNonProfitDiscountPercent, papelizSiteSyncRefundWindowDayCount } from '@/lib/papeliz-site-sync-plans'
+import { papelizSiteSyncRefundWindowDayCount } from '@/lib/papeliz-site-sync-plans'
 import { papelizAccountCompactPrimaryButtonClassName, papelizAccountRowActionWidthClassName, papelizAccountSecondaryButtonClassName } from './papeliz-account-card-frame'
 import { papelizAccountSupportPath } from './papeliz-account-config'
 import { PapelizAccountDialog } from './papeliz-account-dialog'
 import { PapelizAccountRow, PapelizAccountRowDescription, PapelizAccountRowGroup } from './papeliz-account-rows'
 
 type PapelizAccountBillingRow = {
-  billingRowKey: 'subscription-and-payment-method' | 'invoices-and-refunds' | 'education-and-non-profit-discount'
+  billingRowKey: 'subscription-and-payment-method' | 'invoices-and-refunds'
   billingRowTitle: string
   billingRowDescription: string
   billingRowActionLabel: string
@@ -43,20 +43,10 @@ const papelizAccountBillingRows: readonly PapelizAccountBillingRow[] = [
       'After every payment, you get an email with your order. Your orders and invoices are on our payment provider’s secure page, which opens from Subscription and payment method once Sync launches.',
     billingDialogSupport: `For a full refund within ${papelizSiteSyncRefundWindowDayCount} days of subscribing, or help with an invoice, contact us.`,
   },
-  {
-    billingRowKey: 'education-and-non-profit-discount',
-    billingRowTitle: 'Education and non-profit discount',
-    billingRowDescription: `${papelizSiteSyncEducationAndNonProfitDiscountPercent}% off any plan, as a code after a short check.`,
-    billingRowActionLabel: 'Apply',
-    billingRowActionAccessibleLabel: 'Apply for the education and non-profit discount',
-    billingDialogTitle: 'Education and non-profit discount',
-    billingDialogAvailability: 'Applying for the discount isn’t available here yet.',
-    billingDialogSupport: 'Contact us before you subscribe. After a short check, you get a code to use at checkout.',
-  },
 ]
 
-// The account page's Billing section: one row each for the subscription and payment method,
-// invoices and refunds, and the discount.
+// The account page's Billing section: one row for the subscription and payment method, one for
+// invoices and refunds.
 export function PapelizAccountBillingSection() {
   const [openPapelizAccountBillingRow, setOpenPapelizAccountBillingRow] = useState<PapelizAccountBillingRow | null>(null)
   const closePapelizAccountBillingDialog = () => setOpenPapelizAccountBillingRow(null)

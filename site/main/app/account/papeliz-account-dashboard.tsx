@@ -1,7 +1,7 @@
 'use client'
 
 import { useAuth, useClerk, useSession, useUser } from '@clerk/react'
-import { ArrowLeft, ChevronRight, CreditCard, Laptop, Mail, Power, RefreshCw, UserRound, type LucideIcon } from 'lucide-react'
+import { ArrowLeft, Check, ChevronRight, CreditCard, FingerprintPattern, Laptop, Mail, Power, RefreshCw, UserRound, type LucideIcon } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { FaApple } from 'react-icons/fa6'
 import { FcGoogle } from 'react-icons/fc'
@@ -182,6 +182,43 @@ function PapelizAccountDeleteAccountRow({
   )
 }
 
+function PapelizAccountSignInWayConnectedBadge() {
+  return (
+    <span className="inline-flex h-6 shrink-0 items-center gap-1 rounded-full bg-papeliz-diff-added px-2.5 text-xs font-semibold text-papeliz-diff-added-ink">
+      <Check className="size-3.5" aria-hidden="true" />
+      Connected
+    </span>
+  )
+}
+
+// One way to sign in: its icon, its name over what it uses, then Connected or Add on the right.
+function PapelizAccountSignInWayLine({
+  signInWayIcon,
+  signInWayName,
+  signInWayDetail,
+  signInWayAction,
+  signInWayDetailIsAnnounced = false,
+}: {
+  signInWayIcon: ReactNode
+  signInWayName: string
+  signInWayDetail: string
+  signInWayAction: ReactNode
+  signInWayDetailIsAnnounced?: boolean
+}) {
+  return (
+    <li className="flex items-center gap-3 border-t border-papeliz-line py-2.5 first:border-t-0 md:py-3">
+      <span className="grid size-8 shrink-0 place-items-center rounded-lg border border-papeliz-line bg-papeliz-surface-soft">{signInWayIcon}</span>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold">{signInWayName}</p>
+        <p aria-live={signInWayDetailIsAnnounced ? 'polite' : undefined} className="text-[13px] text-pretty [overflow-wrap:anywhere] text-papeliz-ink-muted">
+          {signInWayDetail}
+        </p>
+      </div>
+      {signInWayAction}
+    </li>
+  )
+}
+
 function PapelizAccountProfileSection({
   papelizAccountSyncService,
   isPapelizAccountDeleteOpenedAfterSignIn,
@@ -194,11 +231,10 @@ function PapelizAccountProfileSection({
   const [passkeyMessage, setPasskeyMessage] = useState<string | null>(null)
   const [passkeyIsBeingAdded, setPasskeyIsBeingAdded] = useState(false)
   if (!user) return null
-  const papelizAccountEmailAddress = user.primaryEmailAddress?.emailAddress ?? 'No email'
-  const connectedProviders = new Set(user.externalAccounts.map((externalAccount) => externalAccount.provider))
-  const signInWayNames = [connectedProviders.has('google') ? 'Google' : null, connectedProviders.has('apple') ? 'Apple' : null, 'Email code'].filter(
-    (signInWayName): signInWayName is string => signInWayName !== null,
-  )
+  const papelizAccountPrimaryEmailAddress = user.primaryEmailAddress?.emailAddress ?? null
+  const papelizAccountEmailAddress = papelizAccountPrimaryEmailAddress ?? 'No email'
+  const connectedGoogleAccount = user.externalAccounts.find((externalAccount) => externalAccount.provider === 'google')
+  const connectedAppleAccount = user.externalAccounts.find((externalAccount) => externalAccount.provider === 'apple')
   const passkeyCount = user.passkeys.length
   const papelizAccountPasskeysAreOn = readPapelizAccountPasskeysAreOn(papelizAccountClerk)
 
@@ -222,46 +258,62 @@ function PapelizAccountProfileSection({
       <PapelizAccountRowGroup>
         <PapelizAccountRow papelizAccountRowTitle="Email" papelizAccountRowValue={papelizAccountEmailAddress} />
         {user.username && <PapelizAccountRow papelizAccountRowTitle="Username" papelizAccountRowValue={user.username} />}
+        {/* Every way to sign in on one list, passkeys included (Adam, 2026-10-31). */}
         <PapelizAccountRow
           papelizAccountRowTitle="Ways to sign in"
-          papelizAccountRowValue={signInWayNames.join(' · ')}
           papelizAccountRowExtra={
-            <div className="mt-2 hidden flex-wrap gap-1.5 md:flex">
-              {connectedProviders.has('google') && (
-                <span className="inline-flex h-[26px] items-center gap-1.5 rounded-full border border-papeliz-line bg-papeliz-surface px-2.5 text-xs font-semibold">
-                  <FcGoogle className="size-[13px]" aria-hidden="true" />
-                  Google
-                </span>
+            <ul className="mt-1.5 md:mt-2.5">
+              {connectedGoogleAccount && (
+                <PapelizAccountSignInWayLine
+                  signInWayIcon={<FcGoogle className="size-4" aria-hidden="true" />}
+                  signInWayName="Google"
+                  signInWayDetail={connectedGoogleAccount.emailAddress || papelizAccountPrimaryEmailAddress || 'Your Google account'}
+                  signInWayAction={<PapelizAccountSignInWayConnectedBadge />}
+                />
               )}
-              {connectedProviders.has('apple') && (
-                <span className="inline-flex h-[26px] items-center gap-1.5 rounded-full border border-papeliz-line bg-papeliz-surface px-2.5 text-xs font-semibold">
-                  <FaApple className="size-[13px]" aria-hidden="true" />
-                  Apple
-                </span>
+              {connectedAppleAccount && (
+                <PapelizAccountSignInWayLine
+                  signInWayIcon={<FaApple className="size-4" aria-hidden="true" />}
+                  signInWayName="Apple"
+                  signInWayDetail={connectedAppleAccount.emailAddress || papelizAccountPrimaryEmailAddress || 'Your Apple Account'}
+                  signInWayAction={<PapelizAccountSignInWayConnectedBadge />}
+                />
               )}
-              <span className="inline-flex h-[26px] items-center gap-1.5 rounded-full border border-papeliz-line bg-papeliz-surface px-2.5 text-xs font-semibold">
-                <Mail className="size-[13px]" aria-hidden="true" />
-                Email code
-              </span>
-            </div>
+              <PapelizAccountSignInWayLine
+                signInWayIcon={<Mail className="size-4 text-papeliz-ink-muted" aria-hidden="true" />}
+                signInWayName="Email code"
+                signInWayDetail={papelizAccountPrimaryEmailAddress ? `A code sent to ${papelizAccountPrimaryEmailAddress}` : 'A code sent to your email'}
+                signInWayAction={<PapelizAccountSignInWayConnectedBadge />}
+              />
+              {papelizAccountPasskeysAreOn && (
+                <PapelizAccountSignInWayLine
+                  signInWayIcon={<FingerprintPattern className="size-4 text-papeliz-ink-muted" aria-hidden="true" />}
+                  signInWayName="Passkey"
+                  signInWayDetail={
+                    passkeyMessage ??
+                    (passkeyCount === 0
+                      ? 'Sign in with your fingerprint, face or screen lock'
+                      : passkeyCount === 1
+                        ? '1 passkey added'
+                        : `${passkeyCount} passkeys added`)
+                  }
+                  signInWayDetailIsAnnounced
+                  signInWayAction={
+                    <button
+                      type="button"
+                      aria-label="Add a passkey"
+                      disabled={passkeyIsBeingAdded}
+                      onClick={() => void addPapelizAccountPasskey()}
+                      className={`${papelizAccountCompactPrimaryButtonClassName} ${papelizAccountRowActionWidthClassName}`}
+                    >
+                      {passkeyIsBeingAdded ? 'Adding…' : 'Add'}
+                    </button>
+                  }
+                />
+              )}
+            </ul>
           }
         />
-        {papelizAccountPasskeysAreOn && (
-          <PapelizAccountRow
-            papelizAccountRowTitle="Passkeys"
-            papelizAccountRowValue={passkeyMessage ?? (passkeyCount === 0 ? 'None yet' : passkeyCount === 1 ? '1 passkey' : `${passkeyCount} passkeys`)}
-            papelizAccountRowAction={
-              <button
-                type="button"
-                disabled={passkeyIsBeingAdded}
-                onClick={() => void addPapelizAccountPasskey()}
-                className={`${papelizAccountCompactPrimaryButtonClassName} ${papelizAccountRowActionWidthClassName}`}
-              >
-                {passkeyIsBeingAdded ? 'Adding…' : 'Add'}
-              </button>
-            }
-          />
-        )}
       </PapelizAccountRowGroup>
       <PapelizAccountRowGroup>
         <PapelizAccountRow
