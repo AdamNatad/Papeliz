@@ -61,6 +61,10 @@ vault in your browser, or start with the sample vault. Nothing to install, no si
 - **Export as Word:** an editable `.docx` per note, with its tables, callouts, footnotes, pictures
   and diagrams; several notes come as one `.zip` whose links open each other. Google Docs and
   Notion open the same file.
+- **Export as PDF:** written by Papeliz itself, with no print window. Text stays searchable,
+  links work, headings become bookmarks, and diagrams print as sharp drawings. Each PDF carries
+  its language, reading order, picture descriptions and table headers for screen readers. Letter
+  or A4.
 - **Export as HTML:** one note as a single web page, or several as a small website in a `.zip`,
   with a Markdown twin of every page and the site's Astro project to change and rebuild.
 - **One Settings gear:** accessibility, key bindings, export, locking, focus mode and closing the
@@ -148,6 +152,7 @@ provider is subject to that provider's own terms and pricing.
 - [x] Open a folder of Markdown notes or a sample vault; create, rename and delete notes
 - [x] Vaults kept in the browser for Firefox, Safari and phones, with backups
 - [x] Export as Word: one note as a `.docx`, or several in a `.zip`
+- [x] Export as PDF: one note as a `.pdf`, or several in a `.zip`
 - [x] Export as HTML: one note as a page, or several as a website
 - [x] MD Code with autosave, and MD View, behind one switch
 - [x] Tables and Mermaid diagrams in MD View
@@ -202,11 +207,14 @@ Papeliz stands on these open-source projects:
 | [unified](https://unifiedjs.com) (remark, rehype) | Parsing and rendering Markdown | MIT |
 | [Mermaid](https://mermaid.js.org) | Diagrams in MD View | MIT |
 | [docx](https://docx.js.org) | Word export | MIT |
+| [PDFKit](https://pdfkit.org) | PDF export | MIT |
+| [bidi-js](https://github.com/lojjic/bidi-js) | Right-to-left text in PDFs | MIT |
 | [MiniSearch](https://lucaong.github.io/minisearch/) | Full-text search | MIT |
 | [zustand](https://zustand.docs.pmnd.rs) | App state | MIT |
 | [Lucide](https://lucide.dev) | Icons | ISC |
 | [Next.js](https://nextjs.org) | The website and help site (static export) | MIT |
 | [Figtree](https://fonts.google.com/specimen/Figtree) via [Fontsource](https://fontsource.org) | Typeface | OFL-1.1 |
+| [Charis SIL](https://software.sil.org/charis/) and [Noto Sans](https://fonts.google.com/noto/specimen/Noto+Sans) via Fontsource | Serif notes and other scripts in PDFs | OFL-1.1 |
 
 Hosted on [Cloudflare Workers](https://workers.cloudflare.com) static assets.
 
