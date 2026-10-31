@@ -413,9 +413,12 @@ export interface PapelizSyncEngine {
   // or Connect, or a vault here that is locked. The key is then kept here, sealed by this device's own
   // key, so the vault opens without asking again.
   unlockSyncedVaultWithPassphrase(papelizSyncVaultId: string, syncVaultPassphrase: string): Promise<PapelizSyncActionOutcome>
-  // An End-to-end vault this device holds the key of: its key is wrapped again with the new
-  // passphrase. Nothing uploads again, and devices that hold the key stay unlocked.
-  changeSyncVaultPassphrase(papelizSyncVaultId: string, newSyncVaultPassphrase: string): Promise<PapelizSyncActionOutcome>
+  // Any End-to-end vault on the account: its key is wrapped again with the new passphrase. A key this
+  // device holds is used as it is; otherwise the current passphrase opens the account's wrapped copy
+  // first (`wrong-passphrase` when it doesn't, `locked` when it's null), and the key isn't kept here
+  // afterwards. Nothing uploads again: devices that hold the key keep working, and a new device asks
+  // the new passphrase.
+  changeSyncVaultPassphrase(papelizSyncVaultId: string, newSyncVaultPassphrase: string, currentSyncVaultPassphrase: string | null): Promise<PapelizSyncActionOutcome>
   // An attached vault (new and empty) is filled from a synced vault. An End-to-end one is unlocked first.
   downloadSyncedVaultInto(papelizSyncVaultId: string, papelizVaultId: string): Promise<PapelizSyncActionOutcome>
   // An attached vault with notes of its own joins a synced vault; the two are merged. An End-to-end one

@@ -12,9 +12,9 @@ import { describePapelizSyncActionFailureNow, formatPapelizSyncByteSize, papeliz
 // whether it's this vault or on this device, each with Delete from Sync (Adam's pick B, 2026-10-31).
 // Deleting takes the synced copy and its old versions off the account; every device keeps its files and
 // stops syncing that vault. The confirmation asks for the vault's name, as Delete in the Hidden list
-// does. An End-to-end vault this device holds the key of has Change passphrase; one here that is
-// locked has Unlock, whose "Forgot it?" leads to Delete from Sync, since its passphrase can't be
-// recovered.
+// does. Every End-to-end vault has Change passphrase, which also asks the current passphrase when
+// this device doesn't hold the vault's key; one here that is locked has Unlock too, whose "Forgot
+// it?" leads to Delete from Sync, since its passphrase can't be recovered.
 
 export type PapelizSyncAccountVaultPlace = 'this-vault' | 'on-this-device' | 'not-on-this-device'
 
@@ -28,9 +28,15 @@ export function isPapelizSyncVaultDeleteConfirmationTyped(typedSyncVaultName: st
   return typedSyncVaultName.trim() === accountVault.syncVaultName.trim()
 }
 
-// Change passphrase needs the key here; Unlock is for a vault on this device that lost it.
-export function canPapelizSyncVaultPassphraseChangeHere(accountVault: PapelizSyncAccountVaultReading): boolean {
-  return accountVault.syncVaultEncryptionKind === 'end-to-end' && accountVault.syncVaultLockState === 'unlocked'
+// Change passphrase works for every End-to-end vault on the account. Without the key here (a vault not
+// downloaded here, or one here that lost it), it asks the current passphrase too. Unlock is for a
+// vault on this device that lost its key.
+export function canPapelizSyncVaultPassphraseChange(accountVault: PapelizSyncAccountVaultReading): boolean {
+  return accountVault.syncVaultEncryptionKind === 'end-to-end'
+}
+
+export function isPapelizSyncVaultCurrentPassphraseAskedForChange(accountVault: PapelizSyncAccountVaultReading): boolean {
+  return canPapelizSyncVaultPassphraseChange(accountVault) && accountVault.syncVaultLockState === 'locked'
 }
 
 export function isPapelizSyncVaultLockedHere(accountVault: PapelizSyncAccountVaultReading): boolean {
@@ -171,14 +177,19 @@ export function PapelizSyncSyncedVaultsSection({
                   <LockOpen className="size-3.5" aria-hidden="true" />
                 </button>
               )}
-              {canPapelizSyncVaultPassphraseChangeHere(accountVault) && (
+              {canPapelizSyncVaultPassphraseChange(accountVault) && (
                 <button
                   type="button"
                   aria-label={`Change the passphrase for “${accountVaultName}”`}
                   title={`Change the passphrase for “${accountVaultName}”`}
                   disabled={deletingPapelizSyncVaultId !== null}
                   onClick={() =>
-                    openPapelizSyncSetUpDialog({ syncSetUpDialogKind: 'change-vault-passphrase', papelizSyncVaultId: accountVault.papelizSyncVaultId, syncVaultName: accountVaultName })
+                    openPapelizSyncSetUpDialog({
+                      syncSetUpDialogKind: 'change-vault-passphrase',
+                      papelizSyncVaultId: accountVault.papelizSyncVaultId,
+                      syncVaultName: accountVaultName,
+                      isCurrentSyncVaultPassphraseAsked: isPapelizSyncVaultCurrentPassphraseAskedForChange(accountVault),
+                    })
                   }
                   className={`${papelizSyncVaultRowButtonClassName} hover:border-papeliz-blue-line hover:bg-papeliz-blue-soft hover:text-papeliz-blue`}
                 >

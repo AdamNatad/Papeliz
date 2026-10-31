@@ -30,9 +30,10 @@ import {
 } from './papeliz-sync-workspace-reports'
 import { createPapelizFakeVaultFolder } from '../vault/papeliz-fake-file-system-access.test-support'
 import { PapelizFolderOnDiskVaultAdapter } from '../vault/papeliz-folder-on-disk-vault-adapter'
-import type { PapelizSyncAccountVaultReading } from './papeliz-sync-engine-contract'
+import type { PapelizSyncAccountVaultReading, PapelizSyncActionOutcome } from './papeliz-sync-engine-contract'
 import {
-  canPapelizSyncVaultPassphraseChangeHere,
+  canPapelizSyncVaultPassphraseChange,
+  isPapelizSyncVaultCurrentPassphraseAskedForChange,
   isPapelizSyncVaultDeleteConfirmationTyped,
   isPapelizSyncVaultLockedHere,
   readPapelizSyncAccountVaultPlace,
@@ -89,6 +90,10 @@ function attachTestVaultToFakeEngine(papelizSyncFakeEngine: PapelizSyncFakeEngin
 
 function readFakeLocalVault(papelizSyncFakeEngine: PapelizSyncFakeEngine, papelizVaultId: string) {
   return papelizSyncFakeEngine.getSyncEngineSnapshot().syncLocalVaults.find((syncLocalVault) => syncLocalVault.papelizVaultId === papelizVaultId)
+}
+
+function expectFakeDone(syncActionOutcome: PapelizSyncActionOutcome): void {
+  expect(syncActionOutcome).toEqual({ syncActionOutcome: 'done', syncActionDoneValue: null })
 }
 
 describe('the subscribe flow', () => {
@@ -227,15 +232,51 @@ describe('the fake engine, as Turn on Sync and the Sync page drive it', () => {
     if (journalTurnOnOutcome.syncActionOutcome !== 'done' || workTurnOnOutcome.syncActionOutcome !== 'done') throw new Error('The fake didn’t turn Sync on')
     const journalSyncVaultId = journalTurnOnOutcome.syncActionDoneValue.papelizSyncVaultId
 
-    expect(await papelizSyncFakeEngine.changeSyncVaultPassphrase(journalSyncVaultId, 'a newer passphrase here')).toMatchObject({ syncActionFailureKind: 'fresh-sign-in-required' })
+    // The key is here, so no current passphrase is needed.
+    expect(await papelizSyncFakeEngine.changeSyncVaultPassphrase(journalSyncVaultId, 'a newer passphrase here', null)).toMatchObject({ syncActionFailureKind: 'fresh-sign-in-required' })
     const freshSignIn = startPapelizSyncSignInFromClick(papelizSyncFakeEngine, null)
     papelizSyncFakeEngine.finishFakeSyncSignIn()
     expect(await freshSignIn).toEqual({ syncSignInOutcome: 'signed-in' })
-    expect(await papelizSyncFakeEngine.changeSyncVaultPassphrase(journalSyncVaultId, 'short')).toMatchObject({ syncActionFailureKind: 'passphrase-too-short' })
-    expect(await papelizSyncFakeEngine.changeSyncVaultPassphrase(journalSyncVaultId, 'a newer passphrase here')).toMatchObject({ syncActionOutcome: 'done' })
-    expect(await papelizSyncFakeEngine.changeSyncVaultPassphrase(workTurnOnOutcome.syncActionDoneValue.papelizSyncVaultId, 'a newer passphrase here')).toMatchObject({
+    expect(await papelizSyncFakeEngine.changeSyncVaultPassphrase(journalSyncVaultId, 'short', null)).toMatchObject({ syncActionFailureKind: 'passphrase-too-short' })
+    expect(await papelizSyncFakeEngine.changeSyncVaultPassphrase(journalSyncVaultId, 'a newer passphrase here', null)).toMatchObject({ syncActionOutcome: 'done' })
+    expect(await papelizSyncFakeEngine.changeSyncVaultPassphrase(workTurnOnOutcome.syncActionDoneValue.papelizSyncVaultId, 'a newer passphrase here', null)).toMatchObject({
       syncActionFailureKind: 'not-found',
     })
+  })
+
+  it('changes the passphrase of an End-to-end vault not on this device with its current one, and keeps no key here', async () => {
+    const papelizSyncFakeEngine = createPapelizSyncFakeEngine({ fakeEngineScenario: 'download-stops' })
+    const researchSyncVaultId = 'pzvault_dddddddddddddddddddddddddd'
+    const freshSignIn = startPapelizSyncSignInFromClick(papelizSyncFakeEngine, null)
+    papelizSyncFakeEngine.finishFakeSyncSignIn()
+    await freshSignIn
+    expect(await papelizSyncFakeEngine.changeSyncVaultPassphrase(researchSyncVaultId, 'a newer passphrase here', null)).toMatchObject({ syncActionFailureKind: 'locked' })
+    expect(await papelizSyncFakeEngine.changeSyncVaultPassphrase(researchSyncVaultId, 'a newer passphrase here', 'not the passphrase')).toMatchObject({
+      syncActionFailureKind: 'wrong-passphrase',
+    })
+    expectFakeDone(await papelizSyncFakeEngine.changeSyncVaultPassphrase(researchSyncVaultId, 'a newer passphrase here', papelizSyncFakeEngineVaultPassphrase))
+    // Still locked here: the vault isn't on this device, so its key wasn't kept.
+    const listedOutcome = await papelizSyncFakeEngine.listSyncedVaultsOnAccount()
+    expect(listedOutcome.syncActionOutcome === 'done' && listedOutcome.syncActionDoneValue.find((accountVault) => accountVault.papelizSyncVaultId === researchSyncVaultId)?.syncVaultLockState).toBe('locked')
+    // A new device downloading it asks the new passphrase.
+    expect(await papelizSyncFakeEngine.unlockSyncedVaultWithPassphrase(researchSyncVaultId, papelizSyncFakeEngineVaultPassphrase)).toMatchObject({ syncActionFailureKind: 'wrong-passphrase' })
+    expectFakeDone(await papelizSyncFakeEngine.unlockSyncedVaultWithPassphrase(researchSyncVaultId, 'a newer passphrase here'))
+  })
+
+  it('meets a change made on another device first, and takes the passphrase that device set on the next try', async () => {
+    const papelizSyncFakeEngine = createPapelizSyncFakeEngine({ fakeEngineScenario: 'download-stops' })
+    const researchSyncVaultId = 'pzvault_dddddddddddddddddddddddddd'
+    const freshSignIn = startPapelizSyncSignInFromClick(papelizSyncFakeEngine, null)
+    papelizSyncFakeEngine.finishFakeSyncSignIn()
+    await freshSignIn
+    papelizSyncFakeEngine.changeFakeSyncVaultPassphraseElsewhere(researchSyncVaultId, 'set on the phone just now')
+    expect(await papelizSyncFakeEngine.changeSyncVaultPassphrase(researchSyncVaultId, 'a newer passphrase here', 'set on the phone just now')).toMatchObject({
+      syncActionFailureKind: 'changed-elsewhere',
+    })
+    expect(await papelizSyncFakeEngine.changeSyncVaultPassphrase(researchSyncVaultId, 'a newer passphrase here', papelizSyncFakeEngineVaultPassphrase)).toMatchObject({
+      syncActionFailureKind: 'wrong-passphrase',
+    })
+    expectFakeDone(await papelizSyncFakeEngine.changeSyncVaultPassphrase(researchSyncVaultId, 'a newer passphrase here', 'set on the phone just now'))
   })
 
   it('asks for a fresh sign-in before Start over, then deletes every synced vault', async () => {
@@ -415,11 +456,15 @@ describe('Delete from Sync on the Sync page', () => {
     expect(isPapelizSyncVaultDeleteConfirmationTyped(' Work ', workAccountVault)).toBe(true)
   })
 
-  it('offers Change passphrase only for an End-to-end vault whose key is here, and Unlock only for one here that lost it', () => {
+  it('offers Change passphrase for every End-to-end vault, asking the current one without the key here, and Unlock only for one here that lost it', () => {
     const endToEndAccountVault: PapelizSyncAccountVaultReading = { ...workAccountVault, syncVaultEncryptionKind: 'end-to-end' }
-    expect(canPapelizSyncVaultPassphraseChangeHere(workAccountVault)).toBe(false)
-    expect(canPapelizSyncVaultPassphraseChangeHere(endToEndAccountVault)).toBe(true)
-    expect(canPapelizSyncVaultPassphraseChangeHere({ ...endToEndAccountVault, syncVaultLockState: 'locked' })).toBe(false)
+    const accountOnlyLockedVault: PapelizSyncAccountVaultReading = { ...endToEndAccountVault, syncVaultLockState: 'locked', papelizVaultIdOnThisDevice: null }
+    expect(canPapelizSyncVaultPassphraseChange(workAccountVault)).toBe(false)
+    expect(canPapelizSyncVaultPassphraseChange(endToEndAccountVault)).toBe(true)
+    expect(canPapelizSyncVaultPassphraseChange(accountOnlyLockedVault)).toBe(true)
+    expect(isPapelizSyncVaultCurrentPassphraseAskedForChange(endToEndAccountVault)).toBe(false)
+    expect(isPapelizSyncVaultCurrentPassphraseAskedForChange(accountOnlyLockedVault)).toBe(true)
+    expect(isPapelizSyncVaultCurrentPassphraseAskedForChange({ ...endToEndAccountVault, syncVaultLockState: 'locked' })).toBe(true)
     expect(isPapelizSyncVaultLockedHere(endToEndAccountVault)).toBe(false)
     expect(isPapelizSyncVaultLockedHere({ ...endToEndAccountVault, syncVaultLockState: 'locked' })).toBe(true)
     // Not on this device: its passphrase is asked when it's downloaded, not here.

@@ -814,15 +814,31 @@ export class PapelizSyncFakeEngine implements PapelizSyncEngine {
     return createFakeDoneOutcome(null)
   }
 
-  async changeSyncVaultPassphrase(papelizSyncVaultId: string, newSyncVaultPassphrase: string): Promise<PapelizSyncActionOutcome> {
+  // In the same order as the real engine: the new passphrase, the vault, its key (held here, or opened
+  // with the current passphrase), then the account's answer (a recent sign-in, the revision).
+  async changeSyncVaultPassphrase(papelizSyncVaultId: string, newSyncVaultPassphrase: string, currentSyncVaultPassphrase: string | null): Promise<PapelizSyncActionOutcome> {
     await this.waitForFakeCall('changeSyncVaultPassphrase')
     if (!this.isFakeSignedIn()) return createFakeFailedOutcome('signed-out')
-    if (this.findFakeAccountVaultName(papelizSyncVaultId) === undefined || this.readFakeVaultEncryptionKind(papelizSyncVaultId) !== 'end-to-end') return createFakeFailedOutcome('not-found')
-    if (this.readFakeVaultLockState(papelizSyncVaultId) === 'locked') return createFakeFailedOutcome('locked')
-    if (!this.isFakeSignInFresh()) return createFakeFailedOutcome('fresh-sign-in-required')
     if (!isPapelizSyncPassphraseLongEnough(newSyncVaultPassphrase)) return createFakeFailedOutcome('passphrase-too-short')
+    if (this.findFakeAccountVaultName(papelizSyncVaultId) === undefined || this.readFakeVaultEncryptionKind(papelizSyncVaultId) !== 'end-to-end') return createFakeFailedOutcome('not-found')
+    if (this.readFakeVaultLockState(papelizSyncVaultId) === 'locked') {
+      if (currentSyncVaultPassphrase === null) return createFakeFailedOutcome('locked')
+      if (currentSyncVaultPassphrase.normalize('NFC') !== this.readFakeVaultPassphrase(papelizSyncVaultId).normalize('NFC')) return createFakeFailedOutcome('wrong-passphrase')
+    }
+    if (!this.isFakeSignInFresh()) return createFakeFailedOutcome('fresh-sign-in-required')
+    // Another device changed it after this one read the vault: the next try reads it again.
+    if (this.fakeVaultPassphraseChangedElsewhereSyncVaultIds.delete(papelizSyncVaultId)) return createFakeFailedOutcome('changed-elsewhere')
     this.fakeVaultPassphrasesBySyncVaultId.set(papelizSyncVaultId, newSyncVaultPassphrase)
     return createFakeDoneOutcome(null)
+  }
+
+  // Test and dev control: another device changes a vault's passphrase while this one has the vault
+  // read; this device's next change meets the newer revision once.
+  private readonly fakeVaultPassphraseChangedElsewhereSyncVaultIds = new Set<string>()
+
+  changeFakeSyncVaultPassphraseElsewhere(papelizSyncVaultId: string, otherDeviceSyncVaultPassphrase: string): void {
+    this.fakeVaultPassphrasesBySyncVaultId.set(papelizSyncVaultId, otherDeviceSyncVaultPassphrase)
+    this.fakeVaultPassphraseChangedElsewhereSyncVaultIds.add(papelizSyncVaultId)
   }
 
   attachSyncToOpenVault(openLocalVault: PapelizSyncOpenLocalVault): () => void {

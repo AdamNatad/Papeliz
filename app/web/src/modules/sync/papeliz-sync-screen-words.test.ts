@@ -6,12 +6,15 @@ import {
   describePapelizSyncPlanPrice,
   describePapelizSyncStatusForStatusBar,
   describePapelizSyncStoragePlaceLine,
+  describePapelizSyncVaultPassphraseChangedElsewhere,
   formatPapelizSyncByteSize,
   isPapelizSyncPassphraseLongEnough,
   papelizSyncPageIntro,
   papelizSyncVaultEncryptionKindDisplayNames,
   papelizSyncVaultEncryptionKindReaderLines,
   papelizSyncVaultNameReadableLine,
+  papelizSyncVaultPassphraseChangeCurrentAskedLine,
+  papelizSyncVaultPassphraseChangeIntro,
   papelizSyncVaultPassphraseNotRecoverableLine,
   pickNearestPapelizSyncStoragePlace,
   ratePapelizSyncPassphraseStrength,
@@ -52,6 +55,14 @@ describe('encryption, vault by vault', () => {
     expect(papelizSyncVaultEncryptionKindDisplayNames).toEqual({ standard: 'Standard', 'end-to-end': 'End-to-end' })
     expect(papelizSyncVaultEncryptionKindReaderLines.standard).toContain('Papeliz keeps the key, so it could read them')
     expect(papelizSyncVaultEncryptionKindReaderLines['end-to-end']).toContain('Papeliz never sees it')
+  })
+
+  it('says what Change passphrase keeps, and asks the current one, or the newer one set elsewhere, when needed', () => {
+    expect(papelizSyncVaultPassphraseChangeIntro).toContain('Devices that already have this vault keep working')
+    expect(papelizSyncVaultPassphraseChangeIntro).toContain('a new device asks the new passphrase')
+    expect(papelizSyncVaultPassphraseChangeCurrentAskedLine).toContain('current passphrase')
+    expect(describePapelizSyncVaultPassphraseChangedElsewhere(true)).toContain('Enter the passphrase it set as the current one')
+    expect(describePapelizSyncVaultPassphraseChangedElsewhere(false)).toContain('Try again to set yours')
   })
 
   it('says the vault name is readable, and that an End-to-end passphrase can’t be recovered', () => {

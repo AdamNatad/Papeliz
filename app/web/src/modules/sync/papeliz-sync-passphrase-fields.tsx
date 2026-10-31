@@ -68,6 +68,8 @@ interface PapelizSyncNewPassphraseFieldsProps {
   repeatedSyncPassphrase: string
   onRepeatedSyncPassphraseChange: (repeatedSyncPassphrase: string) => void
   newSyncPassphraseFieldLabel?: string
+  // False when a field above it (the current passphrase) takes the focus first.
+  isNewSyncPassphraseFieldFocusedFirst?: boolean
 }
 
 // A new passphrase, typed twice, with the strength meter. The rule is the engine's: 12 characters
@@ -78,6 +80,7 @@ export function PapelizSyncNewPassphraseFields({
   repeatedSyncPassphrase,
   onRepeatedSyncPassphraseChange,
   newSyncPassphraseFieldLabel = 'Sync passphrase',
+  isNewSyncPassphraseFieldFocusedFirst = true,
 }: PapelizSyncNewPassphraseFieldsProps) {
   const [isSyncPassphraseShown, setIsSyncPassphraseShown] = useState(false)
   const syncPassphraseStrength = ratePapelizSyncPassphraseStrength(newSyncPassphrase)
@@ -92,7 +95,7 @@ export function PapelizSyncNewPassphraseFields({
           isSyncPassphraseShown={isSyncPassphraseShown}
           onSyncPassphraseShownToggle={() => setIsSyncPassphraseShown(!isSyncPassphraseShown)}
           syncPassphraseAutoComplete="new-password"
-          isSyncPassphraseFieldFocusedFirst
+          isSyncPassphraseFieldFocusedFirst={isNewSyncPassphraseFieldFocusedFirst}
         />
         <div className="mt-2 flex gap-1" aria-hidden="true">
           {[1, 2, 3, 4].map((strengthBarNumber) => (

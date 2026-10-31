@@ -5,13 +5,16 @@ import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { usePapelizWorkspaceStore } from '../workspace/papeliz-workspace-store'
 import type { PapelizSyncActionOutcome, PapelizSyncEngine, PapelizSyncEngineSnapshot, PapelizSyncVaultEncryptionKind } from './papeliz-sync-engine-contract'
 import { closePapelizSyncSetUpDialog, describePapelizSyncSignInFromClickFailure, startPapelizSyncSignInFromClick, type PapelizSyncSetUpDialogRequest } from './papeliz-sync-flow-store'
-import { isPapelizSyncNewPassphraseReady, PapelizSyncNewPassphraseFields } from './papeliz-sync-passphrase-fields'
+import { isPapelizSyncNewPassphraseReady, PapelizSyncNewPassphraseFields, PapelizSyncPassphraseField } from './papeliz-sync-passphrase-fields'
 import { PapelizSyncDialogFrame, PapelizSyncDialogSteps, PapelizSyncFailureLine, PapelizSyncLoadingLine, PapelizSyncProgressBar } from './papeliz-sync-page-parts'
 import {
   describePapelizSyncActionFailureNow,
+  describePapelizSyncVaultPassphraseChangedElsewhere,
   papelizSyncVaultEncryptionKindDisplayNames,
   papelizSyncVaultEncryptionKindReaderLines,
   papelizSyncVaultNameReadableLine,
+  papelizSyncVaultPassphraseChangeCurrentAskedLine,
+  papelizSyncVaultPassphraseChangeIntro,
   papelizSyncVaultPassphraseNotRecoverableLine,
 } from './papeliz-sync-screen-words'
 
@@ -81,16 +84,21 @@ export function PapelizSyncSetUpDialog({ papelizSyncEngine, syncEngineSnapshot, 
   const [chosenSyncVaultEncryptionKind, setChosenSyncVaultEncryptionKind] = useState<PapelizSyncVaultEncryptionKind>('standard')
   const [typedSyncVaultPassphrase, setTypedSyncVaultPassphrase] = useState('')
   const [repeatedSyncVaultPassphrase, setRepeatedSyncVaultPassphrase] = useState('')
+  // Change passphrase for a vault whose key this device doesn't hold: its current passphrase.
+  const [typedCurrentSyncVaultPassphrase, setTypedCurrentSyncVaultPassphrase] = useState('')
   const isSetUpActionRunning = setUpActionState.setUpActionKind === 'running'
 
   const forgetTypedPassphrase = () => {
     setTypedSyncVaultPassphrase('')
     setRepeatedSyncVaultPassphrase('')
+    setTypedCurrentSyncVaultPassphrase('')
   }
 
+  // A step may say a failure in its own words (null keeps the usual ones).
   const runSetUpAction = async <SyncActionDoneValue,>(
     syncSetUpAction: () => Promise<PapelizSyncActionOutcome<SyncActionDoneValue>>,
     onSetUpActionDone: (syncActionDoneValue: SyncActionDoneValue) => void,
+    readSetUpFailureWords: (failedOutcome: Extract<PapelizSyncActionOutcome<SyncActionDoneValue>, { syncActionOutcome: 'failed' }>) => string | null = () => null,
   ): Promise<void> => {
     setSetUpActionState({ setUpActionKind: 'running' })
     const setUpActionOutcome = await syncSetUpAction()
@@ -100,10 +108,13 @@ export function PapelizSyncSetUpDialog({ papelizSyncEngine, syncEngineSnapshot, 
       return
     }
     if (setUpActionOutcome.syncActionFailureKind === 'fresh-sign-in-required') {
-      setSetUpActionState({ setUpActionKind: 'fresh-sign-in-needed', retrySetUpActionAfterSignIn: () => runSetUpAction(syncSetUpAction, onSetUpActionDone) })
+      setSetUpActionState({
+        setUpActionKind: 'fresh-sign-in-needed',
+        retrySetUpActionAfterSignIn: () => runSetUpAction(syncSetUpAction, onSetUpActionDone, readSetUpFailureWords),
+      })
       return
     }
-    setSetUpActionState({ setUpActionKind: 'failed', setUpFailureWords: describePapelizSyncActionFailureNow(setUpActionOutcome) })
+    setSetUpActionState({ setUpActionKind: 'failed', setUpFailureWords: readSetUpFailureWords(setUpActionOutcome) ?? describePapelizSyncActionFailureNow(setUpActionOutcome) })
   }
 
   const setUpActionLine =
@@ -166,9 +177,10 @@ export function PapelizSyncSetUpDialog({ papelizSyncEngine, syncEngineSnapshot, 
     </PapelizPillButton>
   )
 
-  // Change passphrase: the new one twice, for a vault this device holds the key of.
+  // Change passphrase, for any End-to-end vault: the new one twice, and first the current one when
+  // this device doesn't hold the vault's key.
   if (syncSetUpDialogRequest.syncSetUpDialogKind === 'change-vault-passphrase') {
-    const { papelizSyncVaultId, syncVaultName } = syncSetUpDialogRequest
+    const { papelizSyncVaultId, syncVaultName, isCurrentSyncVaultPassphraseAsked } = syncSetUpDialogRequest
     if (syncSetUpStep.syncSetUpStepKind === 'vault-passphrase-changed') {
       return (
         <PapelizSyncDialogFrame
@@ -183,14 +195,22 @@ export function PapelizSyncSetUpDialog({ papelizSyncEngine, syncEngineSnapshot, 
         />
       )
     }
-    const isNewPassphraseReady = isPapelizSyncNewPassphraseReady(typedSyncVaultPassphrase, repeatedSyncVaultPassphrase)
+    const isPassphraseChangeReady =
+      isPapelizSyncNewPassphraseReady(typedSyncVaultPassphrase, repeatedSyncVaultPassphrase) && (!isCurrentSyncVaultPassphraseAsked || typedCurrentSyncVaultPassphrase !== '')
     const changeVaultPassphrase = () => {
       const newSyncVaultPassphrase = typedSyncVaultPassphrase
+      const currentSyncVaultPassphrase = isCurrentSyncVaultPassphraseAsked ? typedCurrentSyncVaultPassphrase : null
       void runSetUpAction(
-        () => papelizSyncEngine.changeSyncVaultPassphrase(papelizSyncVaultId, newSyncVaultPassphrase),
+        () => papelizSyncEngine.changeSyncVaultPassphrase(papelizSyncVaultId, newSyncVaultPassphrase, currentSyncVaultPassphrase),
         () => {
           forgetTypedPassphrase()
           setSyncSetUpStep({ syncSetUpStepKind: 'vault-passphrase-changed' })
+        },
+        (failedOutcome) => {
+          if (failedOutcome.syncActionFailureKind !== 'changed-elsewhere') return null
+          // The next try reads the vault again; a typed current passphrase is out of date.
+          setTypedCurrentSyncVaultPassphrase('')
+          return describePapelizSyncVaultPassphraseChangedElsewhere(isCurrentSyncVaultPassphraseAsked)
         },
       )
     }
@@ -198,13 +218,15 @@ export function PapelizSyncSetUpDialog({ papelizSyncEngine, syncEngineSnapshot, 
       <PapelizSyncDialogFrame
         {...dialogFrameProps}
         syncDialogTitle={`Change the passphrase for “${syncVaultName}”`}
-        syncDialogIntro="Devices that already have this vault stay unlocked; a device that downloads it later uses the new one. Nothing uploads again."
+        syncDialogIntro={
+          isCurrentSyncVaultPassphraseAsked ? `${papelizSyncVaultPassphraseChangeCurrentAskedLine} ${papelizSyncVaultPassphraseChangeIntro}` : papelizSyncVaultPassphraseChangeIntro
+        }
         syncDialogFooter={
           <>
             <PapelizPillButton pillButtonVariant="gray" disabled={isSetUpActionRunning} onClick={closePapelizSyncSetUpDialog}>
               Cancel
             </PapelizPillButton>
-            <PapelizPillButton pillButtonVariant="primary" disabled={!isNewPassphraseReady || isSetUpActionRunning} onClick={changeVaultPassphrase}>
+            <PapelizPillButton pillButtonVariant="primary" disabled={!isPassphraseChangeReady || isSetUpActionRunning} onClick={changeVaultPassphrase}>
               {runningButtonContent('Change passphrase')}
             </PapelizPillButton>
           </>
@@ -213,15 +235,28 @@ export function PapelizSyncSetUpDialog({ papelizSyncEngine, syncEngineSnapshot, 
         <form
           onSubmit={(submitEvent) => {
             submitEvent.preventDefault()
-            if (isNewPassphraseReady && !isSetUpActionRunning) changeVaultPassphrase()
+            if (isPassphraseChangeReady && !isSetUpActionRunning) changeVaultPassphrase()
           }}
         >
+          {isCurrentSyncVaultPassphraseAsked && (
+            <div className="mt-4">
+              <PapelizSyncPassphraseField
+                syncPassphraseFieldLabel="Current passphrase"
+                syncPassphrase={typedCurrentSyncVaultPassphrase}
+                onSyncPassphraseChange={setTypedCurrentSyncVaultPassphrase}
+                isSyncPassphraseShown={false}
+                syncPassphraseAutoComplete="current-password"
+                isSyncPassphraseFieldFocusedFirst
+              />
+            </div>
+          )}
           <PapelizSyncNewPassphraseFields
             newSyncPassphrase={typedSyncVaultPassphrase}
             onNewSyncPassphraseChange={setTypedSyncVaultPassphrase}
             repeatedSyncPassphrase={repeatedSyncVaultPassphrase}
             onRepeatedSyncPassphraseChange={setRepeatedSyncVaultPassphrase}
             newSyncPassphraseFieldLabel="New passphrase"
+            isNewSyncPassphraseFieldFocusedFirst={!isCurrentSyncVaultPassphraseAsked}
           />
           <button type="submit" hidden aria-hidden="true" tabIndex={-1} />
         </form>

@@ -40,6 +40,19 @@ export const papelizSyncVaultNameReadableLine = 'The vault’s name isn’t encr
 export const papelizSyncVaultPassphraseNotRecoverableLine =
   'Papeliz can’t recover it. If you forget it, the synced copy can only be deleted and synced again from a device that still has the notes.'
 
+// Change passphrase, for any End-to-end vault: the vault's key stays the same, only its wrap changes.
+// Without the key on this device, the current passphrase opens it first.
+export const papelizSyncVaultPassphraseChangeIntro = 'Devices that already have this vault keep working, and a new device asks the new passphrase. Nothing uploads again.'
+export const papelizSyncVaultPassphraseChangeCurrentAskedLine = 'This device doesn’t hold this vault’s key, so its current passphrase opens it first.'
+
+// Another device changed the passphrase after this one read the vault: the next try reads it again,
+// so a current passphrase typed here has to be the one that device set.
+export function describePapelizSyncVaultPassphraseChangedElsewhere(isCurrentSyncVaultPassphraseAsked: boolean): string {
+  return isCurrentSyncVaultPassphraseAsked
+    ? 'Another device changed this vault’s passphrase just now. Enter the passphrase it set as the current one, then try again.'
+    : 'Another device changed this vault’s passphrase just now. Try again to set yours.'
+}
+
 export const papelizSyncSignInMethodDisplayNames: Record<PapelizSyncSignInMethod, string> = {
   'email-code': 'Signed in with an email code',
   google: 'Signed in with Google',

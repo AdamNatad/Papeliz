@@ -33,10 +33,11 @@ export type PapelizSyncSubscribeStep =
 // What the set-up dialog is for:
 // - `turn-on-vault-sync`: Turn on Sync for the open vault: Standard or End-to-end, a passphrase for
 //   End-to-end, then the first upload.
-// - `change-vault-passphrase`: a new passphrase for an End-to-end vault this device holds the key of.
+// - `change-vault-passphrase`: a new passphrase for any End-to-end vault on the account, and its
+//   current one too when this device doesn't hold its key.
 export type PapelizSyncSetUpDialogRequest =
   | { syncSetUpDialogKind: 'turn-on-vault-sync' }
-  | { syncSetUpDialogKind: 'change-vault-passphrase'; papelizSyncVaultId: string; syncVaultName: string }
+  | { syncSetUpDialogKind: 'change-vault-passphrase'; papelizSyncVaultId: string; syncVaultName: string; isCurrentSyncVaultPassphraseAsked: boolean }
 
 interface PapelizSyncFlowState {
   syncSubscribeStep: PapelizSyncSubscribeStep | null
