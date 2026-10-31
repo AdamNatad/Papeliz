@@ -231,6 +231,19 @@ function createFakeFailedOutcome<SyncActionDoneValue>(syncActionFailureKind: Pap
   return { syncActionOutcome: 'failed', syncActionFailureKind, syncActionFailureMessage: `Fake engine: ${syncActionFailureKind}`, syncRetryAt: null }
 }
 
+// The new device's synced vaults as the account lists them, for Fetch from Sync's page previewer:
+// none of them on this device, or every one of them.
+export function listPapelizSyncFakeNewDeviceAccountVaultReadings(currentTime: number, isEveryFakeVaultOnThisDevice: boolean): PapelizSyncAccountVaultReading[] {
+  return papelizSyncFakeEngineNewDeviceAccountVaults.map((fakeAccountOnlyVault) => ({
+    papelizSyncVaultId: fakeAccountOnlyVault.papelizSyncVaultId,
+    syncVaultName: fakeAccountOnlyVault.syncVaultName,
+    syncVaultFileCount: fakeAccountOnlyVault.syncVaultFileCount,
+    syncVaultStoredByteLength: fakeAccountOnlyVault.syncVaultStoredByteLength,
+    syncVaultCreatedAt: currentTime - fakeAccountOnlyVault.syncVaultCreatedDaysAgo * 24 * 60 * 60_000,
+    papelizVaultIdOnThisDevice: isEveryFakeVaultOnThisDevice ? `${fakeAccountOnlyVault.papelizSyncVaultId}-on-this-device` : null,
+  }))
+}
+
 export class PapelizSyncFakeEngine implements PapelizSyncEngine {
   // Every call, in order, so tests can check what the screens asked for (and what they didn't).
   readonly fakeEngineCallNames: string[] = []

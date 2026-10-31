@@ -2,12 +2,7 @@ import { AppWindow, BookOpen, CloudCheck, CloudDownload, Code, Download, Eye, Ey
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type Ref } from 'react'
 import { isPapelizSyncEngineInThisBuild } from 'virtual:papeliz-sync-engine-availability'
 import { isPapelizSyncUsedOnThisDevice, readPapelizSyncDevFakeEngineScenarioText, usePapelizSyncEngineSnapshot, usePapelizSyncEngineStore } from '../sync/papeliz-sync-engine-store'
-import {
-  describePapelizSyncSignInFromClickFailure,
-  startPapelizSyncSignInFromClick,
-  startPapelizSyncSignInFromClickBeforeEngineLoads,
-  type PapelizSyncSignInFromClickOutcome,
-} from '../sync/papeliz-sync-flow-store'
+import { returnPapelizSyncFetchFromSyncPageToLive, usePapelizSyncFetchFromSyncPagePreviewStore } from '../sync/papeliz-sync-fetch-from-sync-page-preview-store'
 import {
   forgetPapelizSyncLinksOfDeletedVault,
   resumePapelizSyncStartScreenDownloads,
@@ -64,6 +59,15 @@ import { usePapelizWorkspaceStore } from './papeliz-workspace-store'
 const PapelizSyncFetchFromSyncPage = lazy(() =>
   import('../sync/papeliz-sync-fetch-from-sync-page').then((fetchFromSyncPageModule) => ({ default: fetchFromSyncPageModule.PapelizSyncFetchFromSyncPage })),
 )
+// Its previewer, floating at the bottom right, only in development builds: in a production build
+// `import.meta.env.DEV` is false, so the button and its made-up account and vaults are left out.
+const PapelizSyncFetchFromSyncPagePreviewerButton = import.meta.env.DEV
+  ? lazy(() =>
+      import('../sync/papeliz-sync-fetch-from-sync-page-previewer-button').then((previewerButtonModule) => ({
+        default: previewerButtonModule.PapelizSyncFetchFromSyncPagePreviewerButton,
+      })),
+    )
+  : null
 
 const papelizRelativeTimeFormat = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' })
 // The reload's ring stays at least this long, so a quick reload is still seen to happen.
@@ -243,7 +247,9 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
   const [newVaultFormRequest, setNewVaultFormRequest] = useState<{ suggestedBrowserVaultName: string } | null>(null)
   // Fetch from Sync's page, shown there instead, and why the sign-in its button started didn't happen.
   const [isFetchFromSyncPageShown, setFetchFromSyncPageShown] = useState(false)
-  const [fetchFromSyncSignInFailureWords, setFetchFromSyncSignInFailureWords] = useState<string | null>(null)
+  // A pick in the page's previewer (development builds only) shows the page in that state.
+  const heldFetchFromSyncPagePreview = usePapelizSyncFetchFromSyncPagePreviewStore((fetchFromSyncPagePreviewState) => fetchFromSyncPagePreviewState.heldFetchFromSyncPagePreview)
+  const isFetchFromSyncPageOnScreen = isFetchFromSyncPageShown || heldFetchFromSyncPagePreview !== null
   const syncStartScreenDownloadsByVaultId = usePapelizSyncStartScreenDownloadStore((syncStartScreenDownloadState) => syncStartScreenDownloadState.syncStartScreenDownloadsByVaultId)
   // New Vault's button, where focus goes back when its form is cancelled.
   const newVaultActionButtonRef = useRef<HTMLButtonElement>(null)
@@ -410,13 +416,13 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
     }
   }
 
-  // Fetch from Sync, first on the panel, only in a build with Sync's engine switched on (and in
+  // Fetch from Sync, at the panel's foot, only in a build with Sync's engine switched on (and in
   // development builds on the fake engine). It needs somewhere to put a vault.
   const isFetchFromSyncActionShown = useMemo(() => isPapelizSyncEngineInThisBuild || readPapelizSyncDevFakeEngineScenarioText() !== null, [])
   const fetchFromSyncOffReasonText = isFolderVaultOn || isBrowserVaultOn ? null : (browserVaultOffReasonText ?? folderAccessOffReasonText)
 
-  // A device signed in to Sync before (or the dev fake engine) loads the engine now, so Fetch from
-  // Sync's click can open the sign-in tab itself when the sign-in has lapsed.
+  // A device signed in to Sync before (or the dev fake engine) loads the engine now, for the recent
+  // vaults' "Synced" and the downloads left unfinished below.
   const loadPapelizSyncEngine = usePapelizSyncEngineStore((syncEngineState) => syncEngineState.loadPapelizSyncEngine)
   useEffect(() => {
     if (!isFetchFromSyncActionShown || startScreenEyePreview !== null) return
@@ -448,40 +454,26 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
   // one of them on this device.
   const recentVaultIds = useMemo(() => new Set(recentVaults.map((recentVault) => recentVault.papelizVaultId)), [recentVaults])
 
-  // Fetch from Sync: its page in the start card, and, signed out, the sign-in page in a new tab from
-  // this click (before the engine has loaded, a blank tab that goes there once it has).
+  // Fetch from Sync: only its page in the start card. Nothing of Sync loads or signs in until its
+  // Fetch button is pressed.
   const startFetchFromSync = () => {
     if (startScreenEyePreview !== null) {
       showStartScreenPreviewOnlyNotice()
       return
     }
     setNewVaultFormRequest(null)
-    setFetchFromSyncSignInFailureWords(null)
     setFetchFromSyncPageShown(true)
-    const followSignInFromClick = (signInFromClick: Promise<PapelizSyncSignInFromClickOutcome>) =>
-      void signInFromClick.then((signInFromClickOutcome) => setFetchFromSyncSignInFailureWords(describePapelizSyncSignInFromClickFailure(signInFromClickOutcome)))
-    const { papelizSyncEngine } = usePapelizSyncEngineStore.getState()
-    if (papelizSyncEngine !== null) {
-      const syncSignInKind = papelizSyncEngine.getSyncEngineSnapshot().syncSignIn.syncSignInKind
-      if (syncSignInKind === 'signed-out' || syncSignInKind === 'device-removed') followSignInFromClick(startPapelizSyncSignInFromClick(papelizSyncEngine, null))
-      return
-    }
-    if (isPapelizSyncUsedOnThisDevice() || readPapelizSyncDevFakeEngineScenarioText() !== null) {
-      void loadPapelizSyncEngine()
-      return
-    }
-    followSignInFromClick(startPapelizSyncSignInFromClickBeforeEngineLoads(loadPapelizSyncEngine))
   }
 
   const closeFetchFromSync = () => {
     setFetchFromSyncPageShown(false)
-    setFetchFromSyncSignInFailureWords(null)
+    returnPapelizSyncFetchFromSyncPageToLive()
   }
 
   // New Vault: its form in the start card (where to keep it, and a browser vault's name); a folder
   // straight away where browser vaults are off.
   const startNewVault = () => {
-    setFetchFromSyncPageShown(false)
+    closeFetchFromSync()
     if (!isBrowserVaultOn) {
       // Neither kind works here: the browser vault's reason says what to do.
       if (folderAccessOffReason === 'unsupported' && browserVaultOffReasonText !== null) showWorkspaceNotice('error', browserVaultOffReasonText)
@@ -692,7 +684,9 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
 
       <main className="flex flex-1 items-center justify-center p-3 sm:p-4">
         <div className="papeliz-welcome-enter flex w-[750px] max-w-[calc(100vw-24px)] overflow-hidden rounded-[14px] border border-papeliz-line bg-papeliz-surface shadow-papeliz-card max-md:flex-col md:h-[520px] md:max-h-[calc(100dvh-80px)] sm:max-w-[calc(100vw-48px)]">
-          <section aria-label="Start" className="flex flex-none flex-col bg-papeliz-topbar p-3 text-white md:w-[190px]">
+          <section aria-label="Start" className="flex flex-none flex-col bg-papeliz-topbar p-3 text-white md:w-[190px] md:overflow-y-auto md:[scrollbar-width:none]">
+            {/* On a short window the panel scrolls (wheel, touch or Tab), so its foot (Fetch from Sync and the
+                licence) stays reachable; a scrollbar would narrow the actions until their lines wrap. */}
             <div className="flex items-center gap-2.5">
               <PapelizMark papelizMarkSize={34} papelizMarkTone="on-blue" />
               <div className="flex flex-col">
@@ -706,20 +700,6 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
             </p>
 
             <div className="mt-4 grid grid-cols-1 gap-[7px]">
-              {isFetchFromSyncActionShown && (
-                <div className="mb-1">
-                  <PapelizWelcomeAction
-                    WelcomeActionIcon={CloudDownload}
-                    welcomeActionTitle="Fetch from Sync"
-                    welcomeActionDescription="Get your synced vaults."
-                    isWelcomeActionDisabled={isOpeningVault}
-                    welcomeActionOffReasonText={fetchFromSyncOffReasonText}
-                    isWelcomeActionCurrent={isFetchFromSyncPageShown}
-                    welcomeActionLook="white-highlight"
-                    onWelcomeActionSelect={startFetchFromSync}
-                  />
-                </div>
-              )}
               <PapelizWelcomeAction
                 WelcomeActionIcon={FolderPlus}
                 welcomeActionTitle="New Vault"
@@ -751,28 +731,46 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
               />
             </div>
 
-            <p className="mt-[9px] flex items-center gap-2 border-t border-white/15 pt-[9px] text-[11px] font-medium text-white/80 md:mt-auto">
-              <Code className="size-3.5 flex-none" aria-hidden="true" />
-              Open Source (MIT License)
-            </p>
+            {/* The panel's foot, pinned to its bottom on wide screens: Fetch from Sync above the line, then
+                the licence. Free space falls between Try Sample and it. */}
+            <div className="md:mt-auto">
+              {isFetchFromSyncActionShown && (
+                <div className="mt-[11px]">
+                  <PapelizWelcomeAction
+                    WelcomeActionIcon={CloudDownload}
+                    welcomeActionTitle="Synced Vaults"
+                    welcomeActionDescription="On all your devices."
+                    isWelcomeActionDisabled={isOpeningVault}
+                    welcomeActionOffReasonText={fetchFromSyncOffReasonText}
+                    isWelcomeActionCurrent={isFetchFromSyncPageOnScreen}
+                    welcomeActionLook="white-highlight"
+                    onWelcomeActionSelect={startFetchFromSync}
+                  />
+                </div>
+              )}
+              <p className="mt-[9px] flex items-center gap-2 border-t border-white/15 pt-[9px] text-[11px] font-medium text-white/80">
+                <Code className="size-3.5 flex-none" aria-hidden="true" />
+                Open Source (MIT License)
+              </p>
+            </div>
           </section>
 
           <section
             aria-labelledby={
-              isFetchFromSyncPageShown ? 'papeliz-fetch-from-sync-heading' : newVaultFormRequest === null ? 'papeliz-welcome-recent-heading' : 'papeliz-new-vault-form-heading'
+              isFetchFromSyncPageOnScreen ? 'papeliz-fetch-from-sync-heading' : newVaultFormRequest === null ? 'papeliz-welcome-recent-heading' : 'papeliz-new-vault-form-heading'
             }
             className="flex min-h-[280px] min-w-0 flex-1 flex-col p-2.5"
           >
             {/* New Vault, or Fetch from Sync, takes Recent Vaults' place while its page shows. */}
-            {isFetchFromSyncPageShown ? (
+            {isFetchFromSyncPageOnScreen ? (
               <Suspense fallback={null}>
                 <PapelizSyncFetchFromSyncPage
+                  key={heldFetchFromSyncPagePreview?.fetchFromSyncPagePreviewNumber ?? 'live'}
                   fetchFromSyncPageHeadingId="papeliz-fetch-from-sync-heading"
                   isFolderStorageOn={isFolderVaultOn}
                   isBrowserStorageOn={isBrowserVaultOn}
                   existingBrowserVaultRecords={browserVaultRecords}
                   papelizVaultIdsOnThisDevice={recentVaultIds}
-                  fetchFromSyncSignInFailureWords={fetchFromSyncSignInFailureWords}
                   onFetchFromSyncPageClose={closeFetchFromSync}
                   onSyncDownloadStarted={() => {
                     closeFetchFromSync()
@@ -1223,6 +1221,11 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
       </main>
 
       <PapelizWorkspaceNotice />
+      {PapelizSyncFetchFromSyncPagePreviewerButton !== null && (
+        <Suspense fallback={null}>
+          <PapelizSyncFetchFromSyncPagePreviewerButton />
+        </Suspense>
+      )}
     </div>
   )
 }
