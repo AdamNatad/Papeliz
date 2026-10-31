@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { PapelizDirectoryHandleVaultAdapter } from './papeliz-directory-handle-vault-adapter'
-import { readPapelizFakeVaultFolder, type PapelizFakeDirectoryHandle } from './papeliz-fake-file-system-access.test-support'
+import { addPapelizFakeVaultFiles, readPapelizFakeVaultFolder, type PapelizFakeDirectoryHandle } from './papeliz-fake-file-system-access.test-support'
 
 // Test support only: what every vault reached through directory handles must do, run once for a
 // folder on disk and once for each way a browser vault writes. The test vault holds these files.
@@ -150,6 +150,61 @@ export function describePapelizDirectoryHandleVaultAdapterCases(
       expect(await directoryHandleVaultAdapter.listVaultAttachmentFileRelativePaths()).toEqual(['Ideas/sketch.png'])
       expect(await (await directoryHandleVaultAdapter.readVaultAttachmentFileBlob('Ideas/sketch.png')).text()).toBe('png bytes')
       await expect(directoryHandleVaultAdapter.readVaultAttachmentFileBlob('Ideas/missing.png')).rejects.toThrow()
+    })
+
+    it('lists every file Papeliz Sync carries, with its size, and only those', async () => {
+      const { fakeVaultRootHandle, directoryHandleVaultAdapter } = await createTestDirectoryHandleVault()
+      await addPapelizFakeVaultFiles(fakeVaultRootHandle, {
+        '.papeliz/file-order.json': '[]',
+        '.csessions/Chat.md': '# Chat',
+        '.chatsession/Earlier chat.md': '# Earlier',
+        '.trash/Old.md': '# Old',
+        '.DS_Store': 'x',
+        'Ideas/.hidden-note.md': 'x',
+      })
+      const syncableVaultFileStats = await directoryHandleVaultAdapter.listSyncableVaultFileStats()
+      expect(syncableVaultFileStats.map((syncableVaultFileStat) => `${syncableVaultFileStat.vaultFileRelativePath}:${syncableVaultFileStat.vaultFileByteLength}`).sort()).toEqual([
+        '.csessions/Chat.md:6',
+        '.papeliz/file-order.json:2',
+        'Ideas/Deep/Notes.md:7',
+        'Ideas/Offline-first apps.md:20',
+        'Ideas/sketch.png:9',
+        'Inbox.md:7',
+      ])
+      expect(syncableVaultFileStats.every((syncableVaultFileStat) => Number.isFinite(syncableVaultFileStat.vaultFileModifiedAt))).toBe(true)
+    })
+
+    it('reads and writes whole files for Papeliz Sync, making their folders', async () => {
+      const { fakeVaultRootHandle, directoryHandleVaultAdapter } = await createTestDirectoryHandleVault()
+      const scanFileBytes = Uint8Array.from([0, 1, 2, 137, 255])
+      await directoryHandleVaultAdapter.writeVaultFileBytes('Pictures/2026/scan.png', scanFileBytes)
+      expect(await directoryHandleVaultAdapter.readVaultFileBytes('Pictures/2026/scan.png')).toEqual(scanFileBytes)
+      await directoryHandleVaultAdapter.writeVaultFileBytes('Inbox.md', new TextEncoder().encode('# Inbox, from another device'))
+      expect(await directoryHandleVaultAdapter.readVaultNoteText('Inbox.md')).toBe('# Inbox, from another device')
+      await directoryHandleVaultAdapter.writeVaultFileBytes('.papeliz/file-order.json', new TextEncoder().encode('[]'))
+      await directoryHandleVaultAdapter.writeVaultFileBytes('.csessions/Chat.md', new TextEncoder().encode('# Chat'))
+      const vaultFolderContents = await readPapelizFakeVaultFolder(fakeVaultRootHandle)
+      expect(vaultFolderContents['.papeliz/file-order.json']).toBe('[]')
+      expect(vaultFolderContents['.csessions/Chat.md']).toBe('# Chat')
+      expect(new TextDecoder().decode(await directoryHandleVaultAdapter.readVaultFileBytes('Ideas/sketch.png'))).toBe('png bytes')
+      await expect(directoryHandleVaultAdapter.readVaultFileBytes('Ideas/missing.png')).rejects.toThrow()
+    })
+
+    it('never writes a file Papeliz Sync doesn’t carry', async () => {
+      const { fakeVaultRootHandle, directoryHandleVaultAdapter } = await createTestDirectoryHandleVault()
+      const vaultFolderContentsBefore = await readPapelizFakeVaultFolder(fakeVaultRootHandle)
+      for (const notSyncedVaultFileRelativePath of [
+        '.git/HEAD',
+        '.trash/Inbox.md',
+        '.other-app/app.json',
+        '.chatsession/Chat.md',
+        '.papeliz/browser-vault.json',
+        'Ideas/.hidden-note.md',
+        '.DS_Store',
+      ]) {
+        await expect(directoryHandleVaultAdapter.writeVaultFileBytes(notSyncedVaultFileRelativePath, new TextEncoder().encode('x'))).rejects.toThrow('Not Synced')
+      }
+      expect(await readPapelizFakeVaultFolder(fakeVaultRootHandle)).toEqual(vaultFolderContentsBefore)
     })
   })
 }

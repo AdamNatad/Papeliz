@@ -18,7 +18,7 @@ import {
 import type { PapelizVaultFileContentsWriter } from './papeliz-directory-handle-vault-adapter'
 import type { PapelizOpenVaultResult } from './papeliz-open-vault'
 import { describePapelizVaultError, PapelizVaultOperationError } from './papeliz-vault-adapter'
-import { describeVaultEntryNameProblem, papelizVaultSettingsFolderName, pickFreeVaultEntryName } from './papeliz-vault-relative-paths'
+import { describeVaultEntryNameProblem, papelizBrowserVaultSettingsFileName, papelizVaultSettingsFolderName, pickFreeVaultEntryName } from './papeliz-vault-relative-paths'
 
 // The browser vaults kept in this browser. Each one is a folder in the Origin Private File System,
 // `papeliz-browser-vaults/<papelizVaultId>/`, laid out exactly like a folder on disk. The folder is
@@ -28,7 +28,6 @@ import { describeVaultEntryNameProblem, papelizVaultSettingsFolderName, pickFree
 // carries its name.
 
 export const papelizBrowserVaultsFolderName = 'papeliz-browser-vaults'
-export const papelizBrowserVaultSettingsFileName = 'browser-vault.json'
 export const papelizBrowserVaultNameLongestLength = 80
 // What a vault rebuilt from a folder with no name is called.
 const papelizBrowserVaultFallbackName = 'Browser Vault'

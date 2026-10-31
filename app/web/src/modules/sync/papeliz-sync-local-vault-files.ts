@@ -27,22 +27,29 @@ function rejectWithoutWholeFileAccess(): Promise<never> {
 
 // The open vault's files as the engine reads and writes them: through the vault's own adapter, so
 // open notes and other tabs see Sync's writes like any other change. Renames and the trash use the
-// adapter's own.
+// adapter's own. On a browser vault each write, rename and move takes the vault's writes lock, as the
+// workspace's own changes do, so a save in another tab never reads, merges and writes around it.
 export function createPapelizSyncLocalVaultFiles(papelizVaultAdapter: PapelizVaultAdapter): PapelizSyncLocalVaultFiles {
+  const runSyncVaultChangeExclusively = <VaultChangeResult>(syncVaultChange: () => Promise<VaultChangeResult>): Promise<VaultChangeResult> =>
+    papelizVaultAdapter.runVaultChangeExclusively ? papelizVaultAdapter.runVaultChangeExclusively(syncVaultChange) : syncVaultChange()
+  const renameVaultFile = (fromVaultFileRelativePath: string, toVaultFileRelativePath: string) =>
+    runSyncVaultChangeExclusively(() => papelizVaultAdapter.renameVaultEntry(fromVaultFileRelativePath, toVaultFileRelativePath))
+  const moveVaultFileToTrash = (vaultFileRelativePath: string) => runSyncVaultChangeExclusively(() => papelizVaultAdapter.moveVaultEntryToTrash(vaultFileRelativePath))
   if (!hasPapelizSyncVaultAdapterWholeFileAccess(papelizVaultAdapter)) {
     return {
       listSyncableVaultFileStats: rejectWithoutWholeFileAccess,
       readVaultFileBytes: rejectWithoutWholeFileAccess,
       writeVaultFileBytes: rejectWithoutWholeFileAccess,
-      renameVaultFile: (fromVaultFileRelativePath, toVaultFileRelativePath) => papelizVaultAdapter.renameVaultEntry(fromVaultFileRelativePath, toVaultFileRelativePath),
-      moveVaultFileToTrash: (vaultFileRelativePath) => papelizVaultAdapter.moveVaultEntryToTrash(vaultFileRelativePath),
+      renameVaultFile,
+      moveVaultFileToTrash,
     }
   }
   return {
     listSyncableVaultFileStats: () => papelizVaultAdapter.listSyncableVaultFileStats(),
     readVaultFileBytes: (vaultFileRelativePath) => papelizVaultAdapter.readVaultFileBytes(vaultFileRelativePath),
-    writeVaultFileBytes: (vaultFileRelativePath, vaultFileBytes) => papelizVaultAdapter.writeVaultFileBytes(vaultFileRelativePath, vaultFileBytes),
-    renameVaultFile: (fromVaultFileRelativePath, toVaultFileRelativePath) => papelizVaultAdapter.renameVaultEntry(fromVaultFileRelativePath, toVaultFileRelativePath),
-    moveVaultFileToTrash: (vaultFileRelativePath) => papelizVaultAdapter.moveVaultEntryToTrash(vaultFileRelativePath),
+    writeVaultFileBytes: (vaultFileRelativePath, vaultFileBytes) =>
+      runSyncVaultChangeExclusively(() => papelizVaultAdapter.writeVaultFileBytes(vaultFileRelativePath, vaultFileBytes)),
+    renameVaultFile,
+    moveVaultFileToTrash,
   }
 }

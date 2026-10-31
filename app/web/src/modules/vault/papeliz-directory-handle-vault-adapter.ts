@@ -3,12 +3,14 @@ import {
   getVaultEntryName,
   getVaultEntryParentFolderRelativePath,
   isPapelizVaultSettingsFileName,
+  isVaultFileRelativePathSyncable,
   isVaultNoteFileName,
   isVaultRelativePathInsideFolder,
   isVaultRelativePathWritableByPapeliz,
   joinVaultRelativePath,
   papelizVaultRootFolderRelativePath,
   papelizVaultSettingsFolderName,
+  papelizVaultSyncedHiddenFolderNames,
   papelizVaultTrashFolderName,
   pickFreeVaultEntryName,
   splitVaultRelativePath,
@@ -16,15 +18,22 @@ import {
 
 type PapelizVaultEntryHandle = FileSystemFileHandle | FileSystemDirectoryHandle
 
+// One file Papeliz Sync carries, with its size and last change, under the names the Sync engine reads.
+export interface PapelizVaultSyncableFileStat {
+  vaultFileRelativePath: string
+  vaultFileByteLength: number
+  vaultFileModifiedAt: number
+}
+
 // Writes a file's whole contents. Each kind of vault writes its own way: a folder on disk with
 // createWritable(), a browser vault with createWritable() or a worker (papeliz-browser-vault-file-writer.ts).
 export type PapelizVaultFileContentsWriter = (vaultFileHandle: FileSystemFileHandle, vaultFileContents: string | Blob) => Promise<void>
 
 // Listed under Show Hidden but never opened: it holds no notes and can be very large.
 const papelizVaultGitFolderName = '.git'
-// How often, and how far apart, a note being swapped in by another tab is read again.
-const papelizVaultNoteReadAttemptCount = 4
-const papelizVaultNoteReadPauseMilliseconds = 40
+// How often, and how far apart, a file being swapped in by another tab is read again.
+const papelizVaultFileReadAttemptCount = 4
+const papelizVaultFileReadPauseMilliseconds = 40
 
 // Folder listings type their entries as the base FileSystemHandle; `kind` tells the two apart.
 function asPapelizVaultEntryHandle(fileSystemHandle: FileSystemHandle): PapelizVaultEntryHandle {
@@ -93,17 +102,47 @@ export abstract class PapelizDirectoryHandleVaultAdapter implements PapelizVault
   async readVaultNoteText(vaultNoteRelativePath: string): Promise<string> {
     const vaultParentFolderHandle = await this.getVaultFolderHandle(getVaultEntryParentFolderRelativePath(vaultNoteRelativePath))
     const vaultNoteFileHandle = await vaultParentFolderHandle.getFileHandle(getVaultEntryName(vaultNoteRelativePath))
-    // A note another tab is saving right now can't be read for a moment (its new contents swapped in
-    // under a file just taken), so it is read again, a few times.
-    for (let vaultNoteReadAttempt = 1; ; vaultNoteReadAttempt += 1) {
-      try {
-        return await (await vaultNoteFileHandle.getFile()).text()
-      } catch (vaultNoteReadError) {
-        const isNoteBeingSwappedIn = (vaultNoteReadError as { name?: unknown } | null)?.name === 'NotReadableError'
-        if (!isNoteBeingSwappedIn || vaultNoteReadAttempt >= papelizVaultNoteReadAttemptCount) throw vaultNoteReadError
-        await new Promise((resolveReadPause) => setTimeout(resolveReadPause, papelizVaultNoteReadPauseMilliseconds))
+    return readVaultFileWhileAnotherTabSwapsItIn(async () => (await vaultNoteFileHandle.getFile()).text())
+  }
+
+  // Papeliz Sync's own access (papeliz-sync-local-vault-files.ts): every file it carries, whole, with
+  // sizes and times (papeliz-vault-relative-paths.ts says which). Hidden folders and files stay out,
+  // except `.papeliz/` and `.csessions/` at the top.
+  async listSyncableVaultFileStats(): Promise<PapelizVaultSyncableFileStat[]> {
+    const syncableVaultFileStats: PapelizVaultSyncableFileStat[] = []
+    const collectVaultFolderSyncableFiles = async (vaultFolderHandle: FileSystemDirectoryHandle, vaultFolderRelativePath: string) => {
+      for await (const [vaultEntryName, listedVaultEntryHandle] of vaultFolderHandle.entries()) {
+        const vaultEntryRelativePath = joinVaultRelativePath(vaultFolderRelativePath, vaultEntryName)
+        const vaultEntryHandle = asPapelizVaultEntryHandle(listedVaultEntryHandle)
+        if (vaultEntryHandle.kind === 'directory') {
+          const isSyncedHiddenFolder = vaultFolderRelativePath === papelizVaultRootFolderRelativePath && papelizVaultSyncedHiddenFolderNames.includes(vaultEntryName)
+          if (!vaultEntryName.startsWith('.') || isSyncedHiddenFolder) await collectVaultFolderSyncableFiles(vaultEntryHandle, vaultEntryRelativePath)
+        } else if (isVaultFileRelativePathSyncable(vaultEntryRelativePath)) {
+          const vaultFile = await vaultEntryHandle.getFile()
+          syncableVaultFileStats.push({ vaultFileRelativePath: vaultEntryRelativePath, vaultFileByteLength: vaultFile.size, vaultFileModifiedAt: vaultFile.lastModified })
+        }
       }
     }
+    await collectVaultFolderSyncableFiles(this.vaultRootFolderHandle, papelizVaultRootFolderRelativePath)
+    return syncableVaultFileStats
+  }
+
+  async readVaultFileBytes(vaultFileRelativePath: string): Promise<Uint8Array> {
+    const vaultParentFolderHandle = await this.getVaultFolderHandle(getVaultEntryParentFolderRelativePath(vaultFileRelativePath))
+    const vaultFileHandle = await vaultParentFolderHandle.getFileHandle(getVaultEntryName(vaultFileRelativePath))
+    return readVaultFileWhileAnotherTabSwapsItIn(async () => new Uint8Array(await (await vaultFileHandle.getFile()).arrayBuffer()))
+  }
+
+  // Writes the whole file, making its folders. Only a file Sync carries.
+  async writeVaultFileBytes(vaultFileRelativePath: string, vaultFileBytes: Uint8Array): Promise<void> {
+    if (!isVaultFileRelativePathSyncable(vaultFileRelativePath)) throw new PapelizVaultOperationError('Not Synced')
+    let vaultParentFolderHandle = this.vaultRootFolderHandle
+    for (const vaultPathSegment of splitVaultRelativePath(getVaultEntryParentFolderRelativePath(vaultFileRelativePath))) {
+      vaultParentFolderHandle = await vaultParentFolderHandle.getDirectoryHandle(vaultPathSegment, { create: true })
+    }
+    const vaultFileHandle = await vaultParentFolderHandle.getFileHandle(getVaultEntryName(vaultFileRelativePath), { create: true })
+    await this.writeVaultFileContents(vaultFileHandle, new Blob([vaultFileBytes.slice()]))
+    this.noteVaultChanged()
   }
 
   async writeVaultNoteText(vaultNoteRelativePath: string, vaultNoteText: string): Promise<void> {
@@ -267,6 +306,20 @@ export abstract class PapelizDirectoryHandleVaultAdapter implements PapelizVault
       throw vaultCopyError
     }
     await sourceVaultParentFolderHandle.removeEntry(sourceVaultEntryName, { recursive: sourceVaultEntryHandle.kind === 'directory' })
+  }
+}
+
+// A file another tab is saving right now can't be read for a moment (its new contents swapped in
+// under a file just taken), so it is read again, a few times.
+async function readVaultFileWhileAnotherTabSwapsItIn<VaultFileContents>(readVaultFileContents: () => Promise<VaultFileContents>): Promise<VaultFileContents> {
+  for (let vaultFileReadAttempt = 1; ; vaultFileReadAttempt += 1) {
+    try {
+      return await readVaultFileContents()
+    } catch (vaultFileReadError) {
+      const isFileBeingSwappedIn = (vaultFileReadError as { name?: unknown } | null)?.name === 'NotReadableError'
+      if (!isFileBeingSwappedIn || vaultFileReadAttempt >= papelizVaultFileReadAttemptCount) throw vaultFileReadError
+      await new Promise((resolveReadPause) => setTimeout(resolveReadPause, papelizVaultFileReadPauseMilliseconds))
+    }
   }
 }
 

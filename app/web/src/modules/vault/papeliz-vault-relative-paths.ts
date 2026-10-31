@@ -88,6 +88,27 @@ export function isVaultRelativePathWritableByPapeliz(vaultEntryRelativePath: str
   return checkedVaultPathSegments.every((vaultPathSegment) => !vaultPathSegment.startsWith('.'))
 }
 
+// A browser vault's own file in `.papeliz/`, with its name in this browser (papeliz-browser-vaults.ts).
+export const papelizBrowserVaultSettingsFileName = 'browser-vault.json'
+// Papeliz's own hidden folders at the vault's top that Papeliz Sync carries: its settings and its
+// saved chats. The earlier `.chatsession/` doesn't sync.
+export const papelizVaultSyncedHiddenFolderNames: readonly string[] = [papelizVaultSettingsFolderName, papelizVaultChatSessionFolderName]
+
+// A file Papeliz Sync reads and writes: any file outside hidden folders, or one inside `.papeliz/` or
+// `.csessions/` at the vault's top. Never `.trash/`, `.git/`, another hidden folder or a hidden file,
+// and never a browser vault's `.papeliz/browser-vault.json`, which names it in one browser only:
+// two browser vaults syncing would otherwise take each other's names.
+export function isVaultFileRelativePathSyncable(vaultFileRelativePath: string): boolean {
+  const vaultPathSegments = splitVaultRelativePath(vaultFileRelativePath)
+  if (vaultPathSegments.length === 0) return false
+  if (vaultPathSegments.join('/') === `${papelizVaultSettingsFolderName}/${papelizBrowserVaultSettingsFileName}`) return false
+  return vaultPathSegments.every(
+    (vaultPathSegment, vaultPathSegmentIndex) =>
+      !vaultPathSegment.startsWith('.') ||
+      (vaultPathSegmentIndex === 0 && vaultPathSegments.length > 1 && papelizVaultSyncedHiddenFolderNames.includes(vaultPathSegment)),
+  )
+}
+
 // Characters that Windows, macOS or Linux refuse in a file name, plus the "/" that separates folders.
 const papelizVaultEntryNameForbiddenCharacters = /[\\/:*?"<>|]/
 

@@ -6,12 +6,11 @@ import {
   deletePapelizBrowserVault,
   getPapelizBrowserVaultEnvironment,
   getPapelizBrowserVaultFolderHandle,
-  papelizBrowserVaultSettingsFileName,
   type PapelizBrowserVaultEnvironment,
   type PapelizBrowserVaultRecord,
 } from './papeliz-browser-vaults'
 import { PapelizVaultOperationError } from './papeliz-vault-adapter'
-import { papelizVaultSettingsFolderName, pickFreeVaultEntryName } from './papeliz-vault-relative-paths'
+import { papelizBrowserVaultSettingsFileName, papelizVaultSettingsFolderName, pickFreeVaultEntryName } from './papeliz-vault-relative-paths'
 
 // Starting a browser vault from notes people already have: a `.zip` (a Papeliz backup, or any zip of
 // notes) or a folder picked with the browser's folder upload. An import always makes a new vault; it

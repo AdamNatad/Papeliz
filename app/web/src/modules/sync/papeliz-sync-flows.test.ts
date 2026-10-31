@@ -1,4 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { buildPapelizBrowserVaultWritesLockName } from '../vault/papeliz-browser-vault-locks'
+import { createPapelizBrowserVault, openPapelizBrowserVault } from '../vault/papeliz-browser-vaults'
+import { createPapelizFakeBrowserVaultEnvironment } from '../vault/papeliz-fake-browser-vault-environment.test-support'
 import { PapelizInMemoryVaultAdapter } from '../vault/papeliz-in-memory-vault-adapter'
 import { createPapelizSyncFakeEngine, papelizSyncFakeEnginePassphrase, papelizSyncFakeEngineRecoveryKeyText, readPapelizSyncFakeEngineStoragePlaceForNewAccount } from './papeliz-sync-fake-engine'
 import {
@@ -214,6 +217,30 @@ describe('the open vault’s files, as Sync reads them', () => {
     expect((await vaultAdapter.listVaultTreeEntries()).map((vaultTreeEntry) => vaultTreeEntry.vaultEntryRelativePath)).toContain('Plans/Plan.md')
     expect(await syncLocalVaultFiles.moveVaultFileToTrash('Plans/Plan.md')).toMatch(/^\.trash\//)
     await expect(syncLocalVaultFiles.listSyncableVaultFileStats()).rejects.toThrow('Not Supported Yet')
+  })
+
+  it('write a browser vault’s file only once its writes lock is free, as a save in another tab does', async () => {
+    const { browserVaultEnvironment, fakeLockManager } = createPapelizFakeBrowserVaultEnvironment()
+    const browserVaultRecord = await createPapelizBrowserVault('Research notes', browserVaultEnvironment)
+    const openVaultResult = await openPapelizBrowserVault(browserVaultRecord, browserVaultEnvironment)
+    if (openVaultResult.openVaultOutcome !== 'opened') throw new Error('The test vault didn’t open.')
+    const browserVaultAdapter = openVaultResult.papelizOpenVault.papelizVaultAdapter
+    const syncLocalVaultFiles = createPapelizSyncLocalVaultFiles(browserVaultAdapter)
+    // Another tab's save holds the writes lock until the test lets it go.
+    let finishOtherTabSave: () => void = () => undefined
+    const otherTabSave = fakeLockManager.request(
+      buildPapelizBrowserVaultWritesLockName(browserVaultRecord.papelizVaultId),
+      { mode: 'exclusive' },
+      () => new Promise<void>((resolveOtherTabSave) => (finishOtherTabSave = resolveOtherTabSave)),
+    )
+    const syncWrite = syncLocalVaultFiles.writeVaultFileBytes('Sources/Interviews.md', new TextEncoder().encode('# Interviews\n'))
+    await new Promise((resolveTurn) => setTimeout(resolveTurn, 10))
+    expect((await browserVaultAdapter.listVaultTreeEntries()).map((vaultTreeEntry) => vaultTreeEntry.vaultEntryRelativePath)).not.toContain('Sources/Interviews.md')
+    finishOtherTabSave()
+    await Promise.all([otherTabSave, syncWrite])
+    expect(await browserVaultAdapter.readVaultNoteText('Sources/Interviews.md')).toBe('# Interviews\n')
+    // The vault's own name file in this browser never reaches Sync.
+    expect((await syncLocalVaultFiles.listSyncableVaultFileStats()).map((syncableVaultFileStat) => syncableVaultFileStat.vaultFileRelativePath)).toEqual(['Sources/Interviews.md'])
   })
 })
 

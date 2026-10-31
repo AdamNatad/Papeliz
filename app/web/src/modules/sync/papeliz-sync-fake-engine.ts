@@ -11,6 +11,7 @@ import type {
   PapelizSyncEnginePlatform,
   PapelizSyncEngineSnapshot,
   PapelizSyncFileVersionReading,
+  PapelizSyncLocalVaultFiles,
   PapelizSyncLocalVaultReading,
   PapelizSyncNoteClashSummary,
   PapelizSyncNoteClashTexts,
@@ -120,21 +121,54 @@ export interface PapelizSyncFakeEngineOptions {
 interface PapelizSyncFakeAttachedVault {
   papelizVaultId: string
   papelizVaultDisplayName: string
+  syncLocalVaultFiles: PapelizSyncLocalVaultFiles
 }
 
-// A synced vault on the fake account that no vault on this device syncs with yet.
+// A synced vault on the fake account that no vault on this device syncs with yet. A download writes
+// its few notes into the vault, through the vault's own files, as the real engine writes every file.
 interface PapelizSyncFakeAccountOnlyVault {
   papelizSyncVaultId: string
   syncVaultName: string
   syncVaultFileCount: number
   syncVaultStoredByteLength: number
   syncVaultCreatedDaysAgo: number
+  syncVaultFakeNoteTextsByRelativePath: Readonly<Record<string, string>>
 }
 
 const papelizSyncFakeEngineNewDeviceAccountVaults: readonly PapelizSyncFakeAccountOnlyVault[] = [
-  { papelizSyncVaultId: 'pzvault_dddddddddddddddddddddddddd', syncVaultName: 'Research notes', syncVaultFileCount: 1482, syncVaultStoredByteLength: 310e6, syncVaultCreatedDaysAgo: 60 },
-  { papelizSyncVaultId: 'pzvault_eeeeeeeeeeeeeeeeeeeeeeeeee', syncVaultName: 'Work', syncVaultFileCount: 2140, syncVaultStoredByteLength: 1.2e9, syncVaultCreatedDaysAgo: 45 },
-  { papelizSyncVaultId: 'pzvault_ffffffffffffffffffffffffff', syncVaultName: 'Recipes', syncVaultFileCount: 64, syncVaultStoredByteLength: 3.1e6, syncVaultCreatedDaysAgo: 12 },
+  {
+    papelizSyncVaultId: 'pzvault_dddddddddddddddddddddddddd',
+    syncVaultName: 'Research notes',
+    syncVaultFileCount: 1482,
+    syncVaultStoredByteLength: 310e6,
+    syncVaultCreatedDaysAgo: 60,
+    syncVaultFakeNoteTextsByRelativePath: {
+      'Reading list.md': '# Reading list\n\n- [[Sources/Interviews]]\n',
+      'Sources/Interviews.md': '# Interviews\n\nDownloaded by the fake engine.\n',
+    },
+  },
+  {
+    papelizSyncVaultId: 'pzvault_eeeeeeeeeeeeeeeeeeeeeeeeee',
+    syncVaultName: 'Work',
+    syncVaultFileCount: 2140,
+    syncVaultStoredByteLength: 1.2e9,
+    syncVaultCreatedDaysAgo: 45,
+    syncVaultFakeNoteTextsByRelativePath: {
+      'Projects/Launch plan.md': '# Launch plan\n\nDownloaded by the fake engine.\n',
+      'Meetings/Weekly.md': '# Weekly\n\nDownloaded by the fake engine.\n',
+    },
+  },
+  {
+    papelizSyncVaultId: 'pzvault_ffffffffffffffffffffffffff',
+    syncVaultName: 'Recipes',
+    syncVaultFileCount: 64,
+    syncVaultStoredByteLength: 3.1e6,
+    syncVaultCreatedDaysAgo: 12,
+    syncVaultFakeNoteTextsByRelativePath: {
+      'Breakfast/Pancakes.md': '# Pancakes\n\nDownloaded by the fake engine.\n',
+      'Dinner/Adobo.md': '# Adobo\n\nDownloaded by the fake engine.\n',
+    },
+  },
 ]
 
 function listPapelizSyncFakeAccountOnlyVaults(fakeEngineScenario: PapelizSyncFakeEngineScenario): PapelizSyncFakeAccountOnlyVault[] {
@@ -588,8 +622,8 @@ export class PapelizSyncFakeEngine implements PapelizSyncEngine {
 
   attachSyncToOpenVault(openLocalVault: PapelizSyncOpenLocalVault): () => void {
     this.fakeEngineCallNames.push('attachSyncToOpenVault')
-    const { papelizVaultId, papelizVaultDisplayName } = openLocalVault
-    this.fakeAttachedVaultsById.set(papelizVaultId, { papelizVaultId, papelizVaultDisplayName })
+    const { papelizVaultId, papelizVaultDisplayName, syncLocalVaultFiles } = openLocalVault
+    this.fakeAttachedVaultsById.set(papelizVaultId, { papelizVaultId, papelizVaultDisplayName, syncLocalVaultFiles })
     // The scenarios past set-up start with this device already syncing whatever vault it opens; a new
     // device syncs only what it downloads.
     const isSyncedInScenario =
@@ -639,8 +673,25 @@ export class PapelizSyncFakeEngine implements PapelizSyncEngine {
     return createFakeDoneOutcome(fakeAccountVaults)
   }
 
+  // A download's few notes, written into the vault before it reads as synced. A vault whose files
+  // can't be written (one without whole-file access) still finishes, with a warning.
+  private async writeFakeDownloadedVaultFiles(papelizVaultId: string): Promise<void> {
+    const syncLocalVaultFiles = this.fakeAttachedVaultsById.get(papelizVaultId)?.syncLocalVaultFiles
+    const downloadedSyncVaultId = [...this.fakeDownloadedPapelizVaultIdsBySyncVaultId].find(([, downloadedPapelizVaultId]) => downloadedPapelizVaultId === papelizVaultId)?.[0]
+    const fakeAccountOnlyVault = this.fakeAccountOnlyVaults.find((accountOnlyVault) => accountOnlyVault.papelizSyncVaultId === downloadedSyncVaultId)
+    if (syncLocalVaultFiles === undefined || fakeAccountOnlyVault === undefined) return
+    try {
+      for (const [vaultNoteRelativePath, vaultNoteText] of Object.entries(fakeAccountOnlyVault.syncVaultFakeNoteTextsByRelativePath)) {
+        await syncLocalVaultFiles.writeVaultFileBytes(vaultNoteRelativePath, new TextEncoder().encode(vaultNoteText))
+      }
+    } catch (fakeVaultWriteError) {
+      console.warn('Papeliz Sync fake engine: the downloaded notes weren’t written.', fakeVaultWriteError)
+    }
+  }
+
   // The fake's first upload or download: the progress counts up in the dev server (ten steps), or
-  // finishes at once in tests. `download-stops` stops one download halfway, offline, once.
+  // finishes as soon as a download's notes are written in tests. `download-stops` stops one download
+  // halfway, offline, once.
   private runFakeFirstTransfer(
     papelizVaultId: string,
     syncVaultTransferKind: 'first-upload' | 'first-download' | 'connect',
@@ -648,7 +699,12 @@ export class PapelizSyncFakeEngine implements PapelizSyncEngine {
     syncAlreadyTransferredFileCount = 0,
   ): void {
     if (this.fakeCallDelayMilliseconds === 0) {
-      this.addFakeLocalVault(papelizVaultId, null)
+      if (syncVaultTransferKind !== 'first-download') {
+        this.addFakeLocalVault(papelizVaultId, null)
+        return
+      }
+      this.addFakeLocalVault(papelizVaultId, { syncVaultTransferKind, syncTransferredFileCount: syncAlreadyTransferredFileCount, syncTransferFileCount })
+      void this.writeFakeDownloadedVaultFiles(papelizVaultId).then(() => this.setFakeSyncVaultStatus(papelizVaultId, this.readFakeSteadySyncVaultStatus(), null))
       return
     }
     this.addFakeLocalVault(papelizVaultId, { syncVaultTransferKind, syncTransferredFileCount: syncAlreadyTransferredFileCount, syncTransferFileCount })
@@ -668,7 +724,7 @@ export class PapelizSyncFakeEngine implements PapelizSyncEngine {
       }
       if (syncTransferredFileCount >= syncTransferFileCount) {
         clearInterval(fakeTransferTimer)
-        this.setFakeSyncVaultStatus(papelizVaultId, this.readFakeSteadySyncVaultStatus(), null)
+        void this.writeFakeDownloadedVaultFiles(papelizVaultId).then(() => this.setFakeSyncVaultStatus(papelizVaultId, this.readFakeSteadySyncVaultStatus(), null))
         return
       }
       this.setFakeSyncVaultStatus(
