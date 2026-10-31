@@ -111,7 +111,7 @@ export function PapelizSyncSetUpDialog({ papelizSyncEngine, syncEngineSnapshot, 
       <PapelizSyncFailureLine className="mt-3">{setUpActionState.setUpFailureWords}</PapelizSyncFailureLine>
     ) : setUpActionState.setUpActionKind === 'fresh-sign-in-needed' ? (
       <div className="mt-3 rounded-xl border border-papeliz-blue-line bg-papeliz-blue-soft px-3 py-2.5 text-[12.5px] leading-[1.45]">
-        <p className="font-semibold">Sign in again to continue</p>
+        <p className="font-semibold">Confirm it’s you</p>
         <p className="mt-0.5">This needs a sign-in from the last 10 minutes, so Papeliz knows it’s you. The sign-in page opens in a new tab, then this carries on.</p>
         <PapelizPillButton
           pillButtonVariant="primary"

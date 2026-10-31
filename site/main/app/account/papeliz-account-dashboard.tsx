@@ -135,7 +135,7 @@ function PapelizAccountDeleteAccountRow({
       />
       {accountDeleteStageKind !== 'closed' && (
         <PapelizAccountDialog
-          papelizAccountDialogTitle={accountDeleteStageKind === 'fresh-sign-in-needed' ? 'Sign In Again to Continue' : 'Delete your account?'}
+          papelizAccountDialogTitle={accountDeleteStageKind === 'fresh-sign-in-needed' ? 'Confirm It’s You' : 'Delete your account?'}
           onPapelizAccountDialogClose={() => {
             if (!accountDeleteIsRunning) closePapelizAccountDeleteDialog()
           }}

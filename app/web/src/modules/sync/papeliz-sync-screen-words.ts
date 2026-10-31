@@ -283,7 +283,7 @@ export function describePapelizSyncStatusForStatusBar(
 const papelizSyncActionFailureWords: Record<PapelizSyncActionFailureKind, string> = {
   offline: 'You’re offline. Try again once you’re back online.',
   'signed-out': 'Sign in to Papeliz Sync first.',
-  'fresh-sign-in-required': 'Sign in again to continue: this needs a sign-in from the last 10 minutes.',
+  'fresh-sign-in-required': 'Confirm it’s you: this needs a sign-in from the last 10 minutes.',
   locked: 'Enter this vault’s passphrase on this device first.',
   'subscription-required': 'This needs a Papeliz Sync subscription.',
   'read-only': 'Your subscription ended, so Sync can only be read.',
