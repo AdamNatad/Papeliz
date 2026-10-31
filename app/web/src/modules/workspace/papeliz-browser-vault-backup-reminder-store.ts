@@ -7,7 +7,7 @@ import {
   type PapelizBrowserVaultRecord,
 } from '../vault/papeliz-browser-vaults'
 import { describePapelizVaultError } from '../vault/papeliz-vault-adapter'
-import { choosePapelizExportFileDestination, writePapelizExportFile } from './papeliz-export-file-save'
+import { buildThenSavePapelizExportFile } from './papeliz-export-file-save'
 
 // A browser vault's backups: Download backup, and the reminder (Settings › Reminder). The reminder is
 // due only while the vault has changes since its last backup, once its interval has passed since the
@@ -40,20 +40,19 @@ export type PapelizBrowserVaultBackupDownloadResult =
   | { browserVaultBackupDownloadOutcome: 'cancelled' }
   | { browserVaultBackupDownloadOutcome: 'failed'; browserVaultBackupFailureMessage: string }
 
-// Download backup, from a click: Chrome and Edge ask where to save it first (only a click may open
-// their save dialog), other browsers download it. It counts as done once the file is handed over.
+// Download backup, from a click: the backup is built first, then Chrome and Edge ask where to save it
+// (shortly after the click only; a longer build downloads), other browsers download it. It counts as
+// done once the file is handed over.
 export async function downloadPapelizBrowserVaultBackupFromClick(browserVaultRecord: PapelizBrowserVaultRecord): Promise<PapelizBrowserVaultBackupDownloadResult> {
   const browserVaultBackupDate = new Date()
   const browserVaultBackupFileName = buildPapelizBrowserVaultBackupFileName(browserVaultRecord.papelizVaultDisplayName, browserVaultBackupDate)
-  const backupFileDestination = await choosePapelizExportFileDestination(browserVaultBackupFileName, {
-    exportFileDescription: 'Vault backup (.zip)',
-    exportFileMediaType: 'application/zip',
-    exportFileExtension: '.zip',
-  })
-  if (backupFileDestination === null) return { browserVaultBackupDownloadOutcome: 'cancelled' }
   try {
-    const backupZipBlob = await createPapelizBrowserVaultBackupZipBlob(browserVaultRecord, browserVaultBackupDate)
-    await writePapelizExportFile(backupFileDestination, browserVaultBackupFileName, backupZipBlob)
+    const { exportFileSaveOutcome: backupFileSaveOutcome } = await buildThenSavePapelizExportFile(
+      browserVaultBackupFileName,
+      { exportFileDescription: 'Vault backup (.zip)', exportFileMediaType: 'application/zip', exportFileExtension: '.zip' },
+      async () => ({ exportFileBlob: await createPapelizBrowserVaultBackupZipBlob(browserVaultRecord, browserVaultBackupDate) }),
+    )
+    if (backupFileSaveOutcome === 'save-dialog-closed') return { browserVaultBackupDownloadOutcome: 'cancelled' }
     await notePapelizBrowserVaultBackedUp(browserVaultRecord.papelizVaultId)
     return { browserVaultBackupDownloadOutcome: 'downloaded', browserVaultBackupFileName }
   } catch (browserVaultBackupError) {

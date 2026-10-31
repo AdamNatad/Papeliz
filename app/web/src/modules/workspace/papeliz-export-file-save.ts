@@ -1,6 +1,10 @@
-// Saving an export where the person chooses. Chrome and Edge show their save dialog, but only right
-// after a click, so the place is chosen first and the file written when the export is done. Other
-// browsers download it. Also the safe names every export's files get.
+import { describePapelizVaultError, PapelizVaultOperationError } from '../vault/papeliz-vault-adapter'
+
+// Saving an export where the person chooses. The file is built first and the save dialog opens when
+// it is done: Chrome creates the chosen file as soon as its dialog closes, so a cancelled or failed
+// export never leaves an empty file behind. Chrome and Edge open the dialog only shortly after a
+// click; an export that takes longer downloads instead, as it does in browsers with no dialog. Also
+// the safe names every export's files get.
 
 // Characters a file name can't hold on Windows, macOS or Linux.
 const papelizFileNameUnsafeCharacterPattern = /[<>:"/\\|?*\p{Cc}]/gu
@@ -11,7 +15,7 @@ export function getPapelizSafeFileNameStem(fileNameText: string, fallbackFileNam
   return safeFileNameStem.length > 0 ? safeFileNameStem : fallbackFileNameStem
 }
 
-export type PapelizExportFileDestination = { exportFileDestinationKind: 'chosen-file'; exportFileHandle: FileSystemFileHandle } | { exportFileDestinationKind: 'download' }
+type PapelizExportFileDestination = { exportFileDestinationKind: 'chosen-file'; exportFileHandle: FileSystemFileHandle } | { exportFileDestinationKind: 'download' }
 
 export interface PapelizExportFileKind {
   exportFileDescription: string
@@ -19,8 +23,12 @@ export interface PapelizExportFileKind {
   exportFileExtension: string
 }
 
+// Where a built export went: the file chosen in the save dialog, the downloads, or nowhere because
+// the person closed the dialog.
+export type PapelizExportFileSaveOutcome = 'saved-to-chosen-file' | 'downloaded' | 'save-dialog-closed'
+
 // Null when the person closes the save dialog.
-export async function choosePapelizExportFileDestination(exportFileName: string, exportFileKind: PapelizExportFileKind): Promise<PapelizExportFileDestination | null> {
+async function choosePapelizExportFileDestination(exportFileName: string, exportFileKind: PapelizExportFileKind): Promise<PapelizExportFileDestination | null> {
   if (window.showSaveFilePicker === undefined) return { exportFileDestinationKind: 'download' }
   try {
     const exportFileHandle = await window.showSaveFilePicker({
@@ -35,11 +43,18 @@ export async function choosePapelizExportFileDestination(exportFileName: string,
   }
 }
 
-export async function writePapelizExportFile(exportFileDestination: PapelizExportFileDestination, exportFileName: string, exportFileBlob: Blob): Promise<void> {
+async function writePapelizExportFile(exportFileDestination: PapelizExportFileDestination, exportFileName: string, exportFileBlob: Blob): Promise<void> {
   if (exportFileDestination.exportFileDestinationKind === 'chosen-file') {
-    const exportFileWritableStream = await exportFileDestination.exportFileHandle.createWritable()
-    await exportFileWritableStream.write(exportFileBlob)
-    await exportFileWritableStream.close()
+    let exportFileWritableStream: FileSystemWritableFileStream | null = null
+    try {
+      exportFileWritableStream = await exportFileDestination.exportFileHandle.createWritable()
+      await exportFileWritableStream.write(exportFileBlob)
+      await exportFileWritableStream.close()
+    } catch (exportFileWriteError) {
+      // The write stops unfinished; the file the dialog created stays as it was, maybe empty.
+      await exportFileWritableStream?.abort().catch(() => undefined)
+      throw new PapelizVaultOperationError(`“${exportFileName}” couldn’t be written where you chose (${describePapelizVaultError(exportFileWriteError)}), so the file there may be empty`)
+    }
     return
   }
   const exportFileObjectUrl = URL.createObjectURL(exportFileBlob)
@@ -51,4 +66,18 @@ export async function writePapelizExportFile(exportFileDestination: PapelizExpor
   exportFileDownloadLink.remove()
   // The browser starts the download from the link; the address can go once it has.
   window.setTimeout(() => URL.revokeObjectURL(exportFileObjectUrl), 60_000)
+}
+
+// Builds the export, then saves it: the save dialog opens only once the file is ready, so stopping
+// or failing while it is built creates no file. A failed write after the dialog says so plainly.
+export async function buildThenSavePapelizExportFile<PapelizBuiltExport extends { exportFileBlob: Blob }>(
+  exportFileName: string,
+  exportFileKind: PapelizExportFileKind,
+  buildExportFile: () => Promise<PapelizBuiltExport>,
+): Promise<{ builtExport: PapelizBuiltExport; exportFileSaveOutcome: PapelizExportFileSaveOutcome }> {
+  const builtExport = await buildExportFile()
+  const exportFileDestination = await choosePapelizExportFileDestination(exportFileName, exportFileKind)
+  if (exportFileDestination === null) return { builtExport, exportFileSaveOutcome: 'save-dialog-closed' }
+  await writePapelizExportFile(exportFileDestination, exportFileName, builtExport.exportFileBlob)
+  return { builtExport, exportFileSaveOutcome: exportFileDestination.exportFileDestinationKind === 'chosen-file' ? 'saved-to-chosen-file' : 'downloaded' }
 }

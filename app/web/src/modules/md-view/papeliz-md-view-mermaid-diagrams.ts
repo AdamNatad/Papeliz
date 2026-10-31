@@ -321,6 +321,22 @@ function shortenMermaidErrorMessage(mermaidError: unknown): string {
   return firstErrorLine.length > 160 ? `${firstErrorLine.slice(0, 157)}…` : firstErrorLine
 }
 
+// An HTML tag in a diagram's source, `<name …>`, with its quoted values read whole.
+const papelizMermaidSourceHtmlTagPattern = /<[A-Za-z][^\s/>]*(?:[\s/](?:"[^"]*"|'[^']*'|[^"'>])*)?>/g
+// Inside such a tag: a quoted value, kept as it is, or an event-handler attribute with its value
+// (`onerror=alert(1)`, `onload="…"`, `onclick='…'`, `onmouseover=#quot;…#quot;` in Mermaid's quotes).
+const papelizMermaidSourceHtmlTagPartPattern = /"[^"]*"|'[^']*'|(?<=[\s/"'])on[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|#(?:quot|34);[\s\S]*?#(?:quot|34);|[^\s>]*)/gi
+
+// Mermaid's strict mode takes a label's event handlers out (`<img src=x onerror=…>` is drawn as
+// `<img src="x">`), but its sanitizer first reads the label in a scratch HTML document, and Chromium
+// reports any handler it reads there to the page's security policy, though nothing in that document
+// can run. Taking the handlers out of the source first draws the same diagram, with nothing reported.
+export function removeEventHandlerAttributesFromMermaidDiagramSource(mermaidDiagramSource: string): string {
+  return mermaidDiagramSource.replace(papelizMermaidSourceHtmlTagPattern, (htmlTagText) =>
+    htmlTagText.replace(papelizMermaidSourceHtmlTagPartPattern, (htmlTagPartText) => (/^["']/.test(htmlTagPartText) ? htmlTagPartText : '')),
+  )
+}
+
 // One draw, after every draw before it: Mermaid's settings are global.
 function queuePapelizMermaidDraw(mermaidDiagramSource: string, describeMermaidSettings: () => Parameters<PapelizMermaidApi['initialize']>[0]): Promise<PapelizMermaidDrawResult> {
   const queuedDraw = papelizMermaidDrawQueue.then(async (): Promise<PapelizMermaidDrawResult> => {
@@ -334,7 +350,7 @@ function queuePapelizMermaidDraw(mermaidDiagramSource: string, describeMermaidSe
     const mermaidDiagramElementId = `papeliz-mermaid-diagram-${papelizMermaidDiagramCount}`
     try {
       papelizMermaidApi.initialize(namesItsOwnMermaidTheme(mermaidDiagramSource) ? keepOnlyPapelizMermaidTypeface(describeMermaidSettings()) : describeMermaidSettings())
-      const { svg: mermaidDiagramSvgText } = await papelizMermaidApi.render(mermaidDiagramElementId, mermaidDiagramSource)
+      const { svg: mermaidDiagramSvgText } = await papelizMermaidApi.render(mermaidDiagramElementId, removeEventHandlerAttributesFromMermaidDiagramSource(mermaidDiagramSource))
       return { mermaidDiagramSvgText }
     } catch (mermaidError) {
       // Mermaid draws in a scratch element under <body>; a failed draw can leave it there.

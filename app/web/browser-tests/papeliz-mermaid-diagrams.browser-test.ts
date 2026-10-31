@@ -238,3 +238,56 @@ test('every diagram type becomes a picture for Word', async ({ page, browserName
     .map((browserDrawFailure) => `${browserDrawFailure.mermaidDiagramSampleLabel}: ${browserDrawFailure.mermaidDiagramErrorMessage}`)
   expect(printPictureErrorMessages).toEqual(expectedPictureErrorMessages)
 })
+
+// A label with an event handler, as the Mermaid check vault's settings note has it.
+const mermaidDiagramSourceWithLabelHandler = 'flowchart LR\n  A["Ampersand &amp; quotes #quot;ok#quot;"] --> B["<b>bold?</b> <img src=x onerror=alert(1)>"]\n  B --> C["Ünïcödé ✓ 日本語"]'
+
+test('a label’s event handler reaches no HTML reader, so the security policy has nothing to block', async ({ page, browserName }) => {
+  // The dev server sends no security policy. This one blocks handlers only, and reports each one the
+  // page reads, even in a scratch document where nothing runs (Chromium does).
+  await page.route('**/*', async (route) => {
+    if (route.request().resourceType() !== 'document') return route.continue()
+    const documentResponse = await route.fetch()
+    await route.fulfill({ response: documentResponse, headers: { ...documentResponse.headers(), 'content-security-policy': "script-src-attr 'none'" } })
+  })
+  await openPapelizInTheme(page, 'light')
+  const labelHandlerReport = await page.evaluate(async (mermaidDiagramSource) => {
+    const reportedPolicyViolations: string[] = []
+    document.addEventListener('securitypolicyviolation', (violationEvent) => reportedPolicyViolations.push(`${violationEvent.violatedDirective} at ${violationEvent.sourceFile}:${violationEvent.lineNumber}`))
+    const waitForPolicyReports = () => new Promise((resolveWait) => setTimeout(resolveWait, 300))
+    // The policy reports here: a handler read in a scratch document.
+    new DOMParser().parseFromString('<img src=x onerror=alert(1)>', 'text/html')
+    await waitForPolicyReports()
+    const controlViolationCount = reportedPolicyViolations.splice(0).length
+
+    const { mountPapelizMermaidDiagram, unmountPapelizMermaidDiagram, drawPapelizMermaidDiagramSvgForExport, drawPapelizMermaidDiagramForPrint, drawPapelizMermaidDiagramPngForPrint } = await import(
+      '/src/modules/md-view/papeliz-md-view-mermaid-diagrams.ts'
+    )
+    const diagramElement = document.createElement('div')
+    document.body.append(diagramElement)
+    await new Promise<void>((resolveDrawn) => mountPapelizMermaidDiagram(diagramElement, mermaidDiagramSource, resolveDrawn))
+    const shownLabelElement = Array.from(diagramElement.querySelectorAll('foreignObject')).find((labelObject) => labelObject.textContent?.includes('bold?'))
+    const shownLabelHtml = shownLabelElement?.querySelector('span, div')?.innerHTML ?? ''
+    unmountPapelizMermaidDiagram(diagramElement)
+    diagramElement.remove()
+    const exportDrawResult = await drawPapelizMermaidDiagramSvgForExport(mermaidDiagramSource, 'dark', () => null)
+    const printDrawResult = await drawPapelizMermaidDiagramForPrint(mermaidDiagramSource, { readPrintColor: () => null, printFontFamily: 'sans-serif' })
+    const printPngResult = await drawPapelizMermaidDiagramPngForPrint(mermaidDiagramSource, { readPrintColor: () => null, printFontFamily: 'sans-serif', printFontFaceCss: '', pngPixelScale: 1 })
+    await waitForPolicyReports()
+    return {
+      controlViolationCount,
+      reportedPolicyViolations,
+      shownLabelHtml,
+      drawErrorMessages: [exportDrawResult, printDrawResult, printPngResult].flatMap((drawResult) => ('mermaidDiagramErrorMessage' in drawResult ? [drawResult.mermaidDiagramErrorMessage] : [])),
+      handlerElementCount: document.querySelectorAll('[onerror], [onload], [onclick]').length,
+    }
+  }, mermaidDiagramSourceWithLabelHandler)
+  if (browserName === 'chromium') expect(labelHandlerReport.controlViolationCount, 'the policy reports a handler read in a scratch document').toBe(1)
+  expect(labelHandlerReport.reportedPolicyViolations).toEqual([])
+  expect(labelHandlerReport.drawErrorMessages).toEqual([])
+  expect(labelHandlerReport.handlerElementCount).toBe(0)
+  // Drawn as strict mode draws it: the bold text and the picture, with no handler.
+  expect(labelHandlerReport.shownLabelHtml).toContain('<b>bold?</b>')
+  expect(labelHandlerReport.shownLabelHtml).toMatch(/<img src="x"[^>]*>/)
+  expect(labelHandlerReport.shownLabelHtml).not.toContain('onerror')
+})

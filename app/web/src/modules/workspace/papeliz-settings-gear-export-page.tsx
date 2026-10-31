@@ -7,7 +7,7 @@ import { PapelizPillButton } from '../ui/papeliz-buttons'
 import { PapelizSlidingChoiceGroup } from '../ui/papeliz-sliding-choice-group'
 import { describePapelizVaultError, PapelizVaultOperationError } from '../vault/papeliz-vault-adapter'
 import { getVaultEntryParentFolderRelativePath } from '../vault/papeliz-vault-relative-paths'
-import { choosePapelizExportFileDestination, writePapelizExportFile, type PapelizExportFileKind } from './papeliz-export-file-save'
+import { buildThenSavePapelizExportFile, type PapelizExportFileKind } from './papeliz-export-file-save'
 import { usePapelizNoteTypographyStore } from './papeliz-note-typography-store'
 import {
   buildPapelizExportNoteTree,
@@ -48,11 +48,11 @@ type PapelizSettingsGearExportRunState =
   | { exportRunKind: 'cancelled' }
   | { exportRunKind: 'failed'; exportFailureMessage: string }
 
-// What an export will save, known before it runs, so the save dialog can open right after the click.
+// What an export will save, and how its file is built.
 interface PapelizSettingsGearPreparedExport {
   exportFileName: string
   exportFileKind: PapelizExportFileKind
-  writeExportFile: (
+  buildExportFile: (
     onExportProgress: (exportedNoteCount: number, exportNoteCount: number) => void,
     exportAbortSignal: AbortSignal,
   ) => Promise<{ exportFileBlob: Blob; exportNotices: readonly string[] }>
@@ -310,7 +310,7 @@ export function PapelizSettingsGearExportPage() {
           exportFileMediaType: docxExportFileKind.docxExportFileMediaType,
           exportFileExtension: docxExportFileKind.docxExportFileExtension,
         },
-        writeExportFile: async (onExportProgress, exportAbortSignal) => {
+        buildExportFile: async (onExportProgress, exportAbortSignal) => {
           const { docxExportFileBlob, docxExportNotices } = await docxExportModule.exportPapelizNotesAsDocx({
             docxExportVault: { vaultAdapter: papelizVaultAdapter, vaultDisplayName: papelizVaultDisplayName },
             docxExportVaultNoteRelativePaths: exportVaultNoteRelativePaths,
@@ -334,7 +334,7 @@ export function PapelizSettingsGearExportPage() {
           exportFileMediaType: pdfExportFileKind.pdfExportFileMediaType,
           exportFileExtension: pdfExportFileKind.pdfExportFileExtension,
         },
-        writeExportFile: async (onExportProgress, exportAbortSignal) => {
+        buildExportFile: async (onExportProgress, exportAbortSignal) => {
           try {
             const { pdfExportFileBlob, pdfExportNotices } = await pdfExportModule.exportPapelizNotesAsPdf({
               pdfExportVault: { vaultAdapter: papelizVaultAdapter, vaultDisplayName: papelizVaultDisplayName },
@@ -374,7 +374,7 @@ export function PapelizSettingsGearExportPage() {
           exportFileMediaType: htmlExportFileKind.htmlExportFileMediaType,
           exportFileExtension: htmlExportFileKind.htmlExportFileExtension,
         },
-        writeExportFile: async (onExportProgress, exportAbortSignal) => {
+        buildExportFile: async (onExportProgress, exportAbortSignal) => {
           const { htmlExportFileBlob } = await htmlExportModule.exportPapelizVaultNotesAsHtml({
             vaultAdapter: papelizVaultAdapter,
             vaultDisplayName: papelizVaultDisplayName,
@@ -395,27 +395,31 @@ export function PapelizSettingsGearExportPage() {
     const exportVaultNoteRelativePaths = everyExportNoteRelativePath.filter((exportNoteRelativePath) => tickedVaultNoteRelativePaths.has(exportNoteRelativePath))
     const preparedExport = await prepareChosenExport(exportVaultNoteRelativePaths)
     if (preparedExport === null) return
-    // Where to save is asked first: the browser's save dialog opens only right after the click.
-    const exportFileDestination = await choosePapelizExportFileDestination(preparedExport.exportFileName, preparedExport.exportFileKind)
-    if (exportFileDestination === null) return
     const exportAbortController = new AbortController()
     exportAbortControllerRef.current = exportAbortController
     setExportRunState({ exportRunKind: 'running', exportedNoteCount: 0, exportNoteCount: exportVaultNoteRelativePaths.length })
     try {
-      // Edits still waiting for autosave go into the export too.
-      await saveAllVaultNotesNow()
-      const { exportFileBlob, exportNotices } = await preparedExport.writeExportFile(
-        (exportedNoteCount, exportNoteCount) => setExportRunState({ exportRunKind: 'running', exportedNoteCount, exportNoteCount }),
-        exportAbortController.signal,
-      )
-      exportAbortController.signal.throwIfAborted()
-      await writePapelizExportFile(exportFileDestination, preparedExport.exportFileName, exportFileBlob)
-      setExportRunState({
-        exportRunKind: 'saved',
-        savedExportFileName: preparedExport.exportFileName,
-        isDownloaded: exportFileDestination.exportFileDestinationKind === 'download',
-        exportNotices,
+      // The file is built before the save dialog opens, so Cancel or a failure saves nothing.
+      const { builtExport, exportFileSaveOutcome } = await buildThenSavePapelizExportFile(preparedExport.exportFileName, preparedExport.exportFileKind, async () => {
+        // Edits still waiting for autosave go into the export too.
+        await saveAllVaultNotesNow()
+        const builtExportFile = await preparedExport.buildExportFile(
+          (exportedNoteCount, exportNoteCount) => setExportRunState({ exportRunKind: 'running', exportedNoteCount, exportNoteCount }),
+          exportAbortController.signal,
+        )
+        exportAbortController.signal.throwIfAborted()
+        return builtExportFile
       })
+      setExportRunState(
+        exportFileSaveOutcome === 'save-dialog-closed'
+          ? { exportRunKind: 'cancelled' }
+          : {
+              exportRunKind: 'saved',
+              savedExportFileName: preparedExport.exportFileName,
+              isDownloaded: exportFileSaveOutcome === 'downloaded',
+              exportNotices: builtExport.exportNotices,
+            },
+      )
     } catch (exportError) {
       setExportRunState(
         exportAbortController.signal.aborted ? { exportRunKind: 'cancelled' } : { exportRunKind: 'failed', exportFailureMessage: describePapelizVaultError(exportError) },
