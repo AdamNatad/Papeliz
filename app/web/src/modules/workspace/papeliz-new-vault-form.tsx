@@ -69,19 +69,21 @@ const papelizNewVaultPlaceComparisonRows: readonly PapelizNewVaultPlaceCompariso
     comparisonRowLabel: 'Location',
     comparisonRowCellByPlace: {
       'folder-on-disk': {
-        comparisonCellText: 'A folder on your computer',
-        comparisonCellInfoTipTitle: 'A folder you choose',
+        comparisonCellText: 'Your chosen folder',
+        comparisonCellInfoTipTitle: 'Your notes, your folder',
         comparisonCellInfoTipLines: [
-          'Each note is saved as a file in that folder.',
-          'You can open, copy and back up your notes like any other file.',
+          'Every note is saved as a Markdown file in a folder you choose.',
+          'You can open, edit, move, and back up your notes outside Papeliz.',
+          'Your files remain accessible through your computer’s file manager.',
         ],
       },
       'browser-vault-in-opfs': {
-        comparisonCellText: 'This browser',
-        comparisonCellInfoTipTitle: 'Inside this browser',
+        comparisonCellText: 'Inside your browser',
+        comparisonCellInfoTipTitle: 'Saved inside your browser',
         comparisonCellInfoTipLines: [
-          'Your notes are kept in this browser’s own storage, not in a folder you can see.',
-          'Only this browser on this device has them.',
+          'Your notes are stored in your browser’s private storage instead of a regular folder.',
+          'Your vaults are kept separately in each browser profile.',
+          'Other browsers and devices cannot access them automatically.',
         ],
       },
     },
@@ -90,21 +92,23 @@ const papelizNewVaultPlaceComparisonRows: readonly PapelizNewVaultPlaceCompariso
     comparisonRowLabel: 'Duration',
     comparisonRowCellByPlace: {
       'folder-on-disk': {
-        comparisonCellText: 'Until you delete them',
-        comparisonCellInfoTipTitle: 'Stays on your machine',
+        comparisonCellText: 'Until removed',
+        comparisonCellInfoTipTitle: 'Independent of your browser',
         comparisonCellInfoTipLines: [
-          'Your notes stay in the folder until you move or delete them.',
-          'Clearing your browser’s data or uninstalling the browser won’t delete them.',
+          'Your notes remain in your chosen folder until they’re moved or deleted.',
+          'Clearing browser data or uninstalling your browser won’t delete your notes.',
+          'Your files remain accessible even without Papeliz.',
         ],
       },
       'browser-vault-in-opfs': {
-        comparisonCellText: 'Temporary',
-        comparisonCellInfoTipTitle: 'Temporary storage',
+        comparisonCellText: 'Not guaranteed',
+        comparisonCellInfoTipTitle: 'Your browser controls storage',
         comparisonCellInfoTipLines: [
-          'Clearing this site’s data in your browser deletes the vault and every note in it.',
-          'Safari keeps it for 7 days of use without opening Papeliz; after that it can delete it.',
-          'Other browsers keep it until you clear it, unless the device runs very low on space.',
-          'Download a backup now and then to keep a copy.',
+          'Your notes remain saved when you close Papeliz or restart your browser.',
+          'Clearing Papeliz’s site data permanently deletes your browser vaults.',
+          'Safari may remove stored data after seven days of Safari use without interacting with Papeliz.',
+          'Browsers may also remove stored data when your device runs low on space.',
+          'Download backups regularly to keep your notes safe.',
         ],
       },
     },
@@ -114,20 +118,20 @@ const papelizNewVaultPlaceComparisonRows: readonly PapelizNewVaultPlaceCompariso
     comparisonRowCellByPlace: {
       'folder-on-disk': {
         comparisonCellText: 'Chrome, Edge and Brave',
-        comparisonCellInfoTipTitle: 'Needs folder access',
+        comparisonCellInfoTipTitle: 'Requires folder access',
         comparisonCellInfoTipLines: [
-          'Opening a folder on your disk needs a browser feature that Chrome, Edge and Brave have on a computer.',
-          'Firefox, Safari and phone browsers can’t open folders, so they use Browser Storage.',
+          'Folder Storage works in supported desktop browsers, including Chrome, Edge, and Brave.',
+          'Your browser must support opening and saving files directly in a folder.',
+          'Firefox, Safari, and most mobile browsers use Browser Storage instead.',
         ],
       },
       'browser-vault-in-opfs': {
-        comparisonCellText: 'Most Browsers',
-        comparisonCellInfoTipTitle: 'Made for Non-Chromium Based Browsers',
+        comparisonCellText: 'Most modern browsers',
+        comparisonCellInfoTipTitle: 'Works across most modern browsers',
         comparisonCellInfoTipLines: [
-          'Non-Chromium Based Browsers like Firefox and Safari can’t open folders, so they keep vaults here. Chrome, Edge and Brave can use it too.',
-          'It uses OPFS (Origin Private File System): a private storage area the browser gives each website. Only Papeliz can read it, and it doesn’t show up as a folder on your computer.',
-          'Chrome and Edge 103, Firefox 113 and Safari 16.4 or later, on computers and phones.',
-          'Each browser keeps its own vaults: another browser on this device can’t see them.',
+          'Browser Storage works in supported versions of Chrome, Edge, Brave, Firefox, and Safari.',
+          'It uses OPFS (Origin Private File System), a private storage area for saving files inside your browser.',
+          'Your vaults remain separate between browsers, browser profiles, and devices.',
         ],
       },
     },
