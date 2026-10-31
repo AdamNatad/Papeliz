@@ -2,7 +2,8 @@
 
 import { useAuth, useClerk, useSession } from '@clerk/react'
 import { ChevronRight, Cloud, KeyRound, Lock, Trash2, type LucideIcon } from 'lucide-react'
-import { useCallback, useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode, type Ref } from 'react'
+import { useCallback, useEffect, useId, useRef, useState, type FormEvent, type ReactNode, type Ref } from 'react'
+import { PapelizSitePillSwitch } from '@/components/controls/papeliz-site-pill-switch'
 import {
   papelizAccountCompactDangerButtonClassName,
   papelizAccountCompactPrimaryButtonClassName,
@@ -239,7 +240,6 @@ export function PapelizAccountSyncedVaultsSection({ papelizAccountSyncedVaults }
     papelizAccountSyncedVaults
   const [currentTime] = useState(() => Date.now())
   const syncVaultTabIdPrefix = useId()
-  const syncVaultTabRefs = useRef<Partial<Record<PapelizAccountSyncVaultEncryptionKind, HTMLButtonElement | null>>>({})
 
   useEffect(() => {
     if (syncVaultListStage.syncVaultListStageKind === 'not-loaded') loadPapelizAccountSyncVaults()
@@ -249,66 +249,50 @@ export function PapelizAccountSyncedVaultsSection({ papelizAccountSyncedVaults }
   const chosenSyncVaultRecords = listedSyncVaultRecords?.filter((syncVaultRecord) => syncVaultRecord.syncVaultEncryptionKind === chosenSyncVaultEncryptionKind) ?? null
   const chosenSyncVaultEncryptionKindLabels = papelizAccountSyncVaultEncryptionKindLabels[chosenSyncVaultEncryptionKind]
 
-  // The tabs' arrow keys, as a tab list's: Left, Right, Home and End move to a tab and show it.
-  function moveBetweenSyncVaultTabs(syncVaultTabKeyEvent: KeyboardEvent<HTMLButtonElement>) {
-    const chosenSyncVaultTabIndex = papelizAccountSyncVaultEncryptionKinds.indexOf(chosenSyncVaultEncryptionKind)
-    const nextSyncVaultTabIndex = { ArrowLeft: chosenSyncVaultTabIndex - 1, ArrowRight: chosenSyncVaultTabIndex + 1, Home: 0, End: papelizAccountSyncVaultEncryptionKinds.length - 1 }[
-      syncVaultTabKeyEvent.key
-    ]
-    if (nextSyncVaultTabIndex === undefined) return
-    syncVaultTabKeyEvent.preventDefault()
-    const nextSyncVaultEncryptionKind =
-      papelizAccountSyncVaultEncryptionKinds[(nextSyncVaultTabIndex + papelizAccountSyncVaultEncryptionKinds.length) % papelizAccountSyncVaultEncryptionKinds.length]
-    chooseSyncVaultEncryptionKind(nextSyncVaultEncryptionKind)
-    syncVaultTabRefs.current[nextSyncVaultEncryptionKind]?.focus()
-  }
-
   return (
     <>
       <PapelizAccountSectionIntro>The vaults synced to your account. Deleting one from Sync leaves its notes on your devices.</PapelizAccountSectionIntro>
-      <div
-        role="tablist"
-        aria-label="Kind of vault"
-        className="mb-3 grid grid-cols-2 gap-0.5 rounded-[11px] bg-papeliz-surface-gray p-[3px] shadow-[inset_0_0_0_1px_var(--color-papeliz-line)] md:mt-4 md:mb-1 md:w-[340px]"
-      >
-        {papelizAccountSyncVaultEncryptionKinds.map((syncVaultEncryptionKind) => {
-          const { syncVaultEncryptionKindName, SyncVaultEncryptionKindIcon } = papelizAccountSyncVaultEncryptionKindLabels[syncVaultEncryptionKind]
-          const syncVaultTabIsChosen = syncVaultEncryptionKind === chosenSyncVaultEncryptionKind
-          const syncVaultKindCount = listedSyncVaultRecords?.filter((syncVaultRecord) => syncVaultRecord.syncVaultEncryptionKind === syncVaultEncryptionKind).length
-          return (
-            <button
-              key={syncVaultEncryptionKind}
-              ref={(syncVaultTabElement) => {
-                syncVaultTabRefs.current[syncVaultEncryptionKind] = syncVaultTabElement
-              }}
-              type="button"
-              role="tab"
-              id={`${syncVaultTabIdPrefix}-${syncVaultEncryptionKind}-tab`}
-              aria-selected={syncVaultTabIsChosen}
-              aria-controls={`${syncVaultTabIdPrefix}-panel`}
-              tabIndex={syncVaultTabIsChosen ? 0 : -1}
-              onClick={() => chooseSyncVaultEncryptionKind(syncVaultEncryptionKind)}
-              onKeyDown={moveBetweenSyncVaultTabs}
-              className={`flex h-[34px] cursor-pointer items-center justify-center gap-1.5 rounded-lg text-[13px] font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-papeliz-blue ${
-                syncVaultTabIsChosen ? 'bg-papeliz-gradient-start text-white' : 'text-papeliz-ink-muted hover:text-papeliz-ink'
-              }`}
-            >
-              <SyncVaultEncryptionKindIcon className="size-[15px] shrink-0" aria-hidden="true" />
-              {syncVaultEncryptionKindName}
-              {syncVaultKindCount !== undefined && (
-                <span
-                  className={`min-w-5 rounded-full px-1.5 text-[11.5px] leading-[18px] tabular-nums ${
-                    syncVaultTabIsChosen ? 'bg-white/20 text-white' : 'bg-papeliz-surface text-papeliz-ink-muted'
-                  }`}
-                >
-                  <span className="sr-only">, </span>
-                  {syncVaultKindCount}
-                  <span className="sr-only">{syncVaultKindCount === 1 ? ' vault' : ' vaults'}</span>
-                </span>
-              )}
-            </button>
-          )
-        })}
+      {/* The site's pill switch, as tabs, with its bounce (Adam, 2026-11-01: "standard to end to end
+          swatch on accounts should have our swatch bounce animation"). */}
+      <div className="mb-3 md:mt-4 md:mb-1 md:w-[340px]">
+        <PapelizSitePillSwitch
+          papelizSitePillSwitchLabel="Kind of vault"
+          papelizSitePillSwitchVariant="compact"
+          papelizSitePillSwitchOptionWidths="equal"
+          papelizSitePillSwitchRole={{
+            papelizSitePillSwitchRoleKind: 'tabs',
+            papelizSitePillSwitchTabIdPrefix: syncVaultTabIdPrefix,
+            papelizSitePillSwitchTabPanelId: `${syncVaultTabIdPrefix}-panel`,
+          }}
+          papelizSitePillSwitchChosenValue={chosenSyncVaultEncryptionKind}
+          onPapelizSitePillSwitchChoose={chooseSyncVaultEncryptionKind}
+          papelizSitePillSwitchOptions={papelizAccountSyncVaultEncryptionKinds.map((syncVaultEncryptionKind) => {
+            const { syncVaultEncryptionKindName, SyncVaultEncryptionKindIcon } = papelizAccountSyncVaultEncryptionKindLabels[syncVaultEncryptionKind]
+            const syncVaultKindCount = listedSyncVaultRecords?.filter((syncVaultRecord) => syncVaultRecord.syncVaultEncryptionKind === syncVaultEncryptionKind).length
+            return {
+              papelizSitePillSwitchOptionValue: syncVaultEncryptionKind,
+              papelizSitePillSwitchOptionLabel: (
+                <>
+                  <SyncVaultEncryptionKindIcon className="size-[15px] shrink-0" aria-hidden="true" />
+                  {syncVaultEncryptionKindName}
+                </>
+              ),
+              // The count follows the option's color: white over the pill, muted beside it.
+              papelizSitePillSwitchOptionExtra:
+                syncVaultKindCount === undefined ? undefined : (
+                  <span
+                    className={`min-w-5 rounded-full px-1.5 text-center text-[11.5px] leading-[18px] tabular-nums transition-colors duration-300 motion-reduce:transition-none ${
+                      syncVaultEncryptionKind === chosenSyncVaultEncryptionKind ? 'bg-white/20' : 'bg-papeliz-surface'
+                    }`}
+                  >
+                    <span className="sr-only">, </span>
+                    {syncVaultKindCount}
+                    <span className="sr-only">{syncVaultKindCount === 1 ? ' vault' : ' vaults'}</span>
+                  </span>
+                ),
+            }
+          })}
+        />
       </div>
       <div role="tabpanel" id={`${syncVaultTabIdPrefix}-panel`} aria-labelledby={`${syncVaultTabIdPrefix}-${chosenSyncVaultEncryptionKind}-tab`}>
         <p className="mb-3 px-0.5 text-[13px] text-pretty text-papeliz-ink-muted md:mt-3 md:mb-0 md:px-0 md:text-sm">
