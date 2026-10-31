@@ -21,6 +21,17 @@ import {
 } from './papeliz-sync-flow-store'
 import { createPapelizSyncLocalVaultFiles } from './papeliz-sync-local-vault-files'
 import { mergePapelizSyncNoteText } from './papeliz-sync-note-merge'
+import { usePapelizSyncEngineStore } from './papeliz-sync-engine-store'
+import {
+  reportPapelizSyncVaultEntryMovedToTrash,
+  reportPapelizSyncVaultEntryRenamed,
+  reportPapelizSyncVaultFileSaved,
+  reportPapelizSyncVaultFolderCopied,
+} from './papeliz-sync-workspace-reports'
+import { createPapelizFakeVaultFolder } from '../vault/papeliz-fake-file-system-access.test-support'
+import { PapelizFolderOnDiskVaultAdapter } from '../vault/papeliz-folder-on-disk-vault-adapter'
+import type { PapelizSyncAccountVaultReading } from './papeliz-sync-engine-contract'
+import { isPapelizSyncVaultDeleteConfirmationTyped, readPapelizSyncAccountVaultPlace } from './papeliz-sync-synced-vaults-section'
 
 // The screens' flows, run against the fake engine. The browser's new tabs are stood in for by a
 // fake `window.open` that records what each tab was sent to.
@@ -268,5 +279,97 @@ describe('signing in from Fetch from Sync, before the engine has loaded', () => 
   it('says so when the browser blocks the tab', async () => {
     isPapelizSyncTestTabBlocked = true
     expect(await startPapelizSyncSignInFromClickBeforeEngineLoads(async () => null)).toEqual({ syncSignInOutcome: 'blocked' })
+  })
+})
+
+describe('what the workspace reports to Sync', () => {
+  afterEach(() => {
+    usePapelizSyncEngineStore.setState({ papelizSyncEngine: null })
+  })
+
+  it('goes nowhere, and loads nothing, while the engine isn’t loaded', () => {
+    usePapelizSyncEngineStore.setState({ papelizSyncEngine: null })
+    reportPapelizSyncVaultFileSaved('vault-a', 'Plan.md')
+    reportPapelizSyncVaultEntryRenamed('vault-a', 'Plan.md', 'Plans/Plan.md')
+    reportPapelizSyncVaultEntryMovedToTrash('vault-a', 'Plans/Plan.md', '.trash/Plan.md')
+    reportPapelizSyncVaultFolderCopied('vault-a', new PapelizInMemoryVaultAdapter([]), 'Plans copy')
+    expect(usePapelizSyncEngineStore.getState().syncEngineLoadState).toBe('not-loaded')
+  })
+
+  it('reaches the engine once it’s loaded, with the paths as given', () => {
+    const papelizSyncFakeEngine = createPapelizSyncFakeEngine({ fakeEngineScenario: 'on' })
+    usePapelizSyncEngineStore.setState({ papelizSyncEngine: papelizSyncFakeEngine })
+    reportPapelizSyncVaultFileSaved('vault-a', 'Plan.md')
+    reportPapelizSyncVaultEntryRenamed('vault-a', 'Plan.md', 'Plans/Plan.md')
+    reportPapelizSyncVaultEntryMovedToTrash('vault-a', 'Plans/Plan.md', '.trash/Plan.md')
+    expect(papelizSyncFakeEngine.fakeReportedSyncVaultFileSaves).toEqual([{ papelizVaultId: 'vault-a', vaultFileRelativePath: 'Plan.md' }])
+    expect(papelizSyncFakeEngine.fakeReportedSyncVaultEntryRenames).toEqual([{ papelizVaultId: 'vault-a', fromVaultEntryRelativePath: 'Plan.md', toVaultEntryRelativePath: 'Plans/Plan.md' }])
+    expect(papelizSyncFakeEngine.fakeReportedSyncVaultEntryTrashMoves).toEqual([{ papelizVaultId: 'vault-a', vaultEntryRelativePath: 'Plans/Plan.md', vaultTrashRelativePath: '.trash/Plan.md' }])
+  })
+
+  it('names every file Sync carries in a copied folder, and none outside it or in a hidden folder', async () => {
+    const papelizSyncFakeEngine = createPapelizSyncFakeEngine({ fakeEngineScenario: 'on' })
+    usePapelizSyncEngineStore.setState({ papelizSyncEngine: papelizSyncFakeEngine })
+    const fakeVaultRootHandle = await createPapelizFakeVaultFolder('Copies', {
+      'Plans/Plan.md': '# Plan',
+      'Plans copy/Plan.md': '# Plan',
+      'Plans copy/chart.png': 'picture',
+      'Plans copy/.drafts/Old.md': 'hidden',
+      'Inbox.md': '',
+    })
+    reportPapelizSyncVaultFolderCopied('vault-a', new PapelizFolderOnDiskVaultAdapter(fakeVaultRootHandle.asFileSystemDirectoryHandle()), 'Plans copy')
+    await vi.waitFor(() => expect(papelizSyncFakeEngine.fakeReportedSyncVaultFileSaves).toHaveLength(2))
+    expect(papelizSyncFakeEngine.fakeReportedSyncVaultFileSaves.map((reportedSave) => reportedSave.vaultFileRelativePath).sort()).toEqual(['Plans copy/Plan.md', 'Plans copy/chart.png'])
+  })
+})
+
+describe('Delete from Sync on the Sync page', () => {
+  const workAccountVault: PapelizSyncAccountVaultReading = {
+    papelizSyncVaultId: 'pzvault_eeeeeeeeeeeeeeeeeeeeeeeeee',
+    syncVaultName: 'Work',
+    syncVaultFileCount: 2140,
+    syncVaultStoredByteLength: 1.2e9,
+    syncVaultCreatedAt: 0,
+    papelizVaultIdOnThisDevice: 'vault-work',
+  }
+
+  it('says whether each synced vault is this vault, on this device, or elsewhere', () => {
+    expect(readPapelizSyncAccountVaultPlace(workAccountVault, 'vault-work')).toBe('this-vault')
+    expect(readPapelizSyncAccountVaultPlace(workAccountVault, 'vault-other')).toBe('on-this-device')
+    expect(readPapelizSyncAccountVaultPlace(workAccountVault, null)).toBe('on-this-device')
+    expect(readPapelizSyncAccountVaultPlace({ ...workAccountVault, papelizVaultIdOnThisDevice: null }, 'vault-work')).toBe('not-on-this-device')
+  })
+
+  it('asks for the vault’s name before deleting', () => {
+    expect(isPapelizSyncVaultDeleteConfirmationTyped('', workAccountVault)).toBe(false)
+    expect(isPapelizSyncVaultDeleteConfirmationTyped('work', workAccountVault)).toBe(false)
+    expect(isPapelizSyncVaultDeleteConfirmationTyped(' Work ', workAccountVault)).toBe(true)
+    expect(isPapelizSyncVaultDeleteConfirmationTyped('Synced vault', { ...workAccountVault, syncVaultName: null })).toBe(true)
+  })
+
+  it('takes the vault off the account and stops this device syncing it, leaving the others', async () => {
+    const papelizSyncFakeEngine = createPapelizSyncFakeEngine({ fakeEngineScenario: 'on' })
+    for (const papelizVaultId of ['vault-work', 'vault-home']) {
+      papelizSyncFakeEngine.attachSyncToOpenVault({
+        papelizVaultId,
+        papelizVaultKind: 'browser-vault-in-opfs',
+        papelizVaultDisplayName: papelizVaultId === 'vault-work' ? 'Work' : 'Home',
+        syncLocalVaultFiles: createPapelizSyncLocalVaultFiles(new PapelizInMemoryVaultAdapter([])),
+      })
+    }
+    const listedBeforeOutcome = await papelizSyncFakeEngine.listSyncedVaultsOnAccount()
+    if (listedBeforeOutcome.syncActionOutcome !== 'done') throw new Error('The fake didn’t list the vaults')
+    const workSyncVaultId = listedBeforeOutcome.syncActionDoneValue.find((accountVault) => accountVault.syncVaultName === 'Work')?.papelizSyncVaultId ?? ''
+    expect(await papelizSyncFakeEngine.deleteSyncedVaultFromAccount(workSyncVaultId)).toMatchObject({ syncActionOutcome: 'done' })
+    const listedAfterOutcome = await papelizSyncFakeEngine.listSyncedVaultsOnAccount()
+    expect(listedAfterOutcome.syncActionOutcome === 'done' && listedAfterOutcome.syncActionDoneValue.map((accountVault) => accountVault.syncVaultName)).toEqual(['Home'])
+    expect(papelizSyncFakeEngine.getSyncEngineSnapshot().syncLinkedLocalVaults.map((syncLinkedLocalVault) => syncLinkedLocalVault.papelizVaultId)).toEqual(['vault-home'])
+  })
+
+  it('takes a vault no device here syncs off the account list too', async () => {
+    const papelizSyncFakeEngine = createPapelizSyncFakeEngine({ fakeEngineScenario: 'download-stops' })
+    expect(await papelizSyncFakeEngine.deleteSyncedVaultFromAccount('pzvault_ffffffffffffffffffffffffff')).toMatchObject({ syncActionOutcome: 'done' })
+    const listedAfterOutcome = await papelizSyncFakeEngine.listSyncedVaultsOnAccount()
+    expect(listedAfterOutcome.syncActionOutcome === 'done' && listedAfterOutcome.syncActionDoneValue.map((accountVault) => accountVault.syncVaultName)).toEqual(['Research notes', 'Work'])
   })
 })

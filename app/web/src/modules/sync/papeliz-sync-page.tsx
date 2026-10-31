@@ -41,6 +41,7 @@ import {
   papelizSyncPlanDisplayNames,
 } from './papeliz-sync-screen-words'
 import { papelizSyncStatusIcons } from './papeliz-sync-status-icons'
+import { PapelizSyncSyncedVaultsSection } from './papeliz-sync-synced-vaults-section'
 import { usePapelizSyncClockTime } from './papeliz-sync-clock'
 import { getVaultNoteTitle } from '../vault/papeliz-vault-relative-paths'
 
@@ -166,9 +167,11 @@ function PapelizSyncOnState({ papelizSyncEngine, syncEngineSnapshot, syncAccount
   const openVaultSyncedVaultId = openVaultSyncReading?.papelizSyncVaultId ?? null
   const isReadOnly = syncAccount.syncSubscriptionState === 'ended-read-only' || syncAccount.syncSubscriptionState === 'ended-held'
 
-  // The synced vault's size, for its row; read when the page opens, signed in already.
+  // The account's vaults: the open vault's size for its row, and the Synced vaults list. Read when the
+  // page opens, and again when this device's synced vaults change or after a delete.
+  const [accountVaultsReadCount, setAccountVaultsReadCount] = useState(0)
+  const linkedSyncVaultIdsText = syncEngineSnapshot.syncLinkedLocalVaults.map((syncLinkedLocalVault) => syncLinkedLocalVault.papelizSyncVaultId).join('\n')
   useEffect(() => {
-    if (openVaultSyncedVaultId === null) return
     let isSyncPageLeft = false
     void papelizSyncEngine.listSyncedVaultsOnAccount().then((listedAccountVaultsOutcome) => {
       if (!isSyncPageLeft) setAccountVaultsOutcome(listedAccountVaultsOutcome)
@@ -176,7 +179,7 @@ function PapelizSyncOnState({ papelizSyncEngine, syncEngineSnapshot, syncAccount
     return () => {
       isSyncPageLeft = true
     }
-  }, [papelizSyncEngine, openVaultSyncedVaultId])
+  }, [papelizSyncEngine, openVaultSyncedVaultId, linkedSyncVaultIdsText, accountVaultsReadCount])
 
   const openAccountVault =
     accountVaultsOutcome?.syncActionOutcome === 'done' && openVaultSyncedVaultId !== null
@@ -339,6 +342,13 @@ function PapelizSyncOnState({ papelizSyncEngine, syncEngineSnapshot, syncAccount
         )}
       </PapelizSyncPageBox>
       {syncPageActionFailureWords !== null && <PapelizSyncFailureLine className="mt-2">{syncPageActionFailureWords}</PapelizSyncFailureLine>}
+
+      <PapelizSyncSyncedVaultsSection
+        papelizSyncEngine={papelizSyncEngine}
+        accountVaultsOutcome={accountVaultsOutcome}
+        openPapelizVaultId={openVault?.papelizVaultId ?? null}
+        onAccountVaultsReadAgain={() => setAccountVaultsReadCount((readCount) => readCount + 1)}
+      />
 
       <PapelizSyncPageLabel>What syncs</PapelizSyncPageLabel>
       <PapelizSyncPageBox>

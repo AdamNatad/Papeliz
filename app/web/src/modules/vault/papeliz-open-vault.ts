@@ -42,15 +42,20 @@ export function openPapelizSampleVault(): PapelizOpenVault {
   }
 }
 
+// The folder picked in the browser's folder window, not yet opened as a vault (nor remembered), or
+// why there is none, as `PapelizOpenVaultResult` says.
+export type PapelizVaultFolderPickResult =
+  | { vaultFolderPickOutcome: 'picked'; papelizVaultFolderHandle: FileSystemDirectoryHandle }
+  | Exclude<PapelizOpenVaultResult, { openVaultOutcome: 'opened' }>
+
 // Shows the browser's folder picker. Must run from a click.
-export async function pickAndOpenPapelizVaultFolder(): Promise<PapelizOpenVaultResult> {
+export async function pickPapelizVaultFolderHandle(): Promise<PapelizVaultFolderPickResult> {
   if (!isFolderOnDiskVaultSupported() || window.showDirectoryPicker === undefined) {
     return { openVaultOutcome: 'failed', openVaultFailureMessage: describePapelizFolderAccessOffReason('unsupported') }
   }
-  let papelizVaultFolderHandle: FileSystemDirectoryHandle
   const folderWindowOpenedAt = performance.now()
   try {
-    papelizVaultFolderHandle = await window.showDirectoryPicker({ id: 'papeliz-vault-folder', mode: 'readwrite' })
+    return { vaultFolderPickOutcome: 'picked', papelizVaultFolderHandle: await window.showDirectoryPicker({ id: 'papeliz-vault-folder', mode: 'readwrite' }) }
   } catch (folderPickerError) {
     if (folderPickerError instanceof DOMException && folderPickerError.name === 'AbortError') {
       const isAbortTooFastForAPerson = performance.now() - folderWindowOpenedAt < papelizFolderWindowShortestHumanCancelMilliseconds
@@ -62,7 +67,14 @@ export async function pickAndOpenPapelizVaultFolder(): Promise<PapelizOpenVaultR
     }
     return { openVaultOutcome: 'failed', openVaultFailureMessage: 'Couldn’t open the folder (Unknown Error)' }
   }
-  return openPapelizVaultFolderHandle(papelizVaultFolderHandle)
+}
+
+// Shows the browser's folder picker and opens the folder picked, remembering it for Recent vaults.
+// Must run from a click.
+export async function pickAndOpenPapelizVaultFolder(): Promise<PapelizOpenVaultResult> {
+  const vaultFolderPickResult = await pickPapelizVaultFolderHandle()
+  if (!('vaultFolderPickOutcome' in vaultFolderPickResult)) return vaultFolderPickResult
+  return openPapelizVaultFolderHandle(vaultFolderPickResult.papelizVaultFolderHandle)
 }
 
 // Reopens a folder from the welcome screen's recent list, asking for permission again if the
@@ -71,7 +83,8 @@ export async function reopenRememberedPapelizVaultFolder(rememberedVaultFolder: 
   return openPapelizVaultFolderHandle(rememberedVaultFolder.papelizVaultFolderHandle)
 }
 
-async function openPapelizVaultFolderHandle(papelizVaultFolderHandle: FileSystemDirectoryHandle): Promise<PapelizOpenVaultResult> {
+// Opens a folder as a vault and remembers it for Recent vaults (refreshing it when it's there already).
+export async function openPapelizVaultFolderHandle(papelizVaultFolderHandle: FileSystemDirectoryHandle): Promise<PapelizOpenVaultResult> {
   let papelizVaultFolderPermission: 'granted' | 'denied'
   try {
     papelizVaultFolderPermission = await ensureVaultFolderPermission(papelizVaultFolderHandle)

@@ -92,8 +92,8 @@ export function PapelizSyncWorkspaceConnection() {
   }, [papelizSyncEngine, openVault])
 
   // A note saved from its tab (it went from saving to saved), and a note left for another one.
-  // Renames, the trash and the Assistant's writes are reported by the workspace store itself
-  // (papeliz-sync-workspace-reports.ts).
+  // Renames, moves, the trash, copies, new notes, Papeliz's own files and the Assistant's writes to
+  // notes that aren't open are reported by the workspace store itself (papeliz-sync-workspace-reports.ts).
   useEffect(() => {
     if (papelizSyncEngine === null) return
     return usePapelizWorkspaceStore.subscribe((workspaceState, previousWorkspaceState) => {

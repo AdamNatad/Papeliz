@@ -1,14 +1,19 @@
-import { AppWindow, BookOpen, CloudDownload, Code, Download, Eye, EyeOff, FolderOpen, FolderPlus, HardDrive, Pencil, RefreshCw, RotateCcw, Search, Trash2, TriangleAlert, type LucideIcon } from 'lucide-react'
+import { AppWindow, BookOpen, CloudCheck, CloudDownload, Code, Download, Eye, EyeOff, FolderOpen, FolderPlus, HardDrive, Pencil, RefreshCw, RotateCcw, Search, Trash2, TriangleAlert, type LucideIcon } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type Ref } from 'react'
 import { isPapelizSyncEngineInThisBuild } from 'virtual:papeliz-sync-engine-availability'
-import { isPapelizSyncUsedOnThisDevice, readPapelizSyncDevFakeEngineScenarioText, usePapelizSyncEngineStore } from '../sync/papeliz-sync-engine-store'
+import { isPapelizSyncUsedOnThisDevice, readPapelizSyncDevFakeEngineScenarioText, usePapelizSyncEngineSnapshot, usePapelizSyncEngineStore } from '../sync/papeliz-sync-engine-store'
 import {
   describePapelizSyncSignInFromClickFailure,
   startPapelizSyncSignInFromClick,
   startPapelizSyncSignInFromClickBeforeEngineLoads,
   type PapelizSyncSignInFromClickOutcome,
 } from '../sync/papeliz-sync-flow-store'
-import { retryPapelizSyncStartScreenDownload, usePapelizSyncStartScreenDownloadStore } from '../sync/papeliz-sync-start-screen-download-store'
+import {
+  forgetPapelizSyncLinksOfDeletedVault,
+  resumePapelizSyncStartScreenDownloads,
+  retryPapelizSyncStartScreenDownload,
+  usePapelizSyncStartScreenDownloadStore,
+} from '../sync/papeliz-sync-start-screen-download-store'
 import { PapelizIconButton } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { PapelizConfirmDialog } from '../ui/papeliz-confirm-dialog'
@@ -418,6 +423,31 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
     if (isPapelizSyncUsedOnThisDevice() || readPapelizSyncDevFakeEngineScenarioText() !== null) void loadPapelizSyncEngine()
   }, [isFetchFromSyncActionShown, startScreenEyePreview, loadPapelizSyncEngine])
 
+  // Once the engine has loaded: which recent vaults sync ("Synced" in their line, while signed in),
+  // and the first downloads closing the tab left unfinished, picked up once the list is read.
+  const syncEngineReading = usePapelizSyncEngineSnapshot()
+  const loadedSyncEngine = syncEngineReading?.papelizSyncEngine ?? null
+  const syncEngineSnapshot = syncEngineReading?.syncEngineSnapshot ?? null
+  const syncedRecentVaultIds = useMemo(
+    () =>
+      new Set(
+        syncEngineSnapshot?.syncSignIn.syncSignInKind === 'signed-in' ? syncEngineSnapshot.syncLinkedLocalVaults.map((syncLinkedLocalVault) => syncLinkedLocalVault.papelizVaultId) : [],
+      ),
+    [syncEngineSnapshot],
+  )
+  const unfinishedSyncDownloadVaultIdsText =
+    syncEngineSnapshot?.syncLinkedLocalVaults
+      .filter((syncLinkedLocalVault) => syncLinkedLocalVault.isFirstDownloadUnfinished)
+      .map((syncLinkedLocalVault) => syncLinkedLocalVault.papelizVaultId)
+      .join('\n') ?? ''
+  useEffect(() => {
+    if (loadedSyncEngine === null || startScreenEyePreview !== null || unfinishedSyncDownloadVaultIdsText === '') return
+    void resumePapelizSyncStartScreenDownloads(loadedSyncEngine, recentVaults)
+  }, [loadedSyncEngine, startScreenEyePreview, unfinishedSyncDownloadVaultIdsText, recentVaults])
+  // Every vault this device holds, hidden ones too: Fetch from Sync calls a synced vault copied into
+  // one of them on this device.
+  const recentVaultIds = useMemo(() => new Set(recentVaults.map((recentVault) => recentVault.papelizVaultId)), [recentVaults])
+
   // Fetch from Sync: its page in the start card, and, signed out, the sign-in page in a new tab from
   // this click (before the engine has loaded, a blank tab that goes there once it has).
   const startFetchFromSync = () => {
@@ -588,6 +618,7 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
       for (const recentVault of recentVaultsToDelete) {
         const recentVaultDeleteResult = await deletePapelizRecentVault(recentVault)
         if (recentVaultDeleteResult.recentVaultDeleteOutcome === 'failed') recentVaultDeleteFailureMessages.push(recentVaultDeleteResult.recentVaultDeleteFailureMessage)
+        else forgetPapelizSyncLinksOfDeletedVault(recentVault.papelizVaultId)
       }
       const deletedVaultCount = recentVaultsToDelete.length - recentVaultDeleteFailureMessages.length
       const keptVaultCount = recentVaultDeleteFailureMessages.length
@@ -740,6 +771,7 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                   isFolderStorageOn={isFolderVaultOn}
                   isBrowserStorageOn={isBrowserVaultOn}
                   existingBrowserVaultRecords={browserVaultRecords}
+                  papelizVaultIdsOnThisDevice={recentVaultIds}
                   fetchFromSyncSignInFailureWords={fetchFromSyncSignInFailureWords}
                   onFetchFromSyncPageClose={closeFetchFromSync}
                   onSyncDownloadStarted={() => {
@@ -974,7 +1006,7 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                                   <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                                     <span className="truncate text-[13.5px] font-semibold">{recentVault.papelizVaultDisplayName}</span>
                                     {syncStartScreenDownload === undefined ? (
-                                      <span className="flex items-center gap-1 text-[11.5px] text-papeliz-ink-subtle">
+                                      <span className="flex flex-wrap items-center gap-x-1 text-[11.5px] text-papeliz-ink-subtle">
                                         {recentVault.papelizRecentVaultKind === 'browser-vault-in-opfs' ? (
                                           <>
                                             <AppWindow className="size-3 flex-none" aria-hidden="true" />
@@ -985,6 +1017,14 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                                             <HardDrive className="size-3 flex-none" aria-hidden="true" />
                                             Folder on this device
                                           </>
+                                        )}
+                                        {/* At phone width "Synced" goes to its own line rather than breaking the words before it. */}
+                                        {syncedRecentVaultIds.has(recentVault.papelizVaultId) && (
+                                          <span className="inline-flex items-center gap-1 whitespace-nowrap">
+                                            <span aria-hidden="true">·</span>
+                                            <CloudCheck className="size-3 flex-none" aria-hidden="true" />
+                                            Synced
+                                          </span>
                                         )}
                                       </span>
                                     ) : isSyncDownloadStopped ? (

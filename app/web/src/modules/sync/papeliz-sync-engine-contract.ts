@@ -153,6 +153,14 @@ export interface PapelizSyncLocalVaultReading {
   syncVaultTransferProgress: PapelizSyncVaultTransferProgress | null
 }
 
+// A vault on this device linked to a synced vault, open or not: the start screen marks its row
+// "Synced", and picks up a first download that closing the tab left unfinished.
+export interface PapelizSyncLinkedLocalVaultReading {
+  papelizVaultId: string
+  papelizSyncVaultId: string
+  isFirstDownloadUnfinished: boolean
+}
+
 // A synced vault on the account, for a new device's Download and Connect.
 export interface PapelizSyncAccountVaultReading {
   papelizSyncVaultId: string
@@ -207,7 +215,10 @@ export interface PapelizSyncEngineSnapshot {
   syncAccountKeyState: PapelizSyncAccountKeyState
   isSyncPausedOnThisDevice: boolean
   syncWhatSyncsChoices: PapelizSyncWhatSyncsChoices
+  // The vaults attached now (open in the workspace, or downloading from the start screen) that sync.
   syncLocalVaults: readonly PapelizSyncLocalVaultReading[]
+  // Every vault on this device that syncs, attached or not.
+  syncLinkedLocalVaults: readonly PapelizSyncLinkedLocalVaultReading[]
   syncNoteClashesToSettle: readonly PapelizSyncNoteClashSummary[]
 }
 

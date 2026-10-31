@@ -1,4 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { usePapelizSyncEngineStore } from '../sync/papeliz-sync-engine-store'
+import { createPapelizSyncFakeEngine } from '../sync/papeliz-sync-fake-engine'
+import { createPapelizFakeVaultFolder } from '../vault/papeliz-fake-file-system-access.test-support'
+import { PapelizFolderOnDiskVaultAdapter } from '../vault/papeliz-folder-on-disk-vault-adapter'
 import { PapelizInMemoryVaultAdapter, type PapelizInMemoryVaultNote } from '../vault/papeliz-in-memory-vault-adapter'
 import type { PapelizVaultAdapter } from '../vault/papeliz-vault-adapter'
 import { selectActiveVaultNoteLockingEntry, usePapelizWorkspaceStore } from './papeliz-workspace-store'
@@ -333,5 +337,93 @@ describe('creating and moving to the trash', () => {
     expect(workspaceState.workspaceNotice?.workspaceNoticeMessage).toBe('Moved “Inbox” to the trash.')
     expect(await vaultAdapter.readVaultNoteText('.trash/Inbox.md')).toBe('keep me')
     expect(workspaceState.vaultTreeEntries.map((vaultTreeEntry) => vaultTreeEntry.vaultEntryRelativePath)).toEqual(['Other.md'])
+  })
+})
+
+describe('what Papeliz Sync hears from the workspace', () => {
+  // The fake engine stands in for the loaded engine; the reports go to it as they would to the real one.
+  function loadTestSyncEngine() {
+    const papelizSyncFakeEngine = createPapelizSyncFakeEngine({ fakeEngineScenario: 'on' })
+    usePapelizSyncEngineStore.setState({ papelizSyncEngine: papelizSyncFakeEngine })
+    return papelizSyncFakeEngine
+  }
+
+  function readOpenTestVaultId() {
+    return usePapelizWorkspaceStore.getState().openVault?.papelizVaultId ?? ''
+  }
+
+  afterEach(() => {
+    usePapelizSyncEngineStore.setState({ papelizSyncEngine: null })
+  })
+
+  it('hears a rename, a move and a move to the trash as such, with the paths they took', async () => {
+    const papelizSyncFakeEngine = loadTestSyncEngine()
+    await openTestVault([
+      { vaultNoteRelativePath: 'Projects/Plan.md', vaultNoteText: '' },
+      { vaultNoteRelativePath: 'Inbox.md', vaultNoteText: 'keep me' },
+    ])
+    const papelizVaultId = readOpenTestVaultId()
+    await usePapelizWorkspaceStore.getState().renameVaultEntry('Projects', 'Work')
+    await usePapelizWorkspaceStore.getState().moveVaultEntryIntoFolder('Inbox.md', 'Work')
+    await usePapelizWorkspaceStore.getState().moveVaultEntryToTrash('Work/Inbox.md')
+    expect(papelizSyncFakeEngine.fakeReportedSyncVaultEntryRenames).toEqual([
+      { papelizVaultId, fromVaultEntryRelativePath: 'Projects', toVaultEntryRelativePath: 'Work' },
+      { papelizVaultId, fromVaultEntryRelativePath: 'Inbox.md', toVaultEntryRelativePath: 'Work/Inbox.md' },
+    ])
+    expect(papelizSyncFakeEngine.fakeReportedSyncVaultEntryTrashMoves).toEqual([
+      { papelizVaultId, vaultEntryRelativePath: 'Work/Inbox.md', vaultTrashRelativePath: '.trash/Inbox.md' },
+    ])
+  })
+
+  it('hears the Assistant’s writes to notes that aren’t open, its new notes and its pictures', async () => {
+    const papelizSyncFakeEngine = loadTestSyncEngine()
+    await openTestVault([
+      { vaultNoteRelativePath: 'Inbox.md', vaultNoteText: '' },
+      { vaultNoteRelativePath: 'Open.md', vaultNoteText: '' },
+    ])
+    const papelizVaultId = readOpenTestVaultId()
+    await usePapelizWorkspaceStore.getState().writeVaultNoteTextFromAssistant('Inbox.md', 'Linked to [[Open]]')
+    await usePapelizWorkspaceStore.getState().createVaultNoteFromAssistant('Plans/Next week.md', '# Next week')
+    const attachmentFileRelativePath = await usePapelizWorkspaceStore.getState().createChatAttachmentFileFromAssistant('photo.png', new Blob(['picture']))
+    // An open note saves through its tab, which the status bar reports; the store doesn't report it twice.
+    await usePapelizWorkspaceStore.getState().openVaultNote('Open.md')
+    await usePapelizWorkspaceStore.getState().writeVaultNoteTextFromAssistant('Open.md', 'Changed by the Assistant')
+    expect(papelizSyncFakeEngine.fakeReportedSyncVaultFileSaves).toEqual([
+      { papelizVaultId, vaultFileRelativePath: 'Inbox.md' },
+      { papelizVaultId, vaultFileRelativePath: 'Plans/Next week.md' },
+      { papelizVaultId, vaultFileRelativePath: attachmentFileRelativePath },
+    ])
+    expect(attachmentFileRelativePath).toBe('.csessions/attachments/photo.png')
+  })
+
+  it('hears a new note, Papeliz’s own files, a duplicated note and every file in a copied folder', async () => {
+    const papelizSyncFakeEngine = loadTestSyncEngine()
+    const fakeVaultRootHandle = await createPapelizFakeVaultFolder('Copies', {
+      'Projects/Plan.md': '# Plan',
+      'Projects/Pictures/chart.png': 'picture',
+      'Inbox.md': '',
+    })
+    await openTestVault([], new PapelizFolderOnDiskVaultAdapter(fakeVaultRootHandle.asFileSystemDirectoryHandle()))
+    const papelizVaultId = readOpenTestVaultId()
+    const readReportedSavePaths = () => papelizSyncFakeEngine.fakeReportedSyncVaultFileSaves.map((reportedSave) => reportedSave.vaultFileRelativePath)
+    await usePapelizWorkspaceStore.getState().createVaultNoteInFolder('')
+    usePapelizWorkspaceStore.getState().setVaultEntryEditingLocked('Inbox.md', true)
+    await usePapelizWorkspaceStore.getState().duplicateVaultEntry('Inbox.md')
+    await usePapelizWorkspaceStore.getState().duplicateVaultEntry('Projects')
+    await vi.waitFor(() =>
+      expect(readReportedSavePaths()).toEqual(
+        expect.arrayContaining(['Untitled.md', '.papeliz/locked-entries.json', 'Inbox copy.md', 'Projects copy/Plan.md', 'Projects copy/Pictures/chart.png']),
+      ),
+    )
+    expect(papelizSyncFakeEngine.fakeReportedSyncVaultFileSaves.every((reportedSave) => reportedSave.papelizVaultId === papelizVaultId)).toBe(true)
+    // The original folder's files weren't changed, so they aren't reported.
+    expect(readReportedSavePaths()).not.toContain('Projects/Plan.md')
+  })
+
+  it('reports nothing, and still works, while the engine isn’t loaded', async () => {
+    const vaultAdapter = await openTestVault([{ vaultNoteRelativePath: 'Inbox.md', vaultNoteText: '' }])
+    await usePapelizWorkspaceStore.getState().renameVaultEntry('Inbox.md', 'Outbox')
+    await usePapelizWorkspaceStore.getState().writeVaultNoteTextFromAssistant('Outbox.md', 'written')
+    expect(await vaultAdapter.readVaultNoteText('Outbox.md')).toBe('written')
   })
 })

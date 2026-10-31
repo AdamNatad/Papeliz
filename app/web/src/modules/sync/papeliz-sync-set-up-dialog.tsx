@@ -52,13 +52,27 @@ function readSetUpStepIndex(syncSetUpDialogMode: PapelizSyncSetUpDialogMode, syn
   return syncSetUpDialogMode === 'unlock' ? 1 : 2
 }
 
-function downloadPapelizSyncRecoveryKit(recoveryKitText: string): void {
-  const recoveryKitUrl = URL.createObjectURL(new Blob([recoveryKitText], { type: 'text/plain;charset=utf-8' }))
+function saveRecoveryKitFile(recoveryKitFileBlob: Blob, recoveryKitFileName: string): void {
+  const recoveryKitUrl = URL.createObjectURL(recoveryKitFileBlob)
   const recoveryKitLink = document.createElement('a')
   recoveryKitLink.href = recoveryKitUrl
-  recoveryKitLink.download = 'Papeliz Sync Recovery Kit.txt'
+  recoveryKitLink.download = recoveryKitFileName
   recoveryKitLink.click()
   setTimeout(() => URL.revokeObjectURL(recoveryKitUrl), 10_000)
+}
+
+// The Recovery Kit as a PDF made on this device; a text file when the PDF can't be made. Says which.
+async function downloadPapelizSyncRecoveryKit(syncRecoveryKeyText: string, accountLabel: string | null): Promise<'pdf' | 'text'> {
+  try {
+    const { makePapelizSyncRecoveryKitPdf } = await import('./papeliz-sync-recovery-kit-pdf')
+    const { recoveryKitPdfFileName, recoveryKitPdfFileBlob } = await makePapelizSyncRecoveryKitPdf(syncRecoveryKeyText, accountLabel)
+    saveRecoveryKitFile(recoveryKitPdfFileBlob, recoveryKitPdfFileName)
+    return 'pdf'
+  } catch (recoveryKitPdfError) {
+    console.warn('The Recovery Kit PDF wasn’t made:', recoveryKitPdfError)
+    saveRecoveryKitFile(new Blob([buildPapelizSyncRecoveryKitText(syncRecoveryKeyText, accountLabel)], { type: 'text/plain;charset=utf-8' }), 'Papeliz Sync Recovery Kit.txt')
+    return 'text'
+  }
 }
 
 interface PapelizSyncSetUpDialogProps {
@@ -77,6 +91,8 @@ export function PapelizSyncSetUpDialog({ papelizSyncEngine, syncEngineSnapshot, 
   const [typedRecoveryKeyText, setTypedRecoveryKeyText] = useState('')
   const [isRecoveryKeySavedTicked, setIsRecoveryKeySavedTicked] = useState(false)
   const [isRecoveryKeyCopied, setIsRecoveryKeyCopied] = useState(false)
+  // The Recovery Kit's download: its PDF being made, then which file it came as.
+  const [recoveryKitDownloadState, setRecoveryKitDownloadState] = useState<'idle' | 'making-pdf' | 'pdf-saved' | 'text-saved'>('idle')
   const [accountVaultsOutcome, setAccountVaultsOutcome] = useState<PapelizSyncActionOutcome<PapelizSyncAccountVaultReading[]> | null>(null)
   const [openVaultChoice, setOpenVaultChoice] = useState<PapelizSyncOpenVaultChoice | null>(
     syncSetUpDialogMode === 'unlock' ? null : { openVaultChoiceKind: 'sync-as-new' },
@@ -424,10 +440,22 @@ export function PapelizSyncSetUpDialog({ papelizSyncEngine, syncEngineSnapshot, 
           <PapelizPillButton
             pillButtonVariant="line"
             pillButtonSize="small"
-            onClick={() => downloadPapelizSyncRecoveryKit(buildPapelizSyncRecoveryKitText(syncAccountKeyDraft.syncRecoveryKeyText, signInEmailAddress))}
+            disabled={recoveryKitDownloadState === 'making-pdf'}
+            onClick={() => {
+              setRecoveryKitDownloadState('making-pdf')
+              void downloadPapelizSyncRecoveryKit(syncAccountKeyDraft.syncRecoveryKeyText, signInEmailAddress).then((recoveryKitFileKind) =>
+                setRecoveryKitDownloadState(recoveryKitFileKind === 'pdf' ? 'pdf-saved' : 'text-saved'),
+              )
+            }}
           >
-            <Download className="size-3.5" aria-hidden="true" />
-            Download Recovery Kit
+            {recoveryKitDownloadState === 'making-pdf' ? (
+              <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" />
+            ) : recoveryKitDownloadState === 'pdf-saved' || recoveryKitDownloadState === 'text-saved' ? (
+              <Check className="size-3.5" aria-hidden="true" />
+            ) : (
+              <Download className="size-3.5" aria-hidden="true" />
+            )}
+            {recoveryKitDownloadState === 'making-pdf' ? 'Making the PDF…' : recoveryKitDownloadState === 'idle' ? 'Download Recovery Kit' : 'Downloaded'}
           </PapelizPillButton>
           <PapelizPillButton
             pillButtonVariant="line"
@@ -449,6 +477,9 @@ export function PapelizSyncSetUpDialog({ papelizSyncEngine, syncEngineSnapshot, 
           />
           <span>I saved my Recovery Key somewhere safe, away from this device.</span>
         </label>
+        {recoveryKitDownloadState === 'text-saved' && (
+          <PapelizSyncFailureLine className="mt-2">The PDF couldn’t be made here, so the Recovery Kit downloaded as a text file.</PapelizSyncFailureLine>
+        )}
         {setUpActionLine}
       </PapelizSyncDialogFrame>
     )

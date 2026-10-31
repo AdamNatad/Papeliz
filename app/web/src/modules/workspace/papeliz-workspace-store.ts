@@ -23,10 +23,17 @@ import {
   papelizVaultChatSessionFolderName,
   papelizVaultNoteFileExtension,
   papelizVaultRootFolderRelativePath,
+  papelizVaultSettingsFolderName,
   pickFreeVaultEntryName,
   replaceVaultRelativePathPrefix,
   splitVaultRelativePath,
 } from '../vault/papeliz-vault-relative-paths'
+import {
+  reportPapelizSyncVaultEntryMovedToTrash,
+  reportPapelizSyncVaultEntryRenamed,
+  reportPapelizSyncVaultFileSaved,
+  reportPapelizSyncVaultFolderCopied,
+} from '../sync/papeliz-sync-workspace-reports'
 import {
   carryVaultEntryOrderThroughMove,
   formatPapelizFileListOrderFile,
@@ -759,6 +766,7 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
     try {
       await runVaultOperationInOrder(async () => {
         await openVault.papelizVaultAdapter.renameVaultEntry(fromVaultEntryRelativePath, toVaultEntryRelativePath)
+        reportPapelizSyncVaultEntryRenamed(openVault.papelizVaultId, fromVaultEntryRelativePath, toVaultEntryRelativePath)
         // Every path inside the moved entry changes in the same step, before the next queued save
         // looks up its note's path.
         setWorkspaceState((workspaceState) => {
@@ -814,7 +822,10 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
     if (openVault === null) return
     papelizVaultSettingsFileWrites = papelizVaultSettingsFileWrites
       .then(() => openVault.papelizVaultAdapter.writePapelizVaultSettingsFile(papelizVaultSettingsFileName, papelizVaultSettingsFileText))
-      .then(() => announceVaultChangeHere(null))
+      .then(() => {
+        reportPapelizSyncVaultFileSaved(openVault.papelizVaultId, `${papelizVaultSettingsFolderName}/${papelizVaultSettingsFileName}`)
+        announceVaultChangeHere(null)
+      })
       .catch((vaultSettingsWriteError: unknown) => {
         if (getWorkspaceState().openVault === openVault) {
           showWorkspaceNotice('error', `Couldn’t save ${savedThingDescription} (${describePapelizVaultError(vaultSettingsWriteError)})`)
@@ -874,6 +885,8 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
     await saveVaultNotesInside(sourceVaultEntryRelativePath)
     try {
       await runVaultOperationInOrder(() => openVault.papelizVaultAdapter.copyVaultEntry(sourceVaultEntryRelativePath, copyVaultEntryRelativePath))
+      if (isSourceNote) reportPapelizSyncVaultFileSaved(openVault.papelizVaultId, copyVaultEntryRelativePath)
+      else reportPapelizSyncVaultFolderCopied(openVault.papelizVaultId, openVault.papelizVaultAdapter, copyVaultEntryRelativePath)
     } catch (vaultCopyError) {
       showWorkspaceNotice('error', `Couldn’t copy “${describeVaultEntryForNotice(sourceVaultEntryRelativePath)}” (${describePapelizVaultError(vaultCopyError)})`)
       await loadVaultTreeEntriesAfterChange()
@@ -918,7 +931,8 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
   const trashVaultEntryAndTidyUp = async (openVault: PapelizOpenVault, vaultEntryRelativePath: string) => {
     await saveVaultNotesInside(vaultEntryRelativePath)
     await runVaultOperationInOrder(async () => {
-      await openVault.papelizVaultAdapter.moveVaultEntryToTrash(vaultEntryRelativePath)
+      const vaultTrashRelativePath = await openVault.papelizVaultAdapter.moveVaultEntryToTrash(vaultEntryRelativePath)
+      reportPapelizSyncVaultEntryMovedToTrash(openVault.papelizVaultId, vaultEntryRelativePath, vaultTrashRelativePath)
       closeTabsInside(vaultEntryRelativePath)
       const copiedVaultEntryBeforeTrash = getWorkspaceState().copiedVaultEntry
       if (copiedVaultEntryBeforeTrash !== null && isVaultRelativePathInsideFolder(copiedVaultEntryBeforeTrash.vaultEntryRelativePath, vaultEntryRelativePath)) {
@@ -972,6 +986,7 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
     await runVaultOperationInOrder(async () => {
       await createMissingVaultFolders(papelizOpenVault, getVaultEntryParentFolderRelativePath(newVaultNoteRelativePath))
       await papelizOpenVault.papelizVaultAdapter.createVaultNote(newVaultNoteRelativePath, newVaultNoteText)
+      reportPapelizSyncVaultFileSaved(papelizOpenVault.papelizVaultId, newVaultNoteRelativePath)
     })
     await loadVaultTreeEntriesAfterChange()
   }
@@ -1227,6 +1242,7 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
       const newVaultNoteRelativePath = joinVaultRelativePath(vaultFolderRelativePath, newVaultNoteName)
       try {
         await runVaultOperationInOrder(() => openVault.papelizVaultAdapter.createVaultNote(newVaultNoteRelativePath, ''))
+        reportPapelizSyncVaultFileSaved(openVault.papelizVaultId, newVaultNoteRelativePath)
       } catch (vaultCreateError) {
         showWorkspaceNotice('error', `Couldn’t create the note (${describePapelizVaultError(vaultCreateError)})`)
         return
@@ -1351,8 +1367,10 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
       if (openVault === null) throw new PapelizVaultOperationError('No Vault Open')
       assertAssistantMayWriteVaultNote(vaultNoteRelativePath, assistantVaultNoteWritePurpose)
       const loadedVaultNote = getWorkspaceState().loadedVaultNotesByRelativePath[vaultNoteRelativePath]
+      // A note that isn't open is written as it is; an open one saves through its tab, which tells Sync.
       if (loadedVaultNote?.noteLoadState !== 'loaded') {
         await runVaultOperationInOrder(() => openVault.papelizVaultAdapter.writeVaultNoteText(vaultNoteRelativePath, newVaultNoteText))
+        reportPapelizSyncVaultFileSaved(openVault.papelizVaultId, vaultNoteRelativePath)
         return
       }
       updateLoadedVaultNoteForSession(loadedVaultNote.loadedNoteSessionId, (note) => ({
@@ -1396,6 +1414,7 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
         )
         attachmentFileRelativePath = `${attachmentsFolderRelativePath}/${attachmentFileName}`
         await openVault.papelizVaultAdapter.createVaultAttachmentFile(attachmentFileRelativePath, attachmentFileBlob)
+        reportPapelizSyncVaultFileSaved(openVault.papelizVaultId, attachmentFileRelativePath)
       })
       // The folders it made show in the list, so the next save finds them there.
       await loadVaultTreeEntriesAfterChange()
@@ -1577,6 +1596,7 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
           await createMissingVaultFolders(openVault, getVaultEntryParentFolderRelativePath(vaultNoteRelativePath))
           writtenVaultNoteText = getWorkspaceState().loadedVaultNotesByRelativePath[vaultNoteRelativePath]?.draftVaultNoteText ?? ''
           await openVault.papelizVaultAdapter.writeVaultNoteText(vaultNoteRelativePath, writtenVaultNoteText)
+          reportPapelizSyncVaultFileSaved(openVault.papelizVaultId, vaultNoteRelativePath)
         })
         updateLoadedVaultNoteForSession(loadedNoteSessionId, (note) => ({
           ...note,

@@ -319,7 +319,33 @@ export function groupPapelizSyncRecoveryKeyText(syncRecoveryKeyText: string): st
   return (tidyPapelizSyncRecoveryKeyText(syncRecoveryKeyText).match(/.{1,4}/g) ?? []).join(' ')
 }
 
-// The Recovery Kit as a text file, until Papeliz's PDF engine can make the PDF.
+// The Recovery Kit as a note, which Papeliz's PDF engine prints as the Recovery Kit's PDF
+// (papeliz-sync-recovery-kit-pdf.ts). The key sits in a code block, so it prints in a monospace font
+// where 0 and O, 1 and I can't be mixed up.
+export function buildPapelizSyncRecoveryKitNoteText(syncRecoveryKeyText: string, accountLabel: string | null, recoveryKitMadeAt: Date): string {
+  const recoveryKitMadeDay = new Intl.DateTimeFormat('en-US', { dateStyle: 'long' }).format(recoveryKitMadeAt)
+  return [
+    '# Papeliz Sync Recovery Kit',
+    '',
+    'Your Recovery Key:',
+    '',
+    '```text',
+    groupPapelizSyncRecoveryKeyText(syncRecoveryKeyText),
+    '```',
+    '',
+    accountLabel === null ? null : `- Account: ${accountLabel}`,
+    `- Made on ${recoveryKitMadeDay}`,
+    '',
+    'This key opens your synced notes if you forget your Sync passphrase. Papeliz can’t reset it or your passphrase: without both, the synced copy can’t be opened. The notes on your devices are never affected.',
+    '',
+    'Keep it somewhere safe, away from your devices: printed, or in a password manager.',
+    '',
+  ]
+    .filter((recoveryKitLine): recoveryKitLine is string => recoveryKitLine !== null)
+    .join('\n')
+}
+
+// The Recovery Kit as a text file, for when the PDF can't be made.
 export function buildPapelizSyncRecoveryKitText(syncRecoveryKeyText: string, accountLabel: string | null): string {
   return [
     'Papeliz Sync Recovery Kit',

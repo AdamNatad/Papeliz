@@ -1,13 +1,12 @@
 import { AppWindow, Check, Cloud, CloudCheck, CloudOff, Ellipsis, FolderOpen, KeyRound, LoaderCircle, Lock, TriangleAlert, type LucideIcon } from 'lucide-react'
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { PapelizConfirmDialog } from '../ui/papeliz-confirm-dialog'
 import { usePapelizFooterEqualButtonWidthRef } from '../ui/papeliz-footer-equal-button-width'
 import { PapelizPopoverMenu, type PapelizPopoverMenuPosition } from '../ui/papeliz-popover-menu'
 import { PapelizSolidCircleCheckIcon, PapelizSolidCircleXIcon } from '../ui/papeliz-solid-circle-icons'
-import { describePapelizFolderAccessOffReason } from '../vault/papeliz-folder-access-support'
 import { createPapelizBrowserVault, openPapelizBrowserVault, pickFreePapelizBrowserVaultName, type PapelizBrowserVaultRecord } from '../vault/papeliz-browser-vaults'
-import { pickAndOpenPapelizVaultFolder, type PapelizOpenVault } from '../vault/papeliz-open-vault'
+import type { PapelizOpenVault } from '../vault/papeliz-open-vault'
 import { describePapelizVaultError } from '../vault/papeliz-vault-adapter'
 import { usePapelizBrowserStorageStore } from '../workspace/papeliz-browser-storage-store'
 import { newVaultFormFooterButtonClassName } from '../workspace/papeliz-new-vault-form'
@@ -18,8 +17,9 @@ import { usePapelizSyncClockTime } from './papeliz-sync-clock'
 import { PapelizSyncFailureLine, PapelizSyncLoadingLine, PapelizSyncTextButton } from './papeliz-sync-page-parts'
 import { PapelizSyncPassphraseField } from './papeliz-sync-passphrase-fields'
 import { describePapelizSyncActionFailureNow, describePapelizSyncDay, formatPapelizSyncByteSize } from './papeliz-sync-screen-words'
+import { listPapelizSyncVaultIdsCopiedHere } from './papeliz-sync-fetched-copies'
 import { requestPapelizSettingsGearSyncPage } from './papeliz-sync-settings-gear-request-store'
-import { isPapelizVaultEmptyForSyncDownload, startPapelizSyncStartScreenDownload } from './papeliz-sync-start-screen-download-store'
+import { pickEmptyPapelizVaultFolderForSyncDownload, startPapelizSyncStartScreenDownload } from './papeliz-sync-start-screen-download-store'
 
 // Fetch from Sync, in the start card in place of Recent Vaults (as New Vault's form is): signed out it
 // waits for the sign-in tab the button opened, locked it asks for the Sync passphrase, and unlocked it
@@ -133,6 +133,9 @@ interface PapelizSyncFetchFromSyncPageProps {
   isFolderStorageOn: boolean
   isBrowserStorageOn: boolean
   existingBrowserVaultRecords: readonly PapelizBrowserVaultRecord[]
+  // Every vault on this device, hidden ones too: a synced vault downloaded into one of them as a copy
+  // shows as on this device.
+  papelizVaultIdsOnThisDevice: ReadonlySet<string>
   // Why the sign-in the button started didn't happen, when it didn't.
   fetchFromSyncSignInFailureWords: string | null
   onFetchFromSyncPageClose: () => void
@@ -145,6 +148,7 @@ export function PapelizSyncFetchFromSyncPage({
   isFolderStorageOn,
   isBrowserStorageOn,
   existingBrowserVaultRecords,
+  papelizVaultIdsOnThisDevice,
   fetchFromSyncSignInFailureWords,
   onFetchFromSyncPageClose,
   onSyncDownloadStarted,
@@ -183,12 +187,7 @@ export function PapelizSyncFetchFromSyncPage({
     if (!isSyncedVaultListShown || papelizSyncEngine === null) return
     let isVaultListLeft = false
     void papelizSyncEngine.listSyncedVaultsOnAccount().then((listedAccountVaultsOutcome) => {
-      if (isVaultListLeft) return
-      setAccountVaultsReading({ accountVaultsReadCount, accountVaultsOutcome: listedAccountVaultsOutcome })
-      if (listedAccountVaultsOutcome.syncActionOutcome === 'done') {
-        const firstAccountVaultToDownload = listedAccountVaultsOutcome.syncActionDoneValue.find((accountVault) => accountVault.papelizVaultIdOnThisDevice === null)
-        setChosenPapelizSyncVaultId((chosenSyncVaultId) => chosenSyncVaultId ?? firstAccountVaultToDownload?.papelizSyncVaultId ?? null)
-      }
+      if (!isVaultListLeft) setAccountVaultsReading({ accountVaultsReadCount, accountVaultsOutcome: listedAccountVaultsOutcome })
     })
     return () => {
       isVaultListLeft = true
@@ -197,8 +196,14 @@ export function PapelizSyncFetchFromSyncPage({
 
   const accountVaultsOutcome = accountVaultsReading?.accountVaultsReadCount === accountVaultsReadCount ? accountVaultsReading.accountVaultsOutcome : null
   const accountVaults = accountVaultsOutcome?.syncActionOutcome === 'done' ? accountVaultsOutcome.syncActionDoneValue : null
-  const accountVaultsToDownload = accountVaults?.filter((accountVault) => accountVault.papelizVaultIdOnThisDevice === null) ?? []
-  const chosenAccountVault = accountVaultsToDownload.find((accountVault) => accountVault.papelizSyncVaultId === chosenPapelizSyncVaultId) ?? null
+  // A synced vault is never offered again once it's here: syncing, or downloaded as a copy (which
+  // isn't linked to Sync, so only this device's own record knows it).
+  const syncVaultIdsCopiedHere = useMemo(() => listPapelizSyncVaultIdsCopiedHere(papelizVaultIdsOnThisDevice), [papelizVaultIdsOnThisDevice])
+  const isAccountVaultCopiedHere = (accountVault: PapelizSyncAccountVaultReading) =>
+    accountVault.papelizVaultIdOnThisDevice === null && syncVaultIdsCopiedHere.has(accountVault.papelizSyncVaultId)
+  const accountVaultsToDownload = accountVaults?.filter((accountVault) => accountVault.papelizVaultIdOnThisDevice === null && !isAccountVaultCopiedHere(accountVault)) ?? []
+  // The first one to download is picked until another is.
+  const chosenAccountVault = accountVaultsToDownload.find((accountVault) => accountVault.papelizSyncVaultId === chosenPapelizSyncVaultId) ?? accountVaultsToDownload[0] ?? null
   const isDownloadPlaceChoiceShown = isFolderStorageOn && isBrowserStorageOn
   const syncAccount = syncEngineReading?.syncEngineSnapshot.syncAccount ?? null
 
@@ -243,14 +248,9 @@ export function PapelizSyncFetchFromSyncPage({
     void runFetchFromSyncAction(async () => {
       let papelizOpenVault: PapelizOpenVault
       if (chosenDownloadPlace === 'folder-on-disk') {
-        const openVaultResult = await pickAndOpenPapelizVaultFolder()
-        if (openVaultResult.openVaultOutcome === 'cancelled') return 'No folder picked.'
-        if (openVaultResult.openVaultOutcome === 'chooser-unavailable') return describePapelizFolderAccessOffReason('chooser-unavailable')
-        if (openVaultResult.openVaultOutcome === 'failed') return openVaultResult.openVaultFailureMessage
-        papelizOpenVault = openVaultResult.papelizOpenVault
-        if (!(await isPapelizVaultEmptyForSyncDownload(papelizOpenVault.papelizVaultAdapter).catch(() => false))) {
-          return `“${papelizOpenVault.papelizVaultDisplayName}” isn’t empty. Pick an empty folder, or make a new one in the folder window.`
-        }
+        const syncDownloadFolderPickResult = await pickEmptyPapelizVaultFolderForSyncDownload()
+        if ('syncDownloadFolderRefusalWords' in syncDownloadFolderPickResult) return syncDownloadFolderPickResult.syncDownloadFolderRefusalWords
+        papelizOpenVault = syncDownloadFolderPickResult.papelizOpenVault
       } else {
         askBrowserToKeepStorage()
         try {
@@ -417,8 +417,9 @@ export function PapelizSyncFetchFromSyncPage({
           </p>
           <div role="radiogroup" aria-labelledby={`${fetchFromSyncIdPrefix}-vault-label`} className="flex flex-col gap-1.5">
             {accountVaultsOutcome.syncActionDoneValue.map((accountVault) => {
-              const isAccountVaultHere = accountVault.papelizVaultIdOnThisDevice !== null
-              const isAccountVaultChosen = !isAccountVaultHere && accountVault.papelizSyncVaultId === chosenPapelizSyncVaultId
+              const isAccountVaultCopy = isAccountVaultCopiedHere(accountVault)
+              const isAccountVaultHere = accountVault.papelizVaultIdOnThisDevice !== null || isAccountVaultCopy
+              const isAccountVaultChosen = !isAccountVaultHere && accountVault.papelizSyncVaultId === chosenAccountVault?.papelizSyncVaultId
               const accountVaultName = accountVault.syncVaultName ?? 'Synced vault'
               return (
                 <label
@@ -446,8 +447,8 @@ export function PapelizSyncFetchFromSyncPage({
                   </span>
                   {isAccountVaultHere ? (
                     <span className="inline-flex h-5 flex-none items-center gap-1 rounded-full bg-papeliz-surface-gray px-2 text-[11px] font-semibold text-papeliz-ink-muted">
-                      <Check className="size-3" aria-hidden="true" />
-                      On this device
+                      {isAccountVaultCopy ? <CloudOff className="size-3" aria-hidden="true" /> : <Check className="size-3" aria-hidden="true" />}
+                      {isAccountVaultCopy ? 'Copy on this device' : 'On this device'}
                     </span>
                   ) : (
                     <input
