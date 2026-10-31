@@ -135,7 +135,7 @@ function PapelizAccountDeleteAccountRow({
       />
       {accountDeleteStageKind !== 'closed' && (
         <PapelizAccountDialog
-          papelizAccountDialogTitle="Delete your account?"
+          papelizAccountDialogTitle={accountDeleteStageKind === 'fresh-sign-in-needed' ? 'Sign In Again to Continue' : 'Delete your account?'}
           onPapelizAccountDialogClose={() => {
             if (!accountDeleteIsRunning) closePapelizAccountDeleteDialog()
           }}
@@ -158,7 +158,7 @@ function PapelizAccountDeleteAccountRow({
         >
           <p>
             {accountDeleteStageKind === 'fresh-sign-in-needed'
-              ? 'To delete your account, sign in again first.'
+              ? 'Deleting your account can’t be undone, so it needs a sign-in from the last 10 minutes. Sign in again, and this opens again so you can finish.'
               : 'Deletes your account, your Sync subscription and every synced copy. The notes on your devices stay. This can’t be undone.'}
           </p>
           {accountDeleteStage.accountDeleteStageKind === 'failed' && (

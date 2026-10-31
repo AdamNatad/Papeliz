@@ -127,7 +127,8 @@ function describePapelizAccountSyncDevice(syncDeviceRecord: PapelizAccountSyncDe
 
 type PapelizAccountSyncDeviceRemoval = {
   syncDeviceRecord: PapelizAccountSyncDeviceRecord
-  syncDeviceRemovalStageKind: 'confirming' | 'removing' | 'fresh-sign-in-needed' | 'failed'
+  // `sign-in-ended`: the page's sign-in itself has ended. Remove needs no recent sign-in, only a live one.
+  syncDeviceRemovalStageKind: 'confirming' | 'removing' | 'sign-in-ended' | 'failed'
   syncDeviceRemovalFailureMessage?: string
 }
 
@@ -188,15 +189,13 @@ export function PapelizAccountDevicesSection({
     try {
       const papelizAccountSignInToken = await getToken({ skipCache: true })
       if (!papelizAccountSignInToken) {
-        showSyncDeviceRemovalStage({ syncDeviceRecord, syncDeviceRemovalStageKind: 'fresh-sign-in-needed' })
+        showSyncDeviceRemovalStage({ syncDeviceRecord, syncDeviceRemovalStageKind: 'sign-in-ended' })
         return
       }
       const syncDeviceRemovalOutcome = await papelizAccountSyncService.removePapelizSyncDeviceFromSignInPage(papelizAccountSignInToken, papelizSyncDeviceId)
       if (syncDeviceRemovalOutcome.syncDeviceRemovalOutcomeKind === 'removed') {
         forgetRemovedPapelizAccountSyncDevice(papelizSyncDeviceId)
         showSyncDeviceRemovalStage(null)
-      } else if (syncDeviceRemovalOutcome.syncDeviceRemovalOutcomeKind === 'fresh-sign-in-required') {
-        showSyncDeviceRemovalStage({ syncDeviceRecord, syncDeviceRemovalStageKind: 'fresh-sign-in-needed' })
       } else {
         showSyncDeviceRemovalStage({
           syncDeviceRecord,
@@ -283,20 +282,24 @@ export function PapelizAccountDevicesSection({
       </PapelizAccountRowGroup>
       {syncDeviceRemoval && (
         <PapelizAccountDialog
-          papelizAccountDialogTitle={titlePapelizAccountSyncDeviceRemoval(syncDeviceRemoval.syncDeviceRecord)}
+          papelizAccountDialogTitle={
+            syncDeviceRemoval.syncDeviceRemovalStageKind === 'sign-in-ended'
+              ? 'Sign In Again to Continue'
+              : titlePapelizAccountSyncDeviceRemoval(syncDeviceRemoval.syncDeviceRecord)
+          }
           onPapelizAccountDialogClose={() => setSyncDeviceRemoval(null)}
           papelizAccountDialogFooter={
             <>
               <button type="button" disabled={syncDeviceRemovalIsRunning} onClick={() => setSyncDeviceRemoval(null)} className={papelizAccountSecondaryButtonClassName}>
                 Cancel
               </button>
-              {syncDeviceRemoval.syncDeviceRemovalStageKind === 'fresh-sign-in-needed' ? (
+              {syncDeviceRemoval.syncDeviceRemovalStageKind === 'sign-in-ended' ? (
                 <button
                   type="button"
                   onClick={() => void papelizAccountClerk.signOut({ redirectUrl: papelizAccountPagePath })}
                   className={papelizAccountCompactPrimaryButtonClassName}
                 >
-                  Sign in again
+                  Sign In Again
                 </button>
               ) : (
                 <button
@@ -311,12 +314,14 @@ export function PapelizAccountDevicesSection({
             </>
           }
         >
-          <p>{describePapelizAccountSyncDevice(syncDeviceRemoval.syncDeviceRecord, currentTime)}.</p>
-          <p>
-            {syncDeviceRemoval.syncDeviceRemovalStageKind === 'fresh-sign-in-needed'
-              ? 'To remove a device, sign in again first.'
-              : 'It signs out of Sync and stops syncing. Its notes stay on it.'}
-          </p>
+          {syncDeviceRemoval.syncDeviceRemovalStageKind === 'sign-in-ended' ? (
+            <p>Your sign-in on this page has ended. Sign in again, then remove the device.</p>
+          ) : (
+            <>
+              <p>{describePapelizAccountSyncDevice(syncDeviceRemoval.syncDeviceRecord, currentTime)}.</p>
+              <p>It signs out of Sync and stops syncing. Its notes stay on it.</p>
+            </>
+          )}
           {syncDeviceRemoval.syncDeviceRemovalStageKind === 'failed' && (
             <p role="alert" className="text-papeliz-diff-removed-ink">
               {syncDeviceRemoval.syncDeviceRemovalFailureMessage}

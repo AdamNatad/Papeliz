@@ -56,7 +56,6 @@ export type PapelizAccountSyncDeviceListOutcome =
 
 export type PapelizAccountSyncDeviceRemovalOutcome =
   | { syncDeviceRemovalOutcomeKind: 'removed' }
-  | { syncDeviceRemovalOutcomeKind: 'fresh-sign-in-required' }
   | { syncDeviceRemovalOutcomeKind: 'refused'; syncDeviceRemovalRefusalMessage: string }
 
 export interface PapelizAccountSyncService {
@@ -191,7 +190,6 @@ async function requestPapelizSyncDeviceRemovalFromAccountWorker(signInToken: str
   if (deviceRemovalResponse.status === 404 && syncErrorCode === null) return null
   // Already gone (removed from another tab or device): the list drops it as if this removal did.
   if (syncErrorCode === 'device-not-found') return { syncDeviceRemovalOutcomeKind: 'removed' }
-  if (syncErrorCode === 'fresh-sign-in-required') return { syncDeviceRemovalOutcomeKind: 'fresh-sign-in-required' }
   return { syncDeviceRemovalOutcomeKind: 'refused', syncDeviceRemovalRefusalMessage: syncErrorMessage ?? `Papeliz Sync answered ${deviceRemovalResponse.status}.` }
 }
 
