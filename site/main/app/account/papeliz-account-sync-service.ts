@@ -16,7 +16,7 @@ export const papelizAccountSyncDevicesPath = '/api/account/v1/devices'
 export const papelizAccountSyncAccountDeletionFromSignInPagePath = '/api/account/v1/account/deletion-from-sign-in-page'
 // The Devices section's list and Remove, from a sign-in token and no device: GET answers
 // `{ syncDeviceRecords }` (an empty list when the sign-in has no Sync account); DELETE with a device ID
-// answers `{ removedPapelizSyncDeviceId }`, and needs a sign-in in the last 10 minutes.
+// answers `{ removedPapelizSyncDeviceId }`, with any valid sign-in.
 export const papelizAccountSyncDevicesFromSignInPagePath = '/api/account/v1/devices-from-sign-in-page'
 // The word the deletion routes ask for in the body, so no request deletes an account by accident.
 const papelizAccountSyncAccountDeletionConfirmation = 'delete-my-papeliz-sync-account'
