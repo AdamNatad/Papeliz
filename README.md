@@ -26,14 +26,14 @@
   <a href="https://papeliz.com/adam-natad/">Adam Natad</a> built the MVP in under 24 hours.
 </p>
 
-Papeliz is a free, open-source, cross-platform Markdown editor and AI-powered note-taking app for
-building your personal knowledge base. Create, edit, organize, and connect your notes and ideas in
-MD Code and MD View, with a built-in AI assistant that runs on your own API key — no account, and
-no Papeliz server in between. Available on the web, Windows, macOS, Linux, Android, iOS, and
-HarmonyOS.
+Papeliz is a free, open-source Markdown editor and AI note-taking app for your personal knowledge
+base. Write, organize and link your notes in MD Code and MD View, with a built-in AI assistant that
+runs on your own API key. No account, and no Papeliz server in between.
 
-**Try it now at [papeliz.com/app](https://papeliz.com/app/)** — open a folder of notes, keep a
-vault in your browser, or start with the sample vault. Nothing to install, no sign-up.
+Available on the web, Windows, macOS, Linux, Android, iOS and HarmonyOS.
+
+**Try it now at [papeliz.com/app](https://papeliz.com/app/).** Open a folder of notes, keep a vault
+in your browser, or start with the sample vault. Nothing to install, no sign-up.
 
 ## Why Papeliz
 
@@ -42,7 +42,7 @@ vault in your browser, or start with the sample vault. Nothing to install, no si
   lock-in. Existing Markdown folders open as they are.
 - **Use it anywhere, no account.** Open a folder of notes and start writing.
 - **Your key, your provider.** The assistant talks straight from your device to the AI provider
-  you choose. Papeliz has no server, so it never sees your key or your notes.
+  you choose.
 - **An assistant that works with you.** It answers questions about your notes, plans changes, and
   proposes edits as diffs you accept or reject. Nothing changes until you say so.
 - **Free and open source.** MIT licensed.
@@ -54,21 +54,23 @@ vault in your browser, or start with the sample vault. Nothing to install, no si
 - **MD Code and MD View behind one switch:** raw Markdown with syntax colors and line numbers, or
   the rendered note you can still type in.
 - **Tables and diagrams:** Markdown tables and every Mermaid diagram type (flowcharts, sequence
-  diagrams, charts and more) show drawn in MD View, in light and dark; click one to edit its source.
+  diagrams, charts and more) are drawn in MD View, in light and dark. Click one to edit its source.
 - **Linked notes:** wikilinks (`[[note]]`), backlinks, an outline and full-text search.
 - **A file list you can make your own:** colors and icons for any note or folder.
 - **Focus mode** (`Ctrl+Shift+F`): only your note and a floating prompt box.
-- **Export as Word:** an editable `.docx` per note, with its tables, callouts, footnotes, pictures
-  and diagrams; several notes come as one `.zip` whose links open each other. Google Docs and
-  Notion open the same file.
-- **Export as PDF:** written by Papeliz itself, with no print window. Text stays searchable,
-  links work, headings become bookmarks, and diagrams print as sharp drawings. Each PDF carries
-  its language, reading order, picture descriptions and table headers for screen readers. Letter
-  or A4.
-- **Export as HTML:** one note as a single web page, or several as a small website in a `.zip`,
-  with a Markdown twin of every page and the site's Astro project to change and rebuild.
 - **One Settings gear:** accessibility, key bindings, export, locking, focus mode and closing the
   vault, in one panel.
+
+**Export**
+
+- **Word:** an editable `.docx` per note, with its tables, callouts, footnotes, pictures and
+  diagrams. Several notes come as one `.zip` whose links open each other. Google Docs and Notion
+  open the same file.
+- **PDF:** written by Papeliz itself, with no print window. Text stays searchable, links work,
+  headings become bookmarks and diagrams print sharp. Screen readers get the language, reading
+  order, picture descriptions and table headers. Letter or A4.
+- **HTML:** one note as a web page, or several as a small website in a `.zip`, with a Markdown copy
+  of every page and the site's Astro project to change and rebuild.
 
 **Work with the AI assistant**
 
@@ -167,10 +169,11 @@ provider is subject to that provider's own terms and pricing.
 
 **Up next: Papeliz Sync**
 
+Sync is optional. Papeliz itself stays free, with no account needed.
+
 - [ ] Keep your vaults in sync across web, desktop and mobile
 - [ ] Edits from two devices merge instead of overwriting each other
 - [ ] End-to-end encrypted, so Papeliz still never sees your notes
-- [ ] Optional: Papeliz itself stays free, with no account needed
 
 **Later**
 
@@ -222,7 +225,7 @@ Hosted on [Cloudflare Workers](https://workers.cloudflare.com) static assets.
 
 Issues and pull requests are welcome. Please:
 
-- keep notes as plain Markdown — no format that only Papeliz can read;
+- keep notes as plain Markdown, with no format only Papeliz can read;
 - never add a server that sees users' keys or notes;
 - contribute only code you have the right to share under the MIT License.
 
