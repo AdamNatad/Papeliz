@@ -1,6 +1,8 @@
 import Link from 'next/link'
 import { PapelizLegalDocument, PapelizLegalDocumentSection } from '@/components/legal/papeliz-legal-document'
+import { isPapelizLegalSyncDraftShown, PapelizLegalSyncDraftNotice } from '@/components/legal/papeliz-legal-sync-draft'
 import { papelizSiteCopyrightHolder } from '@/lib/papeliz-site-config'
+import { papelizSiteSyncEducationAndNonProfitDiscountPercent, papelizSiteSyncRefundWindowDayCount } from '@/lib/papeliz-site-sync-plans'
 import { createPapelizSitePageMetadata } from '@/lib/papeliz-site-seo'
 
 export const metadata = createPapelizSitePageMetadata({
@@ -66,6 +68,75 @@ export default function PapelizSiteTermsPage() {
           note any change that matters.
         </p>
       </PapelizLegalDocumentSection>
+
+      {isPapelizLegalSyncDraftShown && (
+        <>
+          <PapelizLegalSyncDraftNotice>
+            The sections below cover Papeliz Sync, its account and its payments. They show only on the dev
+            server until their words are approved; the published page leaves them out.
+          </PapelizLegalSyncDraftNotice>
+
+          <PapelizLegalDocumentSection papelizLegalSectionTitle="Papeliz Sync">
+            <p>
+              Papeliz Sync is an optional paid add-on that keeps the vaults you choose the same on your
+              devices. It needs a Papeliz account, made on papeliz.com/account. Each plan’s limits are on
+              the <Link href="/sync/" className="font-medium text-papeliz-blue hover:underline">Sync page</Link>,
+              and fair-use limits on daily transfers keep the service working for everyone. Papeliz may pause
+              uploads for an account that tries to get around the limits or harms the service; downloads go on.
+            </p>
+            <p>
+              We work to keep Sync available, but it can be slow or down at times. Keep your own backups:
+              the notes on your devices stay the main copy.
+            </p>
+          </PapelizLegalDocumentSection>
+
+          <PapelizLegalDocumentSection papelizLegalSectionTitle="Buying a subscription">
+            <p>
+              Subscriptions are sold by our payment provider, the merchant of record. Its terms apply to the
+              purchase, and it charges any sales tax or VAT where you live. Prices are in US dollars. A
+              subscription renews each month or each year, as you chose, until you cancel it.
+            </p>
+            <p>
+              You can cancel at any time from Billing on your account page. Sync then stays on until the end
+              of the period you paid for. There is no free trial; instead, you get a full refund if you ask
+              within {papelizSiteSyncRefundWindowDayCount} days of subscribing. Education and non-profit
+              customers can get {papelizSiteSyncEducationAndNonProfitDiscountPercent}% off as a code, after a
+              short check.
+            </p>
+            <p>
+              If a payment fails, Sync goes on while the payment provider tries again. If it can’t collect
+              the payment, the subscription ends.
+            </p>
+          </PapelizLegalDocumentSection>
+
+          <PapelizLegalDocumentSection papelizLegalSectionTitle="When a subscription ends">
+            <p>
+              Uploads stop. Your synced copy stays readable for 30 days, so any device can still download it,
+              then it is kept for 60 more days and deleted. The notes on your devices are never touched.
+              Subscribing again before it is deleted picks up where you left off.
+            </p>
+          </PapelizLegalDocumentSection>
+
+          <PapelizLegalDocumentSection papelizLegalSectionTitle="Your account and your passphrases">
+            <p>
+              Keep your sign-in safe; what happens through it is your responsibility. An End-to-end vault’s
+              passphrase never reaches Papeliz, so Papeliz can’t recover it: if every device forgets it and you
+              lose it, that vault’s synced copy can’t be opened.
+            </p>
+            <p>
+              You can delete your account at any time on papeliz.com/account. That cancels your subscription
+              at once and deletes every synced copy; the notes on your devices stay.
+            </p>
+          </PapelizLegalDocumentSection>
+
+          <PapelizLegalDocumentSection papelizLegalSectionTitle="Changes to plans and prices">
+            <p>
+              A change to a plan’s price or limits that affects a running subscription is announced before it
+              applies, and takes effect at your next renewal. You can cancel before then.
+            </p>
+          </PapelizLegalDocumentSection>
+        </>
+      )}
     </PapelizLegalDocument>
   )
 }

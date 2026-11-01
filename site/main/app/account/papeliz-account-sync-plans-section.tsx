@@ -4,20 +4,39 @@ import { useState } from 'react'
 import { PapelizSiteBillingPeriodSwitch } from '@/components/pricing/papeliz-site-billing-period-switch'
 import { createPapelizSiteYearlySavingsBadgeInfo, papelizSiteSyncYearlyMonthsSaved } from '@/components/pricing/papeliz-site-yearly-savings-info'
 import {
-  createPapelizSiteSyncSignUpHref,
   describePapelizSiteSyncPlanLimits,
   formatPapelizSiteSyncUsd,
   papelizSiteSyncPlans,
   readPapelizSiteSyncPlanMonthlyRateUsd,
   type PapelizSiteSyncBillingPeriod,
+  type PapelizSiteSyncChosenPlan,
 } from '@/lib/papeliz-site-sync-plans'
-import { papelizAccountCompactPrimaryButtonClassName, papelizAccountTextLinkClassName } from './papeliz-account-card-frame'
+import { papelizAccountCompactPrimaryButtonClassName, papelizAccountSecondaryButtonClassName, papelizAccountTextLinkClassName } from './papeliz-account-card-frame'
+import { PapelizAccountSyncSubscriptionNotice, readPapelizAccountSyncPlanName, type PapelizAccountSyncBillingState } from './papeliz-account-sync-billing'
+import { isPapelizAccountSyncSubscriptionLive } from './papeliz-account-sync-service'
 
 // The account page's Sync section: what Sync is, the Monthly / Yearly switch, then the three plans,
-// each with its own Subscribe (Adam, 2026-10-31). Subscribe opens Papeliz on Settings › Sync with
-// that plan and period chosen, where the storage place and checkout happen.
-export function PapelizAccountSyncPlansSection() {
-  const [chosenPapelizAccountSyncBillingPeriod, setChosenPapelizAccountSyncBillingPeriod] = useState<PapelizSiteSyncBillingPeriod>('yearly')
+// each with its own Subscribe (Adam, 2026-10-31). Subscribe opens checkout here, after asking a new
+// account where Sync keeps its notes. With a live subscription its plan reads Current Plan and the
+// others Change Plan, which opens the subscription's own page; a failed payment or an ended
+// subscription shows above the plans. The storage place dialog is the dashboard's, once for both layouts.
+export function PapelizAccountSyncPlansSection({
+  papelizAccountSyncBillingState,
+  papelizAccountSyncChosenPlan,
+}: {
+  papelizAccountSyncBillingState: PapelizAccountSyncBillingState
+  papelizAccountSyncChosenPlan: PapelizSiteSyncChosenPlan | null
+}) {
+  const [chosenPapelizAccountSyncBillingPeriod, setChosenPapelizAccountSyncBillingPeriod] = useState<PapelizSiteSyncBillingPeriod>(
+    papelizAccountSyncChosenPlan?.chosenSyncBillingPeriod ?? 'yearly',
+  )
+  const [isChosenPlanPromptDismissed, setIsChosenPlanPromptDismissed] = useState(false)
+  const { syncBillingStage, syncCheckoutStage, syncBillingPortalFailureMessage, startPapelizAccountSyncCheckout, openPapelizAccountSyncBillingPortal, loadPapelizAccountSyncBilling } =
+    papelizAccountSyncBillingState
+  const syncBilling = syncBillingStage.syncBillingStageKind === 'read' ? syncBillingStage.syncBilling : null
+  const isSyncSubscriptionLive = syncBilling !== null && isPapelizAccountSyncSubscriptionLive(syncBilling.syncSubscriptionState)
+  const isSyncCheckoutOpening = syncCheckoutStage.syncCheckoutStageKind === 'opening'
+  const isChosenPlanPromptShown = papelizAccountSyncChosenPlan !== null && !isChosenPlanPromptDismissed && syncBilling !== null && !isSyncSubscriptionLive
 
   return (
     <>
@@ -27,6 +46,26 @@ export function PapelizAccountSyncPlansSection() {
           Learn more.
         </a>
       </p>
+      <PapelizAccountSyncSubscriptionNotice papelizAccountSyncBillingState={papelizAccountSyncBillingState} />
+      {isChosenPlanPromptShown && (
+        <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-papeliz-blue-line bg-papeliz-blue-soft px-4 py-3 text-sm text-papeliz-ink">
+          <p className="min-w-0 flex-1 text-pretty">
+            Subscribe to <b className="font-semibold">{readPapelizAccountSyncPlanName(papelizAccountSyncChosenPlan.chosenSyncPlanId)}</b>, billed{' '}
+            {papelizAccountSyncChosenPlan.chosenSyncBillingPeriod}? Checkout opens on our payment provider’s secure page.
+          </p>
+          <button type="button" onClick={() => setIsChosenPlanPromptDismissed(true)} className={papelizAccountSecondaryButtonClassName}>
+            Not Now
+          </button>
+          <button
+            type="button"
+            disabled={isSyncCheckoutOpening}
+            onClick={() => startPapelizAccountSyncCheckout(papelizAccountSyncChosenPlan.chosenSyncPlanId, papelizAccountSyncChosenPlan.chosenSyncBillingPeriod, null)}
+            className={papelizAccountCompactPrimaryButtonClassName}
+          >
+            {isSyncCheckoutOpening ? 'Opening Checkout…' : 'Continue to Checkout'}
+          </button>
+        </div>
+      )}
       <div className="mb-4">
         <PapelizSiteBillingPeriodSwitch
           papelizSiteBillingPeriodSwitchVariant="compact"
@@ -44,14 +83,33 @@ export function PapelizAccountSyncPlansSection() {
           papelizSiteBillingPeriodBadgeInfo={createPapelizSiteYearlySavingsBadgeInfo()}
         />
       </div>
+      {syncCheckoutStage.syncCheckoutStageKind === 'failed' && (
+        <p role="alert" className="mb-3 text-sm text-papeliz-diff-removed-ink">
+          {syncCheckoutStage.syncCheckoutFailureMessage}
+        </p>
+      )}
+      {syncBillingPortalFailureMessage !== null && (
+        <p role="alert" className="mb-3 text-sm text-papeliz-diff-removed-ink">
+          {syncBillingPortalFailureMessage}
+        </p>
+      )}
+      {syncBillingStage.syncBillingStageKind === 'failed' && (
+        <p role="alert" className="mb-3 flex flex-wrap items-center gap-2 text-sm text-papeliz-diff-removed-ink">
+          {syncBillingStage.syncBillingFailureMessage}
+          <button type="button" onClick={loadPapelizAccountSyncBilling} className={papelizAccountTextLinkClassName}>
+            Try again
+          </button>
+        </p>
+      )}
       <div className="grid min-w-0 grid-cols-1 gap-3 lg:grid-cols-3">
         {papelizSiteSyncPlans.map((papelizSiteSyncPlan) => {
-          const papelizAccountSyncSubscribeHref = createPapelizSiteSyncSignUpHref(papelizSiteSyncPlan.papelizSiteSyncPlanId, chosenPapelizAccountSyncBillingPeriod)
+          const isCurrentSyncPlan = isSyncSubscriptionLive && syncBilling?.syncPlanName === papelizSiteSyncPlan.papelizSiteSyncPlanId
+          const isThisPlanCheckoutOpening = isSyncCheckoutOpening && syncCheckoutStage.chosenSyncPlanId === papelizSiteSyncPlan.papelizSiteSyncPlanId
           return (
             <article
               key={papelizSiteSyncPlan.papelizSiteSyncPlanId}
               data-papeliz-account-sync-plan={papelizSiteSyncPlan.papelizSiteSyncPlanId}
-              className="flex min-w-0 flex-col rounded-xl border border-papeliz-line bg-papeliz-surface p-4"
+              className={`flex min-w-0 flex-col rounded-xl border bg-papeliz-surface p-4 ${isCurrentSyncPlan ? 'border-papeliz-blue' : 'border-papeliz-line'}`}
             >
               <h2 className="text-[15px] font-semibold">{papelizSiteSyncPlan.papelizSiteSyncPlanName}</h2>
               <p className="mt-0.5 text-[26px] leading-[1.35] font-semibold tracking-[-0.02em]">
@@ -60,16 +118,29 @@ export function PapelizAccountSyncPlansSection() {
               </p>
               {/* "USD" alone beside the price, as on the Pricing and Sync pages; this line says it is a month's price. */}
               <p className="mt-0.5 text-[13px] text-papeliz-ink-muted">{chosenPapelizAccountSyncBillingPeriod === 'yearly' ? 'Per month, billed yearly' : 'Billed monthly'}</p>
-              {papelizAccountSyncSubscribeHref && (
-                <a
-                  href={papelizAccountSyncSubscribeHref}
-                  target="_blank"
-                  rel="noopener"
+              {isCurrentSyncPlan ? (
+                <button type="button" disabled className={`${papelizAccountSecondaryButtonClassName} mt-4 w-full`}>
+                  Current Plan
+                </button>
+              ) : isSyncSubscriptionLive ? (
+                <button
+                  type="button"
+                  onClick={openPapelizAccountSyncBillingPortal}
+                  aria-label={`Change to ${papelizSiteSyncPlan.papelizSiteSyncPlanName}`}
+                  className={`${papelizAccountSecondaryButtonClassName} mt-4 w-full`}
+                >
+                  Change Plan
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled={syncBilling === null || isSyncCheckoutOpening}
+                  onClick={() => startPapelizAccountSyncCheckout(papelizSiteSyncPlan.papelizSiteSyncPlanId, chosenPapelizAccountSyncBillingPeriod, null)}
                   aria-label={`Subscribe to ${papelizSiteSyncPlan.papelizSiteSyncPlanName}`}
                   className={`${papelizAccountCompactPrimaryButtonClassName} mt-4 w-full`}
                 >
-                  Subscribe
-                </a>
+                  {isThisPlanCheckoutOpening ? 'Opening Checkout…' : 'Subscribe'}
+                </button>
               )}
               <ul className="mt-4 grid gap-0.5 text-[13px] leading-normal">
                 {describePapelizSiteSyncPlanLimits(papelizSiteSyncPlan).map((papelizSiteSyncPlanLimitLine) => (

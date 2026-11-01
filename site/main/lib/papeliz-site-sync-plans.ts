@@ -1,4 +1,4 @@
-import { papelizSiteAppUrl } from './papeliz-site-config'
+import { papelizSiteAccountUrl } from './papeliz-site-config'
 
 // Papeliz Sync's plans as the Pricing and Sync pages show them: each plan's prices and the limits
 // people see. They match the prices at checkout and the plans in the app's Settings › Sync; a price
@@ -61,25 +61,39 @@ export const papelizSiteSyncConnectedDeviceLimit = 20
 export const papelizSiteSyncEducationAndNonProfitDiscountPercent = 40
 export const papelizSiteSyncRefundWindowDayCount = 7
 
-// The app opens Settings › Sync with a plan and billing period chosen when its address carries these
-// two parameters. They must match papelizSyncPlanAddressParameterName and
-// papelizSyncBillingPeriodAddressParameterName in
+// A plan and billing period chosen in an address: the account page reads them to open Sync ready for
+// checkout, and the app reads the same two to open Settings › Sync with the plan chosen. They must
+// match papelizSyncPlanAddressParameterName and papelizSyncBillingPeriodAddressParameterName in
 // app/web/src/modules/sync/papeliz-sync-settings-gear-request-store.ts.
 export const papelizSiteSyncPlanAddressParameterName = 'papeliz-sync-plan'
 export const papelizSiteSyncBillingPeriodAddressParameterName = 'papeliz-sync-billing-period'
 
-// Sign up's address: the app, opening on Settings › Sync with this plan and period chosen. Null while
-// the app has no address, and Sign up is then left out.
+export interface PapelizSiteSyncChosenPlan {
+  chosenSyncPlanId: PapelizSiteSyncPlanId
+  chosenSyncBillingPeriod: PapelizSiteSyncBillingPeriod
+}
+
+// The plan and period an address chose, or null when it chose none or one that isn't sold.
+export function readPapelizSiteSyncChosenPlan(papelizSiteAddressParameters: URLSearchParams): PapelizSiteSyncChosenPlan | null {
+  const chosenSyncPlanId = papelizSiteAddressParameters.get(papelizSiteSyncPlanAddressParameterName)
+  const chosenSyncBillingPeriod = papelizSiteAddressParameters.get(papelizSiteSyncBillingPeriodAddressParameterName)
+  const isChosenSyncPlanSold = papelizSiteSyncPlans.some((papelizSiteSyncPlan) => papelizSiteSyncPlan.papelizSiteSyncPlanId === chosenSyncPlanId)
+  if (!isChosenSyncPlanSold || (chosenSyncBillingPeriod !== 'monthly' && chosenSyncBillingPeriod !== 'yearly')) return null
+  return { chosenSyncPlanId: chosenSyncPlanId as PapelizSiteSyncPlanId, chosenSyncBillingPeriod }
+}
+
+// Sign up's address: the account page, where the visitor signs in and checks out with this plan and
+// period chosen. Null while the account page has no address, and Sign up is then left out.
 export function createPapelizSiteSyncSignUpHref(
   papelizSiteSyncPlanId: PapelizSiteSyncPlanId,
   papelizSiteSyncBillingPeriod: PapelizSiteSyncBillingPeriod,
 ): string | null {
-  if (!papelizSiteAppUrl) return null
+  if (!papelizSiteAccountUrl) return null
   const papelizSiteSyncSignUpAddressParameters = new URLSearchParams({
     [papelizSiteSyncPlanAddressParameterName]: papelizSiteSyncPlanId,
     [papelizSiteSyncBillingPeriodAddressParameterName]: papelizSiteSyncBillingPeriod,
   })
-  return `${papelizSiteAppUrl}?${papelizSiteSyncSignUpAddressParameters.toString()}`
+  return `${papelizSiteAccountUrl}?${papelizSiteSyncSignUpAddressParameters.toString()}`
 }
 
 // A plan's price for a month: the monthly price, or the yearly price spread over 12 months.

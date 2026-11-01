@@ -4,6 +4,7 @@ import { Clerk } from '@clerk/clerk-js'
 import { ClerkFailed, ClerkLoaded, ClerkLoading, ClerkProvider, useAuth } from '@clerk/react'
 import { SlidersHorizontal } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { readPapelizSiteSyncChosenPlan, papelizSiteSyncBillingPeriodAddressParameterName, papelizSiteSyncPlanAddressParameterName } from '@/lib/papeliz-site-sync-plans'
 import {
   isPapelizAccountProductionHost,
   papelizAccountChangePassphraseAfterSignInParameterName,
@@ -23,7 +24,7 @@ import { PapelizAccountChooseUsernameStep } from './papeliz-account-choose-usern
 import { PapelizAccountAfterLoadingBar, PapelizAccountStateScreen } from './papeliz-account-state-screen'
 import { readPapelizSyncSignInPageParameters } from './papeliz-account-sync-hand-over'
 import { PapelizAccountSyncHandOverScreen } from './papeliz-account-sync-hand-over-screen'
-import { selectPapelizAccountSyncService } from './papeliz-account-sync-service'
+import { papelizAccountSyncCheckoutFinishedParameterName, selectPapelizAccountSyncService } from './papeliz-account-sync-service'
 
 // Clerk runs from the copy bundled into this page (`@clerk/clerk-js`, pinned), never from Clerk's
 // servers, and no Clerk screens load: every screen here is Papeliz's own. Its telemetry is off, so
@@ -116,6 +117,10 @@ function PapelizAccountPageScreen({ isPapelizAccountProductionHost }: { isPapeli
   const [papelizSyncVaultIdToChangePassphraseAfterSignIn] = useState(() => papelizAccountPageSearchParameters.get(papelizAccountChangePassphraseAfterSignInParameterName))
   // And Change Email or Change Username, for Profile.
   const [papelizAccountProfileDetailToChangeAfterSignIn] = useState(() => readPapelizAccountProfileDetailToChangeAfterSignIn(papelizAccountPageSearchParameters))
+  // A plan chosen on the website's Sync or Pricing page, through sign-in to checkout; and the return
+  // from checkout. Each opens Sync once.
+  const [papelizAccountSyncChosenPlan] = useState(() => readPapelizSiteSyncChosenPlan(papelizAccountPageSearchParameters))
+  const [isPapelizAccountSyncCheckoutReturn] = useState(() => papelizAccountPageSearchParameters.has(papelizAccountSyncCheckoutFinishedParameterName))
 
   useEffect(() => {
     if (isSignedIn) forgetPapelizAccountSsoPendingProvider()
@@ -124,7 +129,11 @@ function PapelizAccountPageScreen({ isPapelizAccountProductionHost }: { isPapeli
   useEffect(() => {
     if (
       !isSignedIn ||
-      (!isPapelizAccountDeleteOpenedAfterSignIn && papelizSyncVaultIdToChangePassphraseAfterSignIn === null && papelizAccountProfileDetailToChangeAfterSignIn === null)
+      (!isPapelizAccountDeleteOpenedAfterSignIn &&
+        papelizSyncVaultIdToChangePassphraseAfterSignIn === null &&
+        papelizAccountProfileDetailToChangeAfterSignIn === null &&
+        papelizAccountSyncChosenPlan === null &&
+        !isPapelizAccountSyncCheckoutReturn)
     ) {
       return
     }
@@ -132,8 +141,18 @@ function PapelizAccountPageScreen({ isPapelizAccountProductionHost }: { isPapeli
     papelizAccountAddressWithoutAfterSignInFlags.searchParams.delete(papelizAccountDeleteAfterSignInParameterName)
     papelizAccountAddressWithoutAfterSignInFlags.searchParams.delete(papelizAccountChangePassphraseAfterSignInParameterName)
     papelizAccountAddressWithoutAfterSignInFlags.searchParams.delete(papelizAccountChangeProfileDetailAfterSignInParameterName)
+    papelizAccountAddressWithoutAfterSignInFlags.searchParams.delete(papelizSiteSyncPlanAddressParameterName)
+    papelizAccountAddressWithoutAfterSignInFlags.searchParams.delete(papelizSiteSyncBillingPeriodAddressParameterName)
+    papelizAccountAddressWithoutAfterSignInFlags.searchParams.delete(papelizAccountSyncCheckoutFinishedParameterName)
     window.history.replaceState(window.history.state, '', papelizAccountAddressWithoutAfterSignInFlags.href)
-  }, [isSignedIn, isPapelizAccountDeleteOpenedAfterSignIn, papelizSyncVaultIdToChangePassphraseAfterSignIn, papelizAccountProfileDetailToChangeAfterSignIn])
+  }, [
+    isSignedIn,
+    isPapelizAccountDeleteOpenedAfterSignIn,
+    papelizSyncVaultIdToChangePassphraseAfterSignIn,
+    papelizAccountProfileDetailToChangeAfterSignIn,
+    papelizAccountSyncChosenPlan,
+    isPapelizAccountSyncCheckoutReturn,
+  ])
 
   if (!isSignedIn && papelizAccountPageSearchParameters.has(papelizAccountDeletedParameterName)) {
     return (
@@ -180,6 +199,8 @@ function PapelizAccountPageScreen({ isPapelizAccountProductionHost }: { isPapeli
       isPapelizAccountDeleteOpenedAfterSignIn={isPapelizAccountDeleteOpenedAfterSignIn}
       papelizSyncVaultIdToChangePassphraseAfterSignIn={papelizSyncVaultIdToChangePassphraseAfterSignIn}
       papelizAccountProfileDetailToChangeAfterSignIn={papelizAccountProfileDetailToChangeAfterSignIn}
+      papelizAccountSyncChosenPlan={papelizAccountSyncChosenPlan}
+      isPapelizAccountSyncCheckoutReturn={isPapelizAccountSyncCheckoutReturn}
     />
   )
 }

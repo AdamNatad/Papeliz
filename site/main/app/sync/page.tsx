@@ -215,7 +215,7 @@ export default function PapelizSiteSyncPage() {
           </div>
           <div className="flex gap-2">
             <dt className="shrink-0 font-semibold text-papeliz-ink">Signing up</dt>
-            <dd>In Papeliz, open Settings › Sync and choose a plan.</dd>
+            <dd>Choose a plan above, or in Papeliz under Settings › Sync.</dd>
           </div>
         </dl>
       </section>

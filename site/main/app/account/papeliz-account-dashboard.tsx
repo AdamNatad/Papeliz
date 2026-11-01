@@ -6,6 +6,7 @@ import { useState, type ReactNode } from 'react'
 import type { IconType } from 'react-icons'
 import { FaApple } from 'react-icons/fa6'
 import { FcGoogle } from 'react-icons/fc'
+import type { PapelizSiteSyncChosenPlan } from '@/lib/papeliz-site-sync-plans'
 import {
   PapelizAccountBrand,
   papelizAccountCompactDangerButtonClassName,
@@ -29,6 +30,7 @@ import { PapelizAccountDialog } from './papeliz-account-dialog'
 import { PapelizAccountPhoneLaunchButtons, PapelizAccountSidebarLaunchButton } from './papeliz-account-launch-menu'
 import { PapelizAccountEmailRow, PapelizAccountUsernameRow } from './papeliz-account-profile-details'
 import { PapelizAccountRow, PapelizAccountRowGroup, papelizAccountPhoneChevronRowActionClassName } from './papeliz-account-rows'
+import { PapelizAccountSyncStoragePlaceDialog, usePapelizAccountSyncBilling, type PapelizAccountSyncBillingState } from './papeliz-account-sync-billing'
 import type { PapelizAccountSyncService } from './papeliz-account-sync-service'
 import { PapelizAccountSyncPlansSection } from './papeliz-account-sync-plans-section'
 import {
@@ -390,29 +392,35 @@ function PapelizAccountProfileSection({
 
 // Sync shows the plans to buy; Vaults lists the synced vaults, with Change Passphrase and
 // Remove from Sync (Adam, 2026-11-01); Devices lists the devices signed in to Sync, with Remove (Adam,
-// 2026-10-31); Billing lists what it covers.
+// 2026-10-31); Billing lists what it covers and opens the subscription's own page.
 function PapelizAccountPlansVaultsDevicesAndBillingSection({
   papelizAccountSectionId,
   papelizAccountSyncService,
   papelizAccountSyncedVaults,
   papelizAccountSyncDeviceList,
+  papelizAccountSyncBillingState,
+  papelizAccountSyncChosenPlan,
 }: {
   papelizAccountSectionId: Exclude<PapelizAccountSectionId, 'profile'>
   papelizAccountSyncService: PapelizAccountSyncService
   papelizAccountSyncedVaults: PapelizAccountSyncedVaults
   papelizAccountSyncDeviceList: PapelizAccountSyncDeviceList
+  papelizAccountSyncBillingState: PapelizAccountSyncBillingState
+  papelizAccountSyncChosenPlan: PapelizSiteSyncChosenPlan | null
 }) {
   const papelizAccountSectionHeading = papelizAccountSections.find((papelizAccountSection) => papelizAccountSection.papelizAccountSectionId === papelizAccountSectionId)
     ?.papelizAccountSectionLabel
   return (
     <>
       <h1 className="mt-[22px] mb-2.5 text-[22px] font-[650] tracking-[-0.02em] md:mt-0 md:mb-[22px] md:text-[29px]">{papelizAccountSectionHeading}</h1>
-      {papelizAccountSectionId === 'sync' && <PapelizAccountSyncPlansSection />}
+      {papelizAccountSectionId === 'sync' && (
+        <PapelizAccountSyncPlansSection papelizAccountSyncBillingState={papelizAccountSyncBillingState} papelizAccountSyncChosenPlan={papelizAccountSyncChosenPlan} />
+      )}
       {papelizAccountSectionId === 'synced-vaults' && <PapelizAccountSyncedVaultsSection papelizAccountSyncedVaults={papelizAccountSyncedVaults} />}
       {papelizAccountSectionId === 'devices' && (
         <PapelizAccountDevicesSection papelizAccountSyncService={papelizAccountSyncService} papelizAccountSyncDeviceList={papelizAccountSyncDeviceList} />
       )}
-      {papelizAccountSectionId === 'billing' && <PapelizAccountBillingSection />}
+      {papelizAccountSectionId === 'billing' && <PapelizAccountBillingSection papelizAccountSyncBillingState={papelizAccountSyncBillingState} />}
     </>
   )
 }
@@ -423,6 +431,8 @@ export function PapelizAccountDashboard({
   isPapelizAccountDeleteOpenedAfterSignIn = false,
   papelizSyncVaultIdToChangePassphraseAfterSignIn = null,
   papelizAccountProfileDetailToChangeAfterSignIn = null,
+  papelizAccountSyncChosenPlan = null,
+  isPapelizAccountSyncCheckoutReturn = false,
 }: {
   papelizAccountSyncService: PapelizAccountSyncService
   isPapelizAccountDeleteOpenedAfterSignIn?: boolean
@@ -430,14 +440,19 @@ export function PapelizAccountDashboard({
   papelizSyncVaultIdToChangePassphraseAfterSignIn?: string | null
   // Change Email or Change Username did the same; its dialog opens again on Profile.
   papelizAccountProfileDetailToChangeAfterSignIn?: PapelizAccountProfileDetailKind | null
+  // A plan chosen on the website's Sync or Pricing page: Sync opens with it, ready for checkout.
+  papelizAccountSyncChosenPlan?: PapelizSiteSyncChosenPlan | null
+  // Back from checkout: Sync opens and reads the subscription until it shows.
+  isPapelizAccountSyncCheckoutReturn?: boolean
 }) {
   const papelizAccountClerk = useClerk()
   const [chosenPapelizAccountSectionId, setChosenPapelizAccountSectionId] = useState<PapelizAccountSectionId>(
-    papelizSyncVaultIdToChangePassphraseAfterSignIn ? 'synced-vaults' : 'profile',
+    papelizSyncVaultIdToChangePassphraseAfterSignIn ? 'synced-vaults' : papelizAccountSyncChosenPlan !== null || isPapelizAccountSyncCheckoutReturn ? 'sync' : 'profile',
   )
   const [papelizAccountIsSigningOut, setPapelizAccountIsSigningOut] = useState(false)
   const papelizAccountSyncedVaults = usePapelizAccountSyncedVaults(papelizAccountSyncService, papelizSyncVaultIdToChangePassphraseAfterSignIn)
   const papelizAccountSyncDeviceList = usePapelizAccountSyncDeviceList(papelizAccountSyncService)
+  const papelizAccountSyncBillingState = usePapelizAccountSyncBilling(papelizAccountSyncService, isPapelizAccountSyncCheckoutReturn)
 
   function signOutOfPapelizAccount() {
     setPapelizAccountIsSigningOut(true)
@@ -475,6 +490,8 @@ export function PapelizAccountDashboard({
         papelizAccountSyncService={papelizAccountSyncService}
         papelizAccountSyncedVaults={papelizAccountSyncedVaults}
         papelizAccountSyncDeviceList={papelizAccountSyncDeviceList}
+        papelizAccountSyncBillingState={papelizAccountSyncBillingState}
+        papelizAccountSyncChosenPlan={papelizAccountSyncChosenPlan}
       />
     )
   // On a computer: a light tint and shadow on hover, pressed in a little when clicked, and Sign Out
@@ -554,8 +571,9 @@ export function PapelizAccountDashboard({
         {chosenPapelizAccountSectionId !== 'profile' && <div className="mt-3 px-0.5">{papelizAccountPhoneLeaveCard}</div>}
       </div>
 
-      {/* The Vaults section's dialogs, once for both layouts. */}
+      {/* The Vaults section's dialogs and checkout's storage place, once for both layouts. */}
       <PapelizAccountSyncedVaultsDialogs papelizAccountSyncService={papelizAccountSyncService} papelizAccountSyncedVaults={papelizAccountSyncedVaults} />
+      <PapelizAccountSyncStoragePlaceDialog papelizAccountSyncBillingState={papelizAccountSyncBillingState} />
     </>
   )
 }

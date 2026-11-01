@@ -34,7 +34,7 @@ export const papelizSitePricingQuestions: PapelizSiteQuestion[] = [
     papelizSiteQuestionAnchor: 'how-do-i-sign-up',
     papelizSiteQuestionText: 'How do I sign up for Sync?',
     papelizSiteQuestionAnswerParts: [
-      'Open Papeliz, go to Settings › Sync and choose a plan. You pick where your synced notes are stored, sign in, then pay at checkout.',
+      'Choose a plan on this page, or in Papeliz under Settings › Sync. You sign in, pick where your synced notes are stored, then pay at checkout.',
     ],
   },
   {

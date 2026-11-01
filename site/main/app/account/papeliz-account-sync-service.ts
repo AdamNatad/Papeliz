@@ -4,6 +4,7 @@ import {
   type PapelizSyncDeviceSessionReply,
   type PapelizSyncStoragePlace,
 } from './papeliz-account-sync-hand-over'
+import type { PapelizSiteSyncBillingPeriod, PapelizSiteSyncPlanId } from '@/lib/papeliz-site-sync-plans'
 import { isPapelizAccountSyncPassphraseWrappedVaultKey, type PapelizAccountSyncPassphraseWrappedVaultKey } from './papeliz-account-sync-vault-key-wrap'
 
 // How this page reaches Papeliz Sync's Account Worker (`/api/account/v1/` on the same origin). On
@@ -26,6 +27,17 @@ export const papelizAccountSyncDevicesFromSignInPagePath = '/api/account/v1/devi
 // `{ syncAccountVaultRecord }`, and needs a sign-in in the last 10 minutes; DELETE
 // `…/:papelizSyncVaultId` answers `{ deletedPapelizSyncVaultId }`, with any valid sign-in.
 export const papelizAccountSyncVaultsFromSignInPagePath = '/api/account/v1/vaults-from-sign-in-page'
+// Billing, from a sign-in token and no device: GET answers the subscription's state (not subscribed,
+// with no account, for a sign-in that never set up Sync); POST `checkout-sessions-from-sign-in-page`
+// with `{ syncPlanName, syncBillingPeriod, papelizSyncStoragePlaceForNewAccount }` answers
+// `{ syncCheckoutPageUrl }`, or 409 `storage-place-required` for a sign-in without an account and no
+// place; POST `billing-portal-sessions-from-sign-in-page` with `{}` answers `{ syncBillingPortalUrl }`,
+// or 403 `subscription-required` before the first payment. Checkout comes back to this page with
+// `papeliz-sync-checkout=finished` in the address.
+export const papelizAccountSyncBillingFromSignInPagePath = '/api/account/v1/billing-from-sign-in-page'
+export const papelizAccountSyncCheckoutSessionsFromSignInPagePath = '/api/account/v1/checkout-sessions-from-sign-in-page'
+export const papelizAccountSyncBillingPortalSessionsFromSignInPagePath = '/api/account/v1/billing-portal-sessions-from-sign-in-page'
+export const papelizAccountSyncCheckoutFinishedParameterName = 'papeliz-sync-checkout'
 // The word the deletion routes ask for in the body, so no request deletes an account by accident.
 const papelizAccountSyncAccountDeletionConfirmation = 'delete-my-papeliz-sync-account'
 
@@ -118,6 +130,41 @@ export type PapelizAccountSyncVaultDeletionOutcome =
   | { syncVaultDeletionOutcomeKind: 'deleted' }
   | { syncVaultDeletionOutcomeKind: 'refused'; syncVaultDeletionRefusalMessage: string }
 
+// The subscription as Sync holds it. `active`, `ends-at-period-end` and `payment-past-due` still sync;
+// an ended one is read-only, then only held, until the synced copy is deleted.
+export const papelizAccountSyncSubscriptionStates = ['not-subscribed', 'active', 'ends-at-period-end', 'payment-past-due', 'ended-read-only', 'ended-held'] as const
+export type PapelizAccountSyncSubscriptionState = (typeof papelizAccountSyncSubscriptionStates)[number]
+
+export interface PapelizAccountSyncBilling {
+  hasPapelizSyncAccount: boolean
+  syncPlanName: PapelizSiteSyncPlanId | null
+  syncSubscriptionState: PapelizAccountSyncSubscriptionState
+  syncSubscriptionRenewsAt: number | null
+  syncSubscriptionEndsAt: number | null
+  syncReadOnlyUntil: number | null
+  syncSyncedCopyDeletedAt: number | null
+  // The payment provider's page for the subscription opens only once it knows the payer.
+  hasSyncPaymentCustomer: boolean
+}
+
+export function isPapelizAccountSyncSubscriptionLive(syncSubscriptionState: PapelizAccountSyncSubscriptionState): boolean {
+  return syncSubscriptionState === 'active' || syncSubscriptionState === 'ends-at-period-end' || syncSubscriptionState === 'payment-past-due'
+}
+
+export type PapelizAccountSyncBillingOutcome =
+  | { syncBillingOutcomeKind: 'read'; syncBilling: PapelizAccountSyncBilling }
+  | { syncBillingOutcomeKind: 'refused'; syncBillingRefusalMessage: string }
+
+export type PapelizAccountSyncCheckoutOutcome =
+  | { syncCheckoutOutcomeKind: 'opened'; syncCheckoutPageUrl: string }
+  | { syncCheckoutOutcomeKind: 'storage-place-required' }
+  | { syncCheckoutOutcomeKind: 'refused'; syncCheckoutRefusalMessage: string }
+
+export type PapelizAccountSyncBillingPortalOutcome =
+  | { syncBillingPortalOutcomeKind: 'opened'; syncBillingPortalUrl: string }
+  | { syncBillingPortalOutcomeKind: 'not-subscribed' }
+  | { syncBillingPortalOutcomeKind: 'refused'; syncBillingPortalRefusalMessage: string }
+
 export interface PapelizAccountSyncService {
   papelizAccountSyncServiceIsLocalFake: boolean
   // `signInToken` is a fresh session token from Clerk, sent in `Authorization: Bearer`.
@@ -140,6 +187,16 @@ export interface PapelizAccountSyncService {
     passphraseWrappedKeyReplacement: PapelizAccountSyncVaultPassphraseWrappedKeyReplacement,
   ): Promise<PapelizAccountSyncVaultPassphraseChangeOutcome>
   deletePapelizSyncVaultFromSignInPage(signInToken: string, papelizSyncVaultId: string): Promise<PapelizAccountSyncVaultDeletionOutcome>
+  // Billing: the subscription's state, a checkout for a plan (a sign-in without an account gives the
+  // storage place chosen here first), and the payment provider's own page for the subscription.
+  readPapelizSyncBilling(signInToken: string): Promise<PapelizAccountSyncBillingOutcome>
+  createPapelizSyncCheckoutPage(
+    signInToken: string,
+    papelizSiteSyncPlanId: PapelizSiteSyncPlanId,
+    papelizSiteSyncBillingPeriod: PapelizSiteSyncBillingPeriod,
+    papelizSyncStoragePlaceForNewAccount: PapelizSyncStoragePlace | null,
+  ): Promise<PapelizAccountSyncCheckoutOutcome>
+  createPapelizSyncBillingPortalPage(signInToken: string): Promise<PapelizAccountSyncBillingPortalOutcome>
 }
 
 const papelizAccountSyncDevicePlatforms: readonly PapelizAccountSyncDevicePlatform[] = ['web', 'desktop', 'mobile']
@@ -235,6 +292,62 @@ function readPapelizAccountSyncVaultList(
   return {
     papelizSyncAccountId: typeof papelizSyncAccountId === 'string' && papelizSyncAccountId.startsWith('pzacct_') ? papelizSyncAccountId : null,
     syncVaultRecords: papelizAccountSyncVaultRecords,
+  }
+}
+
+const papelizAccountSyncPlanNames: readonly PapelizSiteSyncPlanId[] = ['standard', 'plus', 'pro']
+
+function isPapelizAccountSyncTime(timeCandidate: unknown): timeCandidate is number | null {
+  return timeCandidate === null || (Number.isSafeInteger(timeCandidate) && (timeCandidate as number) >= 0)
+}
+
+// Null for anything not laid out as Sync's billing reply.
+function readPapelizAccountSyncBilling(billingReplyCandidate: unknown): PapelizAccountSyncBilling | null {
+  if (typeof billingReplyCandidate !== 'object' || billingReplyCandidate === null) return null
+  const {
+    hasPapelizSyncAccount,
+    syncPlanName,
+    syncSubscriptionState,
+    syncSubscriptionRenewsAt,
+    syncSubscriptionEndsAt,
+    syncReadOnlyUntil,
+    syncSyncedCopyDeletedAt,
+    hasSyncPaymentCustomer,
+  } = billingReplyCandidate as Record<string, unknown>
+  if (
+    typeof hasPapelizSyncAccount !== 'boolean' ||
+    typeof hasSyncPaymentCustomer !== 'boolean' ||
+    (syncPlanName !== null && !papelizAccountSyncPlanNames.includes(syncPlanName as PapelizSiteSyncPlanId)) ||
+    !papelizAccountSyncSubscriptionStates.includes(syncSubscriptionState as PapelizAccountSyncSubscriptionState) ||
+    !isPapelizAccountSyncTime(syncSubscriptionRenewsAt) ||
+    !isPapelizAccountSyncTime(syncSubscriptionEndsAt) ||
+    !isPapelizAccountSyncTime(syncReadOnlyUntil) ||
+    !isPapelizAccountSyncTime(syncSyncedCopyDeletedAt)
+  ) {
+    return null
+  }
+  return {
+    hasPapelizSyncAccount,
+    syncPlanName: syncPlanName as PapelizSiteSyncPlanId | null,
+    syncSubscriptionState: syncSubscriptionState as PapelizAccountSyncSubscriptionState,
+    syncSubscriptionRenewsAt,
+    syncSubscriptionEndsAt,
+    syncReadOnlyUntil,
+    syncSyncedCopyDeletedAt,
+    hasSyncPaymentCustomer,
+  }
+}
+
+// A page address this page may send the browser to: http or https only.
+function readPapelizAccountSyncPageAddress(replyCandidate: unknown, pageAddressFieldName: string): string | null {
+  if (typeof replyCandidate !== 'object' || replyCandidate === null) return null
+  const pageAddressCandidate = (replyCandidate as Record<string, unknown>)[pageAddressFieldName]
+  if (typeof pageAddressCandidate !== 'string') return null
+  try {
+    const pageAddress = new URL(pageAddressCandidate)
+    return pageAddress.protocol === 'https:' || pageAddress.protocol === 'http:' ? pageAddress.href : null
+  } catch {
+    return null
   }
 }
 
@@ -422,6 +535,66 @@ async function requestPapelizSyncVaultDeletionFromAccountWorker(signInToken: str
   return { syncVaultDeletionOutcomeKind: 'refused', syncVaultDeletionRefusalMessage: syncErrorMessage ?? `Papeliz Sync answered ${vaultDeletionResponse.status}.` }
 }
 
+// The Account Worker's answer, or null when no Account Worker is on this origin (as above).
+async function requestPapelizSyncBillingFromAccountWorker(signInToken: string): Promise<PapelizAccountSyncBillingOutcome | null> {
+  const billingResponse = await fetch(papelizAccountSyncBillingFromSignInPagePath, {
+    method: 'GET',
+    credentials: 'omit',
+    cache: 'no-store',
+    headers: { Authorization: `Bearer ${signInToken}` },
+  })
+  const billingReplyBody: unknown = await billingResponse.json().catch(() => null)
+  const papelizAccountSyncBilling = billingResponse.ok ? readPapelizAccountSyncBilling(billingReplyBody) : null
+  if (papelizAccountSyncBilling !== null) return { syncBillingOutcomeKind: 'read', syncBilling: papelizAccountSyncBilling }
+  const { syncErrorCode, syncErrorMessage } = readPapelizSyncErrorReplyMessage(billingReplyBody)
+  if (billingResponse.status === 404 && syncErrorCode === null) return null
+  return { syncBillingOutcomeKind: 'refused', syncBillingRefusalMessage: syncErrorMessage ?? `Papeliz Sync answered ${billingResponse.status}.` }
+}
+
+// The Account Worker's answer, or null when no Account Worker is on this origin (as above).
+async function requestPapelizSyncCheckoutPageFromAccountWorker(
+  signInToken: string,
+  papelizSiteSyncPlanId: PapelizSiteSyncPlanId,
+  papelizSiteSyncBillingPeriod: PapelizSiteSyncBillingPeriod,
+  papelizSyncStoragePlaceForNewAccount: PapelizSyncStoragePlace | null,
+): Promise<PapelizAccountSyncCheckoutOutcome | null> {
+  const checkoutResponse = await fetch(papelizAccountSyncCheckoutSessionsFromSignInPagePath, {
+    method: 'POST',
+    credentials: 'omit',
+    cache: 'no-store',
+    headers: { Authorization: `Bearer ${signInToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ syncPlanName: papelizSiteSyncPlanId, syncBillingPeriod: papelizSiteSyncBillingPeriod, papelizSyncStoragePlaceForNewAccount }),
+  })
+  const checkoutReplyBody: unknown = await checkoutResponse.json().catch(() => null)
+  const syncCheckoutPageUrl = checkoutResponse.ok ? readPapelizAccountSyncPageAddress(checkoutReplyBody, 'syncCheckoutPageUrl') : null
+  if (syncCheckoutPageUrl !== null) return { syncCheckoutOutcomeKind: 'opened', syncCheckoutPageUrl }
+  const { syncErrorCode, syncErrorMessage } = readPapelizSyncErrorReplyMessage(checkoutReplyBody)
+  if (checkoutResponse.status === 404 && syncErrorCode === null) return null
+  if (syncErrorCode === 'storage-place-required') return { syncCheckoutOutcomeKind: 'storage-place-required' }
+  return { syncCheckoutOutcomeKind: 'refused', syncCheckoutRefusalMessage: syncErrorMessage ?? `Papeliz Sync answered ${checkoutResponse.status}.` }
+}
+
+// The Account Worker's answer, or null when no Account Worker is on this origin (as above).
+async function requestPapelizSyncBillingPortalPageFromAccountWorker(signInToken: string): Promise<PapelizAccountSyncBillingPortalOutcome | null> {
+  const billingPortalResponse = await fetch(papelizAccountSyncBillingPortalSessionsFromSignInPagePath, {
+    method: 'POST',
+    credentials: 'omit',
+    cache: 'no-store',
+    headers: { Authorization: `Bearer ${signInToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
+  })
+  const billingPortalReplyBody: unknown = await billingPortalResponse.json().catch(() => null)
+  const syncBillingPortalUrl = billingPortalResponse.ok ? readPapelizAccountSyncPageAddress(billingPortalReplyBody, 'syncBillingPortalUrl') : null
+  if (syncBillingPortalUrl !== null) return { syncBillingPortalOutcomeKind: 'opened', syncBillingPortalUrl }
+  const { syncErrorCode, syncErrorMessage } = readPapelizSyncErrorReplyMessage(billingPortalReplyBody)
+  if (billingPortalResponse.status === 404 && syncErrorCode === null) return null
+  if (syncErrorCode === 'subscription-required') return { syncBillingPortalOutcomeKind: 'not-subscribed' }
+  return {
+    syncBillingPortalOutcomeKind: 'refused',
+    syncBillingPortalRefusalMessage: syncErrorMessage ?? `Papeliz Sync answered ${billingPortalResponse.status}.`,
+  }
+}
+
 const papelizAccountSyncWorkerService: PapelizAccountSyncService = {
   papelizAccountSyncServiceIsLocalFake: false,
   async createPapelizSyncDeviceSession(signInToken, deviceSessionRequest) {
@@ -496,6 +669,25 @@ const papelizAccountSyncWorkerService: PapelizAccountSyncService = {
       }
     )
   },
+  async readPapelizSyncBilling(signInToken) {
+    return (await requestPapelizSyncBillingFromAccountWorker(signInToken)) ?? { syncBillingOutcomeKind: 'refused', syncBillingRefusalMessage: 'Papeliz Sync answered 404.' }
+  },
+  async createPapelizSyncCheckoutPage(signInToken, papelizSiteSyncPlanId, papelizSiteSyncBillingPeriod, papelizSyncStoragePlaceForNewAccount) {
+    return (
+      (await requestPapelizSyncCheckoutPageFromAccountWorker(signInToken, papelizSiteSyncPlanId, papelizSiteSyncBillingPeriod, papelizSyncStoragePlaceForNewAccount)) ?? {
+        syncCheckoutOutcomeKind: 'refused',
+        syncCheckoutRefusalMessage: 'Papeliz Sync answered 404.',
+      }
+    )
+  },
+  async createPapelizSyncBillingPortalPage(signInToken) {
+    return (
+      (await requestPapelizSyncBillingPortalPageFromAccountWorker(signInToken)) ?? {
+        syncBillingPortalOutcomeKind: 'refused',
+        syncBillingPortalRefusalMessage: 'Papeliz Sync answered 404.',
+      }
+    )
+  },
 }
 
 // ---- The local fake ----------------------------------------------------------------------------
@@ -513,6 +705,9 @@ interface PapelizAccountLocalFakeSyncAccount {
   // The fake's synced vaults. Nothing on the fake's origin makes one, so the list stays empty unless
   // one is written into the fake's storage by hand.
   papelizSyncVaultRecords?: PapelizAccountSyncVaultRecord[]
+  // The fake's subscription: its checkout comes straight back here as paid, and its state can be
+  // written into the fake's storage by hand to preview a failed payment or an ended subscription.
+  papelizSyncFakeSubscription?: { syncPlanName: PapelizSiteSyncPlanId; syncSubscriptionState: PapelizAccountSyncSubscriptionState }
 }
 
 function createPapelizAccountLocalFakeBase32Part(): string {
@@ -682,6 +877,46 @@ export const papelizAccountLocalFakeSyncService: PapelizAccountSyncService = {
     }
     return { syncVaultDeletionOutcomeKind: 'deleted' }
   },
+  async readPapelizSyncBilling(signInToken) {
+    const localFakeSyncAccount = readPapelizAccountLocalFakeSyncAccounts()[readPapelizAccountLocalFakeSignInSubject(signInToken)]
+    const localFakeSubscription = localFakeSyncAccount?.papelizSyncFakeSubscription
+    const localFakeDayMilliseconds = 24 * 60 * 60 * 1000
+    const isLocalFakeSubscriptionEnded = localFakeSubscription?.syncSubscriptionState === 'ended-read-only' || localFakeSubscription?.syncSubscriptionState === 'ended-held'
+    return {
+      syncBillingOutcomeKind: 'read',
+      syncBilling: {
+        hasPapelizSyncAccount: localFakeSyncAccount !== undefined,
+        syncPlanName: localFakeSubscription?.syncPlanName ?? null,
+        syncSubscriptionState: localFakeSubscription?.syncSubscriptionState ?? 'not-subscribed',
+        syncSubscriptionRenewsAt: localFakeSubscription?.syncSubscriptionState === 'active' ? Date.now() + 30 * localFakeDayMilliseconds : null,
+        syncSubscriptionEndsAt: localFakeSubscription?.syncSubscriptionState === 'ends-at-period-end' ? Date.now() + 12 * localFakeDayMilliseconds : null,
+        syncReadOnlyUntil: isLocalFakeSubscriptionEnded ? Date.now() + 20 * localFakeDayMilliseconds : null,
+        syncSyncedCopyDeletedAt: isLocalFakeSubscriptionEnded ? Date.now() + 80 * localFakeDayMilliseconds : null,
+        hasSyncPaymentCustomer: localFakeSubscription !== undefined,
+      },
+    }
+  },
+  // No payment provider here: the checkout counts as paid at once and comes straight back to this page.
+  async createPapelizSyncCheckoutPage(signInToken, papelizSiteSyncPlanId, _papelizSiteSyncBillingPeriod, papelizSyncStoragePlaceForNewAccount) {
+    const localFakeSignInSubject = readPapelizAccountLocalFakeSignInSubject(signInToken)
+    const localFakeSyncAccounts = readPapelizAccountLocalFakeSyncAccounts()
+    let localFakeSyncAccount = localFakeSyncAccounts[localFakeSignInSubject]
+    if (localFakeSyncAccount === undefined) {
+      if (papelizSyncStoragePlaceForNewAccount === null) return { syncCheckoutOutcomeKind: 'storage-place-required' }
+      localFakeSyncAccount = { papelizSyncAccountId: `pzacct_${papelizSyncStoragePlaceForNewAccount}_${createPapelizAccountLocalFakeBase32Part()}`, papelizSyncDeviceIds: [] }
+    }
+    localFakeSyncAccount.papelizSyncFakeSubscription = { syncPlanName: papelizSiteSyncPlanId, syncSubscriptionState: 'active' }
+    localFakeSyncAccounts[localFakeSignInSubject] = localFakeSyncAccount
+    writePapelizAccountLocalFakeSyncAccounts(localFakeSyncAccounts)
+    const localFakeCheckoutReturnAddress = new URL('/account/', window.location.origin)
+    localFakeCheckoutReturnAddress.searchParams.set(papelizAccountSyncCheckoutFinishedParameterName, 'finished')
+    return { syncCheckoutOutcomeKind: 'opened', syncCheckoutPageUrl: localFakeCheckoutReturnAddress.href }
+  },
+  async createPapelizSyncBillingPortalPage(signInToken) {
+    const localFakeSyncAccount = readPapelizAccountLocalFakeSyncAccounts()[readPapelizAccountLocalFakeSignInSubject(signInToken)]
+    if (localFakeSyncAccount?.papelizSyncFakeSubscription === undefined) return { syncBillingPortalOutcomeKind: 'not-subscribed' }
+    return { syncBillingPortalOutcomeKind: 'refused', syncBillingPortalRefusalMessage: 'This preview has no payment provider; its page opens on papeliz.com.' }
+  },
 }
 
 // Away from papeliz.com: asks the Worker first, and only when nothing on this origin answers the
@@ -746,6 +981,29 @@ function createPapelizAccountSyncServiceWithLocalFakeFallback(): PapelizAccountS
       const accountWorkerOutcome = await requestPapelizSyncVaultDeletionFromAccountWorker(signInToken, papelizSyncVaultId)
       papelizAccountChosenSyncService = accountWorkerOutcome === null ? papelizAccountLocalFakeSyncService : papelizAccountSyncWorkerService
       return accountWorkerOutcome ?? papelizAccountLocalFakeSyncService.deletePapelizSyncVaultFromSignInPage(signInToken, papelizSyncVaultId)
+    },
+    async readPapelizSyncBilling(signInToken) {
+      if (papelizAccountChosenSyncService !== null) return papelizAccountChosenSyncService.readPapelizSyncBilling(signInToken)
+      const accountWorkerOutcome = await requestPapelizSyncBillingFromAccountWorker(signInToken)
+      papelizAccountChosenSyncService = accountWorkerOutcome === null ? papelizAccountLocalFakeSyncService : papelizAccountSyncWorkerService
+      return accountWorkerOutcome ?? papelizAccountLocalFakeSyncService.readPapelizSyncBilling(signInToken)
+    },
+    async createPapelizSyncCheckoutPage(signInToken, papelizSiteSyncPlanId, papelizSiteSyncBillingPeriod, papelizSyncStoragePlaceForNewAccount) {
+      if (papelizAccountChosenSyncService !== null) {
+        return papelizAccountChosenSyncService.createPapelizSyncCheckoutPage(signInToken, papelizSiteSyncPlanId, papelizSiteSyncBillingPeriod, papelizSyncStoragePlaceForNewAccount)
+      }
+      const accountWorkerOutcome = await requestPapelizSyncCheckoutPageFromAccountWorker(signInToken, papelizSiteSyncPlanId, papelizSiteSyncBillingPeriod, papelizSyncStoragePlaceForNewAccount)
+      papelizAccountChosenSyncService = accountWorkerOutcome === null ? papelizAccountLocalFakeSyncService : papelizAccountSyncWorkerService
+      return (
+        accountWorkerOutcome ??
+        papelizAccountLocalFakeSyncService.createPapelizSyncCheckoutPage(signInToken, papelizSiteSyncPlanId, papelizSiteSyncBillingPeriod, papelizSyncStoragePlaceForNewAccount)
+      )
+    },
+    async createPapelizSyncBillingPortalPage(signInToken) {
+      if (papelizAccountChosenSyncService !== null) return papelizAccountChosenSyncService.createPapelizSyncBillingPortalPage(signInToken)
+      const accountWorkerOutcome = await requestPapelizSyncBillingPortalPageFromAccountWorker(signInToken)
+      papelizAccountChosenSyncService = accountWorkerOutcome === null ? papelizAccountLocalFakeSyncService : papelizAccountSyncWorkerService
+      return accountWorkerOutcome ?? papelizAccountLocalFakeSyncService.createPapelizSyncBillingPortalPage(signInToken)
     },
   }
 }
