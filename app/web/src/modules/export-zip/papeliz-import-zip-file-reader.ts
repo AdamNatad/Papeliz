@@ -23,7 +23,8 @@ export interface PapelizImportZipReadResult {
   skippedUnsafeZipEntryCount: number
 }
 
-// Why a zip can't be read, in the words a toast shows in brackets.
+// Why a zip can't be read, as a short code ("Not A Zip"); people read its sentence
+// (papeliz-failure-code-words.ts).
 export class PapelizImportZipError extends Error {
   override readonly name = 'PapelizImportZipError'
 }

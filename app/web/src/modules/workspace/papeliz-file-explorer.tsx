@@ -40,6 +40,7 @@ import {
   papelizVaultTrashFolderName,
   pickFreeVaultEntryName,
 } from '../vault/papeliz-vault-relative-paths'
+import { usePapelizFileExplorerSearchRequestStore } from './papeliz-file-explorer-search-request-store'
 import { getPapelizVaultSearchClient, usePapelizVaultKnowledgeStore } from './papeliz-vault-knowledge-store'
 import { listVaultFolderEntryNamesInOrder, sortVaultFolderEntries, type PapelizVaultEntryOrder, type PapelizVaultEntryPlacement } from './papeliz-vault-entry-order'
 import { PapelizWorkspaceEyePreviewerSlot } from './papeliz-workspace-eye-previewer-slot'
@@ -144,6 +145,21 @@ export function PapelizFileExplorer({ fileListFootSection }: PapelizFileExplorer
   const setExplorerPanelOpen = usePapelizWorkspaceStore((workspaceState) => workspaceState.setExplorerPanelOpen)
 
   const [noteNameFilterText, setNoteNameFilterText] = useState('')
+  const noteSearchInputRef = useRef<HTMLInputElement>(null)
+  // A search asked for from elsewhere (a #tag clicked in MD View) fills the box and gives it focus. A
+  // finger's tap leaves focus where it was, so the phone's keyboard doesn't cover the results.
+  const pendingFileExplorerSearchRequest = usePapelizFileExplorerSearchRequestStore((searchRequestState) => searchRequestState.pendingFileExplorerSearchRequest)
+  const clearPendingFileExplorerSearchRequest = usePapelizFileExplorerSearchRequestStore((searchRequestState) => searchRequestState.clearPendingFileExplorerSearchRequest)
+  const [takenFileExplorerSearchRequestNumber, setTakenFileExplorerSearchRequestNumber] = useState(0)
+  if (pendingFileExplorerSearchRequest !== null && pendingFileExplorerSearchRequest.fileExplorerSearchRequestNumber !== takenFileExplorerSearchRequestNumber) {
+    setTakenFileExplorerSearchRequestNumber(pendingFileExplorerSearchRequest.fileExplorerSearchRequestNumber)
+    setNoteNameFilterText(pendingFileExplorerSearchRequest.fileExplorerSearchQueryText)
+  }
+  useEffect(() => {
+    if (pendingFileExplorerSearchRequest === null) return
+    if (!window.matchMedia('(pointer: coarse)').matches) noteSearchInputRef.current?.focus()
+    clearPendingFileExplorerSearchRequest()
+  }, [pendingFileExplorerSearchRequest, clearPendingFileExplorerSearchRequest])
   const [fileExplorerMenuState, setFileExplorerMenuState] = useState<PapelizFileExplorerMenuState | null>(null)
   // Color and Icon, opened from a row's menu where the menu was.
   const [vaultEntryLookPanelState, setVaultEntryLookPanelState] = useState<PapelizFileExplorerMenuState | null>(null)
@@ -542,6 +558,7 @@ export function PapelizFileExplorer({ fileListFootSection }: PapelizFileExplorer
         <Search className="size-[15px] flex-none" aria-hidden="true" />
         <span className="sr-only">Find a note by name or text</span>
         <input
+          ref={noteSearchInputRef}
           type="search"
           value={noteNameFilterText}
           onChange={(changeEvent) => setNoteNameFilterText(changeEvent.target.value)}
@@ -1181,7 +1198,7 @@ function PapelizFileExplorerRenameField({ vaultEntryRelativePath, vaultEntryKind
         setRenameProblemMessage(vaultEntryRenameResult.vaultEntryRenameProblem)
         return
       }
-      showWorkspaceNotice('error', `Couldn’t rename “${getVaultNoteTitle(vaultEntryRelativePath)}” (${vaultEntryRenameResult.vaultEntryRenameProblem})`)
+      showWorkspaceNotice('error', `Couldn’t rename “${getVaultNoteTitle(vaultEntryRelativePath)}”. ${vaultEntryRenameResult.vaultEntryRenameProblem}`)
     }
     stopRenamingVaultEntry()
     if (renameTrigger === 'blur' || vaultEntryRenameResult.vaultEntryRenameOutcome === 'refused') return
@@ -1275,7 +1292,7 @@ function PapelizFileExplorerNewFolderNameField({ newVaultFolderParentRelativePat
       setNewFolderNameProblemMessage(newVaultFolderNamingResult.newVaultFolderNameProblem)
       return
     }
-    showWorkspaceNotice('error', `Couldn’t create the folder (${newVaultFolderNamingResult.newVaultFolderNameProblem})`)
+    showWorkspaceNotice('error', `Couldn’t create the folder. ${newVaultFolderNamingResult.newVaultFolderNameProblem}`)
     cancelNamingNewVaultFolder()
   }
 

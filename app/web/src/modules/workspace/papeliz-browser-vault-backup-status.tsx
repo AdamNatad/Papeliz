@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { isPapelizBrowserStorageNearlyFull } from '../vault/papeliz-browser-vault-storage'
+import { describePapelizFailureCodeMessage } from '../vault/papeliz-failure-code-words'
 import { usePapelizBrowserStorageStore } from './papeliz-browser-storage-store'
 import { isPapelizBrowserVaultBackupOverdue, isPapelizBrowserVaultBackupReminderDue, usePapelizBrowserVaultBackupReminderStore } from './papeliz-browser-vault-backup-reminder-store'
 import { usePapelizWorkspaceStore } from './papeliz-workspace-store'
@@ -125,7 +126,7 @@ export function PapelizBrowserVaultBackupStatus({ papelizVaultId }: { papelizVau
   useEffect(() => {
     if (!isBrowserStorageFullSaveFailure) return
     void usePapelizBrowserStorageStore.getState().refreshBrowserStorageState()
-    showWorkspaceNotice('error', 'Couldn’t save (Browser Storage Full)', {
+    showWorkspaceNotice('error', describePapelizFailureCodeMessage('Couldn’t save', 'Browser Storage Full'), {
       workspaceNoticeActionLabel: 'Download backup',
       onWorkspaceNoticeAction: () => void downloadBackupWithNotice(),
     })

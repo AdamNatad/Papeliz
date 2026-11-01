@@ -1,3 +1,4 @@
+import { describePapelizFailureCodeMessage } from './papeliz-failure-code-words'
 import { describePapelizFolderAccessOffReason } from './papeliz-folder-access-support'
 import { PapelizFolderOnDiskVaultAdapter } from './papeliz-folder-on-disk-vault-adapter'
 import { PapelizInMemoryVaultAdapter } from './papeliz-in-memory-vault-adapter'
@@ -63,9 +64,9 @@ export async function pickPapelizVaultFolderHandle(): Promise<PapelizVaultFolder
     }
     if (folderPickerError instanceof DOMException && folderPickerError.name === 'SecurityError') return { openVaultOutcome: 'chooser-unavailable' }
     if (folderPickerError instanceof DOMException && folderPickerError.name === 'NotAllowedError') {
-      return { openVaultOutcome: 'failed', openVaultFailureMessage: 'Couldn’t open the folder (No Permission)' }
+      return { openVaultOutcome: 'failed', openVaultFailureMessage: describePapelizFailureCodeMessage('Couldn’t open the folder', 'Permission Not Given') }
     }
-    return { openVaultOutcome: 'failed', openVaultFailureMessage: 'Couldn’t open the folder (Unknown Error)' }
+    return { openVaultOutcome: 'failed', openVaultFailureMessage: describePapelizFailureCodeMessage('Couldn’t open the folder', 'Unknown Error') }
   }
 }
 
@@ -89,10 +90,10 @@ export async function openPapelizVaultFolderHandle(papelizVaultFolderHandle: Fil
   try {
     papelizVaultFolderPermission = await ensureVaultFolderPermission(papelizVaultFolderHandle)
   } catch {
-    return { openVaultOutcome: 'failed', openVaultFailureMessage: `Couldn’t open “${papelizVaultFolderHandle.name}” (Folder Not Found)` }
+    return { openVaultOutcome: 'failed', openVaultFailureMessage: describePapelizFailureCodeMessage(`Couldn’t open “${papelizVaultFolderHandle.name}”`, 'Folder Not Found') }
   }
   if (papelizVaultFolderPermission !== 'granted') {
-    return { openVaultOutcome: 'failed', openVaultFailureMessage: 'Couldn’t open the folder (No Permission)' }
+    return { openVaultOutcome: 'failed', openVaultFailureMessage: describePapelizFailureCodeMessage('Couldn’t open the folder', 'Permission Not Given') }
   }
   const rememberedVaultFolder = await rememberVaultFolder(papelizVaultFolderHandle).catch(() => null)
   return {

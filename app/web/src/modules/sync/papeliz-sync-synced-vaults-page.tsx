@@ -8,7 +8,7 @@ import { PapelizPopoverMenu, type PapelizPopoverMenuPosition } from '../ui/papel
 import { PapelizSolidCircleCheckIcon, PapelizSolidCircleXIcon } from '../ui/papeliz-solid-circle-icons'
 import { createPapelizBrowserVault, openPapelizBrowserVault, pickFreePapelizBrowserVaultName, type PapelizBrowserVaultRecord } from '../vault/papeliz-browser-vaults'
 import type { PapelizOpenVault } from '../vault/papeliz-open-vault'
-import { describePapelizVaultError } from '../vault/papeliz-vault-adapter'
+import { describePapelizFailureMessage } from '../vault/papeliz-failure-code-words'
 import { usePapelizBrowserStorageStore } from '../workspace/papeliz-browser-storage-store'
 import {
   newVaultFormFooterActionButtonColorClassName,
@@ -383,7 +383,7 @@ export function PapelizSyncSyncedVaultsPage({
           if (openVaultResult.openVaultOutcome !== 'opened') return openVaultResult.openVaultOutcome === 'failed' ? openVaultResult.openVaultFailureMessage : 'Couldn’t open the new vault.'
           papelizOpenVault = openVaultResult.papelizOpenVault
         } catch (browserVaultCreateError) {
-          return `Couldn’t make “${syncVaultName}” (${describePapelizVaultError(browserVaultCreateError)})`
+          return describePapelizFailureMessage(`Couldn’t make “${syncVaultName}”`, browserVaultCreateError, { failedEntryName: syncVaultName, failedEntryKind: 'vault' })
         }
       }
       void startPapelizSyncStartScreenDownload({ papelizSyncEngine: chosenSyncEngine, papelizOpenVault, papelizSyncVaultId: accountVaultToDownload.papelizSyncVaultId, isSyncDownloadCopyOnly })

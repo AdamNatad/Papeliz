@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { describePapelizVaultError } from '../vault/papeliz-vault-adapter'
+import { describePapelizErrorSentence, describePapelizFailureCodeMessage, describePapelizFailureMessage } from '../vault/papeliz-failure-code-words'
 import {
   describeVaultEntryNameProblem,
   getVaultEntryName,
@@ -421,7 +421,7 @@ export const usePapelizAssistantConversationStore = create<PapelizAssistantConve
       closeAssistantProposalPreviewFor(assistantProposalId)
       return true
     } catch (proposalAcceptError) {
-      updateProposal(assistantProposalId, { proposalStatus: 'failed', proposalProblem: describePapelizVaultError(proposalAcceptError) })
+      updateProposal(assistantProposalId, { proposalStatus: 'failed', proposalProblem: describePapelizErrorSentence(proposalAcceptError) })
       return false
     }
   }
@@ -492,7 +492,7 @@ export const usePapelizAssistantConversationStore = create<PapelizAssistantConve
             : latestState,
         )
       } catch (chatSessionSaveError) {
-        usePapelizWorkspaceStore.getState().showWorkspaceNotice('error', `Couldn’t save the chat (${describePapelizVaultError(chatSessionSaveError)})`)
+        usePapelizWorkspaceStore.getState().showWorkspaceNotice('error', describePapelizFailureMessage('Couldn’t save the chat', chatSessionSaveError))
       }
     })
   }
@@ -559,7 +559,7 @@ export const usePapelizAssistantConversationStore = create<PapelizAssistantConve
             })),
           )
           .catch((attachmentSaveError: unknown) =>
-            usePapelizWorkspaceStore.getState().showWorkspaceNotice('error', `Couldn’t save “${sentAttachment.attachmentFileName}” (${describePapelizVaultError(attachmentSaveError)})`),
+            usePapelizWorkspaceStore.getState().showWorkspaceNotice('error', describePapelizFailureMessage(`Couldn’t save “${sentAttachment.attachmentFileName}”`, attachmentSaveError)),
           )
       }
 
@@ -833,7 +833,7 @@ export const usePapelizAssistantConversationStore = create<PapelizAssistantConve
         }
         const attachmentReadResult = await readPapelizAssistantAttachmentFile(attachmentFile)
         if (attachmentReadResult.attachmentReadOutcome === 'refused') {
-          usePapelizWorkspaceStore.getState().showWorkspaceNotice('error', `Couldn’t add “${attachmentFile.name}” (${attachmentReadResult.attachmentRefusedBecause})`)
+          usePapelizWorkspaceStore.getState().showWorkspaceNotice('error', describePapelizFailureCodeMessage(`Couldn’t add “${attachmentFile.name}”`, attachmentReadResult.attachmentRefusedBecause))
           continue
         }
         setConversationState((conversationState) => ({
@@ -888,7 +888,7 @@ export const usePapelizAssistantConversationStore = create<PapelizAssistantConve
       try {
         await workspaceState.createVaultNoteFromAssistant(planVaultNoteRelativePath, planEntry.chatEntryText.trim() + '\n')
       } catch (planSaveError) {
-        workspaceState.showWorkspaceNotice('error', `Couldn’t save the plan (${describePapelizVaultError(planSaveError)})`)
+        workspaceState.showWorkspaceNotice('error', describePapelizFailureMessage('Couldn’t save the plan', planSaveError))
         return
       }
       setConversationState((conversationState) => ({

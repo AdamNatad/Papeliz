@@ -13,9 +13,10 @@ interface PapelizWorkspaceNoticeProps {
   dockedAssistantPanelWidth?: number | null
 }
 
-// A short message at the top right, just under the topbar ("Moved “Inbox.md” to .trash/Inbox.md"),
-// in the workspace and on the start screen, with a button such as Try again when there is one. An
-// error's toast is red.
+// A short message at the bottom right, just above the status bar ("Moved “Inbox.md” to
+// .trash/Inbox.md"), clear of the note tabs, in the workspace and on the start screen, with a button
+// such as Try again when there is one. An error's toast is red. On a phone it runs across the bottom,
+// between the side gutters.
 export function PapelizWorkspaceNotice({ dockedAssistantPanelWidth = null }: PapelizWorkspaceNoticeProps) {
   const workspaceNotice = usePapelizWorkspaceStore((workspaceState) => workspaceState.workspaceNotice)
   const dismissWorkspaceNotice = usePapelizWorkspaceStore((workspaceState) => workspaceState.dismissWorkspaceNotice)
@@ -32,7 +33,7 @@ export function PapelizWorkspaceNotice({ dockedAssistantPanelWidth = null }: Pap
   return (
     <div
       aria-live="polite"
-      className="pointer-events-none fixed top-[60px] z-40 flex justify-end pl-4"
+      className="pointer-events-none fixed bottom-10 z-40 flex justify-end pl-4 max-sm:left-4 max-sm:pl-0"
       style={{ right: dockedAssistantPanelWidth === null ? 16 : `calc(min(${dockedAssistantPanelWidth}px, 45vw) + 16px)` }}
     >
       {workspaceNotice !== null && (
@@ -40,7 +41,7 @@ export function PapelizWorkspaceNotice({ dockedAssistantPanelWidth = null }: Pap
           key={workspaceNotice.workspaceNoticeId}
           role={workspaceNotice.workspaceNoticeKind === 'error' ? 'alert' : 'status'}
           className={joinPapelizClassNames(
-            'papeliz-notice-enter-from-right pointer-events-auto flex w-max max-w-[min(420px,calc(100vw-32px))] items-center gap-2.5 rounded-[12px] border py-1.5 pr-1.5 pl-3.5 text-[13px] leading-snug shadow-papeliz-pop',
+            'papeliz-notice-enter pointer-events-auto flex w-max max-w-[min(420px,calc(100vw-32px))] items-center max-sm:w-full max-sm:max-w-none gap-2.5 rounded-[12px] border py-1.5 pr-1.5 pl-3.5 text-[13px] leading-snug shadow-papeliz-pop',
             workspaceNotice.workspaceNoticeKind === 'error'
               ? 'border-papeliz-error-notice-line bg-papeliz-error-notice-ground font-medium text-papeliz-error-notice-ink'
               : 'border-papeliz-line bg-papeliz-surface text-papeliz-ink',

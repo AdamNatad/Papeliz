@@ -66,13 +66,15 @@ describe('opening a folder', () => {
       throw new DOMException('Permission denied.', 'NotAllowedError')
     })
     const openVaultResult = await pickAndOpenPapelizVaultFolder()
-    expect(openVaultResult.openVaultOutcome === 'failed' && openVaultResult.openVaultFailureMessage).toBe('Couldn’t open the folder (No Permission)')
+    expect(openVaultResult.openVaultOutcome === 'failed' && openVaultResult.openVaultFailureMessage).toBe(
+      'Couldn’t open the folder. Papeliz needs your permission to change this folder. Try again, and allow it when the browser asks.',
+    )
   })
 
   it('says plainly when the browser cannot open folders', async () => {
     stubBrowserWithFolderPicker(undefined)
     const openVaultResult = await pickAndOpenPapelizVaultFolder()
-    expect(openVaultResult.openVaultOutcome === 'failed' && openVaultResult.openVaultFailureMessage).toBe('Couldn’t open folders (Use Chrome, Edge Or Brave)')
+    expect(openVaultResult.openVaultOutcome === 'failed' && openVaultResult.openVaultFailureMessage).toBe('This browser can’t open folders. Open Papeliz in Chrome, Edge or Brave on a computer.')
   })
 })
 
@@ -90,7 +92,9 @@ describe('reopening a recent folder', () => {
     const fakeVaultRootHandle = await createPapelizFakeVaultFolder('Field Notes', {})
     fakeVaultRootHandle.fakePermissionStates = { queryPermissionState: 'prompt', requestPermissionState: 'denied' }
     const openVaultResult = await reopenRememberedPapelizVaultFolder(rememberedVaultFolderFor(fakeVaultRootHandle))
-    expect(openVaultResult.openVaultOutcome === 'failed' && openVaultResult.openVaultFailureMessage).toBe('Couldn’t open the folder (No Permission)')
+    expect(openVaultResult.openVaultOutcome === 'failed' && openVaultResult.openVaultFailureMessage).toBe(
+      'Couldn’t open the folder. Papeliz needs your permission to change this folder. Try again, and allow it when the browser asks.',
+    )
   })
 
   it('explains a folder that has been moved or deleted since', async () => {
@@ -99,6 +103,6 @@ describe('reopening a recent folder', () => {
       throw new DOMException('The folder is gone.', 'NotFoundError')
     }
     const openVaultResult = await reopenRememberedPapelizVaultFolder(rememberedVaultFolderFor(fakeVaultRootHandle))
-    expect(openVaultResult.openVaultOutcome === 'failed' && openVaultResult.openVaultFailureMessage).toBe('Couldn’t open “Field Notes” (Folder Not Found)')
+    expect(openVaultResult.openVaultOutcome === 'failed' && openVaultResult.openVaultFailureMessage).toBe('Couldn’t open “Field Notes”. The folder was moved, renamed or deleted. Find it on your disk and open it again.')
   })
 })

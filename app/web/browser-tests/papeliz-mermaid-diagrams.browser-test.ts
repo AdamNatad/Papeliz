@@ -176,7 +176,7 @@ async function drawPapelizMermaidDiagramSamplesInPage({
 async function openPapelizInTheme(page: Page, shownPapelizTheme: 'light' | 'dark') {
   await page.addInitScript((savedPapelizTheme) => window.localStorage.setItem('papelizThemePreference', savedPapelizTheme), shownPapelizTheme)
   await page.goto('/')
-  await expect(page.getByRole('button', { name: /^New Vault/ })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Start' }).getByRole('button', { name: /^New Vault/ })).toBeVisible()
   await expect(page.locator('html')).toHaveAttribute('data-papeliz-theme', shownPapelizTheme)
 }
 

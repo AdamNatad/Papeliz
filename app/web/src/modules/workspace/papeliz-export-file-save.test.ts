@@ -108,7 +108,7 @@ describe('building an export, then saving it', () => {
   it('says plainly when the chosen file can’t be written, and stops the write', async () => {
     const { exportSaveSteps } = stubExportSavePage({ saveDialogAnswer: 'choose-file', writeFailure: new DOMException('Not enough space.', 'QuotaExceededError') })
     const failedWrite = buildThenSavePapelizExportFile('Start here.pdf', testExportFileKind, async () => ({ exportFileBlob: new Blob(['%PDF-1.7']) }))
-    await expect(failedWrite).rejects.toThrow(new PapelizVaultOperationError('“Start here.pdf” couldn’t be written where you chose (Disk Full), so the file there may be empty'))
+    await expect(failedWrite).rejects.toThrow(new PapelizVaultOperationError('“Start here.pdf” couldn’t be written where you chose, so the file there may be empty. The disk is full. Free some space, then try again.'))
     expect(exportSaveSteps).toEqual(['dialog', 'abort'])
   })
 })

@@ -44,26 +44,17 @@ function PapelizSettingsGearFieldLabel({ children, isFirstField = false }: { chi
   return <p className={`${isFirstField ? '' : 'mt-3 '}mb-1.5 text-[12px] font-medium text-papeliz-ink-subtle`}>{children}</p>
 }
 
-interface PapelizSettingsGearAccessibilityPageProps {
-  // The workspace adds the note's text (font, size, width) and the note tabs; the start page has
-  // only the theme.
-  isNoteDisplaySettingsShown: boolean
+interface PapelizSettingsGearAppearancePageProps {
+  // The workspace adds the note tabs; the start page has only the theme.
+  isNoteTabsLayoutShown: boolean
 }
 
-// Accessibility: how notes look. Changes show at once and are remembered.
-export function PapelizSettingsGearAccessibilityPage({ isNoteDisplaySettingsShown }: PapelizSettingsGearAccessibilityPageProps) {
+// Appearance: how Papeliz looks, the theme and the note tabs. Changes show at once and are remembered.
+export function PapelizSettingsGearAppearancePage({ isNoteTabsLayoutShown }: PapelizSettingsGearAppearancePageProps) {
   const papelizThemePreference = usePapelizThemeStore((themeState) => themeState.papelizThemePreference)
   const setPapelizThemePreference = usePapelizThemeStore((themeState) => themeState.setPapelizThemePreference)
-  const noteFontFamily = usePapelizNoteTypographyStore((typographyState) => typographyState.noteFontFamily)
-  const noteFontSize = usePapelizNoteTypographyStore((typographyState) => typographyState.noteFontSize)
-  const noteColumnWidth = usePapelizNoteTypographyStore((typographyState) => typographyState.noteColumnWidth)
-  const changeNoteTypography = usePapelizNoteTypographyStore((typographyState) => typographyState.changeNoteTypography)
   const noteTabsLayout = usePapelizNoteTabsLayoutStore((noteTabsLayoutState) => noteTabsLayoutState.noteTabsLayout)
   const setNoteTabsLayout = usePapelizNoteTabsLayoutStore((noteTabsLayoutState) => noteTabsLayoutState.setNoteTabsLayout)
-  const isDefaultTypography =
-    noteFontFamily === papelizDefaultNoteTypography.noteFontFamily &&
-    noteFontSize === papelizDefaultNoteTypography.noteFontSize &&
-    noteColumnWidth === papelizDefaultNoteTypography.noteColumnWidth
 
   return (
     <div>
@@ -84,47 +75,8 @@ export function PapelizSettingsGearAccessibilityPage({ isNoteDisplaySettingsShow
         }))}
       />
 
-      {isNoteDisplaySettingsShown && (
+      {isNoteTabsLayoutShown && (
         <>
-          <PapelizSettingsGearFieldLabel>Font</PapelizSettingsGearFieldLabel>
-          <PapelizSlidingChoiceGroup
-            slidingChoiceGroupLabel="Font"
-            slidingChoiceGroupRole="radiogroup"
-            chosenSlidingChoiceValue={noteFontFamily}
-            onSlidingChoiceSelect={(chosenNoteFontFamily) => changeNoteTypography({ noteFontFamily: chosenNoteFontFamily })}
-            slidingChoices={papelizNoteFontFamilyChoices.map((fontChoice) => ({
-              slidingChoiceValue: fontChoice.noteFontFamily,
-              slidingChoiceContent: fontChoice.fontChoiceLabel,
-              slidingChoiceClassName: fontChoice.fontChoiceFontClassName,
-            }))}
-          />
-
-          <PapelizSettingsGearFieldLabel>Text size</PapelizSettingsGearFieldLabel>
-          <PapelizNoteTextSizeSlider />
-
-          <PapelizSettingsGearFieldLabel>Text width</PapelizSettingsGearFieldLabel>
-          <PapelizSlidingChoiceGroup
-            slidingChoiceGroupLabel="Text width"
-            slidingChoiceGroupRole="radiogroup"
-            chosenSlidingChoiceValue={noteColumnWidth}
-            onSlidingChoiceSelect={(chosenNoteColumnWidth) => changeNoteTypography({ noteColumnWidth: chosenNoteColumnWidth })}
-            slidingChoices={papelizNoteColumnWidthChoices.map((widthChoice) => ({
-              slidingChoiceValue: widthChoice.noteColumnWidth,
-              slidingChoiceContent: widthChoice.widthChoiceLabel,
-            }))}
-          />
-
-          <button
-            type="button"
-            disabled={isDefaultTypography}
-            title="Font, text size and text width back to their defaults"
-            onClick={() => changeNoteTypography(papelizDefaultNoteTypography)}
-            className="mt-2.5 flex items-center gap-1.5 text-[12.5px] font-medium text-papeliz-blue hover:underline disabled:pointer-events-none disabled:opacity-40"
-          >
-            <RotateCcw className="size-3.5" aria-hidden="true" />
-            Reset Text Settings
-          </button>
-
           <PapelizSettingsGearFieldLabel>Note tabs</PapelizSettingsGearFieldLabel>
           <PapelizSlidingChoiceGroup
             slidingChoiceGroupLabel="Note tabs"
@@ -139,6 +91,62 @@ export function PapelizSettingsGearAccessibilityPage({ isNoteDisplaySettingsShow
           />
         </>
       )}
+    </div>
+  )
+}
+
+// Accessibility: how a note's text reads, its font, size and width, with a reset. Workspace only.
+// Changes show at once and are remembered.
+export function PapelizSettingsGearAccessibilityPage() {
+  const noteFontFamily = usePapelizNoteTypographyStore((typographyState) => typographyState.noteFontFamily)
+  const noteFontSize = usePapelizNoteTypographyStore((typographyState) => typographyState.noteFontSize)
+  const noteColumnWidth = usePapelizNoteTypographyStore((typographyState) => typographyState.noteColumnWidth)
+  const changeNoteTypography = usePapelizNoteTypographyStore((typographyState) => typographyState.changeNoteTypography)
+  const isDefaultTypography =
+    noteFontFamily === papelizDefaultNoteTypography.noteFontFamily &&
+    noteFontSize === papelizDefaultNoteTypography.noteFontSize &&
+    noteColumnWidth === papelizDefaultNoteTypography.noteColumnWidth
+
+  return (
+    <div>
+      <PapelizSettingsGearFieldLabel isFirstField>Font</PapelizSettingsGearFieldLabel>
+      <PapelizSlidingChoiceGroup
+        slidingChoiceGroupLabel="Font"
+        slidingChoiceGroupRole="radiogroup"
+        chosenSlidingChoiceValue={noteFontFamily}
+        onSlidingChoiceSelect={(chosenNoteFontFamily) => changeNoteTypography({ noteFontFamily: chosenNoteFontFamily })}
+        slidingChoices={papelizNoteFontFamilyChoices.map((fontChoice) => ({
+          slidingChoiceValue: fontChoice.noteFontFamily,
+          slidingChoiceContent: fontChoice.fontChoiceLabel,
+          slidingChoiceClassName: fontChoice.fontChoiceFontClassName,
+        }))}
+      />
+
+      <PapelizSettingsGearFieldLabel>Text size</PapelizSettingsGearFieldLabel>
+      <PapelizNoteTextSizeSlider />
+
+      <PapelizSettingsGearFieldLabel>Text width</PapelizSettingsGearFieldLabel>
+      <PapelizSlidingChoiceGroup
+        slidingChoiceGroupLabel="Text width"
+        slidingChoiceGroupRole="radiogroup"
+        chosenSlidingChoiceValue={noteColumnWidth}
+        onSlidingChoiceSelect={(chosenNoteColumnWidth) => changeNoteTypography({ noteColumnWidth: chosenNoteColumnWidth })}
+        slidingChoices={papelizNoteColumnWidthChoices.map((widthChoice) => ({
+          slidingChoiceValue: widthChoice.noteColumnWidth,
+          slidingChoiceContent: widthChoice.widthChoiceLabel,
+        }))}
+      />
+
+      <button
+        type="button"
+        disabled={isDefaultTypography}
+        title="Font, text size and text width back to their defaults"
+        onClick={() => changeNoteTypography(papelizDefaultNoteTypography)}
+        className="mt-2.5 flex items-center gap-1.5 text-[12.5px] font-medium text-papeliz-blue hover:underline disabled:pointer-events-none disabled:opacity-40"
+      >
+        <RotateCcw className="size-3.5" aria-hidden="true" />
+        Reset Text Settings
+      </button>
     </div>
   )
 }

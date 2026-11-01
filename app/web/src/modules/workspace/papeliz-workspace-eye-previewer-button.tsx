@@ -61,6 +61,7 @@ const papelizWorkspaceEyePreviewerChoices: ReadonlyArray<{
   { workspaceEyePreviewerState: 'start-open-vault-permission-refused', eyePreviewerChoiceLabel: 'Open Vault · permission refused', EyePreviewerChoiceIcon: FolderLock },
   { workspaceEyePreviewerState: 'start-open-vault-folder-gone', eyePreviewerChoiceLabel: 'Open Vault · folder gone', EyePreviewerChoiceIcon: FolderX },
   { workspaceEyePreviewerState: 'start-recent-vaults-empty', eyePreviewerChoiceLabel: 'No recent vaults', EyePreviewerChoiceIcon: FolderOpen, eyePreviewerGroupHeading: 'Start · Recent Vaults' },
+  { workspaceEyePreviewerState: 'start-recent-vaults-all-hidden', eyePreviewerChoiceLabel: 'Every vault hidden', EyePreviewerChoiceIcon: EyeOff },
   { workspaceEyePreviewerState: 'start-recent-vaults-listed', eyePreviewerChoiceLabel: 'A few vaults', EyePreviewerChoiceIcon: Files },
   { workspaceEyePreviewerState: 'start-recent-vaults-many', eyePreviewerChoiceLabel: 'Many vaults', EyePreviewerChoiceIcon: ListChecks },
   { workspaceEyePreviewerState: 'start-recent-vaults-search-no-match', eyePreviewerChoiceLabel: 'Search finds nothing', EyePreviewerChoiceIcon: SearchX },

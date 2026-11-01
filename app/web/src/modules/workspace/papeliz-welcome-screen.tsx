@@ -12,7 +12,7 @@ import {
   retryPapelizSyncStartScreenDownload,
   usePapelizSyncStartScreenDownloadStore,
 } from '../sync/papeliz-sync-start-screen-download-store'
-import { PapelizIconButton } from '../ui/papeliz-buttons'
+import { PapelizIconButton, PapelizPillButton, papelizOutlineButtonColorClassName } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { PapelizConfirmDialog } from '../ui/papeliz-confirm-dialog'
 import { PapelizMark } from '../ui/papeliz-mark'
@@ -80,14 +80,17 @@ const papelizRelativeTimeFormat = new Intl.RelativeTimeFormat(undefined, { numer
 // The reload's ring stays at least this long, so a quick reload is still seen to happen.
 const papelizRecentVaultListReloadMinimumMilliseconds = 600
 
-// Restore and Delete in the Hidden list, in green and red: their own color a shade darker on hover
-// and pressed, the edge unchanged, and a slight give when pressed.
-const papelizHiddenVaultRestoreButtonClassName =
-  'border-[#3F644F] bg-[#4E7A63] text-white hover:bg-[#4C7660] active:bg-[#49735D] active:scale-[0.985]'
+// Restore and Delete in the Hidden list, and Delete All: Restore outlined like a Cancel, the two deletes
+// outlined in red and filled soft red on hover, with a slight give when pressed. None is solid, so no
+// delete reads as the page's main action.
+const papelizHiddenVaultRestoreButtonClassName = joinPapelizClassNames(papelizOutlineButtonColorClassName, 'enabled:active:scale-[0.985]')
 const papelizHiddenVaultDeleteButtonClassName =
-  'border-[#8A2E27] bg-[#9E352D] text-white hover:bg-[#99332C] active:bg-[#95322A] active:scale-[0.985]'
+  'border-papeliz-diff-removed-ink/35 bg-papeliz-surface text-papeliz-diff-removed-ink enabled:hover:border-papeliz-diff-removed-ink/55 enabled:hover:bg-papeliz-diff-removed enabled:active:scale-[0.985]'
 const papelizHiddenVaultActionButtonClassName =
-  'inline-flex flex-none items-center justify-center gap-1 rounded-md border font-semibold transition-[background-color,scale] duration-150 disabled:cursor-not-allowed disabled:opacity-50'
+  'inline-flex flex-none items-center justify-center gap-1 rounded-md border font-semibold transition-[background-color,border-color,color,scale] duration-150 disabled:cursor-not-allowed disabled:opacity-50'
+// The count of hidden vaults, in gray: beside the Hidden list's title, and on the eye's corner.
+const papelizHiddenVaultCountBadgeClassName =
+  'grid place-items-center rounded-full border border-papeliz-line bg-papeliz-surface leading-none font-bold text-papeliz-ink-muted tabular-nums'
 
 function describeTimeSince(papelizEventTime: number): string {
   const elapsedMinutes = Math.round((papelizEventTime - Date.now()) / 60_000)
@@ -106,11 +109,11 @@ interface PapelizWelcomeActionProps {
   // Why the action is off in this browser. It then shows an "Off in this browser" badge, says why
   // on hover, and pressing it shows the reason as a toast instead of running.
   welcomeActionOffReasonText?: string | null
-  // Lit while its panel shows in the start card (Recent Vaults, New Vault, Synced Vaults).
+  // Lit while its panel shows in the start card (Recent Vaults, New Vault, Synced Vaults): a brighter
+  // fill with a white left edge.
   isWelcomeActionCurrent?: boolean
-  // `white-highlight`: a white card that stands out on the blue panel (Synced Vaults). Pale blue
-  // in the dark theme.
-  welcomeActionLook?: 'on-blue' | 'white-highlight'
+  // A small tag after the title, such as "Sync" on Synced Vaults.
+  welcomeActionTagText?: string
   welcomeActionButtonRef?: Ref<HTMLButtonElement>
   onWelcomeActionSelect: () => void
 }
@@ -123,12 +126,11 @@ function PapelizWelcomeAction({
   isWelcomeActionDisabled,
   welcomeActionOffReasonText = null,
   isWelcomeActionCurrent = false,
-  welcomeActionLook = 'on-blue',
+  welcomeActionTagText,
   welcomeActionButtonRef,
   onWelcomeActionSelect,
 }: PapelizWelcomeActionProps) {
   const isWelcomeActionOff = welcomeActionOffReasonText !== null
-  const isWelcomeActionWhite = welcomeActionLook === 'white-highlight'
   return (
     <div className="group/welcome-action relative">
       <button
@@ -139,40 +141,33 @@ function PapelizWelcomeAction({
         aria-current={isWelcomeActionCurrent || undefined}
         onClick={onWelcomeActionSelect}
         className={joinPapelizClassNames(
-          'flex min-h-[42px] w-full min-w-0 items-center gap-2 rounded-[10px] border px-2 py-[7px] text-left transition-[background-color,border-color,transform,box-shadow] duration-150 ease-out focus-visible:outline-white disabled:cursor-not-allowed disabled:opacity-50',
-          isWelcomeActionWhite ? 'border-transparent bg-papeliz-welcome-action-white-ground text-[#111112]' : 'border-white/15 bg-white/[0.07] text-white',
-          isWelcomeActionOff
-            ? 'cursor-not-allowed'
-            : isWelcomeActionWhite
-              ? 'enabled:hover:-translate-y-px enabled:hover:brightness-[.97] enabled:active:scale-[0.99]'
-              : 'enabled:hover:-translate-y-px enabled:hover:border-white/30 enabled:hover:bg-white/[0.14] enabled:active:scale-[0.99]',
-          isWelcomeActionCurrent &&
-            (isWelcomeActionWhite
-              ? 'shadow-[0_0_0_2px_var(--color-papeliz-topbar),0_0_0_4px_rgb(255_255_255/0.55)]'
-              : 'border-white/45 bg-white/20 enabled:hover:border-white/45 enabled:hover:bg-white/20'),
+          'flex min-h-[42px] w-full min-w-0 items-center gap-2 rounded-[10px] border px-2 py-[7px] text-left text-white transition-[background-color,border-color,transform,box-shadow] duration-150 ease-out focus-visible:outline-white disabled:cursor-not-allowed disabled:opacity-50',
+          isWelcomeActionCurrent
+            ? 'border-white/45 bg-white/[0.28] shadow-[inset_3px_0_0_#fff]'
+            : joinPapelizClassNames(
+                'border-white/15 bg-white/[0.07]',
+                isWelcomeActionOff
+                  ? 'cursor-not-allowed'
+                  : 'enabled:hover:-translate-y-px enabled:hover:border-white/30 enabled:hover:bg-white/[0.14] enabled:active:scale-[0.99]',
+              ),
         )}
       >
-        <span
-          className={joinPapelizClassNames(
-            'grid size-6 flex-none place-items-center rounded-md',
-            isWelcomeActionWhite ? 'bg-papeliz-welcome-action-white-tile text-[#0064d4]' : 'bg-white/[0.14]',
-            isWelcomeActionOff && 'opacity-55',
-          )}
-        >
+        <span className={joinPapelizClassNames('grid size-6 flex-none place-items-center rounded-md bg-white/[0.14]', isWelcomeActionOff && 'opacity-55')}>
           <WelcomeActionIcon className="size-3.5" aria-hidden="true" />
         </span>
         <span className="flex min-w-0 flex-col items-start leading-tight">
-          <span className={joinPapelizClassNames('truncate text-[12px] font-semibold', isWelcomeActionWhite && 'text-[#0057ba]', isWelcomeActionOff && 'opacity-55')}>
-            {welcomeActionTitle}
+          <span className={joinPapelizClassNames('flex max-w-full min-w-0 items-center gap-1', isWelcomeActionOff && 'opacity-55')}>
+            <span className="truncate text-[12px] font-semibold">{welcomeActionTitle}</span>
+            {welcomeActionTagText !== undefined && (
+              <span className="flex-none rounded-full bg-white/25 px-[5px] text-[9px] leading-[14px] font-bold">{welcomeActionTagText}</span>
+            )}
           </span>
           {isWelcomeActionOff ? (
             <span className="mt-0.5 rounded-full border border-papeliz-diff-removed-ink/30 bg-papeliz-diff-removed px-1.5 py-px text-[9.5px] leading-snug font-semibold text-papeliz-diff-removed-ink">
               Off in this browser
             </span>
           ) : (
-            <span className={joinPapelizClassNames('mt-px text-[10px] leading-snug', isWelcomeActionWhite ? 'text-[#55595f]' : 'text-white/75')}>
-              {welcomeActionDescription}
-            </span>
+            <span className="mt-px text-[10px] leading-snug text-white/75">{welcomeActionDescription}</span>
           )}
         </span>
       </button>
@@ -232,7 +227,7 @@ function describeRecentVaultDeleteRequest(recentVaultDeleteRequest: PapelizRecen
 
 // The start screen, shown when no vault is open: on the blue panel, Papeliz, the ways in (Recent
 // Vaults; a new vault, an import into this browser, a folder already in use, the sample vault; Synced
-// Vaults at the foot, in white, where the build has Sync) and who made it; beside it, the vaults opened
+// Vaults at the foot, tagged Sync, where the build has Sync) and who made it; beside it, the vaults opened
 // before, to come back to in one click, each saying whether it syncs, and the Hidden list. Recent
 // Vaults' button and the logo in the top bar bring that list back from any other panel. A new vault
 // is a folder on the disk or a browser vault: Chrome and Edge ask which, other browsers keep it in
@@ -394,6 +389,8 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
     [recentVaults],
   )
   const listedRecentVaults = isHiddenVaultListShown ? hiddenRecentVaults : recentListVaults
+  // The Hidden list's eye: once there is a vault, hidden or not, and always in the Hidden list, the way back.
+  const isHiddenVaultToggleShown = recentVaults.length > 0 || isHiddenVaultListShown
 
   const shownRecentVaults = useMemo(() => {
     const lowerCaseSearchText = recentVaultSearchText.trim().toLowerCase()
@@ -838,7 +835,7 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                     isWelcomeActionDisabled={isOpeningVault}
                     welcomeActionOffReasonText={syncedVaultsActionOffReasonText}
                     isWelcomeActionCurrent={isSyncedVaultsPageOnScreen}
-                    welcomeActionLook="white-highlight"
+                    welcomeActionTagText="Sync"
                     onWelcomeActionSelect={openSyncedVaultsPage}
                   />
                 </div>
@@ -894,13 +891,72 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
               />
             ) : (
               <>
-                {/* Heading: the title on the left; Delete All (in the Hidden list), the eye previewer (development
-                    builds only), the Hidden list's eye, Reload and the search box on the right. */}
-                <div className="flex flex-wrap items-center justify-between gap-2.5 px-3 pt-[11px] pb-1.5">
-                  <h2 id="papeliz-welcome-recent-heading" className="text-[18px] font-semibold tracking-[-0.01em]">
-                    {isHiddenVaultListShown ? 'Hidden Vaults' : 'Recent Vaults'}
-                  </h2>
-                  <div className="flex min-w-0 items-center gap-2 max-sm:w-full">
+                {/* Heading, on one line in both lists so it stays put when they switch: the title (and in the
+                    Hidden list its count) on the left; the eye previewer (development builds only), the Hidden
+                    list's eye, Reload, the search box and, in the Hidden list, Delete All last on the right. The
+                    search box gives way when the line is short. Before there is a vault, only the title and the
+                    previewer show: the eye too while vaults are hidden, Reload and search once the list has one. */}
+                <div className="flex flex-wrap items-center justify-between gap-2.5 px-3 pt-[11px] pb-1.5 sm:flex-nowrap">
+                  <div className="flex flex-none items-center gap-2">
+                    <h2 id="papeliz-welcome-recent-heading" className="text-[18px] font-semibold tracking-[-0.01em]">
+                      {isHiddenVaultListShown ? 'Hidden Vaults' : 'Recent Vaults'}
+                    </h2>
+                    {isHiddenVaultListShown && hiddenRecentVaults.length > 0 && (
+                      <span className={joinPapelizClassNames(papelizHiddenVaultCountBadgeClassName, 'h-5 min-w-5 px-1.5 text-[11px]')}>{hiddenRecentVaults.length}</span>
+                    )}
+                  </div>
+                  <div className="flex min-w-0 items-center justify-end gap-1.5 max-sm:w-full sm:flex-1">
+                    <PapelizWorkspaceEyePreviewerSlot />
+                    {/* The eye follows the view: crossed out on Recent Vaults (the vaults hidden from it, counted on
+                        its corner), open in the Hidden list (they are showing). */}
+                    {isHiddenVaultToggleShown && (
+                      <button
+                        type="button"
+                        aria-pressed={isHiddenVaultListShown}
+                        aria-label={isHiddenVaultListShown ? 'Back to Recent Vaults' : `Hidden Vaults (${hiddenRecentVaults.length})`}
+                        title={isHiddenVaultListShown ? 'Back to Recent Vaults' : `Hidden Vaults (${hiddenRecentVaults.length})`}
+                        onClick={() => {
+                          setHiddenVaultListShown(!isHiddenVaultListShown)
+                          setRecentVaultSearchText('')
+                        }}
+                        className="relative grid size-8 flex-none place-items-center rounded-full border border-papeliz-line text-papeliz-ink-muted transition-colors hover:bg-papeliz-hover hover:text-papeliz-ink aria-pressed:border-papeliz-blue-line aria-pressed:bg-papeliz-blue-soft aria-pressed:text-papeliz-blue"
+                      >
+                        {isHiddenVaultListShown ? <Eye className="size-4" aria-hidden="true" /> : <EyeOff className="size-4" aria-hidden="true" />}
+                        {!isHiddenVaultListShown && hiddenRecentVaults.length > 0 && (
+                          <span aria-hidden="true" className={joinPapelizClassNames(papelizHiddenVaultCountBadgeClassName, 'absolute -top-1 -right-1 h-4 min-w-4 px-1 text-[9.5px]')}>
+                            {hiddenRecentVaults.length}
+                          </span>
+                        )}
+                      </button>
+                    )}
+                    {listedRecentVaults.length > 0 && (
+                      <>
+                        <button
+                          type="button"
+                          aria-label="Reload the list"
+                          title="Reload the list"
+                          aria-busy={isRecentVaultListReloading || undefined}
+                          onClick={reloadRecentVaultList}
+                          className="papeliz-recent-vaults-reload-button grid size-8 flex-none place-items-center rounded-full border border-papeliz-line text-papeliz-ink-muted hover:bg-papeliz-hover hover:text-papeliz-ink"
+                        >
+                          <RefreshCw
+                            className={joinPapelizClassNames('size-4', isRecentVaultListReloading && 'papeliz-recent-vaults-reload-icon-turning')}
+                            aria-hidden="true"
+                          />
+                        </button>
+                        <label className="flex h-8 min-w-24 flex-1 items-center gap-2 rounded-full border border-papeliz-line bg-papeliz-surface px-3 text-papeliz-ink-subtle focus-within:border-papeliz-blue-line focus-within:shadow-[0_0_0_3px_var(--color-papeliz-blue-soft)] sm:max-w-[180px]">
+                          <Search className="size-3.5 flex-none" aria-hidden="true" />
+                          <span className="sr-only">{isHiddenVaultListShown ? 'Find a hidden vault' : 'Find a recent vault'}</span>
+                          <input
+                            type="search"
+                            value={recentVaultSearchText}
+                            onChange={(changeEvent) => setRecentVaultSearchText(changeEvent.target.value)}
+                            placeholder={isHiddenVaultListShown ? 'Search hidden' : 'Search vaults'}
+                            className="min-w-0 flex-1 bg-transparent text-[12.5px] text-papeliz-ink placeholder:text-papeliz-ink-subtle focus:outline-none"
+                          />
+                        </label>
+                      </>
+                    )}
                     {isHiddenVaultListShown && hiddenRecentVaults.length > 0 && (
                       <button
                         type="button"
@@ -910,60 +966,12 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                           setTypedVaultDeleteConfirmation('')
                           setRecentVaultDeleteRequest({ recentVaultDeleteScope: 'all-hidden-vaults', recentVaults: hiddenRecentVaults })
                         }}
-                        className={joinPapelizClassNames(papelizHiddenVaultActionButtonClassName, papelizHiddenVaultDeleteButtonClassName, 'h-8 px-3 text-[12.5px]')}
+                        className={joinPapelizClassNames(papelizHiddenVaultActionButtonClassName, papelizHiddenVaultDeleteButtonClassName, 'h-8 px-2.5 text-[12.5px] pointer-coarse:h-10')}
                       >
                         <Trash2 className="size-3.5" aria-hidden="true" />
                         Delete All
                       </button>
                     )}
-                    <PapelizWorkspaceEyePreviewerSlot />
-                    {/* The eye follows the view: crossed out on Recent Vaults (the vaults hidden from it), open in
-                        the Hidden list (they are showing). */}
-                    <button
-                      type="button"
-                      aria-pressed={isHiddenVaultListShown}
-                      aria-label={isHiddenVaultListShown ? 'Back to Recent Vaults' : `Hidden Vaults (${hiddenRecentVaults.length})`}
-                      title={isHiddenVaultListShown ? 'Back to Recent Vaults' : `Hidden Vaults (${hiddenRecentVaults.length})`}
-                      onClick={() => {
-                        setHiddenVaultListShown(!isHiddenVaultListShown)
-                        setRecentVaultSearchText('')
-                      }}
-                      className="relative grid size-8 flex-none place-items-center rounded-full border border-papeliz-line text-papeliz-ink-muted transition-colors hover:bg-papeliz-hover hover:text-papeliz-ink aria-pressed:border-papeliz-blue-line aria-pressed:bg-papeliz-blue-soft aria-pressed:text-papeliz-blue"
-                    >
-                      {isHiddenVaultListShown ? <Eye className="size-4" aria-hidden="true" /> : <EyeOff className="size-4" aria-hidden="true" />}
-                      {hiddenRecentVaults.length > 0 && (
-                        <span
-                          aria-hidden="true"
-                          className="absolute -top-1 -right-1 grid h-4 min-w-4 place-items-center rounded-full bg-[#C0524A] px-1 text-[9.5px] leading-none font-bold text-white"
-                        >
-                          {hiddenRecentVaults.length}
-                        </span>
-                      )}
-                    </button>
-                    <button
-                      type="button"
-                      aria-label="Reload the list"
-                      title="Reload the list"
-                      aria-busy={isRecentVaultListReloading || undefined}
-                      onClick={reloadRecentVaultList}
-                      className="papeliz-recent-vaults-reload-button grid size-8 flex-none place-items-center rounded-full border border-papeliz-line text-papeliz-ink-muted hover:bg-papeliz-hover hover:text-papeliz-ink"
-                    >
-                      <RefreshCw
-                        className={joinPapelizClassNames('size-4', isRecentVaultListReloading && 'papeliz-recent-vaults-reload-icon-turning')}
-                        aria-hidden="true"
-                      />
-                    </button>
-                    <label className="flex h-8 w-[min(300px,100%)] items-center gap-2 rounded-full border border-papeliz-line bg-papeliz-surface px-3 text-papeliz-ink-subtle focus-within:border-papeliz-blue-line focus-within:shadow-[0_0_0_3px_var(--color-papeliz-blue-soft)] max-sm:flex-1 sm:w-[180px]">
-                      <Search className="size-3.5 flex-none" aria-hidden="true" />
-                      <span className="sr-only">{isHiddenVaultListShown ? 'Find a hidden vault' : 'Find a recent vault'}</span>
-                      <input
-                        type="search"
-                        value={recentVaultSearchText}
-                        onChange={(changeEvent) => setRecentVaultSearchText(changeEvent.target.value)}
-                        placeholder={isHiddenVaultListShown ? 'Search hidden' : 'Search vaults'}
-                        className="min-w-0 flex-1 bg-transparent text-[12.5px] text-papeliz-ink placeholder:text-papeliz-ink-subtle focus:outline-none"
-                      />
-                    </label>
                   </div>
                 </div>
 
@@ -985,19 +993,41 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                     </div>
                   )}
                   {listedRecentVaults.length === 0 ? (
-                    <div className="flex flex-1 flex-col items-center justify-center px-4 py-8 text-center">
-                      <span className="grid size-11 place-items-center rounded-xl bg-papeliz-blue-soft text-papeliz-blue">
-                        {isHiddenVaultListShown ? <EyeOff className="size-5" aria-hidden="true" /> : <FolderOpen className="size-5" aria-hidden="true" />}
-                      </span>
-                      <p className="mt-3 text-[14px] font-semibold">{isHiddenVaultListShown ? 'Nothing is hidden' : 'No recent vaults yet'}</p>
-                      <p className="mt-1 max-w-[300px] text-[12.5px] text-papeliz-ink-muted">
-                        {isHiddenVaultListShown
-                          ? 'Use the hide button on a vault’s row, or its … menu.'
-                          : isBrowserVaultOn
-                            ? `Vaults you make or ${isFolderVaultOn ? 'open' : 'import'} show up here, so you can come back to them in one click.`
-                            : (folderAccessOffReasonText ?? 'Folders you open show up here, so you can come back to them in one click.')}
-                      </p>
-                    </div>
+                    isHiddenVaultListShown ? (
+                      <div className="flex flex-1 flex-col items-center justify-center px-4 py-8 text-center">
+                        <span className="grid size-11 place-items-center rounded-xl bg-papeliz-blue-soft text-papeliz-blue">
+                          <EyeOff className="size-5" aria-hidden="true" />
+                        </span>
+                        <p className="mt-3 text-[14px] font-semibold">Nothing is hidden</p>
+                        <p className="mt-1 max-w-[300px] text-[12.5px] text-papeliz-ink-muted">Use the hide button on a vault’s row, or its … menu.</p>
+                      </div>
+                    ) : (
+                      // No vault on the list yet: the two ways to start, the sample first. Where this browser can
+                      // keep no vault at all, it says why, and only the sample is offered.
+                      <div className="flex flex-1 flex-col items-center justify-center px-4 py-8 text-center">
+                        <span className="grid size-11 place-items-center rounded-xl bg-papeliz-blue-soft text-papeliz-blue">
+                          <FolderOpen className="size-5" aria-hidden="true" />
+                        </span>
+                        <p className="mt-3 text-[14px] font-semibold">{hiddenRecentVaults.length > 0 ? 'All your vaults are hidden' : 'No vaults yet'}</p>
+                        <p className="mt-1 max-w-[300px] text-[12.5px] text-papeliz-ink-muted">
+                          {!isBrowserVaultOn && !isFolderVaultOn
+                            ? (browserVaultOffReasonText ?? folderAccessOffReasonText)
+                            : hiddenRecentVaults.length > 0
+                              ? 'Show them with the eye button, or start with the sample or a new vault.'
+                              : 'Start with the sample, or make your own.'}
+                        </p>
+                        <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                          <PapelizPillButton pillButtonVariant="outline" disabled={isOpeningVault} onClick={() => void openSampleVault()} className="pointer-coarse:h-10">
+                            Try Sample
+                          </PapelizPillButton>
+                          {(isBrowserVaultOn || isFolderVaultOn) && (
+                            <PapelizPillButton pillButtonVariant="primary" disabled={isOpeningVault} onClick={startNewVault} className="pointer-coarse:h-10">
+                              New Vault
+                            </PapelizPillButton>
+                          )}
+                        </div>
+                      </div>
+                    )
                   ) : (
                     <ul className="mt-1.5 flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto px-3 pb-1">
                       {shownRecentVaults.length === 0 && (
@@ -1014,7 +1044,7 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                               <li
                                 key={recentVault.papelizVaultId}
                                 aria-label={recentVault.papelizVaultDisplayName}
-                                className="flex items-center gap-3 rounded-xl border border-papeliz-line bg-papeliz-surface px-2.5 py-2"
+                                className="flex items-center gap-3 rounded-xl border border-papeliz-line bg-papeliz-surface px-2.5 py-2 max-sm:flex-wrap max-sm:gap-y-2"
                               >
                                 <span
                                   aria-hidden="true"
@@ -1028,9 +1058,10 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                                     Hidden {describeTimeSince(recentVault.papelizVaultHiddenAt ?? recentVault.papelizVaultLastOpenedAt).toLowerCase()}
                                   </span>
                                 </span>
-                                {/* Restore and Delete stack at the far right, hanging from a zero-height column centred on
-                                    the row, so the row keeps the Recent Vaults height. */}
-                                <span className="flex h-0 flex-none flex-col justify-center gap-1 self-center">
+                                {/* Restore and Delete side by side at the far right, as tall as the toolbar's buttons (40px on a
+                                    touch screen), inside the Recent Vaults row height. On a phone they take a line of their own
+                                    under the name. */}
+                                <span className="flex flex-none items-center gap-1.5 max-sm:w-full max-sm:justify-end">
                                   <button
                                     type="button"
                                     disabled={deletingPapelizVaultIds !== null}
@@ -1038,10 +1069,10 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                                     className={joinPapelizClassNames(
                                       papelizHiddenVaultActionButtonClassName,
                                       papelizHiddenVaultRestoreButtonClassName,
-                                      'h-6 px-2.5 text-[11.5px]',
+                                      'h-8 px-2.5 text-[12px] pointer-coarse:h-10',
                                     )}
                                   >
-                                    <RotateCcw className="size-3" aria-hidden="true" />
+                                    <RotateCcw className="size-3.5" aria-hidden="true" />
                                     Restore
                                   </button>
                                   <button
@@ -1061,10 +1092,10 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                                     className={joinPapelizClassNames(
                                       papelizHiddenVaultActionButtonClassName,
                                       papelizHiddenVaultDeleteButtonClassName,
-                                      'h-6 px-2.5 text-[11.5px]',
+                                      'h-8 px-2.5 text-[12px] pointer-coarse:h-10',
                                     )}
                                   >
-                                    <Trash2 className="size-3" aria-hidden="true" />
+                                    <Trash2 className="size-3.5" aria-hidden="true" />
                                     {isThisVaultDeleting ? 'Deleting…' : 'Delete'}
                                   </button>
                                 </span>

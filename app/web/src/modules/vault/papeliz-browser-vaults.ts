@@ -17,7 +17,9 @@ import {
 } from './papeliz-browser-vault-locks'
 import type { PapelizVaultFileContentsWriter } from './papeliz-directory-handle-vault-adapter'
 import type { PapelizOpenVaultResult } from './papeliz-open-vault'
-import { describePapelizVaultError, PapelizVaultOperationError } from './papeliz-vault-adapter'
+import { deletePapelizRememberedNoteTabs } from './papeliz-remembered-note-tabs'
+import { describePapelizErrorSentence, describePapelizFailureCode, describePapelizFailureCodeMessage, describePapelizFailureMessage } from './papeliz-failure-code-words'
+import { PapelizVaultOperationError } from './papeliz-vault-adapter'
 import { describeVaultEntryNameProblem, papelizBrowserVaultSettingsFileName, papelizVaultSettingsFolderName, pickFreeVaultEntryName } from './papeliz-vault-relative-paths'
 
 // The browser vaults kept in this browser. Each one is a folder in the Origin Private File System,
@@ -327,12 +329,12 @@ export async function deletePapelizBrowserVault(
   browserVaultEnvironment: PapelizBrowserVaultEnvironment = getPapelizBrowserVaultEnvironment(),
 ): Promise<PapelizBrowserVaultDeleteResult> {
   const { papelizVaultId, papelizVaultDisplayName } = browserVaultRecord
-  const describeDeleteFailure = (browserVaultDeleteReason: string): PapelizBrowserVaultDeleteResult => ({
+  const describeDeleteFailure = (browserVaultDeleteSentence: string): PapelizBrowserVaultDeleteResult => ({
     browserVaultDeleteOutcome: 'failed',
-    browserVaultDeleteFailureMessage: `Couldn’t delete “${papelizVaultDisplayName}” (${browserVaultDeleteReason})`,
+    browserVaultDeleteFailureMessage: `Couldn’t delete “${papelizVaultDisplayName}”. ${browserVaultDeleteSentence}`,
   })
   try {
-    if (await isPapelizBrowserVaultOpenInSomeTab(browserVaultEnvironment.browserVaultLockManager, papelizVaultId)) return describeDeleteFailure('Open In Another Tab')
+    if (await isPapelizBrowserVaultOpenInSomeTab(browserVaultEnvironment.browserVaultLockManager, papelizVaultId)) return describeDeleteFailure(describePapelizFailureCode('Open In Another Tab'))
     await runPapelizBrowserVaultChangeExclusively(browserVaultEnvironment.browserVaultLockManager, papelizVaultId, async () => {
       const browserVaultsFolderHandle = await getBrowserVaultsFolderHandle(browserVaultEnvironment, false)
       // A folder that is already gone only needs to leave the list.
@@ -341,8 +343,9 @@ export async function deletePapelizBrowserVault(
       })
     })
     await browserVaultEnvironment.browserVaultRecordStore.deleteBrowserVaultRecord(papelizVaultId)
+    void deletePapelizRememberedNoteTabs(papelizVaultId).catch(() => undefined)
   } catch (browserVaultDeleteError) {
-    return describeDeleteFailure(describePapelizVaultError(browserVaultDeleteError))
+    return describeDeleteFailure(describePapelizErrorSentence(browserVaultDeleteError))
   }
   announcePapelizBrowserVaultListChange()
   return { browserVaultDeleteOutcome: 'deleted' }
@@ -395,10 +398,10 @@ export async function openPapelizBrowserVault(
   try {
     browserVaultFolderHandle = await getPapelizBrowserVaultFolderHandle(papelizVaultId, browserVaultEnvironment)
   } catch (browserVaultOpenError) {
-    return { openVaultOutcome: 'failed', openVaultFailureMessage: `Couldn’t open “${papelizVaultDisplayName}” (${describePapelizVaultError(browserVaultOpenError)})` }
+    return { openVaultOutcome: 'failed', openVaultFailureMessage: describePapelizFailureMessage(`Couldn’t open “${papelizVaultDisplayName}”`, browserVaultOpenError) }
   }
   if (browserVaultFolderHandle === null) {
-    return { openVaultOutcome: 'failed', openVaultFailureMessage: `Couldn’t open “${papelizVaultDisplayName}” (Vault Not Found)` }
+    return { openVaultOutcome: 'failed', openVaultFailureMessage: describePapelizFailureCodeMessage(`Couldn’t open “${papelizVaultDisplayName}”`, 'Vault Not Found') }
   }
   const storedBrowserVaultRecord = (await readPapelizBrowserVaultRecord(papelizVaultId, browserVaultEnvironment).catch(() => null)) ?? browserVaultRecord
   await browserVaultEnvironment.browserVaultRecordStore

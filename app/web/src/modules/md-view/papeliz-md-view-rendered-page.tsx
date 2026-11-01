@@ -18,6 +18,7 @@ import {
 import { useEffect, useMemo, useRef, type ComponentProps, type MouseEvent, type ReactNode } from 'react'
 import { Fragment, jsx, jsxs } from 'react/jsx-runtime'
 import type { PapelizWikilinkTargetResolver } from '../links/papeliz-wikilink-targets'
+import { requestPapelizFileExplorerSearch } from '../workspace/papeliz-file-explorer-search-request-store'
 import { PapelizNoteFrontmatterPropertyChips } from './papeliz-note-frontmatter-property-chips'
 import { readPapelizNoteFrontmatterProperties } from './papeliz-note-frontmatter-properties'
 import { mountPapelizMermaidDiagram, unmountPapelizMermaidDiagram } from './papeliz-md-view-mermaid-diagrams'
@@ -91,15 +92,21 @@ function PapelizMdViewMermaidDiagram({ mermaidDiagramSource }: { mermaidDiagramS
   return <div ref={mermaidDiagramElementRef} className="papeliz-mermaid-diagram" />
 }
 
+// On the locked page a tag is a button: a click, or Enter, searches the vault for it.
+function searchPapelizMdViewRenderedPageTag(papelizTagName: string): void {
+  requestPapelizFileExplorerSearch(`#${papelizTagName}`)
+}
+
 // Turns the sanitized tree into React elements. Wikilinks and links to other `.md` files open
-// inside Papeliz; web links open in a new tab. Also used for the assistant's answers, which keep
-// ```mermaid blocks as code (`drawsMermaidDiagrams` off): an answer still arriving is often not yet
-// a whole diagram.
+// inside Papeliz; web links open in a new tab; tags search the vault when `onTagSearch` is given.
+// Also used for the assistant's answers, which keep ```mermaid blocks as code
+// (`drawsMermaidDiagrams` off): an answer still arriving is often not yet a whole diagram.
 export function renderPapelizMdViewHastToReact(
   noteHastRoot: HastRoot,
   onWikilinkActivate: (wikilinkTargetNoteName: string) => void,
   onRelativeNoteLinkActivate: (linkHref: string) => void,
   drawsMermaidDiagrams = false,
+  onTagSearch: ((papelizTagName: string) => void) | null = null,
 ): ReactNode {
   const papelizMdViewRenderedPageComponents: Components = {
     pre: ({ node: hastPreElement, children, ...preProps }: ComponentProps<'pre'> & { node?: HastElement }) => {
@@ -157,6 +164,23 @@ export function renderPapelizMdViewHastToReact(
       }
       return <div {...divProps}>{children}</div>
     },
+    span: ({ node: hastSpanElement, children, ...spanProps }: ComponentProps<'span'> & { node?: HastElement }) => {
+      const papelizTagName = getHastStringProperty(hastSpanElement, 'dataPapelizTagName')
+      if (papelizTagName !== null && onTagSearch !== null) {
+        return (
+          <button
+            type="button"
+            className={spanProps.className}
+            data-papeliz-tag-name={papelizTagName}
+            title={`Search notes for #${papelizTagName}`}
+            onClick={() => onTagSearch(papelizTagName)}
+          >
+            {children}
+          </button>
+        )
+      }
+      return <span {...spanProps}>{children}</span>
+    },
     img: ({ node: _hastImageElement, src, alt }: ComponentProps<'img'> & { node?: HastElement }) => {
       if (typeof src === 'string' && /^https:/i.test(src)) {
         return <img src={src} alt={alt ?? ''} loading="lazy" referrerPolicy="no-referrer" />
@@ -193,7 +217,7 @@ export function PapelizMdViewRenderedPage({
   )
 
   const renderedNoteBody = useMemo(
-    () => renderPapelizMdViewHastToReact(renderedNote.noteHastRoot, onWikilinkActivate, onRelativeNoteLinkActivate, true),
+    () => renderPapelizMdViewHastToReact(renderedNote.noteHastRoot, onWikilinkActivate, onRelativeNoteLinkActivate, true, searchPapelizMdViewRenderedPageTag),
     [renderedNote.noteHastRoot, onWikilinkActivate, onRelativeNoteLinkActivate],
   )
 

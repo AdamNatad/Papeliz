@@ -33,6 +33,7 @@ export const papelizWorkspaceEyePreviewerStates = [
   'start-open-vault-permission-refused',
   'start-open-vault-folder-gone',
   'start-recent-vaults-empty',
+  'start-recent-vaults-all-hidden',
   'start-recent-vaults-listed',
   'start-recent-vaults-many',
   'start-recent-vaults-search-no-match',
@@ -538,6 +539,9 @@ function describeStartScreenEyePreview(
       }
     case 'start-recent-vaults-empty':
       return { ...liveLikeStartScreenEyePreview, previewRememberedVaultFolders: [] }
+    // Every vault hidden: the empty list still offers the Hidden list's eye.
+    case 'start-recent-vaults-all-hidden':
+      return { ...liveLikeStartScreenEyePreview, previewRememberedVaultFolders: createPreviewHiddenVaultFolders(papelizEyePreviewerHiddenVaultNames) }
     case 'start-recent-vaults-listed':
       return liveLikeStartScreenEyePreview
     case 'start-recent-vaults-many':

@@ -22,11 +22,13 @@ const papelizMdCodeHighlightStyle = HighlightStyle.define([
 ])
 
 const papelizMdCodeTheme = EditorView.theme({
-  // Always monospace, a little smaller than the note's text size.
+  // Always monospace, a little smaller than the note's text size. No ligatures: `-->`, `!=` and `>=`
+  // show as the characters typed, not as one joined symbol (MD View keeps them).
   '.cm-scroller': {
     fontFamily: 'var(--font-mono)',
     fontSize: 'calc(var(--papeliz-note-font-size) - 3px)',
     lineHeight: '1.8',
+    fontVariantLigatures: 'none',
   },
   '.cm-content': { padding: '2px 0 160px' },
   '.cm-line': { padding: '0 8px 0 4px' },

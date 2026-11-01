@@ -19,6 +19,7 @@ import {
   type PapelizNoteViewMode,
 } from '../note-editor/papeliz-note-editor'
 import { PapelizPillButton } from '../ui/papeliz-buttons'
+import { describePapelizFailureCodeMessage } from '../vault/papeliz-failure-code-words'
 import {
   getVaultEntryName,
   getVaultEntryParentFolderRelativePath,
@@ -236,7 +237,7 @@ export function PapelizNoteArea({ noteEditorSessionCache }: PapelizNoteAreaProps
                 vaultNoteRelativePath.toLowerCase() === `${linkedVaultEntryRelativePath.toLowerCase()}.md`,
             )
       if (linkedVaultNoteRelativePath === undefined) {
-        showWorkspaceNotice('error', `Couldn’t open “${linkHref.replace(/\.md$/i, '')}” (Note Not Found)`)
+        showWorkspaceNotice('error', describePapelizFailureCodeMessage(`Couldn’t open “${linkHref.replace(/\.md$/i, '')}”`, 'Note Not Found'))
         return
       }
       void openVaultNote(linkedVaultNoteRelativePath)

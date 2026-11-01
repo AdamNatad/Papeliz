@@ -5,10 +5,17 @@ describe('a failed save in plain words', () => {
   it('says what to do when another program has the file', () => {
     expect(describePapelizNoteSaveFailure('File In Use')).toEqual({
       noteSaveFailureShortReason: 'File open elsewhere',
-      noteSaveFailureAdvice: 'Another program has the file open. Close it there, then press Try again.',
+      noteSaveFailureAdvice: 'Another program has this file open. Close it there, then try again.',
     })
     expect(describePapelizNoteSaveFailureMessage('Garden plan', 'File In Use')).toBe(
-      'Couldn’t save “Garden plan”. Another program has the file open. Close it there, then press Try again.',
+      'Couldn’t save “Garden plan”. Another program has this file open. Close it there, then try again.',
+    )
+  })
+
+  it('says to keep the typing safe where closing the vault would lose it', () => {
+    expect(describePapelizNoteSaveFailure('No Permission').noteSaveFailureAdvice).toContain('Copy your changes somewhere safe')
+    expect(describePapelizNoteSaveFailure('Hidden Folder').noteSaveFailureAdvice).toBe(
+      'It’s in a hidden folder, which Papeliz only reads. Move it out of the hidden folder to change it.',
     )
   })
 

@@ -362,13 +362,6 @@
   }
 }
 
-@keyframes papeliz-panel-in-from-right {
-  from {
-    opacity: 0;
-    transform: translateX(12px);
-  }
-}
-
 @keyframes papeliz-dialog-in {
   from {
     opacity: 0;
@@ -571,11 +564,6 @@ label:has(> input[type='search']:focus-visible) {
     width 220ms var(--ease-papeliz-out),
     height 220ms var(--ease-papeliz-out),
     rx 220ms var(--ease-papeliz-out);
-}
-
-/* A toast slides in to the top right. */
-.papeliz-notice-enter-from-right {
-  animation: papeliz-panel-in-from-right 240ms var(--ease-papeliz-out);
 }
 
 /* A folder's rows slide open and shut (papeliz-file-explorer.tsx). One grid row grows from nothing
@@ -1867,6 +1855,19 @@ label:has(> input[type='search']:focus-visible) {
   vertical-align: 1px;
 }
 
+/* A tag searches the vault when clicked: in MD View every chip the cursor isn't on
+   (papeliz-md-view-presentation.ts), and on the locked page each tag, drawn as a button. */
+.papeliz-md-view .cm-papeliz-md-view-tag-searchable,
+.papeliz-md-view-article button.papeliz-md-view-tag {
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+
+.papeliz-md-view .cm-papeliz-md-view-tag-searchable:hover,
+.papeliz-md-view-article button.papeliz-md-view-tag:hover {
+  background: var(--color-papeliz-blue-soft-hover);
+}
+
 .papeliz-md-view-article code {
   font-family: var(--font-mono);
   font-size: 0.86em;
@@ -2062,30 +2063,40 @@ label:has(> input[type='search']:focus-visible) {
   }
 }
 
-/* The open-notes strip's scrollbar: a thin blue bar under the tabs, on the strip's line, there
-   only when the tabs don't fit. */
+/* The open-notes strip's scrollbar: a thin gray bar under the tabs, there only when the tabs don't
+   fit, and seen only while a mouse is over them or they scroll. papeliz-note-tabs-bar.tsx marks both
+   on the strip: Chrome doesn't redraw a scrollbar when only :hover changes. */
 .papeliz-note-tabs-scroller::-webkit-scrollbar {
-  height: 6px;
+  height: 3px;
 }
 
 .papeliz-note-tabs-scroller::-webkit-scrollbar-track {
-  background: var(--color-papeliz-line);
+  background: transparent;
 }
 
 .papeliz-note-tabs-scroller::-webkit-scrollbar-thumb {
-  border: 1px solid var(--color-papeliz-line);
   border-radius: 999px;
-  background: var(--color-papeliz-blue);
+  background: transparent;
+}
+
+.papeliz-note-tabs-scroller[data-papeliz-note-tabs-pointer-over='true']::-webkit-scrollbar-thumb,
+.papeliz-note-tabs-scroller[data-papeliz-note-tabs-scrolling='true']::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--color-papeliz-ink-subtle) 60%, transparent);
 }
 
 .papeliz-note-tabs-scroller::-webkit-scrollbar-thumb:hover {
-  background-color: var(--color-papeliz-blue-hover);
+  background: var(--color-papeliz-ink-subtle);
 }
 
 @supports not selector(::-webkit-scrollbar) {
   .papeliz-note-tabs-scroller {
     scrollbar-width: thin;
-    scrollbar-color: var(--color-papeliz-blue) var(--color-papeliz-line);
+    scrollbar-color: transparent transparent;
+  }
+
+  .papeliz-note-tabs-scroller[data-papeliz-note-tabs-pointer-over='true'],
+  .papeliz-note-tabs-scroller[data-papeliz-note-tabs-scrolling='true'] {
+    scrollbar-color: color-mix(in srgb, var(--color-papeliz-ink-subtle) 60%, transparent) transparent;
   }
 }
 

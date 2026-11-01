@@ -35,7 +35,8 @@ async function readBlobAsDataUrl(attachmentBlob: Blob, attachmentMimeType: strin
   return `data:${attachmentMimeType};base64,${btoa(attachmentBinaryText)}`
 }
 
-// Reads one file the user added, or says why it can't be added, as an error toast's tag.
+// Reads one file the user added, or says why it can't be added, as a short code ("Over 10 MB") whose
+// sentence people read (papeliz-failure-code-words.ts).
 export async function readPapelizAssistantAttachmentFile(
   attachmentFile: File,
 ): Promise<{ attachmentReadOutcome: 'read'; assistantAttachment: PapelizAssistantAttachment } | { attachmentReadOutcome: 'refused'; attachmentRefusedBecause: string }> {

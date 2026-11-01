@@ -15,6 +15,8 @@ const papelizNoteTabKeysDescriptionId = 'papeliz-note-tab-keys-description'
 // The gap between two tabs, where the strip shows through (Tailwind `gap-0.5`).
 const papelizNoteTabGap = 2
 const papelizNoteTabSlideTransition = 'transform 180ms var(--ease-papeliz-out), background-color 150ms ease, color 150ms ease'
+// How long the strip's scrollbar stays in sight after the tabs stop scrolling.
+const papelizNoteTabsScrollbarShownAfterScrollMilliseconds = 800
 
 interface PapelizNoteTabDrag {
   draggedVaultNoteRelativePath: string
@@ -151,6 +153,7 @@ export function PapelizNoteTabsBar() {
     settleFromRect?: DOMRect
   } | null>(null)
   const stopListeningToNoteTabPressRef = useRef<(() => void) | null>(null)
+  const noteTabsScrollbarHideTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   useEffect(() => {
     // Keep the open tab wholly in sight, clear of the strip's edges (and so of New note beside it):
@@ -176,6 +179,7 @@ export function PapelizNoteTabsBar() {
   }, [activeVaultNoteRelativePath, openNoteTabRelativePaths, assistantProposalPreview, isNoteTabsStacked])
 
   useEffect(() => () => stopListeningToNoteTabPressRef.current?.(), [])
+  useEffect(() => () => clearTimeout(noteTabsScrollbarHideTimerRef.current), [])
 
   useLayoutEffect(() => {
     if (!isNoteTabDropSettling) return
@@ -348,15 +352,33 @@ export function PapelizNoteTabsBar() {
         isNoteTabsStacked ? 'min-h-10' : 'h-10',
       )}
     >
-      {/* Scroll: when the tabs don't fit, a thin blue scrollbar runs under them; the tabs keep their
-          height and rise into the gap above them to make room, and a mouse wheel scrolls the strip
-          sideways. Stack (Accessibility): the tabs wrap onto more rows, so every one shows. */}
+      {/* Scroll: when the tabs don't fit, a thin gray scrollbar runs under them, shown only while the
+          pointer is over the tabs or they scroll; the tabs keep their height and rise into the gap
+          above them to make room, and a mouse wheel scrolls the strip sideways. Stack
+          (Accessibility): the tabs wrap onto more rows, so every one shows. */}
       <nav
         ref={noteTabsNavRef}
         aria-label="Open notes"
         onWheel={(wheelEvent) => {
           if (isNoteTabsStacked) return
           if (Math.abs(wheelEvent.deltaY) > Math.abs(wheelEvent.deltaX)) wheelEvent.currentTarget.scrollLeft += wheelEvent.deltaY
+        }}
+        // The scrollbar shows while a mouse is over the tabs, and while they move (a finger has no
+        // hover). Both are marked on the strip, not left to :hover, which Chrome doesn't redraw a
+        // scrollbar for.
+        onPointerEnter={(pointerEnterEvent) => {
+          if (pointerEnterEvent.pointerType !== 'touch') pointerEnterEvent.currentTarget.dataset['papelizNoteTabsPointerOver'] = 'true'
+        }}
+        onPointerLeave={(pointerLeaveEvent) => {
+          delete pointerLeaveEvent.currentTarget.dataset['papelizNoteTabsPointerOver']
+        }}
+        onScroll={(scrollEvent) => {
+          const noteTabsNavElement = scrollEvent.currentTarget
+          noteTabsNavElement.dataset['papelizNoteTabsScrolling'] = 'true'
+          clearTimeout(noteTabsScrollbarHideTimerRef.current)
+          noteTabsScrollbarHideTimerRef.current = setTimeout(() => {
+            delete noteTabsNavElement.dataset['papelizNoteTabsScrolling']
+          }, papelizNoteTabsScrollbarShownAfterScrollMilliseconds)
         }}
         className={joinPapelizClassNames(
           // Relative, so each tab's offsetLeft is measured from the strip (the scroll into sight above).

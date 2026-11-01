@@ -54,12 +54,12 @@ export async function probePapelizBrowserVaultStorage(): Promise<PapelizBrowserV
   }
 }
 
-// The toast's and the tooltip's words: why browser vaults are off, with what to do in the brackets.
+// The toast's and the tooltip's words: why browser vaults are off, and what to do.
 export function describePapelizBrowserVaultOffReason(browserVaultOffReason: PapelizBrowserVaultOffReason): string {
   switch (browserVaultOffReason) {
     case 'unsupported':
-      return 'Couldn’t keep vaults in this browser (Update It, Or Use Chrome, Edge Or Firefox)'
+      return 'This browser can’t keep vaults. Update it, or use Chrome, Edge or Firefox.'
     case 'storage-off':
-      return 'Couldn’t keep vaults in this browser (Storage Off)'
+      return 'This browser won’t keep vaults here, as in some private windows. Use a normal window, or let this site store data.'
   }
 }

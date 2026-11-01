@@ -6,7 +6,7 @@ import {
   type PapelizBrowserVaultBackupReminderIntervalMinutes,
   type PapelizBrowserVaultRecord,
 } from '../vault/papeliz-browser-vaults'
-import { describePapelizVaultError } from '../vault/papeliz-vault-adapter'
+import { describePapelizFailureMessage } from '../vault/papeliz-failure-code-words'
 import { buildThenSavePapelizExportFile } from './papeliz-export-file-save'
 
 // A browser vault's backups: Download backup, and the reminder (Settings › Reminder). The reminder is
@@ -58,7 +58,7 @@ export async function downloadPapelizBrowserVaultBackupFromClick(browserVaultRec
   } catch (browserVaultBackupError) {
     return {
       browserVaultBackupDownloadOutcome: 'failed',
-      browserVaultBackupFailureMessage: `Couldn’t back up “${browserVaultRecord.papelizVaultDisplayName}” (${describePapelizVaultError(browserVaultBackupError)})`,
+      browserVaultBackupFailureMessage: describePapelizFailureMessage(`Couldn’t back up “${browserVaultRecord.papelizVaultDisplayName}”`, browserVaultBackupError),
     }
   }
 }

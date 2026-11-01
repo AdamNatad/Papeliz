@@ -1,4 +1,5 @@
-import { describePapelizVaultError, PapelizVaultOperationError } from '../vault/papeliz-vault-adapter'
+import { describePapelizErrorSentence } from '../vault/papeliz-failure-code-words'
+import { PapelizVaultOperationError } from '../vault/papeliz-vault-adapter'
 
 // Saving an export where the person chooses. The file is built first and the save dialog opens when
 // it is done: Chrome creates the chosen file as soon as its dialog closes, so a cancelled or failed
@@ -53,7 +54,9 @@ async function writePapelizExportFile(exportFileDestination: PapelizExportFileDe
     } catch (exportFileWriteError) {
       // The write stops unfinished; the file the dialog created stays as it was, maybe empty.
       await exportFileWritableStream?.abort().catch(() => undefined)
-      throw new PapelizVaultOperationError(`“${exportFileName}” couldn’t be written where you chose (${describePapelizVaultError(exportFileWriteError)}), so the file there may be empty`)
+      throw new PapelizVaultOperationError(
+        `“${exportFileName}” couldn’t be written where you chose, so the file there may be empty. ${describePapelizErrorSentence(exportFileWriteError)}`,
+      )
     }
     return
   }

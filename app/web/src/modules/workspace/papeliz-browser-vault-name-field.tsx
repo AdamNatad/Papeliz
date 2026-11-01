@@ -1,10 +1,11 @@
 import type { Ref } from 'react'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
+import { describePapelizFailureCode } from '../vault/papeliz-failure-code-words'
 
 interface PapelizBrowserVaultNameFieldProps {
   browserVaultNameInputRef: Ref<HTMLInputElement>
   typedBrowserVaultName: string
-  // Why the typed name can't be used, or null when it can.
+  // Why the typed name can't be used, as a code ("Name Taken"), or null when it can.
   browserVaultNameProblem: string | null
   browserVaultNameProblemId: string
   // "Name" over the field (Rename), or beside it on one line (New Vault's Empty row).
@@ -57,7 +58,7 @@ export function PapelizBrowserVaultNameField({
       </label>
       {browserVaultNameProblem !== null && typedBrowserVaultName.length > 0 && (
         <p id={browserVaultNameProblemId} role="alert" className="mt-1 text-[12px] leading-snug font-medium text-papeliz-diff-removed-ink">
-          Can’t use this name ({browserVaultNameProblem})
+          {describePapelizFailureCode(browserVaultNameProblem, { failedEntryName: typedBrowserVaultName.trim(), failedEntryKind: 'vault' })}
         </p>
       )}
     </>

@@ -342,7 +342,9 @@ export function PapelizNoteContextMenu({
     try {
       await navigator.clipboard.writeText(selectedText)
     } catch {
-      onNoteContextMenuProblem(shouldRemoveSelectedText ? 'Couldn’t cut (Use Ctrl+X)' : 'Couldn’t copy (Use Ctrl+C)')
+      onNoteContextMenuProblem(
+        shouldRemoveSelectedText ? 'The browser blocked Cut from this menu. Press Ctrl+X instead.' : 'The browser blocked Copy from this menu. Press Ctrl+C instead.',
+      )
       return
     }
     if (shouldRemoveSelectedText) {
@@ -357,7 +359,7 @@ export function PapelizNoteContextMenu({
       const clipboardText = await navigator.clipboard.readText()
       noteEditorView.dispatch(noteEditorView.state.replaceSelection(clipboardText), { userEvent: 'input.paste', scrollIntoView: true })
     } catch {
-      onNoteContextMenuProblem('Couldn’t paste (Use Ctrl+V)')
+      onNoteContextMenuProblem('The browser blocked Paste from this menu. Press Ctrl+V instead.')
     }
   }
 

@@ -101,7 +101,7 @@ describe('the list of browser vaults', () => {
     await new Promise((resolveWait) => setTimeout(resolveWait, 0))
     expect(await deletePapelizBrowserVault(fieldNotesRecord, browserVaultEnvironment)).toEqual({
       browserVaultDeleteOutcome: 'failed',
-      browserVaultDeleteFailureMessage: 'Couldn’t delete “Field Notes” (Open In Another Tab)',
+      browserVaultDeleteFailureMessage: 'Couldn’t delete “Field Notes”. It’s open in another Papeliz tab. Close it there, then try again.',
     })
     if (openVaultResult.openVaultOutcome === 'opened') openVaultResult.papelizOpenVault.papelizVaultAdapter.closeVaultAdapter?.()
     await new Promise((resolveWait) => setTimeout(resolveWait, 0))
@@ -117,7 +117,7 @@ describe('the list of browser vaults', () => {
     await (await fakeOriginPrivateFileSystemRoot.getDirectoryHandle('papeliz-browser-vaults')).removeEntry(fieldNotesRecord.papelizVaultId, { recursive: true })
     expect(await openPapelizBrowserVault(fieldNotesRecord, browserVaultEnvironment)).toEqual({
       openVaultOutcome: 'failed',
-      openVaultFailureMessage: 'Couldn’t open “Field Notes” (Vault Not Found)',
+      openVaultFailureMessage: 'Couldn’t open “Field Notes”. It’s no longer in this browser. It may have been deleted in another tab.',
     })
   })
 })

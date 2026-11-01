@@ -4,8 +4,34 @@ import { createPapelizSyncFakeEngine } from '../sync/papeliz-sync-fake-engine'
 import { createPapelizFakeVaultFolder } from '../vault/papeliz-fake-file-system-access.test-support'
 import { PapelizFolderOnDiskVaultAdapter } from '../vault/papeliz-folder-on-disk-vault-adapter'
 import { PapelizInMemoryVaultAdapter, type PapelizInMemoryVaultNote } from '../vault/papeliz-in-memory-vault-adapter'
+import type { PapelizRememberedNoteTabs } from '../vault/papeliz-remembered-note-tabs'
 import type { PapelizVaultAdapter } from '../vault/papeliz-vault-adapter'
 import { selectActiveVaultNoteLockingEntry, usePapelizWorkspaceStore } from './papeliz-workspace-store'
+
+// Each vault's remembered tabs, kept in memory for these tests in place of the browser database.
+const rememberedTestNoteTabsByVaultId = vi.hoisted(() => new Map<string, PapelizRememberedNoteTabs>())
+
+vi.mock('../vault/papeliz-remembered-note-tabs', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../vault/papeliz-remembered-note-tabs')>()),
+  readPapelizRememberedNoteTabs: async (papelizVaultId: string) => rememberedTestNoteTabsByVaultId.get(papelizVaultId) ?? null,
+  writePapelizRememberedNoteTabs: async (papelizVaultId: string, rememberedNoteTabRelativePaths: readonly string[], rememberedActiveVaultNoteRelativePath: string | null) => {
+    rememberedTestNoteTabsByVaultId.set(papelizVaultId, {
+      papelizVaultId,
+      rememberedNoteTabRelativePaths: [...rememberedNoteTabRelativePaths],
+      rememberedActiveVaultNoteRelativePath,
+      rememberedNoteTabsWrittenAt: '2026-11-01T12:00:00.000Z',
+    })
+  },
+}))
+
+function rememberTestNoteTabs(papelizVaultId: string, rememberedNoteTabRelativePaths: string[], rememberedActiveVaultNoteRelativePath: string | null) {
+  rememberedTestNoteTabsByVaultId.set(papelizVaultId, {
+    papelizVaultId,
+    rememberedNoteTabRelativePaths,
+    rememberedActiveVaultNoteRelativePath,
+    rememberedNoteTabsWrittenAt: '2026-10-31T09:00:00.000Z',
+  })
+}
 
 let testVaultCounter = 0
 
@@ -96,7 +122,7 @@ describe('autosave', () => {
     expect(workspaceState.loadedVaultNotesByRelativePath['Inbox.md']?.draftVaultNoteText).toBe('precious words')
     expect(workspaceState.loadedVaultNotesByRelativePath['Inbox.md']?.noteSaveErrorMessage).toBe('Disk Full')
     expect(workspaceState.workspaceNotice?.workspaceNoticeKind).toBe('error')
-    expect(workspaceState.workspaceNotice?.workspaceNoticeMessage).toBe('Couldn’t close “Inbox” (Not Saved)')
+    expect(workspaceState.workspaceNotice?.workspaceNoticeMessage).toBe('Couldn’t close “Inbox”. Its changes aren’t saved yet. Press Try again to save them first.')
   })
 })
 
@@ -159,6 +185,78 @@ describe('open-note tabs', () => {
   })
 })
 
+describe('remembered note tabs', () => {
+  async function openRememberingTestVault(papelizVaultId: string, vaultAdapter: PapelizVaultAdapter, firstVaultNoteRelativePathToOpen: string | null = null) {
+    await usePapelizWorkspaceStore.getState().openVaultInWorkspace(
+      { papelizVaultId, papelizVaultDisplayName: 'Garden', papelizVaultAdapter: vaultAdapter },
+      { firstVaultNoteRelativePathToOpen, firstNoteViewMode: 'md-code', expandAllTopLevelFolders: false },
+    )
+  }
+
+  async function createGardenFolderVaultAdapter(fakeVaultFileContentsByRelativePath: Record<string, string>) {
+    const fakeVaultRootHandle = await createPapelizFakeVaultFolder('Garden', fakeVaultFileContentsByRelativePath)
+    return new PapelizFolderOnDiskVaultAdapter(fakeVaultRootHandle.asFileSystemDirectoryHandle())
+  }
+
+  it('reopens a vault with its tabs in order and the note that was in front', async () => {
+    const vaultAdapter = await createGardenFolderVaultAdapter({ 'Inbox.md': '# Inbox', 'Projects/Plan.md': '# Plan', 'Reading.md': '# Reading' })
+    await openRememberingTestVault('remembering-vault', vaultAdapter)
+    for (const vaultNoteRelativePath of ['Inbox.md', 'Projects/Plan.md', 'Reading.md']) await usePapelizWorkspaceStore.getState().openVaultNote(vaultNoteRelativePath)
+    usePapelizWorkspaceStore.getState().moveVaultNoteTab('Reading.md', 0)
+    await usePapelizWorkspaceStore.getState().openVaultNote('Projects/Plan.md')
+    await usePapelizWorkspaceStore.getState().closeVaultInWorkspace()
+    expect(usePapelizWorkspaceStore.getState().openNoteTabRelativePaths).toEqual([])
+
+    await openRememberingTestVault('remembering-vault', vaultAdapter)
+    const reopenedWorkspaceState = usePapelizWorkspaceStore.getState()
+    expect(reopenedWorkspaceState.openNoteTabRelativePaths).toEqual(['Reading.md', 'Inbox.md', 'Projects/Plan.md'])
+    expect(reopenedWorkspaceState.activeVaultNoteRelativePath).toBe('Projects/Plan.md')
+    expect(reopenedWorkspaceState.loadedVaultNotesByRelativePath['Projects/Plan.md']).toMatchObject({ noteLoadState: 'loaded', draftVaultNoteText: '# Plan' })
+    // The others load when their tab is picked.
+    expect(reopenedWorkspaceState.loadedVaultNotesByRelativePath['Inbox.md']).toBeUndefined()
+    expect(reopenedWorkspaceState.expandedVaultFolderRelativePaths).toEqual({ Projects: true })
+  })
+
+  it('leaves out notes that are gone without a word, and brings the next tab forward when the front one is gone', async () => {
+    rememberTestNoteTabs('vault-with-gone-notes', ['Inbox.md', 'Deleted.md', 'Moved/Plan.md', 'Reading.md'], 'Moved/Plan.md')
+    await openRememberingTestVault('vault-with-gone-notes', await createGardenFolderVaultAdapter({ 'Inbox.md': '# Inbox', 'Reading.md': '# Reading' }))
+    expect(usePapelizWorkspaceStore.getState().openNoteTabRelativePaths).toEqual(['Inbox.md', 'Reading.md'])
+    expect(usePapelizWorkspaceStore.getState().activeVaultNoteRelativePath).toBe('Reading.md')
+    expect(usePapelizWorkspaceStore.getState().workspaceNotice).toBeNull()
+  })
+
+  it('starts empty when none of the remembered notes are left', async () => {
+    rememberTestNoteTabs('vault-with-every-note-gone', ['Deleted.md'], 'Deleted.md')
+    await openRememberingTestVault('vault-with-every-note-gone', await createGardenFolderVaultAdapter({ 'Inbox.md': '# Inbox' }))
+    expect(usePapelizWorkspaceStore.getState().openNoteTabRelativePaths).toEqual([])
+    expect(usePapelizWorkspaceStore.getState().activeVaultNoteRelativePath).toBeNull()
+  })
+
+  it('opens the note asked for instead, and remembers nothing for the sample vault', async () => {
+    rememberTestNoteTabs('vault-opened-at-a-note', ['Inbox.md'], 'Inbox.md')
+    await openRememberingTestVault('vault-opened-at-a-note', await createGardenFolderVaultAdapter({ 'Inbox.md': '# Inbox', 'Reading.md': '# Reading' }), 'Reading.md')
+    expect(usePapelizWorkspaceStore.getState().openNoteTabRelativePaths).toEqual(['Reading.md'])
+
+    rememberTestNoteTabs('sample-vault', ['Inbox.md'], 'Inbox.md')
+    await openRememberingTestVault('sample-vault', new PapelizInMemoryVaultAdapter([{ vaultNoteRelativePath: 'Inbox.md', vaultNoteText: '' }]))
+    expect(usePapelizWorkspaceStore.getState().openNoteTabRelativePaths).toEqual([])
+    await usePapelizWorkspaceStore.getState().openVaultNote('Inbox.md')
+    expect(rememberedTestNoteTabsByVaultId.get('sample-vault')?.rememberedNoteTabsWrittenAt).toBe('2026-10-31T09:00:00.000Z')
+  })
+
+  it('follows a renamed note and a closed tab', async () => {
+    await openRememberingTestVault('vault-with-renames', await createGardenFolderVaultAdapter({ 'Inbox.md': '# Inbox', 'Reading.md': '# Reading' }))
+    await usePapelizWorkspaceStore.getState().openVaultNote('Inbox.md')
+    await usePapelizWorkspaceStore.getState().openVaultNote('Reading.md')
+    await usePapelizWorkspaceStore.getState().renameVaultEntry('Reading.md', 'Books')
+    await usePapelizWorkspaceStore.getState().closeVaultNoteTab('Inbox.md')
+    expect(rememberedTestNoteTabsByVaultId.get('vault-with-renames')).toMatchObject({
+      rememberedNoteTabRelativePaths: ['Books.md'],
+      rememberedActiveVaultNoteRelativePath: 'Books.md',
+    })
+  })
+})
+
 describe('revealing an entry in the file list', () => {
   it('opens the list and expands the folders on the way, and the folder itself', async () => {
     await openTestVault([{ vaultNoteRelativePath: 'Projects/Garden/Beds.md', vaultNoteText: '' }])
@@ -196,9 +294,13 @@ describe('moving into another folder', () => {
       { vaultNoteRelativePath: 'Projects/Garden/Beds.md', vaultNoteText: '' },
     ])
     await usePapelizWorkspaceStore.getState().moveVaultEntryIntoFolder('Plan.md', 'Projects')
-    expect(usePapelizWorkspaceStore.getState().workspaceNotice?.workspaceNoticeMessage).toContain('(Name Taken)')
+    expect(usePapelizWorkspaceStore.getState().workspaceNotice?.workspaceNoticeMessage).toBe(
+      'Couldn’t move “Plan”. A note named “Plan” is already there. Rename one of them first.',
+    )
     await usePapelizWorkspaceStore.getState().moveVaultEntryIntoFolder('Projects', 'Projects/Garden')
-    expect(usePapelizWorkspaceStore.getState().workspaceNotice?.workspaceNoticeMessage).toContain('(Into Itself)')
+    expect(usePapelizWorkspaceStore.getState().workspaceNotice?.workspaceNoticeMessage).toBe(
+      'Couldn’t move “Projects”. A folder can’t go inside itself. Pick a folder outside it.',
+    )
     const vaultEntryPaths = usePapelizWorkspaceStore.getState().vaultTreeEntries.map((vaultTreeEntry) => vaultTreeEntry.vaultEntryRelativePath)
     expect(vaultEntryPaths).toContain('Plan.md')
     expect(vaultEntryPaths).toContain('Projects/Garden/Beds.md')
@@ -279,7 +381,7 @@ describe('duplicate, copy and paste', () => {
     await usePapelizWorkspaceStore.getState().pasteCopiedVaultEntry('')
     expect(await vaultAdapter.readVaultNoteText('Guides copy/Links.md')).toBe('links')
     await usePapelizWorkspaceStore.getState().pasteCopiedVaultEntry('Guides')
-    expect(usePapelizWorkspaceStore.getState().workspaceNotice?.workspaceNoticeMessage).toBe('Couldn’t paste “Guides” (Into Itself)')
+    expect(usePapelizWorkspaceStore.getState().workspaceNotice?.workspaceNoticeMessage).toBe('Couldn’t paste “Guides”. A folder can’t go inside itself. Pick a folder outside it.')
   })
 })
 
@@ -371,7 +473,7 @@ describe('creating and moving to the trash', () => {
     await usePapelizWorkspaceStore.getState().createVaultFolderInFolder('Projects')
     expect(await usePapelizWorkspaceStore.getState().finishNamingNewVaultFolder('Plan.md')).toEqual({
       newVaultFolderNamingOutcome: 'refused',
-      newVaultFolderNameProblem: 'Name Taken',
+      newVaultFolderNameProblem: 'A note or folder named “Plan.md” is already there. Pick another name.',
     })
     expect(await usePapelizWorkspaceStore.getState().finishNamingNewVaultFolder('  Drafts ')).toEqual({
       newVaultFolderNamingOutcome: 'created',

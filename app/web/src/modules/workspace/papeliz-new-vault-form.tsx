@@ -1,6 +1,6 @@
 import { AppWindow, ArrowLeft, FolderOpen, type LucideIcon } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
-import { PapelizIconButton } from '../ui/papeliz-buttons'
+import { PapelizIconButton, papelizMainActionButtonColorClassName, papelizOutlineButtonColorClassName } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { usePapelizFooterEqualButtonWidthRef } from '../ui/papeliz-footer-equal-button-width'
 import { PapelizInfoTip } from '../ui/papeliz-info-tip'
@@ -139,17 +139,15 @@ const papelizNewVaultPlaceComparisonRows: readonly PapelizNewVaultPlaceCompariso
   },
 ]
 
-// Cancel and the action: flat, square-cornered and one width (the footer's ref sets it). Fetch from
+// Cancel and the action: pills of one width (the footer's ref sets it), like a dialog's. Fetch from
 // Sync's page uses the same.
 export const newVaultFormFooterButtonClassName =
-  'inline-flex h-8 flex-none items-center justify-center gap-1.5 rounded-md px-3 text-[13px] font-medium whitespace-nowrap transition-[background-color,border-color,color,filter,transform] duration-150 ease-out active:scale-[.99] disabled:pointer-events-none disabled:opacity-50'
-// Their colors, the confirm dialog's (PapelizPillButton's `dialog-cancel` and `dialog-confirm`): Cancel
-// is white with an outline and turns soft blue when hovered; the action is solid blue. The Synced
-// Vaults page and the browser vault Rename dialog use them too.
-export const newVaultFormFooterCancelButtonColorClassName =
-  'border border-papeliz-line-strong bg-papeliz-surface text-papeliz-ink shadow-[0_1px_2px_rgb(16_24_40/0.08)] enabled:hover:border-papeliz-blue-line enabled:hover:bg-papeliz-blue-soft enabled:hover:text-papeliz-blue'
-export const newVaultFormFooterActionButtonColorClassName =
-  'bg-papeliz-gradient-start text-white shadow-[inset_0_1px_0_#ffffff1f,0_2px_3px_rgb(0_40_100/0.18)] enabled:hover:brightness-110'
+  'inline-flex h-8 flex-none items-center justify-center gap-1.5 rounded-full px-3.5 text-[13px] font-medium whitespace-nowrap transition-[background-color,border-color,color,filter,transform] duration-150 ease-out active:scale-[.97] disabled:pointer-events-none disabled:opacity-50'
+// Their colors, every main button's (papeliz-buttons.tsx): Cancel is white with an outline and turns
+// soft blue when hovered; the action is solid blue. The Synced Vaults page and the browser vault
+// Rename dialog use them too.
+export const newVaultFormFooterCancelButtonColorClassName = papelizOutlineButtonColorClassName
+export const newVaultFormFooterActionButtonColorClassName = papelizMainActionButtonColorClassName
 
 interface PapelizNewVaultFormProps {
   newVaultFormHeadingId: string

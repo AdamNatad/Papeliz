@@ -4,7 +4,7 @@ import { papelizNoteFontSizeLimits, usePapelizNoteTypographyStore } from './pape
 const { minimumNoteFontSize, maximumNoteFontSize } = papelizNoteFontSizeLimits
 const papelizNoteTextSizeStopCount = maximumNoteFontSize - minimumNoteFontSize + 1
 
-// Text size in the Settings gear's Accessibility page: the sliding choices' gray track with the
+// Text size on the Settings gear's Accessibility page: the sliding choices' gray track with the
 // white pill as the thumb, one dot per size. A native range input lies over it (papeliz-webapp.css),
 // so dragging, clicking anywhere on the track, the arrow keys, Home, End, Page Up and Page Down all
 // work, and screen readers hear "Text size, 17 px".

@@ -1,4 +1,4 @@
-import { describePapelizVaultError } from '../vault/papeliz-vault-adapter'
+import { describePapelizFailureMessage } from '../vault/papeliz-failure-code-words'
 import { usePapelizWorkspaceStore } from '../workspace/papeliz-workspace-store'
 import { recordPapelizInlineEditTokenUsageInVault } from './papeliz-assistant-inline-edit-usage-file'
 import { getActivePapelizAssistantProviderConnection } from './papeliz-assistant-provider-settings-store'
@@ -72,7 +72,7 @@ export async function runPapelizInlineEdit(inlineEditRunRequest: PapelizInlineEd
       completionProviderReportedCostUsd,
     ).catch((inlineEditUsageWriteError: unknown) => {
       if (usePapelizWorkspaceStore.getState().openVault !== inlineEditOpenVault) return
-      usePapelizWorkspaceStore.getState().showWorkspaceNotice('error', `Couldn’t save the token use (${describePapelizVaultError(inlineEditUsageWriteError)})`)
+      usePapelizWorkspaceStore.getState().showWorkspaceNotice('error', describePapelizFailureMessage('Couldn’t save the token use', inlineEditUsageWriteError))
     })
   }
   let streamedReplacementText = ''

@@ -39,14 +39,14 @@ export function detectPapelizFolderAccessSupport(): PapelizFolderAccessSupport {
 }
 
 // The toast's, the tooltip's and the empty Recent Vaults list's words: why opening a folder is off,
-// with where it works in the brackets.
+// and where it works.
 export function describePapelizFolderAccessOffReason(folderAccessOffReason: PapelizFolderAccessOffReason): string {
   switch (folderAccessOffReason) {
     case 'unsupported':
-      return 'Couldn’t open folders (Use Chrome, Edge Or Brave)'
+      return 'This browser can’t open folders. Open Papeliz in Chrome, Edge or Brave on a computer.'
     case 'writes-blocked':
-      return 'Couldn’t save into folders (Use Chrome, Edge Or Brave)'
+      return 'This browser can’t save into folders. Open Papeliz in Chrome, Edge or Brave on a computer.'
     case 'chooser-unavailable':
-      return 'Couldn’t open the folder window (Use Its Own Tab)'
+      return 'The folder window can’t open here. Open Papeliz in its own tab, then try again.'
   }
 }

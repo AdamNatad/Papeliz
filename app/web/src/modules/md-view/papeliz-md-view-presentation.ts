@@ -9,6 +9,7 @@ import { papelizNoteEditorFrontmatterTag } from '../note-editor/papeliz-note-edi
 import { parsePapelizHexColor } from '../ui/papeliz-color-values'
 import { describePapelizTextStyleCss, matchPapelizTextStyleOpenTag } from '../note-editor/papeliz-note-text-style'
 import { papelizUnderlineCloseTag, papelizUnderlineOpenTag } from '../note-editor/papeliz-note-inline-formatting'
+import { requestPapelizFileExplorerSearch } from '../workspace/papeliz-file-explorer-search-request-store'
 import { isPapelizKeyBindingPressed } from '../workspace/papeliz-key-bindings-store'
 import { PapelizNoteFrontmatterPropertyChips } from './papeliz-note-frontmatter-property-chips'
 import { readPapelizNoteFrontmatterProperties, type PapelizNoteFrontmatterProperty } from './papeliz-note-frontmatter-properties'
@@ -71,6 +72,28 @@ const papelizMdViewSkippedForTagNodeNames = new Set([
   'HTMLBlock',
   'HTMLTag',
 ])
+
+// Where a `#tag` found on a line starts and ends in the note, and its name (trailing slashes dropped).
+function locatePapelizMdViewTag(lineFrom: number, tagMatch: RegExpMatchArray): { papelizTagName: string; tagFrom: number; tagTo: number } {
+  const papelizTagName = (tagMatch[2] ?? '').replace(/\/+$/, '')
+  const tagFrom = lineFrom + (tagMatch.index ?? 0) + (tagMatch[1] ?? '').length
+  return { papelizTagName, tagFrom, tagTo: tagFrom + 1 + papelizTagName.length }
+}
+
+// A plain click on a tag chip searches the vault for that tag, in the file list's search box.
+function readClickedPapelizMdViewTagName(mouseEvent: MouseEvent): string | null {
+  if (mouseEvent.button !== 0 || mouseEvent.ctrlKey || mouseEvent.metaKey || mouseEvent.shiftKey || mouseEvent.altKey) return null
+  if (!(mouseEvent.target instanceof Element)) return null
+  return mouseEvent.target.closest('.cm-papeliz-md-view-tag-searchable')?.getAttribute('data-papeliz-tag-name') ?? null
+}
+
+function searchPapelizMdViewTagOnClick(clickEvent: MouseEvent): boolean {
+  const papelizTagName = readClickedPapelizMdViewTagName(clickEvent)
+  if (papelizTagName === null) return false
+  clickEvent.preventDefault()
+  requestPapelizFileExplorerSearch(`#${papelizTagName}`)
+  return true
+}
 
 function createPapelizMdViewWikilinkAnchor(
   wikilinkTargetNoteName: string,
@@ -779,18 +802,41 @@ function buildPapelizMdViewDecorations(editorView: EditorView, wikilinkHandlers:
     },
   })
 
-  // `#tags` in running text become chips; inside code, links and frontmatter they stay text.
+  // `#tags` in running text become chips; inside code, links and frontmatter they stay text. A chip
+  // the cursor isn't on searches the vault for its tag when clicked; the one being edited takes
+  // clicks like any text.
   for (let visibleLineNumber = noteDocument.lineAt(visibleFrom).number; visibleLineNumber <= noteDocument.lineAt(visibleTo).number; visibleLineNumber += 1) {
     const visibleLine = noteDocument.line(visibleLineNumber)
     for (const tagMatch of visibleLine.text.matchAll(papelizMdViewTagPattern)) {
-      const tagFrom = visibleLine.from + (tagMatch.index ?? 0) + (tagMatch[1] ?? '').length
-      const tagTo = tagFrom + 1 + (tagMatch[2] ?? '').replace(/\/+$/, '').length
+      const { papelizTagName, tagFrom, tagTo } = locatePapelizMdViewTag(visibleLine.from, tagMatch)
       const isInsideSkippedNode = tagSkippedRanges.some(({ skippedFrom, skippedTo }) => tagFrom >= skippedFrom && tagFrom < skippedTo)
-      if (!isInsideSkippedNode) markText(tagFrom, tagTo, 'cm-papeliz-md-view-tag')
+      if (isInsideSkippedNode) continue
+      if (touchesSelection(tagFrom, tagTo)) markText(tagFrom, tagTo, 'cm-papeliz-md-view-tag')
+      else {
+        markText(tagFrom, tagTo, 'cm-papeliz-md-view-tag cm-papeliz-md-view-tag-searchable', {
+          'data-papeliz-tag-name': papelizTagName,
+          title: `Search notes for #${papelizTagName}`,
+        })
+      }
     }
   }
 
   return { mdViewDecorations: Decoration.set(mdViewDecorationRanges, true), colorTagHiddenDecorations: Decoration.set(colorTagHiddenRanges, true) }
+}
+
+// The `#tag` the cursor is in or just after, unless it sits in code, a link or the frontmatter.
+function findTagNameAtCursor(editorState: EditorState): string | null {
+  const cursorPosition = editorState.selection.main.head
+  const cursorLine = editorState.doc.lineAt(cursorPosition)
+  for (const tagMatch of cursorLine.text.matchAll(papelizMdViewTagPattern)) {
+    const { papelizTagName, tagFrom, tagTo } = locatePapelizMdViewTag(cursorLine.from, tagMatch)
+    if (cursorPosition < tagFrom || cursorPosition > tagTo) continue
+    for (let syntaxNode: PapelizMdViewSyntaxNode | null = syntaxTree(editorState).resolveInner(tagFrom, 1); syntaxNode !== null; syntaxNode = syntaxNode.parent) {
+      if (papelizMdViewSkippedForTagNodeNames.has(syntaxNode.name)) return null
+    }
+    return papelizTagName
+  }
+  return null
 }
 
 function findWikilinkTargetAtCursor(editorState: EditorState): string | null {
@@ -843,7 +889,8 @@ export function createPapelizMdViewPresentation(wikilinkHandlers: { current: Pap
     papelizMdViewBlockWidgetsField,
     EditorView.focusChangeEffect.of((_editorState, isFocusing) => setPapelizMdViewEditorFocused.of(isFocusing)),
     EditorView.atomicRanges.of((editorView) => editorView.plugin(papelizMdViewDecorationsPlugin)?.colorTagHiddenDecorations ?? Decoration.none),
-    // Ctrl+Enter opens the `[[wikilink]]` under the cursor; Up and Down step into drawn blocks.
+    // Ctrl+Enter opens the `[[wikilink]]` under the cursor, or searches the vault for the `#tag`
+    // there; Up and Down step into drawn blocks.
     Prec.high(
       keymap.of([
         {
@@ -851,8 +898,13 @@ export function createPapelizMdViewPresentation(wikilinkHandlers: { current: Pap
           any: (editorView, keyboardEvent) => {
             if (!isPapelizKeyBindingPressed(keyboardEvent, 'md-view-wikilink-open')) return false
             const wikilinkTargetNoteName = findWikilinkTargetAtCursor(editorView.state)
-            if (wikilinkTargetNoteName === null) return false
-            wikilinkHandlers.current.activateWikilinkTarget(wikilinkTargetNoteName)
+            if (wikilinkTargetNoteName !== null) {
+              wikilinkHandlers.current.activateWikilinkTarget(wikilinkTargetNoteName)
+              return true
+            }
+            const papelizTagName = findTagNameAtCursor(editorView.state)
+            if (papelizTagName === null) return false
+            requestPapelizFileExplorerSearch(`#${papelizTagName}`)
             return true
           },
         },
@@ -860,6 +912,14 @@ export function createPapelizMdViewPresentation(wikilinkHandlers: { current: Pap
         { key: 'ArrowUp', run: (editorView) => moveCursorIntoRenderedBlock(editorView, papelizMdViewBlockWidgetsField, false) },
       ]),
     ),
-    EditorView.domEventHandlers({ click: openPapelizMdViewWebLinkOnModifiedClick }),
+    EditorView.domEventHandlers({
+      // Pressing a tag chip leaves the cursor where it was: the click searches instead.
+      mousedown: (mouseDownEvent) => {
+        if (readClickedPapelizMdViewTagName(mouseDownEvent) === null) return false
+        mouseDownEvent.preventDefault()
+        return true
+      },
+      click: (clickEvent) => openPapelizMdViewWebLinkOnModifiedClick(clickEvent) || searchPapelizMdViewTagOnClick(clickEvent),
+    }),
   ]
 }

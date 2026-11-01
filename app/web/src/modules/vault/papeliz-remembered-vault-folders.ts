@@ -5,7 +5,8 @@ import {
   putPapelizBrowserDatabaseRecord,
   readAllPapelizBrowserDatabaseRecords,
 } from '../browser-database/papeliz-browser-database'
-import { describePapelizVaultError } from './papeliz-vault-adapter'
+import { deletePapelizRememberedNoteTabs } from './papeliz-remembered-note-tabs'
+import { describePapelizFailureCodeMessage, describePapelizFailureMessage } from './papeliz-failure-code-words'
 
 // One row of `papelizVaultFolderHandles`: a folder the user opened, so the welcome screen can offer
 // it again. The browser keeps the handle; permission is asked again when the folder is reopened.
@@ -92,14 +93,14 @@ export async function deleteRememberedVaultFolderFromDisk(rememberedVaultFolder:
   if (typeof papelizVaultFolderHandle.remove !== 'function') {
     return {
       vaultFolderDeleteOutcome: 'failed',
-      vaultFolderDeleteFailureMessage: `Couldn’t delete “${papelizVaultDisplayName}” (Browser Can’t Delete)`,
+      vaultFolderDeleteFailureMessage: describePapelizFailureCodeMessage(`Couldn’t delete “${papelizVaultDisplayName}”`, 'Browser Can’t Delete'),
     }
   }
   try {
     if ((await ensureVaultFolderPermission(papelizVaultFolderHandle)) !== 'granted') {
       return {
         vaultFolderDeleteOutcome: 'failed',
-        vaultFolderDeleteFailureMessage: `Couldn’t delete “${papelizVaultDisplayName}” (No Permission)`,
+        vaultFolderDeleteFailureMessage: describePapelizFailureCodeMessage(`Couldn’t delete “${papelizVaultDisplayName}”`, 'Permission Not Given'),
       }
     }
     await papelizVaultFolderHandle.remove({ recursive: true })
@@ -108,11 +109,12 @@ export async function deleteRememberedVaultFolderFromDisk(rememberedVaultFolder:
     if (!(vaultFolderDeleteError instanceof DOMException && vaultFolderDeleteError.name === 'NotFoundError')) {
       return {
         vaultFolderDeleteOutcome: 'failed',
-        vaultFolderDeleteFailureMessage: `Couldn’t delete “${papelizVaultDisplayName}” (${describePapelizVaultError(vaultFolderDeleteError)})`,
+        vaultFolderDeleteFailureMessage: describePapelizFailureMessage(`Couldn’t delete “${papelizVaultDisplayName}”`, vaultFolderDeleteError),
       }
     }
   }
   await forgetRememberedVaultFolder(rememberedVaultFolder.papelizVaultId)
+  void deletePapelizRememberedNoteTabs(rememberedVaultFolder.papelizVaultId).catch(() => undefined)
   return { vaultFolderDeleteOutcome: 'deleted' }
 }
 

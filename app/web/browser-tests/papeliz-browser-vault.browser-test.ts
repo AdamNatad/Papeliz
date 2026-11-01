@@ -60,14 +60,17 @@ async function readBrowserVaultNoteText(page: Page, papelizBrowserVaultName: str
 
 test('the start page offers browser vaults, and no folder actions that can’t work', async ({ page }) => {
   const isFolderVaultOffered = await isFolderOnDiskOffered(page)
-  await expect(page.getByRole('button', { name: /^New Vault/ })).toContainText(isFolderVaultOffered ? 'On disk or in this browser.' : 'Kept in this browser.')
+  // The blue panel's New Vault; the empty Recent Vaults list has one too.
+  await expect(page.getByRole('region', { name: 'Start' }).getByRole('button', { name: /^New Vault/ })).toContainText(
+    isFolderVaultOffered ? 'On disk or in this browser.' : 'Kept in this browser.',
+  )
   // Importing happens inside an open vault, not from the start page.
   await expect(page.getByRole('button', { name: /^Import Vault/ })).toHaveCount(0)
   await expect(page.getByRole('button', { name: /^Open Vault/ })).toHaveCount(isFolderVaultOffered ? 1 : 0)
 })
 
 test('a new browser vault keeps its notes across a reload', async ({ page }) => {
-  await page.getByRole('button', { name: /^New Vault/ }).click()
+  await page.getByRole('region', { name: 'Start' }).getByRole('button', { name: /^New Vault/ }).click()
   // New Vault's form takes Recent Vaults' place in the start card. Where folders work it starts on
   // Folder Storage; elsewhere that card is off and Browser Storage is chosen already.
   const newVaultForm = page.getByRole('region', { name: 'New Vault' })
@@ -111,7 +114,7 @@ test('two pages saving one note at the same moment keep both changes', async ({ 
     const [openBrowserVaultRecord] = await listPapelizBrowserVaults()
     return deletePapelizBrowserVault(openBrowserVaultRecord!)
   })
-  expect(deleteOutcome).toEqual({ browserVaultDeleteOutcome: 'failed', browserVaultDeleteFailureMessage: 'Couldn’t delete “Field Notes” (Open In Another Tab)' })
+  expect(deleteOutcome).toEqual({ browserVaultDeleteOutcome: 'failed', browserVaultDeleteFailureMessage: 'Couldn’t delete “Field Notes”. It’s open in another Papeliz tab. Close it there, then try again.' })
 })
 
 test('a zip imports as a new browser vault, and Download backup saves it all as a zip', async ({ page }) => {

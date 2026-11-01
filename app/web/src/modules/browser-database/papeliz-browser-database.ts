@@ -3,7 +3,7 @@
 // Origin Private File System; only its row in the list of browser vaults is here.)
 
 const papelizBrowserDatabaseName = 'papeliz-browser-database'
-const papelizBrowserDatabaseVersion = 5
+const papelizBrowserDatabaseVersion = 6
 
 export const papelizVaultFolderHandlesStoreName = 'papelizVaultFolderHandles'
 export const papelizUserSettingsStoreName = 'papelizUserSettings'
@@ -12,6 +12,8 @@ export const papelizAssistantProviderKeysStoreName = 'papelizAssistantProviderKe
 export const papelizNoteRecoveryDraftsStoreName = 'papelizNoteRecoveryDrafts'
 // The browser vaults kept in this browser (papeliz-browser-vaults.ts).
 export const papelizBrowserVaultsStoreName = 'papelizBrowserVaults'
+// Each vault's open tabs on this device (papeliz-remembered-note-tabs.ts).
+export const papelizWorkspaceLayoutStoreName = 'papelizWorkspaceLayout'
 
 let papelizBrowserDatabasePromise: Promise<IDBDatabase> | null = null
 
@@ -27,7 +29,7 @@ function openPapelizBrowserDatabase(): Promise<IDBDatabase> {
       // Each version only adds what is missing and never wipes what is already stored.
       // Version 1: the folders the user opened. Version 2: the user's settings (the theme).
       // Version 3: each assistant provider's base URL, model and API key. Version 4: recovery copies
-      // of unsaved typing. Version 5: the list of browser vaults.
+      // of unsaved typing. Version 5: the list of browser vaults. Version 6: each vault's open tabs.
       if (!papelizBrowserDatabase.objectStoreNames.contains(papelizVaultFolderHandlesStoreName)) {
         papelizBrowserDatabase.createObjectStore(papelizVaultFolderHandlesStoreName, { keyPath: 'papelizVaultId' })
       }
@@ -42,6 +44,9 @@ function openPapelizBrowserDatabase(): Promise<IDBDatabase> {
       }
       if (!papelizBrowserDatabase.objectStoreNames.contains(papelizBrowserVaultsStoreName)) {
         papelizBrowserDatabase.createObjectStore(papelizBrowserVaultsStoreName, { keyPath: 'papelizVaultId' })
+      }
+      if (!papelizBrowserDatabase.objectStoreNames.contains(papelizWorkspaceLayoutStoreName)) {
+        papelizBrowserDatabase.createObjectStore(papelizWorkspaceLayoutStoreName, { keyPath: 'papelizVaultId' })
       }
     }
     databaseOpenRequest.onsuccess = () => {
