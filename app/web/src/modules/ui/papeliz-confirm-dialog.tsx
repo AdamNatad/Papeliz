@@ -62,7 +62,7 @@ export function PapelizConfirmDialog({
         <div className="mt-2 text-[15px] text-papeliz-ink-muted">{confirmDialogBody}</div>
         {/* Cancel at the left edge, the action at the right, so the two never sit side by side. */}
         <div className="mt-6 flex items-center justify-between gap-2">
-          <PapelizPillButton pillButtonVariant="red-primary" onClick={onCancel}>
+          <PapelizPillButton pillButtonVariant="dialog-cancel" className="min-w-28" onClick={onCancel}>
             Cancel
           </PapelizPillButton>
           <span className="flex flex-wrap items-center justify-end gap-2">
@@ -75,7 +75,12 @@ export function PapelizConfirmDialog({
                 {confirmDialogSecondaryAction.secondaryActionLabel}
               </PapelizPillButton>
             )}
-            <PapelizPillButton pillButtonVariant={isConfirmActionDangerous ? 'danger' : 'primary'} disabled={isConfirmButtonDisabled} onClick={onConfirm}>
+            <PapelizPillButton
+              pillButtonVariant={isConfirmActionDangerous ? 'dialog-confirm-danger' : 'dialog-confirm'}
+              className="min-w-28"
+              disabled={isConfirmButtonDisabled}
+              onClick={onConfirm}
+            >
               {confirmButtonLabel}
             </PapelizPillButton>
           </span>

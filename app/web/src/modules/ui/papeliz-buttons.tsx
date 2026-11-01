@@ -1,7 +1,17 @@
 import type { ComponentProps } from 'react'
 import { joinPapelizClassNames } from './papeliz-class-names'
 
-type PapelizPillButtonVariant = 'primary' | 'red-primary' | 'gray' | 'line' | 'on-topbar' | 'on-error-notice' | 'danger'
+type PapelizPillButtonVariant =
+  | 'primary'
+  | 'red-primary'
+  | 'gray'
+  | 'line'
+  | 'on-topbar'
+  | 'on-error-notice'
+  | 'danger'
+  | 'dialog-cancel'
+  | 'dialog-confirm'
+  | 'dialog-confirm-danger'
 type PapelizPillButtonSize = 'small' | 'medium' | 'large'
 
 const papelizPillButtonVariantClassNames: Record<PapelizPillButtonVariant, string> = {
@@ -16,6 +26,14 @@ const papelizPillButtonVariantClassNames: Record<PapelizPillButtonVariant, strin
     'border border-papeliz-error-notice-line font-semibold text-papeliz-error-notice-ink hover:bg-papeliz-error-notice-line/15 focus-visible:outline-papeliz-error-notice-line',
   // For an action that erases something for good.
   danger: 'bg-papeliz-diff-removed text-papeliz-diff-removed-ink hover:brightness-[.95]',
+  // A dialog's buttons, colored as on the website's account page (Adam, 2026-11-01: "follow our
+  // account page Cancel and Confirm button color … Cancel was with outline"): Cancel is white with an
+  // outline and turns soft blue when hovered; the action is solid blue, or solid red when it erases.
+  'dialog-cancel':
+    'border border-papeliz-line-strong bg-papeliz-surface text-papeliz-ink shadow-[0_1px_2px_rgb(16_24_40/0.08)] enabled:hover:border-papeliz-blue-line enabled:hover:bg-papeliz-blue-soft enabled:hover:text-papeliz-blue',
+  'dialog-confirm': 'bg-papeliz-gradient-start text-white shadow-[inset_0_1px_0_#ffffff1f,0_2px_3px_rgb(0_40_100/0.18)] enabled:hover:brightness-110',
+  'dialog-confirm-danger':
+    'bg-papeliz-diff-removed-ink text-papeliz-surface shadow-[inset_0_1px_0_#ffffff1f,0_2px_3px_rgb(100_20_20/0.18)] enabled:hover:brightness-110',
 }
 
 const papelizPillButtonSizeClassNames: Record<PapelizPillButtonSize, string> = {
