@@ -8,6 +8,8 @@ import papelizAccountStyles from './papeliz-account.module.css'
 // the opposite side and make them uniform"); a lone button sits on the right, and on a phone the two
 // share the row. Escape, a click outside it and the footer's Close all close it, and focus goes back
 // to the button that opened it. A dialog asking to sign in again closes only from its own buttons.
+// The title and the body break a long unbroken word, such as a 128-character device or vault name,
+// so the dialog never scrolls sideways.
 export function PapelizAccountDialog({
   papelizAccountDialogTitle,
   papelizAccountDialogFooter,
@@ -83,11 +85,11 @@ export function PapelizAccountDialog({
       }}
     >
       <header className="border-b border-papeliz-line px-5 py-4 sm:px-6">
-        <h2 id={papelizAccountDialogTitleId} className="text-lg font-semibold tracking-[-0.01em]">
+        <h2 id={papelizAccountDialogTitleId} className="text-lg font-semibold tracking-[-0.01em] [overflow-wrap:anywhere]">
           {papelizAccountDialogTitle}
         </h2>
       </header>
-      <div className="grid gap-3 px-5 py-6 text-[15px] leading-relaxed text-pretty text-papeliz-ink-muted sm:px-6">{children}</div>
+      <div className="grid gap-3 px-5 py-6 text-[15px] leading-relaxed text-pretty [overflow-wrap:anywhere] text-papeliz-ink-muted sm:px-6">{children}</div>
       <footer className="flex flex-wrap justify-between gap-2 border-t border-papeliz-line px-5 py-4 max-sm:grid max-sm:auto-cols-fr max-sm:grid-flow-col sm:px-6 sm:[&>*]:min-w-38 sm:[&>:only-child]:ml-auto">
         {papelizAccountDialogFooter}
       </footer>
