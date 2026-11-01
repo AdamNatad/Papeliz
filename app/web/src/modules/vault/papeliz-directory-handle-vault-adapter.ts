@@ -1,4 +1,5 @@
 import { PapelizVaultOperationError, type PapelizVaultAdapter, type PapelizVaultKind, type PapelizVaultTreeEntry, type PapelizVaultTreeListingOptions } from './papeliz-vault-adapter'
+import { writePapelizVaultImportFilesIntoNewFolder, type PapelizVaultImportFile, type PapelizVaultImportOptions } from './papeliz-vault-folder-import'
 import {
   getVaultEntryName,
   getVaultEntryParentFolderRelativePath,
@@ -213,6 +214,14 @@ export abstract class PapelizDirectoryHandleVaultAdapter implements PapelizVault
     const vaultAttachmentFileHandle = await vaultParentFolderHandle.getFileHandle(vaultAttachmentFileName, { create: true })
     await this.writeVaultFileContents(vaultAttachmentFileHandle, vaultAttachmentFileBlob)
     this.noteVaultChanged()
+  }
+
+  async importVaultFilesIntoNewFolder(suggestedVaultFolderName: string, vaultImportFiles: readonly PapelizVaultImportFile[], vaultImportOptions: PapelizVaultImportOptions = {}): Promise<string> {
+    try {
+      return await writePapelizVaultImportFilesIntoNewFolder(this.vaultRootFolderHandle, suggestedVaultFolderName, vaultImportFiles, vaultImportOptions, this.writeVaultFileContents)
+    } finally {
+      this.noteVaultChanged()
+    }
   }
 
   async listVaultAttachmentFileRelativePaths(): Promise<string[]> {

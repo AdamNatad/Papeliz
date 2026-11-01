@@ -49,6 +49,7 @@ import { getPapelizVaultSearchClient, usePapelizVaultKnowledgeStore } from './pa
 import { listVaultFolderEntryNamesInOrder, sortVaultFolderEntries, type PapelizVaultEntryOrder, type PapelizVaultEntryPlacement } from './papeliz-vault-entry-order'
 import { PapelizWorkspaceEyePreviewerSlot } from './papeliz-workspace-eye-previewer-slot'
 import { PapelizVaultEntryLookPanel } from './papeliz-vault-entry-look-panel'
+import { PapelizVaultImportButton } from './papeliz-vault-import-button'
 import { describePapelizVaultEntryLookColor, papelizVaultEntryLookIcons } from './papeliz-vault-entry-looks'
 import { usePapelizWorkspaceStore } from './papeliz-workspace-store'
 
@@ -551,6 +552,7 @@ export function PapelizFileExplorer({ fileListFootSection }: PapelizFileExplorer
         <PapelizIconButton iconButtonLabel="New Folder" iconButtonSize="small" onClick={() => void createVaultFolderInFolder(folderForNewEntries)}>
           <FolderPlus className="size-[15px]" aria-hidden="true" />
         </PapelizIconButton>
+        <PapelizVaultImportButton />
         {/* Hide panel, docked or as a drawer. The vault closes from Home (Start page) in the top bar. */}
         <PapelizIconButton iconButtonLabel="Hide the File List" iconButtonSize="small" onClick={() => setExplorerPanelOpen(false)}>
           <PanelLeftClose className="size-[15px]" aria-hidden="true" />

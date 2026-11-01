@@ -6,7 +6,10 @@ import { computePapelizCrc32 } from './papeliz-export-zip-file-writer'
 // extension (over 65,535 files or 4 GB) are refused. Names are UTF-8 when the zip says so or when
 // they read as UTF-8, else the old DOS code page (CP437). Paths that would leave the vault (absolute,
 // a drive letter, `..`) are skipped and counted. Every file's size and CRC-32 are checked, and
-// inflating stops at the size the zip declares, so a zip bomb goes no further.
+// inflating stops at the size the zip declares. Before any file is read, a zip is refused when it holds
+// more than 20,000 entries, a file over 1 GB or 2 GB in all ("Zip Too Large"), a file over 1 MB that
+// unpacks to more than 200 times its packed size, or files that share packed bytes ("Zip Unsafe"),
+// as a zip made to fill a disk does.
 
 export interface PapelizImportZipEntry {
   // A relative path with "/" between folders: "Ideas/Offline first.md".
@@ -39,6 +42,16 @@ const papelizZipStoredMethod = 0
 const papelizZipDeflatedMethod = 8
 const papelizZipEndOfCentralDirectoryByteCount = 22
 const papelizZipLongestCommentByteCount = 0xffff
+const papelizZipLocalFileHeaderByteCount = 30
+
+// What an imported zip may hold.
+export const papelizImportZipMostEntryCount = 20_000
+export const papelizImportZipMostEntryByteCount = 1024 * 1024 * 1024
+export const papelizImportZipMostTotalByteCount = 2 * 1024 * 1024 * 1024
+// A file over this size may unpack to at most this many times its packed size; ordinary text and
+// pictures stay far below it.
+const papelizImportZipRatioCheckedEntryByteCount = 1024 * 1024
+export const papelizImportZipMostUnpackRatio = 200
 
 // Bytes 128 to 255 of the DOS code page zips used before UTF-8.
 const papelizCp437UpperHalfCharacters =
@@ -109,9 +122,13 @@ export function readPapelizImportZipFile(zipFileBytes: Uint8Array): PapelizImpor
   const centralDirectoryEntryCount = zipFileView.getUint16(endOfCentralDirectoryOffset + 10, true)
   const centralDirectoryOffset = zipFileView.getUint32(endOfCentralDirectoryOffset + 16, true)
   if (centralDirectoryEntryCount === 0xffff || centralDirectoryOffset === 0xffffffff) throw new PapelizImportZipError('Zip Not Supported')
+  if (centralDirectoryEntryCount > papelizImportZipMostEntryCount) throw new PapelizImportZipError('Zip Too Large')
 
   const importZipEntries: PapelizImportZipEntry[] = []
   let skippedUnsafeZipEntryCount = 0
+  let zipTotalByteCount = 0
+  // Where each file's packed bytes lie, at least: from its local header to the end of its packed bytes.
+  const zipEntryStoredRanges: Array<{ zipEntryRangeStart: number; zipEntryRangeEnd: number }> = []
   let centralDirectoryEntryOffset = centralDirectoryOffset
   for (let centralDirectoryEntryIndex = 0; centralDirectoryEntryIndex < centralDirectoryEntryCount; centralDirectoryEntryIndex += 1) {
     if (centralDirectoryEntryOffset + 46 > zipFileBytes.byteLength) throw new PapelizImportZipError('Zip Damaged')
@@ -134,6 +151,17 @@ export function readPapelizImportZipFile(zipFileBytes: Uint8Array): PapelizImpor
     if ((zipEntryFlags & papelizZipEncryptedFlag) !== 0) throw new PapelizImportZipError('Zip Not Supported')
     if (zipEntryMethod !== papelizZipStoredMethod && zipEntryMethod !== papelizZipDeflatedMethod) throw new PapelizImportZipError('Zip Not Supported')
     if (zipEntryStoredByteCount === 0xffffffff || zipEntryByteCount === 0xffffffff) throw new PapelizImportZipError('Zip Not Supported')
+    zipTotalByteCount += zipEntryByteCount
+    if (zipEntryByteCount > papelizImportZipMostEntryByteCount || zipTotalByteCount > papelizImportZipMostTotalByteCount) throw new PapelizImportZipError('Zip Too Large')
+    if (zipEntryByteCount > papelizImportZipRatioCheckedEntryByteCount && zipEntryByteCount > zipEntryStoredByteCount * papelizImportZipMostUnpackRatio) {
+      throw new PapelizImportZipError('Zip Unsafe')
+    }
+    if (zipEntryStoredByteCount > 0 || zipEntryByteCount > 0) {
+      zipEntryStoredRanges.push({
+        zipEntryRangeStart: zipEntryLocalHeaderOffset,
+        zipEntryRangeEnd: zipEntryLocalHeaderOffset + papelizZipLocalFileHeaderByteCount + zipEntryNameByteCount + zipEntryStoredByteCount,
+      })
+    }
     const importZipEntryPath = normalizePapelizImportZipEntryPath(rawZipEntryPath)
     if (importZipEntryPath === null) {
       skippedUnsafeZipEntryCount += 1
@@ -160,6 +188,15 @@ export function readPapelizImportZipFile(zipFileBytes: Uint8Array): PapelizImpor
         return zipEntryBytes
       },
     })
+  }
+  // Two files whose packed bytes overlap unpack the same bytes twice over: a zip made to fill a disk.
+  zipEntryStoredRanges.sort((firstStoredRange, secondStoredRange) => firstStoredRange.zipEntryRangeStart - secondStoredRange.zipEntryRangeStart)
+  for (let storedRangeIndex = 1; storedRangeIndex < zipEntryStoredRanges.length; storedRangeIndex += 1) {
+    const earlierStoredRange = zipEntryStoredRanges[storedRangeIndex - 1]
+    const laterStoredRange = zipEntryStoredRanges[storedRangeIndex]
+    if (earlierStoredRange !== undefined && laterStoredRange !== undefined && laterStoredRange.zipEntryRangeStart < earlierStoredRange.zipEntryRangeEnd) {
+      throw new PapelizImportZipError('Zip Unsafe')
+    }
   }
   return { importZipEntries, skippedUnsafeZipEntryCount }
 }

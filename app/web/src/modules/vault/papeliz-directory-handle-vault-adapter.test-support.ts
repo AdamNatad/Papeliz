@@ -24,6 +24,41 @@ export function describePapelizDirectoryHandleVaultAdapterCases(
   createTestDirectoryHandleVault: () => Promise<PapelizDirectoryHandleTestVault>,
 ): void {
   describe(vaultKindLabel, () => {
+    it('imports into a new folder at the top under the next free name, hidden files too, changing nothing else, and the folder renames afterwards', async () => {
+      const { fakeVaultRootHandle, directoryHandleVaultAdapter } = await createTestDirectoryHandleVault()
+      const vaultFilesBeforeImport = await readPapelizFakeVaultFolder(fakeVaultRootHandle)
+      const importedFileTextsByPath: Record<string, string> = { 'Start.md': '# Start', 'Guides/One.md': '# One', 'guides/two.md': '# Two', '.claude/settings.json': '{}', 'A.md': 'a', 'a.md': 'b' }
+      const importedVaultFolderName = await directoryHandleVaultAdapter.importVaultFilesIntoNewFolder(
+        'ideas',
+        Object.entries(importedFileTextsByPath).map(([importFileRelativePath, importFileText]) => ({
+          importFileRelativePath,
+          isImportFileFolder: false,
+          importFileByteCount: importFileText.length,
+          readImportFileBytes: async () => new TextEncoder().encode(importFileText),
+        })),
+      )
+      // "Ideas" is there already, whatever the case.
+      expect(importedVaultFolderName).toBe('ideas 2')
+      const vaultFilesAfterImport = await readPapelizFakeVaultFolder(fakeVaultRootHandle)
+      for (const [vaultFileRelativePath, vaultFileText] of Object.entries(vaultFilesBeforeImport)) expect(vaultFilesAfterImport[vaultFileRelativePath]).toBe(vaultFileText)
+      expect(Object.fromEntries(Object.entries(vaultFilesAfterImport).filter(([vaultFileRelativePath]) => vaultFileRelativePath.startsWith('ideas 2/')))).toEqual({
+        'ideas 2/': '',
+        'ideas 2/.claude/': '',
+        'ideas 2/Guides/': '',
+        'ideas 2/Start.md': '# Start',
+        'ideas 2/Guides/One.md': '# One',
+        'ideas 2/Guides/two.md': '# Two',
+        'ideas 2/.claude/settings.json': '{}',
+        'ideas 2/A.md': 'a',
+        'ideas 2/a 2.md': 'b',
+      })
+      await directoryHandleVaultAdapter.renameVaultEntry('ideas 2', 'Imported ideas')
+      await directoryHandleVaultAdapter.renameVaultEntry('Imported ideas/Start.md', 'Start.md')
+      const vaultFilesAfterReorganizing = await readPapelizFakeVaultFolder(fakeVaultRootHandle)
+      expect(vaultFilesAfterReorganizing['Start.md']).toBe('# Start')
+      expect(vaultFilesAfterReorganizing['Imported ideas/Guides/One.md']).toBe('# One')
+    })
+
     it('lists folders and .md notes, and leaves out hidden folders and other files', async () => {
       const { directoryHandleVaultAdapter } = await createTestDirectoryHandleVault()
       const listedVaultTreeEntries = await directoryHandleVaultAdapter.listVaultTreeEntries()

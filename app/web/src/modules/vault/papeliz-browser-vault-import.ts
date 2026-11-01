@@ -9,9 +9,9 @@ import {
   type PapelizBrowserVaultEnvironment,
   type PapelizBrowserVaultRecord,
 } from './papeliz-browser-vaults'
-import type { PapelizVaultFileContentsWriter } from './papeliz-directory-handle-vault-adapter'
 import { PapelizVaultOperationError } from './papeliz-vault-adapter'
-import { papelizBrowserVaultSettingsFileName, papelizVaultSettingsFolderName, pickFreeVaultEntryName } from './papeliz-vault-relative-paths'
+import { isPapelizImportLeftover, writePapelizVaultImportFiles, type PapelizVaultImportFile, type PapelizVaultImportOptions } from './papeliz-vault-folder-import'
+import { papelizBrowserVaultSettingsFileName, papelizVaultSettingsFolderName } from './papeliz-vault-relative-paths'
 
 // Starting a browser vault from notes people already have: a `.zip` (a Papeliz backup, or any zip of
 // notes) or a folder picked with the browser's folder upload. An import always makes a new vault; it
@@ -19,13 +19,9 @@ import { papelizBrowserVaultSettingsFileName, papelizVaultSettingsFolderName, pi
 // such as `.papeliz/` and `.trash/` included, so a backup comes back exactly; a `.git/` folder and the
 // leftovers other systems add (`__MACOSX/`, `.DS_Store`, `Thumbs.db`, `desktop.ini`) stay out.
 
-export interface PapelizBrowserVaultImportFile {
-  // Inside the new vault: "Ideas/Offline first.md".
-  importFileRelativePath: string
-  isImportFileFolder: boolean
-  importFileByteCount: number
-  readImportFileBytes: () => Promise<Uint8Array>
-}
+// One file to import, and how far an import has got (papeliz-vault-folder-import.ts).
+export type PapelizBrowserVaultImportFile = PapelizVaultImportFile
+export type PapelizBrowserVaultImportOptions = PapelizVaultImportOptions
 
 export interface PapelizBrowserVaultImportPlan {
   suggestedBrowserVaultName: string
@@ -37,21 +33,9 @@ export interface PapelizBrowserVaultImportPlan {
   importTotalByteCount: number
 }
 
-export interface PapelizBrowserVaultImportOptions {
-  onBrowserVaultImportProgress?: (importedFileCount: number, importFileCount: number) => void
-  browserVaultImportAbortSignal?: AbortSignal
-}
-
-const papelizImportLeftoverFileNames = new Set(['.ds_store', 'thumbs.db', 'desktop.ini'])
-const papelizImportLeftoverFolderName = '__MACOSX'
 const papelizImportGitFolderName = '.git'
 // A Papeliz backup's name ends with the time it was made: "Field Notes 2026-10-30 1441".
 const papelizBackupFileNameTimePattern = /\s+\d{4}-\d{2}-\d{2}\s+\d{4}$/
-
-function isImportLeftover(importFilePathSegments: readonly string[]): boolean {
-  const importFileName = importFilePathSegments.at(-1)?.toLowerCase() ?? ''
-  return importFilePathSegments.includes(papelizImportLeftoverFolderName) || papelizImportLeftoverFileNames.has(importFileName)
-}
 
 // "Field Notes 2026-10-30 1441.zip" -> "Field Notes".
 export function suggestPapelizBrowserVaultNameFromFileName(importSourceFileName: string): string {
@@ -65,7 +49,7 @@ async function planBrowserVaultImport(
 ): Promise<PapelizBrowserVaultImportPlan> {
   let skippedImportFileCount = alreadySkippedImportFileCount
   const keptImportFiles = rawImportFiles.filter((rawImportFile) => {
-    const isImportFileKept = !isImportLeftover(rawImportFile.importFileRelativePath.split('/'))
+    const isImportFileKept = !isPapelizImportLeftover(rawImportFile.importFileRelativePath.split('/'))
     if (!isImportFileKept) skippedImportFileCount += 1
     return isImportFileKept
   })
@@ -167,59 +151,5 @@ export async function importPapelizBrowserVault(
   } catch (browserVaultImportError) {
     await deletePapelizBrowserVault(importedBrowserVaultRecord, browserVaultEnvironment)
     throw browserVaultImportError
-  }
-}
-
-// Writes the files into a vault's folder: a browser vault's here, or a new folder vault's from a
-// template (papeliz-template-gallery-vault-maker.ts).
-export async function writePapelizVaultImportFiles(
-  importVaultFolderHandle: FileSystemDirectoryHandle,
-  browserVaultImportFiles: readonly PapelizBrowserVaultImportFile[],
-  browserVaultImportOptions: PapelizBrowserVaultImportOptions,
-  vaultFileContentsWriter: PapelizVaultFileContentsWriter,
-): Promise<void> {
-  // Names compare without case, as everywhere in a vault: "a.md" beside "A.md" comes in as "a 2.md".
-  const folderHandlesByLowerCasePath = new Map<string, FileSystemDirectoryHandle>([['', importVaultFolderHandle]])
-  const takenLowerCaseNamesByFolderPath = new Map<string, Set<string>>()
-  const getImportFolderHandle = async (importFolderPathSegments: readonly string[]): Promise<FileSystemDirectoryHandle> => {
-    let importFolderHandle = importVaultFolderHandle
-    for (let segmentIndex = 0; segmentIndex < importFolderPathSegments.length; segmentIndex += 1) {
-      const lowerCaseFolderPath = importFolderPathSegments.slice(0, segmentIndex + 1).join('/').toLowerCase()
-      const knownFolderHandle = folderHandlesByLowerCasePath.get(lowerCaseFolderPath)
-      if (knownFolderHandle !== undefined) {
-        importFolderHandle = knownFolderHandle
-        continue
-      }
-      importFolderHandle = await importFolderHandle.getDirectoryHandle(importFolderPathSegments[segmentIndex] ?? '', { create: true })
-      folderHandlesByLowerCasePath.set(lowerCaseFolderPath, importFolderHandle)
-    }
-    return importFolderHandle
-  }
-
-  let importedFileCount = 0
-  for (const browserVaultImportFile of browserVaultImportFiles) {
-    if (browserVaultImportOptions.browserVaultImportAbortSignal?.aborted === true) throw new PapelizVaultOperationError('Import Stopped')
-    const importFilePathSegments = browserVaultImportFile.importFileRelativePath.split('/')
-    if (browserVaultImportFile.isImportFileFolder) {
-      await getImportFolderHandle(importFilePathSegments)
-    } else {
-      const importFolderPathSegments = importFilePathSegments.slice(0, -1)
-      const importFolderHandle = await getImportFolderHandle(importFolderPathSegments)
-      const lowerCaseFolderPath = importFolderPathSegments.join('/').toLowerCase()
-      const takenLowerCaseNames = takenLowerCaseNamesByFolderPath.get(lowerCaseFolderPath) ?? new Set<string>()
-      takenLowerCaseNamesByFolderPath.set(lowerCaseFolderPath, takenLowerCaseNames)
-      const importFileName = importFilePathSegments.at(-1) ?? ''
-      const dotIndex = importFileName.lastIndexOf('.')
-      const freeImportFileName = pickFreeVaultEntryName(
-        dotIndex > 0 ? importFileName.slice(0, dotIndex) : importFileName,
-        dotIndex > 0 ? importFileName.slice(dotIndex) : '',
-        (candidateImportFileName) => takenLowerCaseNames.has(candidateImportFileName.toLowerCase()),
-      )
-      takenLowerCaseNames.add(freeImportFileName.toLowerCase())
-      const importedFileHandle = await importFolderHandle.getFileHandle(freeImportFileName, { create: true })
-      await vaultFileContentsWriter(importedFileHandle, new Blob([(await browserVaultImportFile.readImportFileBytes()) as Uint8Array<ArrayBuffer>]))
-    }
-    importedFileCount += 1
-    browserVaultImportOptions.onBrowserVaultImportProgress?.(importedFileCount, browserVaultImportFiles.length)
   }
 }

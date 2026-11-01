@@ -20,6 +20,7 @@ import {
   type PapelizTemplateGalleryActions,
   type PapelizTemplateGalleryRow,
   type PapelizTemplateGalleryState,
+  type PapelizTemplateVaultFolderImportResult,
 } from './papeliz-template-gallery-contract'
 import { readPapelizTemplateRepositoryNewestCommit } from './papeliz-template-gallery-github-reader'
 import { formatPapelizJsdelivrFileUrl, readPapelizTemplateFileList, readPapelizTemplateFiles } from './papeliz-template-gallery-jsdelivr-reader'
@@ -33,11 +34,15 @@ import {
 import { buildPapelizTemplateAuthorPictureUrl } from './papeliz-template-gallery-picture-hosts'
 import {
   createPapelizTemplateSourceVaultFile,
+  listPapelizTemplateVaultImportFiles,
   makePapelizTemplateBrowserVault,
   makePapelizTemplateFolderVault,
   preparePapelizTemplateVaultFiles,
   type PapelizTemplateVaultFile,
 } from './papeliz-template-gallery-vault-maker'
+import { describePapelizFailureMessage } from '../vault/papeliz-failure-code-words'
+import { planPapelizVaultFolderImport, type PapelizVaultFolderImportPlan } from '../vault/papeliz-vault-folder-import'
+import { joinVaultRelativePath } from '../vault/papeliz-vault-relative-paths'
 
 // Papeliz Templates' data: the gallery's tabs, Submit's Check, Recheck, Preview's and a template page's
 // reads, and Use Template's steps, which New Vault's form drives. The screens read the state and call
@@ -547,6 +552,52 @@ export const usePapelizTemplateGalleryStore = create<PapelizTemplateGalleryState
       preparedTemplateUse = null
       set({ templateUseState: { templateUseStage: 'made', templateGalleryRow, papelizVaultDisplayName: openVaultResult.papelizOpenVault.papelizVaultDisplayName } })
       return { ...openVaultResult, templateFirstNotePath: templateUseToMake.templateFirstNotePath }
+    },
+
+    importPapelizTemplateIntoVault: async (templateVaultFolderImporter) => {
+      const readyTemplateUseState = get().templateUseState
+      const templateUseToImport = preparedTemplateUse
+      const importNotReady = (importFailureMessage: string): PapelizTemplateVaultFolderImportResult => ({
+        vaultFolderImportOutcome: 'failed',
+        vaultFolderImportFailureMessage: importFailureMessage,
+        templateFirstNotePath: null,
+      })
+      if (readyTemplateUseState.templateUseStage !== 'ready' || templateUseToImport === null) {
+        return importNotReady('The template isn’t ready yet. Wait for its files to be read and checked.')
+      }
+      if (readyTemplateUseState.templateRunCommands.length > 0 && !readyTemplateUseState.isTemplateRunCommandsAcknowledged) {
+        return importNotReady('Read the commands this template brings, and tick that you have, before it’s imported.')
+      }
+      const { templateGalleryRow } = templateUseToImport
+      let vaultFolderImportPlan: PapelizVaultFolderImportPlan
+      try {
+        vaultFolderImportPlan = planPapelizVaultFolderImport(templateGalleryRow.templateName, listPapelizTemplateVaultImportFiles(templateUseToImport.preparedTemplateVaultFiles))
+      } catch (templateImportPlanError) {
+        return importNotReady(describePapelizFailureMessage(`Couldn’t import “${templateGalleryRow.templateName}”`, templateImportPlanError))
+      }
+      const showTemplateImportProgress = (templateWrittenFileCount: number, templateFileCount: number) => {
+        if (preparedTemplateUse === templateUseToImport) set({ templateUseState: { templateUseStage: 'importing-into-vault', templateGalleryRow, templateWrittenFileCount, templateFileCount } })
+      }
+      showTemplateImportProgress(0, vaultFolderImportPlan.vaultFolderImportFiles.length)
+      const vaultFolderImportResult = await templateVaultFolderImporter(vaultFolderImportPlan, {
+        onVaultFolderImportProgress: showTemplateImportProgress,
+        importedTemplateFolderSource: {
+          papelizTemplateGalleryId: templateGalleryRow.papelizTemplateGalleryId,
+          templateSourceCommitSha: templateGalleryRow.templateCommitSha,
+          templateSourceName: templateGalleryRow.templateName,
+          templateSourceAuthor: templateGalleryRow.templateRepositoryOwner,
+          templateSourceLicenseId: templateGalleryRow.templateLicenseId,
+        },
+      })
+      if (preparedTemplateUse !== templateUseToImport) return { ...vaultFolderImportResult, templateFirstNotePath: null }
+      if (vaultFolderImportResult.vaultFolderImportOutcome !== 'imported') {
+        set({ templateUseState: readyTemplateUseState })
+        return { ...vaultFolderImportResult, templateFirstNotePath: null }
+      }
+      preparedTemplateUse = null
+      const { importedVaultFolderRelativePath } = vaultFolderImportResult
+      set({ templateUseState: { templateUseStage: 'imported-into-vault', templateGalleryRow, importedVaultFolderRelativePath } })
+      return { ...vaultFolderImportResult, templateFirstNotePath: joinVaultRelativePath(importedVaultFolderRelativePath, templateUseToImport.templateFirstNotePath) }
     },
 
     cancelTemplateUse: () => {

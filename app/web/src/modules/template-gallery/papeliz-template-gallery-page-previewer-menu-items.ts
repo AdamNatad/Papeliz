@@ -661,6 +661,7 @@ function createPreviewTemplateGalleryModelStore(previewerChoice: PapelizTemplate
       if (templateUseState.templateUseStage === 'ready') set({ templateUseState: { ...templateUseState, isTemplateRunCommandsAcknowledged } })
     },
     makePapelizTemplateVault: async () => ({ openVaultOutcome: 'failed', openVaultFailureMessage: 'Nothing changed: this is only a preview.', templateFirstNotePath: null }),
+    importPapelizTemplateIntoVault: async () => ({ vaultFolderImportOutcome: 'failed', vaultFolderImportFailureMessage: 'Nothing changed: this is only a preview.', templateFirstNotePath: null }),
     cancelTemplateUse: () => set({ templateUseState: { templateUseStage: 'idle' } }),
     listTemplateIncludedFiles: async () => papelizPreviewTemplateFileListEntries,
     readTemplateFileText: async (_templateGalleryRow, templateFileRelativePath) => papelizPreviewTemplateFileTexts[templateFileRelativePath] ?? '',

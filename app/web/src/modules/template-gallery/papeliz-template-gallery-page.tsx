@@ -8,7 +8,7 @@ import type { PapelizOpenVault } from '../vault/papeliz-open-vault'
 import { usePapelizBrowserStorageStore } from '../workspace/papeliz-browser-storage-store'
 import { PapelizNewVaultForm, type PapelizNewVaultPlace } from '../workspace/papeliz-new-vault-form'
 import { usePapelizWorkspaceStore } from '../workspace/papeliz-workspace-store'
-import type { PapelizTemplateGalleryRow, PapelizTemplateGalleryTab } from './papeliz-template-gallery-contract'
+import type { PapelizTemplateGalleryRow, PapelizTemplateGalleryTab, PapelizTemplateVaultFolderImporter } from './papeliz-template-gallery-contract'
 import {
   describeTemplateGalleryDay,
   describeTemplateGalleryRowDetail,
@@ -26,7 +26,13 @@ import { PapelizTemplateGalleryPreviewPage } from './papeliz-template-gallery-pr
 import { usePapelizTemplateGalleryStore } from './papeliz-template-gallery-store'
 import { PapelizTemplateGallerySubmitPage } from './papeliz-template-gallery-submit-page'
 import { PapelizTemplateGalleryTemplatePage } from './papeliz-template-gallery-template-page'
-import { PapelizTemplateGalleryCommandsPage, PapelizTemplateGalleryNewVaultTemplateStatus, PapelizTemplateGalleryVaultMakingPage } from './papeliz-template-gallery-use-template-page'
+import {
+  PapelizTemplateGalleryCommandsPage,
+  PapelizTemplateGalleryImportIntoVaultPage,
+  PapelizTemplateGalleryNewVaultTemplateStatus,
+  PapelizTemplateGalleryVaultImportingPage,
+  PapelizTemplateGalleryVaultMakingPage,
+} from './papeliz-template-gallery-use-template-page'
 
 // Templates, in the start card in place of Recent Vaults (as Synced Vaults is): the gallery's three
 // tabs, Featured, New and Top 100, each a list of rows like Recent Vaults, with tag chips and a search
@@ -46,6 +52,9 @@ export type PapelizTemplateGalleryScreen =
   | { templateGalleryScreenKind: 'commands'; papelizTemplateGalleryId: string }
   | { templateGalleryScreenKind: 'new-vault'; papelizTemplateGalleryId: string; suggestedNewVaultName: string; initialNewVaultPlace?: PapelizNewVaultPlace }
   | { templateGalleryScreenKind: 'making-vault'; papelizTemplateGalleryId: string; newVaultName: string; newVaultPlace: PapelizNewVaultPlace }
+  // Import from Template, in an open vault: Import into This Vault, then the files being written.
+  | { templateGalleryScreenKind: 'import-into-vault'; papelizTemplateGalleryId: string }
+  | { templateGalleryScreenKind: 'importing-into-vault'; papelizTemplateGalleryId: string }
 
 const papelizTemplateGalleryTabChoices = [
   { slidingChoiceValue: 'featured', slidingChoiceContent: 'Featured' },
@@ -63,6 +72,15 @@ function doesTemplateMatchSearch(templateGalleryRow: PapelizTemplateGalleryRow, 
   )
 }
 
+// Import from Template, in an open vault: Use Template brings the template into a new folder of this
+// vault instead of making a vault.
+export interface PapelizTemplateGalleryVaultImport {
+  importingVaultDisplayName: string
+  importIntoNewVaultFolder: PapelizTemplateVaultFolderImporter
+  // Imported: the new folder, and the template's first note inside it.
+  onTemplateImportedIntoVault: (importedVaultFolderRelativePath: string, templateFirstNotePath: string | null) => void
+}
+
 interface PapelizTemplateGalleryPageProps {
   templateGalleryPageHeadingId: string
   // For New Vault's form, as on the start screen.
@@ -74,6 +92,8 @@ interface PapelizTemplateGalleryPageProps {
   onTemplateVaultOpen: (papelizOpenVault: PapelizOpenVault, templateFirstNotePath: string) => Promise<void>
   // The folder window failed to open from the click: opening a folder is off until Try Again.
   onVaultFolderChooserUnavailable: () => void
+  // Set in an open vault, for Import from Template.
+  templateGalleryVaultImport?: PapelizTemplateGalleryVaultImport
 }
 
 export function PapelizTemplateGalleryPage({
@@ -84,11 +104,13 @@ export function PapelizTemplateGalleryPage({
   onTemplateGalleryPageClose,
   onTemplateVaultOpen,
   onVaultFolderChooserUnavailable,
+  templateGalleryVaultImport,
 }: PapelizTemplateGalleryPageProps) {
   const showWorkspaceNotice = usePapelizWorkspaceStore((workspaceState) => workspaceState.showWorkspaceNotice)
   const askBrowserToKeepStorage = usePapelizBrowserStorageStore((browserStorageState) => browserStorageState.askBrowserToKeepStorage)
-  // A held preview (development builds only) stands in for the gallery store.
-  const heldTemplateGalleryPagePreview = usePapelizTemplateGalleryPagePreviewStore((templateGalleryPagePreviewState) => templateGalleryPagePreviewState.heldTemplateGalleryPagePreview)
+  // A held preview (development builds only) stands in for the gallery store, on the start screen.
+  const heldStartScreenTemplateGalleryPreview = usePapelizTemplateGalleryPagePreviewStore((templateGalleryPagePreviewState) => templateGalleryPagePreviewState.heldTemplateGalleryPagePreview)
+  const heldTemplateGalleryPagePreview = templateGalleryVaultImport === undefined ? heldStartScreenTemplateGalleryPreview : null
   const previewTemplateGalleryModelStore = heldTemplateGalleryPagePreview?.previewTemplateGalleryModelStore ?? null
   const previewTemplateGalleryScreenModel = useSyncExternalStore(
     previewTemplateGalleryModelStore?.subscribe ?? subscribeToNoTemplateGalleryPreview,
@@ -105,6 +127,8 @@ export function PapelizTemplateGalleryPage({
   // leaves focus on Templates' button, as Synced Vaults does.
   const [isTemplateGalleryScreenChanged, setTemplateGalleryScreenChanged] = useState(false)
   const shownTemplateGalleryScreen: PapelizTemplateGalleryScreen = templateGalleryScreens[templateGalleryScreens.length - 1] ?? { templateGalleryScreenKind: 'gallery' }
+  // Why Import into This Vault didn't import, shown on its page (a notice would sit under the dialog).
+  const [templateVaultImportFailureMessage, setTemplateVaultImportFailureMessage] = useState<string | null>(null)
   const [templateGallerySearchText, setTemplateGallerySearchText] = useState('')
   const [chosenTemplateGalleryTag, setChosenTemplateGalleryTag] = useState<string | null>(null)
   // When the pages opened: "Listed 2 days ago" and the New tag count from it.
@@ -154,12 +178,32 @@ export function PapelizTemplateGalleryPage({
     openTemplateGalleryScreen(
       templateGalleryRow.isTemplateRunningCommands
         ? { templateGalleryScreenKind: 'commands', papelizTemplateGalleryId: templateGalleryRow.papelizTemplateGalleryId }
-        : {
-            templateGalleryScreenKind: 'new-vault',
-            papelizTemplateGalleryId: templateGalleryRow.papelizTemplateGalleryId,
-            suggestedNewVaultName: pickFreePapelizBrowserVaultName(templateGalleryRow.templateName, existingBrowserVaultRecords),
-          },
+        : buildTemplateTargetScreen(templateGalleryRow),
     )
+  }
+  // Where Use Template goes once any commands are read: New Vault's form, or Import into This Vault.
+  const buildTemplateTargetScreen = (templateGalleryRow: PapelizTemplateGalleryRow): PapelizTemplateGalleryScreen =>
+    templateGalleryVaultImport === undefined
+      ? {
+          templateGalleryScreenKind: 'new-vault',
+          papelizTemplateGalleryId: templateGalleryRow.papelizTemplateGalleryId,
+          suggestedNewVaultName: pickFreePapelizBrowserVaultName(templateGalleryRow.templateName, existingBrowserVaultRecords),
+        }
+      : { templateGalleryScreenKind: 'import-into-vault', papelizTemplateGalleryId: templateGalleryRow.papelizTemplateGalleryId }
+
+  // Import into This Vault, from its click: the files are written into a new folder with their progress
+  // showing; then the gallery closes on the template's first note. If it isn't imported, the page comes
+  // back with what went wrong.
+  const importTemplateIntoVault = async (templateGalleryRow: PapelizTemplateGalleryRow, vaultImport: PapelizTemplateGalleryVaultImport) => {
+    setTemplateVaultImportFailureMessage(null)
+    replaceTemplateGalleryScreen({ templateGalleryScreenKind: 'importing-into-vault', papelizTemplateGalleryId: templateGalleryRow.papelizTemplateGalleryId })
+    const templateImportResult = await templateGalleryScreenModel.importPapelizTemplateIntoVault(vaultImport.importIntoNewVaultFolder)
+    if (templateImportResult.vaultFolderImportOutcome === 'imported') {
+      vaultImport.onTemplateImportedIntoVault(templateImportResult.importedVaultFolderRelativePath, templateImportResult.templateFirstNotePath)
+      return
+    }
+    replaceTemplateGalleryScreen({ templateGalleryScreenKind: 'import-into-vault', papelizTemplateGalleryId: templateGalleryRow.papelizTemplateGalleryId })
+    setTemplateVaultImportFailureMessage(templateImportResult.vaultFolderImportFailureMessage)
   }
   const cancelUsingTemplate = () => {
     cancelTemplateUse()
@@ -253,7 +297,8 @@ export function PapelizTemplateGalleryPage({
           />
         )
       case 'commands':
-      case 'new-vault': {
+      case 'new-vault':
+      case 'import-into-vault': {
         if (shownTemplateGalleryScreen.templateGalleryScreenKind === 'commands' || areTemplateCommandsUnread) {
           return (
             <PapelizTemplateGalleryCommandsPage
@@ -265,12 +310,23 @@ export function PapelizTemplateGalleryPage({
               onTemplateCommandsAccept={() => {
                 templateGalleryScreenModel.acknowledgeTemplateRunCommands(true)
                 if (shownTemplateGalleryScreen.templateGalleryScreenKind !== 'commands') return
-                replaceTemplateGalleryScreen({
-                  templateGalleryScreenKind: 'new-vault',
-                  papelizTemplateGalleryId: shownTemplateGalleryRow.papelizTemplateGalleryId,
-                  suggestedNewVaultName: pickFreePapelizBrowserVaultName(shownTemplateGalleryRow.templateName, existingBrowserVaultRecords),
-                })
+                replaceTemplateGalleryScreen(buildTemplateTargetScreen(shownTemplateGalleryRow))
               }}
+            />
+          )
+        }
+        if (shownTemplateGalleryScreen.templateGalleryScreenKind === 'import-into-vault') {
+          if (templateGalleryVaultImport === undefined) return null
+          return (
+            <PapelizTemplateGalleryImportIntoVaultPage
+              key={shownTemplateGalleryRow.papelizTemplateGalleryId}
+              templateGalleryPageHeadingId={templateGalleryPageHeadingId}
+              templateGalleryRow={shownTemplateGalleryRow}
+              importingVaultDisplayName={templateGalleryVaultImport.importingVaultDisplayName}
+              templateUseState={isThisTemplateInUse ? templateUseState : { templateUseStage: 'idle' }}
+              onTemplateImportCancel={cancelUsingTemplate}
+              templateVaultImportFailureMessage={templateVaultImportFailureMessage}
+              onTemplateImportConfirm={() => void importTemplateIntoVault(shownTemplateGalleryRow, templateGalleryVaultImport)}
             />
           )
         }
@@ -306,6 +362,15 @@ export function PapelizTemplateGalleryPage({
             templateUseState={isThisTemplateInUse ? templateUseState : { templateUseStage: 'idle' }}
           />
         )
+      case 'importing-into-vault':
+        return (
+          <PapelizTemplateGalleryVaultImportingPage
+            templateGalleryPageHeadingId={templateGalleryPageHeadingId}
+            templateGalleryRow={shownTemplateGalleryRow}
+            importingVaultDisplayName={templateGalleryVaultImport?.importingVaultDisplayName ?? ''}
+            templateUseState={isThisTemplateInUse ? templateUseState : { templateUseStage: 'idle' }}
+          />
+        )
     }
   }
 
@@ -320,6 +385,8 @@ export function PapelizTemplateGalleryPage({
       onTemplateGallerySearchTextChange={setTemplateGallerySearchText}
       onTemplateGalleryTagChoose={setChosenTemplateGalleryTag}
       onTemplateGalleryClose={onTemplateGalleryPageClose}
+      templateGalleryCloseLabel={templateGalleryVaultImport === undefined ? 'Back to Recent Vaults' : 'Close Templates'}
+      isTemplateGalleryImportingIntoVault={templateGalleryVaultImport !== undefined}
       onTemplatePageOpen={(templateGalleryRow) => openTemplateGalleryScreen({ templateGalleryScreenKind: 'template-page', papelizTemplateGalleryId: templateGalleryRow.papelizTemplateGalleryId })}
       onTemplatePreviewOpen={(templateGalleryRow) => openTemplateGalleryScreen({ templateGalleryScreenKind: 'preview', papelizTemplateGalleryId: templateGalleryRow.papelizTemplateGalleryId })}
       onSubmitTemplateOpen={() => openTemplateGalleryScreen({ templateGalleryScreenKind: 'submit' })}
@@ -337,6 +404,9 @@ interface PapelizTemplateGalleryListProps {
   onTemplateGallerySearchTextChange: (templateGallerySearchText: string) => void
   onTemplateGalleryTagChoose: (templateGalleryTag: string | null) => void
   onTemplateGalleryClose: () => void
+  // The heading's back arrow: back to Recent Vaults, or, in an open vault, out of Templates.
+  templateGalleryCloseLabel: string
+  isTemplateGalleryImportingIntoVault: boolean
   onTemplatePageOpen: (templateGalleryRow: PapelizTemplateGalleryRow) => void
   onTemplatePreviewOpen: (templateGalleryRow: PapelizTemplateGalleryRow) => void
   onSubmitTemplateOpen: () => void
@@ -354,6 +424,8 @@ function PapelizTemplateGalleryList({
   onTemplateGallerySearchTextChange,
   onTemplateGalleryTagChoose,
   onTemplateGalleryClose,
+  templateGalleryCloseLabel,
+  isTemplateGalleryImportingIntoVault,
   onTemplatePageOpen,
   onTemplatePreviewOpen,
   onSubmitTemplateOpen,
@@ -460,7 +532,7 @@ function PapelizTemplateGalleryList({
           right, which take a line of their own on a phone. */}
       <div className="flex flex-wrap items-center justify-between gap-x-2.5 gap-y-2 px-3 pt-[11px] pb-1 sm:flex-nowrap">
         <div className="flex min-w-0 flex-none items-center gap-2">
-          <PapelizIconButton iconButtonLabel="Back to Recent Vaults" iconButtonSize="small" className="-my-0.5 -ml-1.5" onClick={onTemplateGalleryClose}>
+          <PapelizIconButton iconButtonLabel={templateGalleryCloseLabel} iconButtonSize="small" className="-my-0.5 -ml-1.5" onClick={onTemplateGalleryClose}>
             <ArrowLeft className="size-[15px]" aria-hidden="true" />
           </PapelizIconButton>
           <h2 ref={templateGalleryHeadingRef} id={templateGalleryPageHeadingId} tabIndex={-1} className="text-[18px] font-semibold tracking-[-0.01em] focus:outline-none">
@@ -500,7 +572,7 @@ function PapelizTemplateGalleryList({
           </button>
         </div>
       </div>
-      <p className="px-3 text-[12.5px] text-papeliz-ink-muted">Start a vault from one the community made.</p>
+      <p className="px-3 text-[12.5px] text-papeliz-ink-muted">{isTemplateGalleryImportingIntoVault ? 'Bring one the community made into this vault, in a folder of its own.' : 'Start a vault from one the community made.'}</p>
 
       {/* The tabs, then the tag chips (All first), in one line that scrolls sideways when it runs out. */}
       <div className="px-3 pt-2.5">

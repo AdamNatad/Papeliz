@@ -1,4 +1,4 @@
-import { importPapelizBrowserVault, writePapelizVaultImportFiles, type PapelizBrowserVaultImportFile } from '../vault/papeliz-browser-vault-import'
+import { importPapelizBrowserVault } from '../vault/papeliz-browser-vault-import'
 import { getPapelizBrowserVaultEnvironment, openPapelizBrowserVault, type PapelizBrowserVaultEnvironment } from '../vault/papeliz-browser-vaults'
 import { writeVaultFileContentsThroughWritableStream, type PapelizVaultFileContentsWriter } from '../vault/papeliz-directory-handle-vault-adapter'
 import { describePapelizErrorSentence, describePapelizFailureMessage } from '../vault/papeliz-failure-code-words'
@@ -9,6 +9,7 @@ import {
   type PapelizOpenVaultResult,
   type PapelizVaultFolderPickResult,
 } from '../vault/papeliz-open-vault'
+import { writePapelizVaultImportFiles, type PapelizVaultImportFile } from '../vault/papeliz-vault-folder-import'
 import { isVaultFileRelativePathSyncable, papelizVaultSettingsFolderName } from '../vault/papeliz-vault-relative-paths'
 import { papelizTemplateSourceFileName, type PapelizTemplateSourceFile } from './papeliz-template-gallery-contract'
 import { findPapelizTemplatePictureFormatByName, stripPapelizTemplatePictureMetadata } from './papeliz-template-gallery-picture-metadata'
@@ -77,7 +78,8 @@ export function createPapelizTemplateSourceVaultFile(templateSourceFile: Papeliz
   }
 }
 
-function listVaultImportFiles(preparedTemplateVaultFiles: readonly PapelizTemplateVaultFile[]): PapelizBrowserVaultImportFile[] {
+// The prepared files as the vault's import writer takes them.
+export function listPapelizTemplateVaultImportFiles(preparedTemplateVaultFiles: readonly PapelizTemplateVaultFile[]): PapelizVaultImportFile[] {
   return preparedTemplateVaultFiles.map(({ templateFileRelativePath, templateFileBytes }) => ({
     importFileRelativePath: templateFileRelativePath,
     isImportFileFolder: false,
@@ -93,7 +95,7 @@ export async function makePapelizTemplateBrowserVault(
   templateVaultMakeOptions: PapelizTemplateVaultMakeOptions = {},
 ): Promise<PapelizOpenVaultResult> {
   const browserVaultEnvironment = templateVaultMakeOptions.browserVaultEnvironment ?? getPapelizBrowserVaultEnvironment()
-  const browserVaultImportFiles = listVaultImportFiles(templateVaultFiles)
+  const browserVaultImportFiles = listPapelizTemplateVaultImportFiles(templateVaultFiles)
   try {
     const madeBrowserVaultRecord = await importPapelizBrowserVault(
       typedNewVaultName,
@@ -145,7 +147,7 @@ export async function makePapelizTemplateFolderVault(
   try {
     await writePapelizVaultImportFiles(
       newVaultFolderHandle,
-      listVaultImportFiles(templateVaultFiles),
+      listPapelizTemplateVaultImportFiles(templateVaultFiles),
       {
         onBrowserVaultImportProgress: (importedFileCount, importFileCount) => {
           templateWrittenFileCount = importedFileCount

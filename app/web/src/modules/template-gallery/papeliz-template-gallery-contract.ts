@@ -1,4 +1,5 @@
 import type { PapelizOpenVaultResult } from '../vault/papeliz-open-vault'
+import type { PapelizVaultFolderImportOptions, PapelizVaultFolderImportPlan, PapelizVaultFolderImportResult } from '../vault/papeliz-vault-folder-import'
 
 // The interface between Papeliz Templates' screens and its data layer: the manifest, a gallery row,
 // a template's file list, the checks' results, and the gallery store's state and actions. The screens
@@ -297,6 +298,9 @@ export type PapelizTemplateUseState =
   | { templateUseStage: 'picking-folder'; templateGalleryRow: PapelizTemplateGalleryRow }
   | { templateUseStage: 'making-vault'; templateGalleryRow: PapelizTemplateGalleryRow; templateWrittenFileCount: number; templateFileCount: number }
   | { templateUseStage: 'made'; templateGalleryRow: PapelizTemplateGalleryRow; papelizVaultDisplayName: string }
+  // Import from Template, in an open vault: the files being written into a new folder, then the folder.
+  | { templateUseStage: 'importing-into-vault'; templateGalleryRow: PapelizTemplateGalleryRow; templateWrittenFileCount: number; templateFileCount: number }
+  | { templateUseStage: 'imported-into-vault'; templateGalleryRow: PapelizTemplateGalleryRow; importedVaultFolderRelativePath: string }
   | { templateUseStage: 'failed'; templateGalleryRow: PapelizTemplateGalleryRow; templateUseProblemSentence: string; templateCheckReport: PapelizTemplateCheckReport | null }
 
 // Where Use Template makes the vault, as in New Vault's form.
@@ -305,6 +309,17 @@ export type PapelizTemplateNewVaultPlace = 'folder-on-disk' | 'browser-vault-in-
 // What making the vault gives back: the vault-opening result New Vault's form already handles, and,
 // once opened, the note to open first in MD View.
 export type PapelizTemplateVaultMakeResult = PapelizOpenVaultResult & { templateFirstNotePath: string | null }
+
+// Import from Template's way into the open vault: the workspace's import into a new folder
+// (`importIntoNewVaultFolder`), which also records where the folder came from.
+export type PapelizTemplateVaultFolderImporter = (
+  vaultFolderImportPlan: PapelizVaultFolderImportPlan,
+  vaultFolderImportOptions: PapelizVaultFolderImportOptions,
+) => Promise<PapelizVaultFolderImportResult>
+
+// What Import into This Vault gives back: the import's result and, once imported, the template's first
+// note inside its new folder ("P1-Workflow/README.md").
+export type PapelizTemplateVaultFolderImportResult = PapelizVaultFolderImportResult & { templateFirstNotePath: string | null }
 
 export interface PapelizTemplateGalleryState {
   templateGalleryTab: PapelizTemplateGalleryTab
@@ -350,6 +365,12 @@ export interface PapelizTemplateGalleryActions {
   // New Vault's form confirmed, with the name and place it already checked. Must run from the click,
   // since a folder vault shows the browser's folder window first.
   makePapelizTemplateVault: (typedNewVaultName: string, chosenNewVaultPlace: PapelizTemplateNewVaultPlace) => Promise<PapelizTemplateVaultMakeResult>
+  // Import into This Vault, in an open vault, once ready (and the commands ticked): the checked files go
+  // into a new folder named after the template (the next free name when taken), through the
+  // workspace's importer, and the vault records where the folder came from. The template's own
+  // `.papeliz/` files stay out, since they mean something only at a vault's top. A failed import goes
+  // back to `ready`.
+  importPapelizTemplateIntoVault: (templateVaultFolderImporter: PapelizTemplateVaultFolderImporter) => Promise<PapelizTemplateVaultFolderImportResult>
   // Cancel, or the form closed: stops a read under way and forgets the prepared files.
   cancelTemplateUse: () => void
 }

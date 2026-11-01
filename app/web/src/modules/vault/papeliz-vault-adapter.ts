@@ -1,3 +1,5 @@
+import type { PapelizVaultImportFile, PapelizVaultImportOptions } from './papeliz-vault-folder-import'
+
 // One interface for every place a vault can live: the bundled sample vault in memory, a folder on
 // the user's disk, or a browser vault in the browser's Origin Private File System. The rest of the
 // app talks only to this interface.
@@ -53,6 +55,15 @@ export interface PapelizVaultAdapter {
   // Copies a note, or a folder with everything in it, to a new path. Fails when the target name is
   // taken or a folder would be copied into itself.
   copyVaultEntry(fromVaultEntryRelativePath: string, toVaultEntryRelativePath: string): Promise<void>
+  // Import from Files, Zip or Template: a new folder at the vault's top, named `suggestedVaultFolderName`
+  // or the next free name ("Name 2"), with the files written into it as they are, hidden ones too, and
+  // a name taken inside coming in as "Name 2". Nothing else in the vault changes. Gives back the new
+  // folder's name; a write that stops partway keeps the files written so far.
+  importVaultFilesIntoNewFolder(
+    suggestedVaultFolderName: string,
+    vaultImportFiles: readonly PapelizVaultImportFile[],
+    vaultImportOptions?: PapelizVaultImportOptions,
+  ): Promise<string>
   // Moves a note or folder into the vault's `.trash/` folder; never deletes it.
   // Returns where it went, for example ".trash/Inbox.md".
   moveVaultEntryToTrash(vaultEntryRelativePath: string): Promise<string>

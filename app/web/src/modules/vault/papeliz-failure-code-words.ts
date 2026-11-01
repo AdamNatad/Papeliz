@@ -120,6 +120,16 @@ export function describePapelizFailureCode(failureCode: string, failureCodeConte
       return 'The .zip is damaged. Make it again, then try again.'
     case 'Zip Not Supported':
       return 'Papeliz can’t read this kind of .zip: it may be encrypted or over 4 GB. Make a plain .zip, then try again.'
+    case 'Zip Too Large':
+      return 'Papeliz imports a .zip with up to 20,000 files, each up to 1 GB and 2 GB in all, and this one holds more. Split it into smaller ones.'
+    case 'Zip Unsafe':
+      return 'This .zip unpacks to far more than it holds, as a zip made to fill a disk does, so Papeliz won’t open it.'
+
+    // Import from Files, Zip or Template, in an open vault.
+    case 'Too Many Files':
+      return 'Papeliz imports up to 20,000 files at a time, and this is more. Import it in parts.'
+    case 'Import Too Large':
+      return 'Papeliz imports up to 2 GB at a time, and this is more. Import it in parts.'
 
     // A file added to an AI Assistant chat.
     case 'Picture Type Not Supported':

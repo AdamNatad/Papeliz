@@ -35,6 +35,9 @@ import {
   splitVaultFileNameAtExtension,
   splitVaultRelativePath,
 } from '../vault/papeliz-vault-relative-paths'
+import { readPapelizBrowserStorageEstimate } from '../vault/papeliz-browser-vault-storage'
+import type { PapelizVaultFolderImportOptions, PapelizVaultFolderImportPlan, PapelizVaultFolderImportResult } from '../vault/papeliz-vault-folder-import'
+import { addPapelizImportedTemplateFolder, papelizImportedTemplateFoldersFileName } from '../template-gallery/papeliz-template-gallery-imported-folders'
 import {
   reportPapelizSyncVaultEntryMovedToTrash,
   reportPapelizSyncVaultEntryRenamed,
@@ -299,6 +302,10 @@ interface PapelizWorkspaceState {
   // Copy picks a note or folder up; Paste puts a copy of it into a folder (its own name when free).
   copyVaultEntryForPaste: (copiedVaultEntry: PapelizVaultTreeEntry) => void
   pasteCopiedVaultEntry: (targetVaultFolderRelativePath: string) => Promise<void>
+  // Import from Files, Zip or Template: the planned files go into a new folder at the vault's top
+  // (papeliz-vault-folder-import.ts), which then shows, open, last in the file list. A template's
+  // folder is recorded in `.papeliz/imported-template-folders.json`. The caller says what was done.
+  importIntoNewVaultFolder: (vaultFolderImportPlan: PapelizVaultFolderImportPlan, vaultFolderImportOptions?: PapelizVaultFolderImportOptions) => Promise<PapelizVaultFolderImportResult>
   // Locks or unlocks a note or a folder (and so every note in it).
   setVaultEntryEditingLocked: (vaultEntryRelativePath: string, isVaultEntryEditingLocked: boolean) => void
   // Locks every note, or lifts that, leaving each note's and folder's own lock as it was.
@@ -1699,6 +1706,77 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
       setWorkspaceState((workspaceState) =>
         selectIsVaultTextFileTabInFront(workspaceState) ? {} : { noteViewMode: workspaceState.noteViewMode === 'md-code' ? 'md-view' : 'md-code' },
       ),
+    importIntoNewVaultFolder: async (vaultFolderImportPlan, vaultFolderImportOptions = {}) => {
+      const openVault = getWorkspaceState().openVault
+      const importFailure = (failureHeadline: string, importError: unknown): PapelizVaultFolderImportResult => ({
+        vaultFolderImportOutcome: 'failed',
+        vaultFolderImportFailureMessage: describePapelizFailureMessage(failureHeadline, importError, { failedEntryKind: 'folder' }),
+      })
+      const failureHeadline = `Couldn’t import into “${vaultFolderImportPlan.suggestedVaultFolderName}”`
+      if (openVault === null) return importFailure(failureHeadline, new PapelizVaultOperationError('No Vault Open'))
+      if (openVault.papelizVaultAdapter.papelizVaultKind === 'browser-vault-in-opfs') {
+        const browserStorageEstimate = await readPapelizBrowserStorageEstimate()
+        if (
+          browserStorageEstimate !== null &&
+          browserStorageEstimate.browserStorageQuotaByteCount - browserStorageEstimate.browserStorageUsedByteCount < vaultFolderImportPlan.importTotalByteCount
+        ) {
+          return importFailure(failureHeadline, new PapelizVaultOperationError('Not Enough Browser Storage'))
+        }
+      }
+      let importedFileCount = 0
+      let importedVaultFolderName: string
+      try {
+        importedVaultFolderName = await runVaultOperationInOrder(() =>
+          openVault.papelizVaultAdapter.importVaultFilesIntoNewFolder(vaultFolderImportPlan.suggestedVaultFolderName, vaultFolderImportPlan.vaultFolderImportFiles, {
+            onBrowserVaultImportProgress: (writtenFileCount, importFileCount) => {
+              importedFileCount = writtenFileCount
+              vaultFolderImportOptions.onVaultFolderImportProgress?.(writtenFileCount, importFileCount)
+            },
+          }),
+        )
+      } catch (vaultFolderImportError) {
+        await loadVaultTreeEntriesAfterChange()
+        const importFailureResult = importFailure(failureHeadline, vaultFolderImportError)
+        if (importFailureResult.vaultFolderImportOutcome === 'failed' && importedFileCount > 0) {
+          importFailureResult.vaultFolderImportFailureMessage += ` The ${importedFileCount === 1 ? 'file' : `${importedFileCount} files`} written so far stay in its folder.`
+        }
+        return importFailureResult
+      }
+      reportPapelizSyncVaultFolderCopied(openVault.papelizVaultId, openVault.papelizVaultAdapter, importedVaultFolderName)
+      const { importedTemplateFolderSource } = vaultFolderImportOptions
+      if (importedTemplateFolderSource !== undefined) {
+        // Read after every earlier write of Papeliz's own files, then written in their order.
+        const importedTemplateFoldersFileText = await papelizVaultSettingsFileWrites
+          .then(() => openVault.papelizVaultAdapter.readPapelizVaultSettingsFile(papelizImportedTemplateFoldersFileName))
+          .catch(() => null)
+        writePapelizVaultSettingsFileInOrder(
+          papelizImportedTemplateFoldersFileName,
+          addPapelizImportedTemplateFolder(importedTemplateFoldersFileText, {
+            ...importedTemplateFolderSource,
+            importedTemplateFolderRelativePath: importedVaultFolderName,
+            templateFolderImportedAt: new Date().toISOString(),
+          }),
+          'where the template’s folder came from',
+        )
+      }
+      await loadVaultTreeEntriesAfterChange()
+      const { vaultTreeEntries, vaultEntryOrder } = getWorkspaceState()
+      if (vaultEntryOrder[papelizVaultRootFolderRelativePath] !== undefined) {
+        setVaultFolderEntryOrder(
+          papelizVaultRootFolderRelativePath,
+          placeVaultEntryName(listVaultFolderEntryNamesInOrder(vaultTreeEntries, papelizVaultRootFolderRelativePath, vaultEntryOrder), importedVaultFolderName, {
+            vaultEntryPlacementKind: 'last',
+          }),
+        )
+      }
+      getWorkspaceState().revealVaultEntryInFileList(importedVaultFolderName, 'folder')
+      return {
+        vaultFolderImportOutcome: 'imported',
+        importedVaultFolderRelativePath: importedVaultFolderName,
+        importedFileCount: vaultFolderImportPlan.importFileCount,
+      }
+    },
+
     duplicateVaultEntry: async (vaultEntryRelativePath) => {
       const duplicatedVaultEntry = getWorkspaceState().vaultTreeEntries.find((vaultTreeEntry) => vaultTreeEntry.vaultEntryRelativePath === vaultEntryRelativePath)
       if (duplicatedVaultEntry === undefined) return

@@ -13,6 +13,7 @@ import { papelizBrowserVaultDefaultBackupReminderIntervalMinutes } from '../vaul
 import type { PapelizRecentVault } from '../vault/papeliz-recent-vaults'
 import { papelizSampleVaultNotes } from '../vault/papeliz-sample-vault-notes'
 import type { PapelizVaultAdapter, PapelizVaultTreeListingOptions } from '../vault/papeliz-vault-adapter'
+import type { PapelizVaultImportFile, PapelizVaultImportOptions } from '../vault/papeliz-vault-folder-import'
 import { usePapelizStartScreenEyePreviewStore, type PapelizStartScreenEyePreview } from './papeliz-start-screen-eye-preview-store'
 import { usePapelizWorkspaceStore, type PapelizLoadedVaultNote } from './papeliz-workspace-store'
 
@@ -126,6 +127,9 @@ class PapelizWorkspaceEyePreviewerVaultAdapter implements PapelizVaultAdapter {
   }
   createVaultAttachmentFile(vaultAttachmentFileRelativePath: string, vaultAttachmentFileBlob: Blob) {
     return this.inMemoryVaultAdapter.createVaultAttachmentFile(vaultAttachmentFileRelativePath, vaultAttachmentFileBlob)
+  }
+  importVaultFilesIntoNewFolder(suggestedVaultFolderName: string, vaultImportFiles: readonly PapelizVaultImportFile[], vaultImportOptions?: PapelizVaultImportOptions) {
+    return this.inMemoryVaultAdapter.importVaultFilesIntoNewFolder(suggestedVaultFolderName, vaultImportFiles, vaultImportOptions)
   }
   listVaultAttachmentFileRelativePaths() {
     return this.inMemoryVaultAdapter.listVaultAttachmentFileRelativePaths()

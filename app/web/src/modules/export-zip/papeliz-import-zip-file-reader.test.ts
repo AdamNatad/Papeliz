@@ -123,3 +123,54 @@ describe('reading a zip to import', () => {
     await expect(shrunkZipEntry!.readImportZipEntryBytes()).rejects.toThrow('Zip Damaged')
   })
 })
+
+// A zip made to fill a disk, or too large to import, is turned down before any file is read.
+describe('import zip limits', () => {
+  // Where the n-th entry of a zip with no comment sits in its central directory.
+  function findCentralDirectoryEntryOffset(zipView: DataView, zipEntryIndex: number): number {
+    let centralDirectoryEntryOffset = zipView.getUint32(zipView.byteLength - 22 + 16, true)
+    for (let skippedEntryIndex = 0; skippedEntryIndex < zipEntryIndex; skippedEntryIndex += 1) {
+      centralDirectoryEntryOffset +=
+        46 + zipView.getUint16(centralDirectoryEntryOffset + 28, true) + zipView.getUint16(centralDirectoryEntryOffset + 30, true) + zipView.getUint16(centralDirectoryEntryOffset + 32, true)
+    }
+    return centralDirectoryEntryOffset
+  }
+
+  it('refuses more than 20,000 entries', async () => {
+    const zipBytes = await writeTestZipBytes({ 'a.md': 'a' })
+    new DataView(zipBytes.buffer).setUint16(zipBytes.length - 22 + 10, 20_001, true)
+    expect(() => readPapelizImportZipFile(zipBytes)).toThrow('Zip Too Large')
+  })
+
+  it('refuses a file over 1 GB, and more than 2 GB in all', async () => {
+    const oneFileZipBytes = await writeTestZipBytes({ 'a.md': 'a' })
+    const oneFileZipView = new DataView(oneFileZipBytes.buffer)
+    const fileEntryOffset = findCentralDirectoryEntryOffset(oneFileZipView, 0)
+    oneFileZipView.setUint32(fileEntryOffset + 20, 1_200_000_000, true)
+    oneFileZipView.setUint32(fileEntryOffset + 24, 1_200_000_000, true)
+    expect(() => readPapelizImportZipFile(oneFileZipBytes)).toThrow('Zip Too Large')
+
+    const threeFileZipBytes = await writeTestZipBytes({ 'a.md': 'a', 'b.md': 'b', 'c.md': 'c' })
+    const threeFileZipView = new DataView(threeFileZipBytes.buffer)
+    for (let zipEntryIndex = 0; zipEntryIndex < 3; zipEntryIndex += 1) {
+      const entryOffset = findCentralDirectoryEntryOffset(threeFileZipView, zipEntryIndex)
+      threeFileZipView.setUint32(entryOffset + 20, 900_000_000, true)
+      threeFileZipView.setUint32(entryOffset + 24, 900_000_000, true)
+    }
+    expect(() => readPapelizImportZipFile(threeFileZipBytes)).toThrow('Zip Too Large')
+  })
+
+  it('refuses a file that unpacks to more than 200 times its packed size', async () => {
+    const zipBytes = await writeTestZipBytes({ 'zeros.txt': '0'.repeat(4 * 1024 * 1024) })
+    expect(() => readPapelizImportZipFile(zipBytes)).toThrow('Zip Unsafe')
+    // Small files may pack as tightly as they like.
+    expect(readPapelizImportZipFile(await writeTestZipBytes({ 'zeros.txt': '0'.repeat(500_000) })).importZipEntries).toHaveLength(1)
+  })
+
+  it('refuses files that share packed bytes', async () => {
+    const zipBytes = await writeTestZipBytes({ 'a.md': 'first note', 'b.md': 'other note' })
+    const zipView = new DataView(zipBytes.buffer)
+    zipView.setUint32(findCentralDirectoryEntryOffset(zipView, 1) + 42, zipView.getUint32(findCentralDirectoryEntryOffset(zipView, 0) + 42, true), true)
+    expect(() => readPapelizImportZipFile(zipBytes)).toThrow('Zip Unsafe')
+  })
+})

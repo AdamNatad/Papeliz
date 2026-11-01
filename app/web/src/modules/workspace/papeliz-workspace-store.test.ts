@@ -800,3 +800,49 @@ describe('text files', () => {
     expect(usePapelizWorkspaceStore.getState().loadedVaultNotesByRelativePath['LICENSE']).toMatchObject({ noteLoadState: 'loaded', draftVaultNoteText: 'MIT License' })
   })
 })
+
+describe('import into a new folder', () => {
+  const importFile = (importFileRelativePath: string, importFileText: string) => ({
+    importFileRelativePath,
+    isImportFileFolder: false,
+    importFileByteCount: importFileText.length,
+    readImportFileBytes: async () => new TextEncoder().encode(importFileText),
+  })
+
+  it('imports into a new folder at the top, shown open, records a template’s source, and the folder reorganizes like any other', async () => {
+    const testVaultAdapter = await openTestVault([
+      { vaultNoteRelativePath: 'Inbox.md', vaultNoteText: '# Inbox' },
+      { vaultNoteRelativePath: 'P1-Workflow/Old.md', vaultNoteText: '# Already here' },
+    ])
+    const vaultFolderImportResult = await usePapelizWorkspaceStore.getState().importIntoNewVaultFolder(
+      {
+        suggestedVaultFolderName: 'P1-Workflow',
+        vaultFolderImportFiles: [importFile('README.md', '# P1-Workflow'), importFile('workflow/TASKS.md', '# Tasks')],
+        skippedImportFileCount: 0,
+        importFileCount: 2,
+        importTotalByteCount: 20,
+      },
+      {
+        importedTemplateFolderSource: {
+          papelizTemplateGalleryId: 'AdamNatad/P1-Workflow',
+          templateSourceCommitSha: 'a'.repeat(40),
+          templateSourceName: 'P1-Workflow',
+          templateSourceAuthor: 'AdamNatad',
+          templateSourceLicenseId: 'MIT',
+        },
+      },
+    )
+    expect(vaultFolderImportResult).toEqual({ vaultFolderImportOutcome: 'imported', importedVaultFolderRelativePath: 'P1-Workflow 2', importedFileCount: 2 })
+    const { vaultTreeEntries, expandedVaultFolderRelativePaths } = usePapelizWorkspaceStore.getState()
+    expect(vaultTreeEntries.map((vaultTreeEntry) => vaultTreeEntry.vaultEntryRelativePath)).toEqual(expect.arrayContaining(['Inbox.md', 'P1-Workflow/Old.md', 'P1-Workflow 2/README.md', 'P1-Workflow 2/workflow/TASKS.md']))
+    expect(expandedVaultFolderRelativePaths['P1-Workflow 2']).toBe(true)
+    expect(await testVaultAdapter.readVaultNoteText('P1-Workflow/Old.md')).toBe('# Already here')
+    await vi.waitFor(async () => expect(await testVaultAdapter.readPapelizVaultSettingsFile('imported-template-folders.json')).toContain('"importedTemplateFolderRelativePath": "P1-Workflow 2"'))
+    // Nothing holds the folder in place: it renames, and its notes move out.
+    expect(await usePapelizWorkspaceStore.getState().renameVaultEntry('P1-Workflow 2', 'Workflow')).toMatchObject({ vaultEntryRenameOutcome: 'renamed' })
+    await usePapelizWorkspaceStore.getState().moveVaultEntryIntoFolder('Workflow/README.md', '')
+    await waitForQueuedVaultOperations()
+    expect(await testVaultAdapter.readVaultNoteText('README.md')).toBe('# P1-Workflow')
+    expect(await testVaultAdapter.readVaultNoteText('Workflow/workflow/TASKS.md')).toBe('# Tasks')
+  })
+})

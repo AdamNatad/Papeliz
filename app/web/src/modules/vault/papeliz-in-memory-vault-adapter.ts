@@ -13,9 +13,17 @@ import {
   papelizVaultTrashFolderName,
   pickFreeVaultEntryName,
   replaceVaultRelativePathPrefix,
+  splitVaultFileNameAtExtension,
   splitVaultRelativePath,
 } from './papeliz-vault-relative-paths'
-import { assertVaultTextFileOpenableAtByteLength, papelizVaultTextFileOpenByteLimit } from './papeliz-vault-text-files'
+import { makePapelizImportVaultFolderName, type PapelizVaultImportFile, type PapelizVaultImportOptions } from './papeliz-vault-folder-import'
+import {
+  assertVaultTextFileOpenableAtByteLength,
+  classifyVaultFileByName,
+  isVaultFileSampleBytesPlainText,
+  papelizVaultFileByteCheckLength,
+  papelizVaultTextFileOpenByteLimit,
+} from './papeliz-vault-text-files'
 
 export interface PapelizInMemoryVaultNote {
   vaultNoteRelativePath: string
@@ -111,6 +119,43 @@ export class PapelizInMemoryVaultAdapter implements PapelizVaultAdapter {
     const vaultAttachmentFileBlob = this.vaultAttachmentFileBlobsByRelativePath.get(vaultAttachmentFileRelativePath)
     if (vaultAttachmentFileBlob === undefined) throw new PapelizVaultOperationError('Not In Vault')
     return vaultAttachmentFileBlob
+  }
+
+  // Text (a note, a text file) is kept as text, anything else as a file that isn't a note.
+  async importVaultFilesIntoNewFolder(suggestedVaultFolderName: string, vaultImportFiles: readonly PapelizVaultImportFile[], vaultImportOptions: PapelizVaultImportOptions = {}): Promise<string> {
+    const isTakenIgnoringCase = (vaultEntryRelativePath: string) =>
+      this.hasVaultEntryIgnoringCase(vaultEntryRelativePath) ||
+      [...this.vaultAttachmentFileBlobsByRelativePath.keys()].some((vaultAttachmentFileRelativePath) => vaultAttachmentFileRelativePath.toLowerCase() === vaultEntryRelativePath.toLowerCase())
+    const importVaultFolderName = pickFreeVaultEntryName(makePapelizImportVaultFolderName(suggestedVaultFolderName), '', isTakenIgnoringCase)
+    this.vaultFolderRelativePaths.add(importVaultFolderName)
+    let importedFileCount = 0
+    for (const vaultImportFile of vaultImportFiles) {
+      if (vaultImportOptions.browserVaultImportAbortSignal?.aborted === true) throw new PapelizVaultOperationError('Import Stopped')
+      const importedVaultEntryRelativePath = joinVaultRelativePath(importVaultFolderName, vaultImportFile.importFileRelativePath)
+      if (vaultImportFile.isImportFileFolder) {
+        this.vaultFolderRelativePaths.add(importedVaultEntryRelativePath)
+        this.addMissingParentFolders(importedVaultEntryRelativePath)
+      } else {
+        const importedVaultFolderRelativePath = getVaultEntryParentFolderRelativePath(importedVaultEntryRelativePath)
+        const { vaultFileBaseName, vaultFileExtension } = splitVaultFileNameAtExtension(getVaultEntryName(importedVaultEntryRelativePath))
+        const freeVaultEntryRelativePath = joinVaultRelativePath(
+          importedVaultFolderRelativePath,
+          pickFreeVaultEntryName(vaultFileBaseName, vaultFileExtension, (candidateVaultEntryName) => isTakenIgnoringCase(joinVaultRelativePath(importedVaultFolderRelativePath, candidateVaultEntryName))),
+        )
+        const importedFileBytes = await vaultImportFile.readImportFileBytes()
+        const importedFileNameKind = classifyVaultFileByName(getVaultEntryName(freeVaultEntryRelativePath))
+        const isImportedFileText =
+          importedFileNameKind === 'vault-note' ||
+          importedFileNameKind === 'vault-text-file' ||
+          (importedFileNameKind === 'vault-file-needing-byte-check' && isVaultFileSampleBytesPlainText(importedFileBytes.subarray(0, papelizVaultFileByteCheckLength)))
+        if (isImportedFileText) this.vaultNoteTextsByRelativePath.set(freeVaultEntryRelativePath, new TextDecoder().decode(importedFileBytes))
+        else this.vaultAttachmentFileBlobsByRelativePath.set(freeVaultEntryRelativePath, new Blob([importedFileBytes as Uint8Array<ArrayBuffer>]))
+        this.addMissingParentFolders(freeVaultEntryRelativePath)
+      }
+      importedFileCount += 1
+      vaultImportOptions.onBrowserVaultImportProgress?.(importedFileCount, vaultImportFiles.length)
+    }
+    return importVaultFolderName
   }
 
   async createVaultFolder(vaultFolderRelativePath: string): Promise<void> {

@@ -1,4 +1,4 @@
-import { ArrowLeft, FolderOpen, TriangleAlert } from 'lucide-react'
+import { ArrowLeft, FolderOpen, FolderPlus, TriangleAlert } from 'lucide-react'
 import { useId, useState } from 'react'
 import { PapelizSyncFailureLine, PapelizSyncLoadingLine } from '../sync/papeliz-sync-page-parts'
 import { PapelizIconButton } from '../ui/papeliz-buttons'
@@ -11,6 +11,7 @@ import type { PapelizTemplateGalleryRow, PapelizTemplateRunCommand, PapelizTempl
 import {
   describeTemplateFileReadProgress,
   describeTemplateGalleryFileCount,
+  describeTemplateGalleryRowDetail,
   PapelizTemplateGalleryCenteredStep,
   PapelizTemplateGalleryCheckResultList,
   PapelizTemplateGalleryThumbnail,
@@ -48,6 +49,8 @@ export function PapelizTemplateGalleryNewVaultTemplateStatus({ templateUseState 
     case 'picking-folder':
     case 'making-vault':
     case 'made':
+    case 'importing-into-vault':
+    case 'imported-into-vault':
       return null
     case 'ready': {
       const { templateHiddenFileRelativePaths, templateLeftOutPictureRelativePaths } = templateUseState
@@ -221,6 +224,137 @@ export function PapelizTemplateGalleryCommandsPage({ templateGalleryPageHeadingI
           <PapelizSolidCircleCheckIcon className="size-[15px] flex-none" />
           Continue
         </button>
+      </div>
+    </div>
+  )
+}
+
+interface PapelizTemplateGalleryImportIntoVaultPageProps {
+  templateGalleryPageHeadingId: string
+  templateGalleryRow: PapelizTemplateGalleryRow
+  importingVaultDisplayName: string
+  templateUseState: PapelizTemplateUseState
+  // Why the last Import into This Vault didn't import; null before one fails.
+  templateVaultImportFailureMessage: string | null
+  onTemplateImportCancel: () => void
+  onTemplateImportConfirm: () => void
+}
+
+// Import from Template, in an open vault: the template, where it goes (a new folder named after it at
+// the vault's top), how reading and checking its files is going, then Import into This Vault, which
+// waits until they're checked. Esc goes back.
+export function PapelizTemplateGalleryImportIntoVaultPage({
+  templateGalleryPageHeadingId,
+  templateGalleryRow,
+  importingVaultDisplayName,
+  templateUseState,
+  templateVaultImportFailureMessage,
+  onTemplateImportCancel,
+  onTemplateImportConfirm,
+}: PapelizTemplateGalleryImportIntoVaultPageProps) {
+  const templateImportFooterRef = usePapelizFooterEqualButtonWidthRef(128)
+  const isTemplateImportReady = templateUseState.templateUseStage === 'ready'
+  return (
+    <div
+      onKeyDown={(keyDownEvent) => {
+        if (keyDownEvent.key !== 'Escape' || keyDownEvent.defaultPrevented) return
+        keyDownEvent.preventDefault()
+        onTemplateImportCancel()
+      }}
+      className="papeliz-welcome-enter flex min-h-0 flex-1 flex-col"
+    >
+      <div className="px-3 pt-[11px] pb-1">
+        <div className="flex items-center gap-2">
+          <PapelizIconButton iconButtonLabel={`Back to ${templateGalleryRow.templateName}`} iconButtonSize="small" className="-my-0.5 -ml-1.5" onClick={onTemplateImportCancel}>
+            <ArrowLeft className="size-[15px]" aria-hidden="true" />
+          </PapelizIconButton>
+          <h2 id={templateGalleryPageHeadingId} className="text-[18px] font-semibold tracking-[-0.01em]">
+            Import from Template
+          </h2>
+        </div>
+        <p className="mt-0.5 truncate text-[12.5px] text-papeliz-ink-muted">Into {importingVaultDisplayName}</p>
+      </div>
+
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-3 pt-2.5 pb-3">
+        <div className="flex items-center gap-2.5 rounded-xl border border-papeliz-line bg-papeliz-surface px-2.5 py-2">
+          <PapelizTemplateGalleryThumbnail templateGalleryRow={templateGalleryRow} templateThumbnailSize="row" />
+          <span className="flex min-w-0 flex-col gap-0.5">
+            <span className="truncate text-[13.5px] font-semibold">From {templateGalleryRow.templateName}</span>
+            <span className="truncate text-[11.5px] text-papeliz-ink-subtle">{describeTemplateGalleryRowDetail(templateGalleryRow)}</span>
+          </span>
+        </div>
+        <p className="flex items-start gap-2 px-0.5 text-[12.5px] leading-[1.5] text-papeliz-ink-muted">
+          <FolderPlus className="mt-0.5 size-4 flex-none text-papeliz-blue" aria-hidden="true" />
+          <span>
+            It goes into a new folder, “{templateGalleryRow.templateName}”, at the top of this vault, or “{templateGalleryRow.templateName} 2” if that name is taken. Nothing
+            else in the vault changes, and you can rename or move the folder afterwards.
+          </span>
+        </p>
+        <PapelizTemplateGalleryNewVaultTemplateStatus templateUseState={templateUseState} />
+        {templateVaultImportFailureMessage !== null && (
+          <div role="alert">
+            <PapelizSyncFailureLine>{templateVaultImportFailureMessage}</PapelizSyncFailureLine>
+          </div>
+        )}
+      </div>
+
+      <div ref={templateImportFooterRef} className="flex items-center justify-between gap-2 border-t border-papeliz-line p-3">
+        <button type="button" onClick={onTemplateImportCancel} className={joinPapelizClassNames(newVaultFormFooterButtonClassName, newVaultFormFooterCancelButtonColorClassName)}>
+          <PapelizSolidCircleXIcon className="size-[15px] flex-none" />
+          Cancel
+        </button>
+        <button
+          type="button"
+          disabled={!isTemplateImportReady}
+          onClick={onTemplateImportConfirm}
+          className={joinPapelizClassNames(newVaultFormFooterButtonClassName, newVaultFormFooterActionButtonColorClassName)}
+        >
+          <PapelizSolidCircleCheckIcon className="size-[15px] flex-none" />
+          Import into This Vault
+        </button>
+      </div>
+    </div>
+  )
+}
+
+interface PapelizTemplateGalleryVaultImportingPageProps {
+  templateGalleryPageHeadingId: string
+  templateGalleryRow: PapelizTemplateGalleryRow
+  importingVaultDisplayName: string
+  templateUseState: PapelizTemplateUseState
+}
+
+// The template's files being written into the vault's new folder, counted on a bar.
+export function PapelizTemplateGalleryVaultImportingPage({ templateGalleryPageHeadingId, templateGalleryRow, importingVaultDisplayName, templateUseState }: PapelizTemplateGalleryVaultImportingPageProps) {
+  const templateWrittenFileCount = templateUseState.templateUseStage === 'importing-into-vault' ? templateUseState.templateWrittenFileCount : 0
+  const templateFileCount = templateUseState.templateUseStage === 'importing-into-vault' ? templateUseState.templateFileCount : 0
+  const templateImportingPercent = templateFileCount === 0 ? 0 : Math.round((templateWrittenFileCount / templateFileCount) * 100)
+  return (
+    <div className="papeliz-welcome-enter flex min-h-0 flex-1 flex-col">
+      <div className="px-3 pt-[11px] pb-1">
+        <h2 id={templateGalleryPageHeadingId} className="truncate text-[18px] font-semibold tracking-[-0.01em]">
+          Importing “{templateGalleryRow.templateName}”
+        </h2>
+        <p className="mt-0.5 truncate text-[12.5px] text-papeliz-ink-muted">Into {importingVaultDisplayName}</p>
+      </div>
+      <div role="status" className="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-8 text-center">
+        <PapelizTemplateGalleryThumbnail templateGalleryRow={templateGalleryRow} templateThumbnailSize="row" />
+        <p className="text-[14px] font-semibold">{templateUseState.templateUseStage === 'imported-into-vault' ? 'Opening its first note…' : 'Writing the files…'}</p>
+        <div
+          role="progressbar"
+          aria-label={`Importing “${templateGalleryRow.templateName}”`}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={templateImportingPercent}
+          className="h-1.5 w-full max-w-[300px] overflow-hidden rounded-full bg-papeliz-surface-gray"
+        >
+          <div className="h-full rounded-full bg-papeliz-blue transition-[width] duration-300" style={{ width: `${templateImportingPercent}%` }} />
+        </div>
+        {templateFileCount > 0 && (
+          <p className="-mt-1 text-[12px] text-papeliz-ink-subtle tabular-nums">
+            {templateWrittenFileCount.toLocaleString('en-US')} of {describeTemplateGalleryFileCount(templateFileCount)}
+          </p>
+        )}
       </div>
     </div>
   )

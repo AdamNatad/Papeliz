@@ -113,6 +113,9 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
           'New Vault opens with the template at its top. Name the vault, choose **Folder Storage** or **Browser Storage**, then **Pick Folder** or **Create Vault**. The vault opens on the template’s first note.',
         ]),
         helpParagraph('**Recheck**, on a template’s page or in Preview, asks GitHub for a newer version and checks it before Papeliz uses it.'),
+        helpParagraph(
+          'In a vault you already have, choose **Import** in the file list’s header, then **Import from Template**. **Import into This Vault** puts the template in a new folder named after it, at the top of the vault, and changes nothing else.',
+        ),
         helpNote(
           '**New**, **Top 100**, votes and **Report** open with the Templates server. Until then, **Submit Template** checks your own repository: paste its link and choose **Check**.',
         ),
@@ -181,7 +184,7 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
       ]),
       helpSection('Notes you already have', [
         helpParagraph(
-          'Importing a `.zip` into the open vault, from the file list, is coming. Until then, in Chrome or Edge on a computer, unzip your notes and open the folder with **Open Vault**.',
+          'In the open vault, choose **Import** in the file list’s header. **Import from Files** takes files or a whole folder, and **Import from Zip** takes a `.zip`. Each goes into a new folder at the top of the vault: a folder under its own name, loose files under **Imported Files**, a `.zip` under its name. If the name is taken, the folder becomes **Imported Files 2**, say. Nothing already in the vault changes, and you can rename or move the new folder like any other.',
         ),
       ]),
       helpSection('Download a backup', [

@@ -2,7 +2,8 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { createPapelizBrowserVault } from '../vault/papeliz-browser-vaults'
 import { createPapelizFakeBrowserVaultEnvironment, getPapelizFakeBrowserVaultFolder } from '../vault/papeliz-fake-browser-vault-environment.test-support'
 import type { PapelizVaultFolderPickResult } from '../vault/papeliz-open-vault'
-import type { PapelizTemplateGalleryRow, PapelizTemplateGalleryState } from './papeliz-template-gallery-contract'
+import type { PapelizVaultFolderImportOptions, PapelizVaultFolderImportPlan } from '../vault/papeliz-vault-folder-import'
+import type { PapelizTemplateGalleryRow, PapelizTemplateGalleryState, PapelizTemplateVaultFolderImporter } from './papeliz-template-gallery-contract'
 import { createPapelizFakeTemplateNetwork, type PapelizFakeTemplateNetworkOptions, type PapelizFakeTemplateRepository } from './papeliz-template-gallery-fake-network.test-support'
 import {
   createGardenJournalTemplateFiles,
@@ -348,6 +349,62 @@ describe('template gallery store', () => {
     expect(usePapelizTemplateGalleryStore.getState().templateUseState).toMatchObject({ templateUseStage: 'picking-folder', templateGalleryRow: { papelizTemplateGalleryId: 'garden-notes/Garden-Journal' } })
     pickFolder({ openVaultOutcome: 'cancelled' })
     expect(await making).toEqual({ openVaultOutcome: 'cancelled', templateFirstNotePath: null })
+    expect(usePapelizTemplateGalleryStore.getState().templateUseState.templateUseStage).toBe('ready')
+  })
+
+  it('imports into a folder of the open vault: the checked files without its own .papeliz/, its source recorded, and its first note inside the folder', async () => {
+    const gardenJournalRepository = createGardenJournalRepository()
+    gardenJournalRepository.templateFilesByCommitSha[gardenJournalTemplateCommitSha] = {
+      ...createGardenJournalTemplateFiles(),
+      '.claude/settings.json': JSON.stringify({ hooks: { Stop: [{ hooks: [{ type: 'command', command: 'npm test' }] }] } }),
+    }
+    useFakeTemplateNetwork([gardenJournalRepository])
+    const gardenJournalRow = await listGardenJournalRow()
+    await usePapelizTemplateGalleryStore.getState().prepareTemplateUse(gardenJournalRow)
+    const receivedImports: Array<{ vaultFolderImportPlan: PapelizVaultFolderImportPlan; vaultFolderImportOptions: PapelizVaultFolderImportOptions }> = []
+    const fakeVaultFolderImporter: PapelizTemplateVaultFolderImporter = async (vaultFolderImportPlan, vaultFolderImportOptions) => {
+      receivedImports.push({ vaultFolderImportPlan, vaultFolderImportOptions })
+      vaultFolderImportOptions.onVaultFolderImportProgress?.(1, vaultFolderImportPlan.vaultFolderImportFiles.length)
+      expect(usePapelizTemplateGalleryStore.getState().templateUseState).toMatchObject({ templateUseStage: 'importing-into-vault', templateWrittenFileCount: 1 })
+      return { vaultFolderImportOutcome: 'imported', importedVaultFolderRelativePath: 'Garden Journal 2', importedFileCount: vaultFolderImportPlan.importFileCount }
+    }
+    // The commands come first, as for a new vault.
+    expect(await usePapelizTemplateGalleryStore.getState().importPapelizTemplateIntoVault(fakeVaultFolderImporter)).toMatchObject({ vaultFolderImportOutcome: 'failed' })
+    expect(receivedImports).toEqual([])
+    usePapelizTemplateGalleryStore.getState().acknowledgeTemplateRunCommands(true)
+
+    const templateImportResult = await usePapelizTemplateGalleryStore.getState().importPapelizTemplateIntoVault(fakeVaultFolderImporter)
+    expect(templateImportResult).toEqual({ vaultFolderImportOutcome: 'imported', importedVaultFolderRelativePath: 'Garden Journal 2', importedFileCount: 8, templateFirstNotePath: 'Garden Journal 2/Start here.md' })
+    const [{ vaultFolderImportPlan, vaultFolderImportOptions }] = receivedImports as [(typeof receivedImports)[number]]
+    expect(vaultFolderImportPlan.suggestedVaultFolderName).toBe('Garden Journal')
+    expect(vaultFolderImportPlan.vaultFolderImportFiles.map((importFile) => importFile.importFileRelativePath)).toEqual([
+      '.claude/settings.json',
+      '.gitignore',
+      'Crops/Seeds.md',
+      'Crops/Tomatoes.md',
+      'LICENSE',
+      'README.md',
+      'Start here.md',
+      'beds.png',
+    ])
+    expect(vaultFolderImportOptions.importedTemplateFolderSource).toEqual({
+      papelizTemplateGalleryId: 'garden-notes/Garden-Journal',
+      templateSourceCommitSha: gardenJournalTemplateCommitSha,
+      templateSourceName: 'Garden Journal',
+      templateSourceAuthor: 'garden-notes',
+      templateSourceLicenseId: 'MIT',
+    })
+    expect(usePapelizTemplateGalleryStore.getState().templateUseState).toMatchObject({ templateUseStage: 'imported-into-vault', importedVaultFolderRelativePath: 'Garden Journal 2' })
+  })
+
+  it('goes back to ready when the import into a folder fails', async () => {
+    useFakeTemplateNetwork([createGardenJournalRepository()])
+    const gardenJournalRow = await listGardenJournalRow()
+    await usePapelizTemplateGalleryStore.getState().prepareTemplateUse(gardenJournalRow)
+    const failedImportResult = await usePapelizTemplateGalleryStore
+      .getState()
+      .importPapelizTemplateIntoVault(async () => ({ vaultFolderImportOutcome: 'failed', vaultFolderImportFailureMessage: 'Couldn’t import into “Garden Journal”. The disk is full.' }))
+    expect(failedImportResult).toEqual({ vaultFolderImportOutcome: 'failed', vaultFolderImportFailureMessage: 'Couldn’t import into “Garden Journal”. The disk is full.', templateFirstNotePath: null })
     expect(usePapelizTemplateGalleryStore.getState().templateUseState.templateUseStage).toBe('ready')
   })
 

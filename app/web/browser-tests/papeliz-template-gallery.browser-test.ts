@@ -268,3 +268,62 @@ test('Submit Template checks a repository and keeps Submit off while a check fai
   await expect(submitButton).toBeDisabled()
   expect(templatesServerRequestUrls).toEqual([])
 })
+
+test('Import from Template brings a template into a new folder of the open vault, and the vault’s notes stay as they were', async ({ page }) => {
+  const { templatesServerRequestUrls } = await stubTemplateNetwork(page)
+  await page.goto('/')
+  const isBrowserStorageOn = await page.evaluate(() => navigator.storage.getDirectory().then(() => true, () => false))
+  test.skip(!isBrowserStorageOn, 'This browser refuses its private storage (Playwright’s WebKit for Windows does), so it keeps no browser vaults.')
+  // A browser vault with a note, as an earlier visit would leave it.
+  await page.evaluate(async () => {
+    const { createPapelizBrowserVault, getPapelizBrowserVaultFolderHandle } = await import('/src/modules/vault/papeliz-browser-vaults.ts')
+    const { createPapelizBrowserVaultFileContentsWriter } = await import('/src/modules/vault/papeliz-browser-vault-file-writer.ts')
+    const seededBrowserVaultRecord = await createPapelizBrowserVault('Template Import Vault')
+    const seededBrowserVaultFolder = await getPapelizBrowserVaultFolderHandle(seededBrowserVaultRecord.papelizVaultId)
+    await createPapelizBrowserVaultFileContentsWriter()(await seededBrowserVaultFolder!.getFileHandle('Plans.md', { create: true }), '# Plans\n')
+  })
+  await page.reload()
+  await page.getByRole('button', { name: /^Template Import Vault/ }).first().click()
+  const notesList = page.getByRole('navigation', { name: 'Notes' })
+  await expect(notesList.getByText('Plans', { exact: true })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Import', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'Import from Template' }).click()
+  const templateImportDialog = page.getByRole('dialog')
+  await expect(templateImportDialog.getByRole('heading', { name: 'Templates', exact: true })).toBeVisible()
+  await seedTemplateGalleryRows(page, [await buildGardenJournalTemplateGalleryRow()])
+  await templateImportDialog.getByRole('button', { name: /^Garden Journal/ }).click()
+  await templateImportDialog.getByRole('button', { name: 'Use Template' }).click()
+  await expect(templateImportDialog.getByRole('heading', { name: 'Import from Template' })).toBeVisible()
+  await expect(templateImportDialog.getByText(/^Checked: \d+ files go into the vault\.$/)).toBeVisible()
+  await templateImportDialog.getByRole('button', { name: 'Import into This Vault' }).click()
+
+  // The dialog closes on the template's first note, inside its new folder.
+  await expect(templateImportDialog).toBeHidden()
+  await expect(page.getByRole('contentinfo')).toContainText('Start here.md')
+  await expect(notesList.getByText('Garden Journal', { exact: true })).toBeVisible()
+  const vaultFileTextsByPath = await page.evaluate(async () => {
+    const { listPapelizBrowserVaults, getPapelizBrowserVaultFolderHandle } = await import('/src/modules/vault/papeliz-browser-vaults.ts')
+    const importVaultRecord = (await listPapelizBrowserVaults()).find((browserVaultRecord) => browserVaultRecord.papelizVaultDisplayName === 'Template Import Vault')
+    const readVaultFileTexts: Record<string, string> = {}
+    const readVaultFolder = async (vaultFolderHandle: FileSystemDirectoryHandle, vaultFolderPath: string) => {
+      for await (const [vaultEntryName, vaultEntryHandle] of vaultFolderHandle.entries()) {
+        const vaultEntryPath = vaultFolderPath === '' ? vaultEntryName : `${vaultFolderPath}/${vaultEntryName}`
+        if (vaultEntryHandle.kind === 'directory') await readVaultFolder(vaultEntryHandle as FileSystemDirectoryHandle, vaultEntryPath)
+        else readVaultFileTexts[vaultEntryPath] = await (await (vaultEntryHandle as FileSystemFileHandle).getFile()).text()
+      }
+    }
+    await readVaultFolder((await getPapelizBrowserVaultFolderHandle(importVaultRecord!.papelizVaultId))!, '')
+    return readVaultFileTexts
+  })
+  expect(vaultFileTextsByPath['Plans.md']).toBe('# Plans\n')
+  expect(vaultFileTextsByPath['Garden Journal/Start here.md']).toBe(gardenJournalTemplateFiles['Start here.md'])
+  expect(vaultFileTextsByPath['Garden Journal/.claude/settings.json']).toBe(gardenJournalTemplateFiles['.claude/settings.json'])
+  // The template's own Papeliz files stay out of the folder; the vault records where it came from.
+  expect(Object.keys(vaultFileTextsByPath).filter((vaultFilePath) => vaultFilePath.startsWith('Garden Journal/.papeliz'))).toEqual([])
+  expect(JSON.parse(vaultFileTextsByPath['.papeliz/imported-template-folders.json'] ?? '{}')).toMatchObject({
+    papelizImportedTemplateFoldersFileVersion: 1,
+    importedTemplateFolders: [{ importedTemplateFolderRelativePath: 'Garden Journal', papelizTemplateGalleryId: 'garden-notes/Garden-Journal', templateSourceCommitSha: gardenJournalTemplateCommitSha }],
+  })
+  expect(templatesServerRequestUrls).toEqual([])
+})
