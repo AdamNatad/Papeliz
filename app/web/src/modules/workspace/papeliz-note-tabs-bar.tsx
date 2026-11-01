@@ -350,6 +350,12 @@ export function PapelizNoteTabsBar() {
                     ? // The blue line is an inset shadow, so it follows the tab's rounded corners exactly.
                       'bg-papeliz-surface text-papeliz-ink shadow-[inset_0_2px_0_var(--color-papeliz-blue),1px_0_0_var(--color-papeliz-line),-1px_0_0_var(--color-papeliz-line)]'
                     : 'bg-papeliz-tab text-papeliz-ink-muted hover:bg-papeliz-tab-hover hover:text-papeliz-ink',
+                  // A thin outline on its top and sides, so each tab that isn't open reads as its own
+                  // (Adam, 2026-11-01: "improve the unselected tab pages chat maybe an outline"; his
+                  // pick, "A · Outline").
+                  !isActiveTab &&
+                    !isDraggedTab &&
+                    'shadow-[inset_0_1px_0_var(--color-papeliz-line-strong),inset_1px_0_0_var(--color-papeliz-line-strong),inset_-1px_0_0_var(--color-papeliz-line-strong)]',
                   isDraggedTab && 'z-10 bg-papeliz-surface text-papeliz-ink shadow-papeliz-pop',
                   // In stacked rows, a blue line beside a tab marks where the dragged one will land.
                   stackedDropIndicatorSide !== null && `papeliz-note-tab-drop-indicator-${stackedDropIndicatorSide}`,
