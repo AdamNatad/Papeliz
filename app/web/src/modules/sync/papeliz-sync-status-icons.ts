@@ -1,4 +1,4 @@
-import { CirclePause, CloudCheck, CloudOff, Lock, RefreshCw, TriangleAlert, type LucideIcon } from 'lucide-react'
+import { CirclePause, CloudCheck, CloudOff, FileQuestionMark, Lock, RefreshCw, TriangleAlert, type LucideIcon } from 'lucide-react'
 import type { PapelizSyncStatusIconKind } from './papeliz-sync-screen-words'
 
 // The icon for each sync state, in the status bar and on the Sync page.
@@ -8,6 +8,7 @@ export const papelizSyncStatusIcons: Record<PapelizSyncStatusIconKind, LucideIco
   offline: CloudOff,
   waiting: CloudOff,
   attention: TriangleAlert,
+  'files-missing': FileQuestionMark,
   paused: CirclePause,
   locked: Lock,
 }

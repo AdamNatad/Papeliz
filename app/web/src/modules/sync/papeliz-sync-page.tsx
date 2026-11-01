@@ -11,6 +11,7 @@ import {
   isPapelizSyncSubscriptionCurrent,
   openPapelizSyncSetUpDialog,
   setPapelizSyncOldVersionsDialogShown,
+  showPapelizSyncMissingFiles,
   showPapelizSyncNoteClash,
   startPapelizSyncSignInFromClick,
 } from './papeliz-sync-flow-store'
@@ -35,10 +36,12 @@ import {
   describePapelizSyncActionFailureNow,
   describePapelizSyncDay,
   describePapelizSyncFileCount,
+  describePapelizSyncMissingFilesNotice,
   describePapelizSyncStatusForStatusBar,
   describePapelizSyncStoragePlaceLine,
   describePapelizSyncTimeAgo,
   formatPapelizSyncByteSize,
+  papelizSyncMissingFilesDialogWords,
   papelizSyncPageIntro,
   papelizSyncPlanDisplayNames,
   papelizSyncVaultEncryptionKindDisplayNames,
@@ -301,6 +304,17 @@ function PapelizSyncOnState({ papelizSyncEngine, syncEngineSnapshot, syncAccount
           }
         >
           “{openVault.papelizVaultDisplayName}” is End-to-end and locked on this device. Enter its passphrase to sync it here; your changes are saved on this device meanwhile.
+        </PapelizSyncPageNotice>
+      )}
+      {openVaultSyncReading?.syncVaultStatus.syncStatusKind === 'files-missing' && openVault !== null && (
+        <PapelizSyncPageNotice
+          syncPageNoticeAction={
+            <PapelizPillButton pillButtonVariant="line" pillButtonSize="small" onClick={() => showPapelizSyncMissingFiles(openVault.papelizVaultId)}>
+              {papelizSyncMissingFilesDialogWords.noticeButtonLabel}
+            </PapelizPillButton>
+          }
+        >
+          {describePapelizSyncMissingFilesNotice(openVaultSyncReading.syncVaultStatus.syncMissingFileCount, openVault.papelizVaultDisplayName)}
         </PapelizSyncPageNotice>
       )}
 

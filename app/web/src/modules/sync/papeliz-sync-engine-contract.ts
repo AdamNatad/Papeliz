@@ -146,6 +146,10 @@ export type PapelizSyncStatusReading =
       syncResumesAt: number | null
     }
   | { syncStatusKind: 'to-settle'; syncClashToSettleCount: number }
+  // Most of the vault's synced files went missing here while it was closed (its storage emptied
+  // beneath Papeliz, say). They're still on Sync, and nothing is sent as deleted until the user chooses
+  // Download them again or They were deleted.
+  | { syncStatusKind: 'files-missing'; syncMissingFileCount: number }
   | { syncStatusKind: 'paused-on-this-device'; syncWaitingFileCount: number }
   | { syncStatusKind: 'subscription-ended'; syncReadOnlyUntil: number | null }
   | { syncStatusKind: 'locked' }
@@ -440,6 +444,12 @@ export interface PapelizSyncEngine {
   reportSyncVaultEntryMovedToTrash(papelizVaultId: string, vaultEntryRelativePath: string, vaultTrashRelativePath: string): void
   // Leaving the tab or closing Papeliz.
   sendWaitingSyncChangesNow(): Promise<void>
+
+  // A vault whose status is `files-missing`. Download them again: each missing file comes back from
+  // Sync, where it was (the status reads `syncing` meanwhile). They were deleted: they're sent as
+  // deleted, so they leave Sync and go to the trash on the other devices.
+  downloadMissingSyncFilesAgain(papelizVaultId: string): Promise<PapelizSyncActionOutcome>
+  confirmMissingSyncFilesDeleted(papelizVaultId: string): Promise<PapelizSyncActionOutcome>
 
   // Clashes to settle.
   readSyncNoteClashTexts(papelizSyncClashId: string): Promise<PapelizSyncNoteClashTexts | null>

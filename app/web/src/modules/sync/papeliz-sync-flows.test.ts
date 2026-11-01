@@ -10,9 +10,11 @@ import {
   continuePapelizSyncSubscribeToSignIn,
   followPapelizSyncSnapshotInFlows,
   goBackInPapelizSyncSubscribeFlow,
+  putOffPapelizSyncMissingFiles,
   putOffPapelizSyncNoteClash,
   readPapelizSyncSetUpDialogRequestAfterSubscribing,
   resetPapelizSyncFlowsForTests,
+  showPapelizSyncMissingFiles,
   showPapelizSyncNoteClash,
   startPapelizSyncSignInFromClick,
   startPapelizSyncSignInFromClickBeforeEngineLoads,
@@ -331,6 +333,32 @@ describe('clashes', () => {
   it('merge by themselves when the devices changed different lines', () => {
     expect(mergePapelizSyncNoteText('a\nb\nc\n', 'A\nb\nc\n', 'a\nb\nC\n')).toEqual({ syncNoteMergeOutcome: 'merged', mergedNoteText: 'A\nb\nC\n' })
     expect(mergePapelizSyncNoteText('a\nb\nc\n', 'a\nX\nc\n', 'a\nY\nc\n')).toEqual({ syncNoteMergeOutcome: 'clash' })
+  })
+})
+
+describe('files missing here', () => {
+  it('put off with Not now until the status bar or the Sync page opens them again', () => {
+    showPapelizSyncMissingFiles('vault-a')
+    expect(usePapelizSyncFlowStore.getState().shownMissingSyncFilesVaultId).toBe('vault-a')
+    putOffPapelizSyncMissingFiles('vault-a')
+    expect(usePapelizSyncFlowStore.getState()).toMatchObject({ shownMissingSyncFilesVaultId: null, laterMissingSyncFilesVaultIds: ['vault-a'] })
+    showPapelizSyncMissingFiles('vault-a')
+    expect(usePapelizSyncFlowStore.getState()).toMatchObject({ shownMissingSyncFilesVaultId: 'vault-a', laterMissingSyncFilesVaultIds: [] })
+  })
+
+  it('read files-missing in the fake scenario until Download them again or They were deleted', async () => {
+    for (const missingFilesChoice of ['download-again', 'deleted'] as const) {
+      const papelizSyncFakeEngine = createPapelizSyncFakeEngine({ fakeEngineScenario: 'files-missing' })
+      attachTestVaultToFakeEngine(papelizSyncFakeEngine, 'vault-a', 'Field Notes')
+      expect(readFakeLocalVault(papelizSyncFakeEngine, 'vault-a')?.syncVaultStatus).toEqual({ syncStatusKind: 'files-missing', syncMissingFileCount: 14 })
+      expectFakeDone(
+        missingFilesChoice === 'download-again'
+          ? await papelizSyncFakeEngine.downloadMissingSyncFilesAgain('vault-a')
+          : await papelizSyncFakeEngine.confirmMissingSyncFilesDeleted('vault-a'),
+      )
+      expect(readFakeLocalVault(papelizSyncFakeEngine, 'vault-a')?.syncVaultStatus.syncStatusKind).toBe('synced')
+      expect(await papelizSyncFakeEngine.downloadMissingSyncFilesAgain('vault-a')).toMatchObject({ syncActionOutcome: 'failed' })
+    }
   })
 })
 

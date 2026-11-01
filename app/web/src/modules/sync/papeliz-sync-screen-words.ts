@@ -182,13 +182,44 @@ function countWithNoun(itemCount: number, singularNoun: string, pluralNoun: stri
 
 // What the status bar shows for the open vault: an icon, one word (icon only below 640 px) and a
 // longer title. The attention states are underlined, like the save state's Settle.
-export type PapelizSyncStatusIconKind = 'synced' | 'syncing' | 'offline' | 'waiting' | 'attention' | 'paused' | 'locked'
+export type PapelizSyncStatusIconKind = 'synced' | 'syncing' | 'offline' | 'waiting' | 'attention' | 'files-missing' | 'paused' | 'locked'
 
 export interface PapelizSyncStatusBarDescription {
   syncStatusIconKind: PapelizSyncStatusIconKind
   syncStatusWord: string
   syncStatusTitle: string
   isSyncStatusAttention: boolean
+}
+
+// The missing-files dialog (papeliz-sync-missing-files-dialog.tsx): the files are still on Sync, Download
+// them again puts them back here, and They were deleted removes them everywhere, after a second step.
+export const papelizSyncMissingFilesDialogWords = {
+  downloadAgainButtonLabel: 'Download them again',
+  downloadAgainChoiceText: 'puts them back on this device, from Sync.',
+  deletedButtonLabel: 'They were deleted',
+  deletedChoiceText: 'removes them from Sync and from your other devices, which move them to their trash.',
+  notNowButtonLabel: 'Not now',
+  deleteConfirmIntro: 'They’ll be removed from Sync, and your other devices will move them to their trash.',
+  deleteConfirmButtonLabel: 'Delete from Sync',
+  deleteConfirmBackButtonLabel: 'Back',
+  noticeButtonLabel: 'Choose',
+} as const
+
+export function titlePapelizSyncMissingFilesDialog(syncMissingFileCount: number): string {
+  return `${countWithNoun(syncMissingFileCount, 'synced file is', 'synced files are')} missing here`
+}
+
+export function introducePapelizSyncMissingFilesDialog(syncMissingFileCount: number, papelizVaultDisplayName: string): string {
+  return `${syncMissingFileCount === 1 ? 'It was' : 'They were'} gone from “${papelizVaultDisplayName}” when it opened on this device. ${syncMissingFileCount === 1 ? 'It’s' : 'They’re'} still on Sync, and nothing has been deleted.`
+}
+
+// Settings › Sync's notice for the open vault, with Choose opening the dialog.
+export function describePapelizSyncMissingFilesNotice(syncMissingFileCount: number, papelizVaultDisplayName: string): string {
+  return `${countWithNoun(syncMissingFileCount, 'synced file is', 'synced files are')} missing from “${papelizVaultDisplayName}” on this device. ${syncMissingFileCount === 1 ? 'It’s' : 'They’re'} still on Sync, and nothing is deleted until you choose.`
+}
+
+export function titlePapelizSyncMissingFilesDeleteConfirm(syncMissingFileCount: number): string {
+  return `Delete ${countWithNoun(syncMissingFileCount, 'file', 'files')} from Sync?`
 }
 
 function describeSyncWaitingReason(syncWaitingReason: PapelizSyncWaitingReason, syncResumesAt: number | null, currentTime: number): string {
@@ -258,6 +289,13 @@ export function describePapelizSyncStatusForStatusBar(
         syncStatusIconKind: 'attention',
         syncStatusWord: `Sync: ${syncVaultStatus.syncClashToSettleCount.toLocaleString('en-US')} to settle`,
         syncStatusTitle: `${countWithNoun(syncVaultStatus.syncClashToSettleCount, 'note was', 'notes were')} changed on two devices in the same lines. Open Sync to settle.`,
+        isSyncStatusAttention: true,
+      }
+    case 'files-missing':
+      return {
+        syncStatusIconKind: 'files-missing',
+        syncStatusWord: `Sync: ${syncVaultStatus.syncMissingFileCount.toLocaleString('en-US')} missing`,
+        syncStatusTitle: `${countWithNoun(syncVaultStatus.syncMissingFileCount, 'synced file is', 'synced files are')} missing from this device. They’re still on Sync, and nothing is deleted until you choose what to do.`,
         isSyncStatusAttention: true,
       }
     case 'paused-on-this-device':

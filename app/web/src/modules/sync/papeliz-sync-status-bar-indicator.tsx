@@ -5,6 +5,7 @@ import { usePapelizWorkspaceStore } from '../workspace/papeliz-workspace-store'
 import { usePapelizSyncClockTime } from './papeliz-sync-clock'
 import { isPapelizSyncUsedOnThisDevice, readPapelizSyncDevFakeEngineScenarioText, usePapelizSyncEngineSnapshot, usePapelizSyncEngineStore } from './papeliz-sync-engine-store'
 import type { PapelizSyncEngineEvent } from './papeliz-sync-engine-contract'
+import { showPapelizSyncMissingFiles } from './papeliz-sync-flow-store'
 import { createPapelizSyncLocalVaultFiles } from './papeliz-sync-local-vault-files'
 import { describePapelizSyncStatusForStatusBar } from './papeliz-sync-screen-words'
 import { requestPapelizSettingsGearSyncPage } from './papeliz-sync-settings-gear-request-store'
@@ -30,12 +31,14 @@ export function PapelizSyncStatusBarIndicator({ papelizVaultId }: { papelizVault
     syncClockTime,
   )
   const SyncStatusIcon = papelizSyncStatusIcons[syncStatusDescription.syncStatusIconKind]
+  // Files missing here open their dialog; every other state opens the Sync page.
+  const isMissingFilesStatus = openVaultSyncReading.syncVaultStatus.syncStatusKind === 'files-missing'
   return (
     <button
       type="button"
       title={syncStatusDescription.syncStatusTitle}
-      aria-label={`${syncStatusDescription.syncStatusWord}. Open Sync settings`}
-      onClick={requestPapelizSettingsGearSyncPage}
+      aria-label={`${syncStatusDescription.syncStatusWord}. ${isMissingFilesStatus ? 'Choose what to do' : 'Open Sync settings'}`}
+      onClick={isMissingFilesStatus ? () => showPapelizSyncMissingFiles(papelizVaultId) : requestPapelizSettingsGearSyncPage}
       className={joinPapelizClassNames(
         'flex flex-none items-center gap-1.5 rounded-full underline-offset-2 hover:underline focus-visible:outline-white',
         syncStatusDescription.isSyncStatusAttention && 'font-semibold text-white underline',

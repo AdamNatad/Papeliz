@@ -3,13 +3,16 @@ import type { PapelizSyncStatusReading } from './papeliz-sync-engine-contract'
 import {
   countPapelizSyncPassphraseCharacters,
   describePapelizSyncFileCount,
+  describePapelizSyncMissingFilesNotice,
   describePapelizSyncPlanLimitLines,
   describePapelizSyncPlanPrice,
   describePapelizSyncStatusForStatusBar,
   describePapelizSyncStoragePlaceLine,
   describePapelizSyncVaultPassphraseChangedElsewhere,
   formatPapelizSyncByteSize,
+  introducePapelizSyncMissingFilesDialog,
   isPapelizSyncPassphraseLongEnough,
+  papelizSyncMissingFilesDialogWords,
   papelizSyncPageIntro,
   papelizSyncVaultEncryptionKindDisplayNames,
   papelizSyncVaultEncryptionKindReaderLines,
@@ -19,6 +22,8 @@ import {
   papelizSyncVaultPassphraseNotRecoverableLine,
   pickNearestPapelizSyncStoragePlace,
   ratePapelizSyncPassphraseStrength,
+  titlePapelizSyncMissingFilesDeleteConfirm,
+  titlePapelizSyncMissingFilesDialog,
 } from './papeliz-sync-screen-words'
 
 const testCurrentTime = new Date(2026, 9, 30, 15, 0).getTime()
@@ -160,7 +165,30 @@ describe('the status bar', () => {
     }
   })
 
+  it('says how many synced files are missing here, and that they are still on Sync', () => {
+    expect(describeStatus({ syncStatusKind: 'files-missing', syncMissingFileCount: 14 })).toEqual({
+      syncStatusIconKind: 'files-missing',
+      syncStatusWord: 'Sync: 14 missing',
+      syncStatusTitle: '14 synced files are missing from this device. They’re still on Sync, and nothing is deleted until you choose what to do.',
+      isSyncStatusAttention: true,
+    })
+    expect(describeStatus({ syncStatusKind: 'files-missing', syncMissingFileCount: 1 }).syncStatusTitle).toMatch(/^1 synced file is missing/)
+  })
+
   it('counts a first upload as it goes', () => {
     expect(describePapelizSyncStatusForStatusBar({ syncStatusKind: 'syncing', syncingFileCount: 1362 }, 120, 1482, testCurrentTime).syncStatusWord).toBe('Syncing 120 of 1,482…')
+  })
+})
+
+describe('the missing-files dialog', () => {
+  it('says the files are still on Sync and what each choice does', () => {
+    expect(titlePapelizSyncMissingFilesDialog(14)).toBe('14 synced files are missing here')
+    expect(titlePapelizSyncMissingFilesDialog(1)).toBe('1 synced file is missing here')
+    expect(introducePapelizSyncMissingFilesDialog(14, 'Field Notes')).toBe('They were gone from “Field Notes” when it opened on this device. They’re still on Sync, and nothing has been deleted.')
+    expect(introducePapelizSyncMissingFilesDialog(1, 'Field Notes')).toBe('It was gone from “Field Notes” when it opened on this device. It’s still on Sync, and nothing has been deleted.')
+    expect(papelizSyncMissingFilesDialogWords.downloadAgainChoiceText).toBe('puts them back on this device, from Sync.')
+    expect(papelizSyncMissingFilesDialogWords.deletedChoiceText).toBe('removes them from Sync and from your other devices, which move them to their trash.')
+    expect(titlePapelizSyncMissingFilesDeleteConfirm(14)).toBe('Delete 14 files from Sync?')
+    expect(describePapelizSyncMissingFilesNotice(2, 'Field Notes')).toBe('2 synced files are missing from “Field Notes” on this device. They’re still on Sync, and nothing is deleted until you choose.')
   })
 })

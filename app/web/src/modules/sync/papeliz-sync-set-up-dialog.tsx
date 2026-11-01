@@ -2,6 +2,7 @@ import { CloudUpload, KeyRound, LoaderCircle, Lock, ShieldCheck, TriangleAlert, 
 import { useState, type ReactNode } from 'react'
 import { PapelizPillButton } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
+import { usePapelizBrowserStorageStore } from '../workspace/papeliz-browser-storage-store'
 import { usePapelizWorkspaceStore } from '../workspace/papeliz-workspace-store'
 import type { PapelizSyncActionOutcome, PapelizSyncEngine, PapelizSyncEngineSnapshot, PapelizSyncVaultEncryptionKind } from './papeliz-sync-engine-contract'
 import { closePapelizSyncSetUpDialog, describePapelizSyncSignInFromClickFailure, startPapelizSyncSignInFromClick, type PapelizSyncSetUpDialogRequest } from './papeliz-sync-flow-store'
@@ -72,6 +73,7 @@ interface PapelizSyncSetUpDialogProps {
 
 export function PapelizSyncSetUpDialog({ papelizSyncEngine, syncEngineSnapshot, syncSetUpDialogRequest, isSyncDialogDrawnInPlace }: PapelizSyncSetUpDialogProps) {
   const openVault = usePapelizWorkspaceStore((workspaceState) => workspaceState.openVault)
+  const askBrowserToKeepStorage = usePapelizBrowserStorageStore((browserStorageState) => browserStorageState.askBrowserToKeepStorage)
   const isOpenVaultSyncable = openVault !== null && openVault.papelizVaultAdapter.papelizVaultKind !== 'sample-vault-in-memory'
   const openVaultSyncReading =
     openVault === null ? undefined : syncEngineSnapshot.syncLocalVaults.find((syncLocalVault) => syncLocalVault.papelizVaultId === openVault.papelizVaultId)
@@ -285,7 +287,10 @@ export function PapelizSyncSetUpDialog({ papelizSyncEngine, syncEngineSnapshot, 
 
   const openVaultName = openVault.papelizVaultDisplayName
   const papelizVaultId = openVault.papelizVaultId
+  // From the click: the browser is asked to keep this site's storage, so the vault and what Sync knows
+  // of it aren't cleared under it (Firefox asks the user).
   const startSyncingOpenVault = () => {
+    askBrowserToKeepStorage()
     const syncVaultPassphrase = typedSyncVaultPassphrase
     void runSetUpAction(
       () =>

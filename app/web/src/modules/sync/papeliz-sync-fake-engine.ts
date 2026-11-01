@@ -49,6 +49,9 @@ export type PapelizSyncFakeEngineScenario =
   | 'over-storage'
   | 'subscription-ended'
   | 'to-settle'
+  // The open vault syncs, and most of its files went missing on this device while it was closed: its
+  // status reads `files-missing` until Download them again or They were deleted.
+  | 'files-missing'
   // A new device: signed out, and once signed in, three synced vaults on the account and none of them
   // here (the start screen's Synced Vaults page). "Research notes" is End-to-end, so it asks its
   // passphrase before downloading; "Work" and "Recipes" are Standard.
@@ -67,6 +70,7 @@ export const papelizSyncFakeEngineScenarios: readonly PapelizSyncFakeEngineScena
   'over-storage',
   'subscription-ended',
   'to-settle',
+  'files-missing',
   'new-device',
   'download-stops',
 ]
@@ -88,7 +92,11 @@ const papelizSyncFakeEngineScenariosSyncingEveryOpenVault: ReadonlySet<PapelizSy
   'over-storage',
   'subscription-ended',
   'to-settle',
+  'files-missing',
 ])
+
+// The files the `files-missing` scenario's open vault is missing here.
+const papelizSyncFakeEngineMissingFileCount = 14
 
 const papelizSyncFakeEngineAccountId = 'pzacct_apac_aaaaaaaaaaaaaaaaaaaaaaaaaa'
 const papelizSyncFakeEngineThisDeviceId = 'pzdev_aaaaaaaaaaaaaaaaaaaaaaaaaa'
@@ -308,6 +316,8 @@ export class PapelizSyncFakeEngine implements PapelizSyncEngine {
   private fakePendingSignIn: { resolveSignIn: (signInOutcome: PapelizSyncSignInOutcome) => void } | null = null
   private fakePendingCheckoutPlanName: PapelizSyncPlanName | null = null
   private fakeThisDeviceName: string | null = null
+  // Files missing on this device, by the synced vault: held until Download them again or They were deleted.
+  private readonly fakeMissingFileCountsBySyncVaultId = new Map<string, number>()
   private fakeRemovedDeviceIds = new Set<string>()
   private readonly fakeAccountOnlyVaults: PapelizSyncFakeAccountOnlyVault[]
   // A synced vault downloaded here, by its synced vault: the vault on this device that syncs with it.
@@ -510,6 +520,8 @@ export class PapelizSyncFakeEngine implements PapelizSyncEngine {
     if (!this.isFakeSignedIn()) return { syncStatusKind: 'signed-out' }
     if (this.readFakeVaultLockState(papelizSyncVaultId) === 'locked') return { syncStatusKind: 'locked' }
     if (this.fakeEngineSnapshot.isSyncPausedOnThisDevice) return { syncStatusKind: 'paused-on-this-device', syncWaitingFileCount: 2 }
+    const fakeMissingFileCount = this.fakeMissingFileCountsBySyncVaultId.get(papelizSyncVaultId) ?? 0
+    if (fakeMissingFileCount > 0) return { syncStatusKind: 'files-missing', syncMissingFileCount: fakeMissingFileCount }
     if (this.fakeEngineSnapshot.syncAccount?.syncSubscriptionState === 'ended-read-only') {
       return { syncStatusKind: 'subscription-ended', syncReadOnlyUntil: this.fakeEngineSnapshot.syncAccount.syncReadOnlyUntil }
     }
@@ -895,6 +907,7 @@ export class PapelizSyncFakeEngine implements PapelizSyncEngine {
     }
     if (isSyncedInScenario && attachedLocalVault === undefined) {
       if (this.fakeEngineScenario === 'locked') this.fakeVaultEncryptionKindsBySyncVaultId.set(this.readFakeSyncVaultIdForLocalVault(papelizVaultId), 'end-to-end')
+      if (this.fakeEngineScenario === 'files-missing') this.fakeMissingFileCountsBySyncVaultId.set(this.readFakeSyncVaultIdForLocalVault(papelizVaultId), papelizSyncFakeEngineMissingFileCount)
       this.addFakeLocalVault(papelizVaultId, null)
       if (this.fakeEngineScenario === 'to-settle' && this.fakeEngineSnapshot.syncNoteClashesToSettle.length === 0) this.addFakeSyncNoteClash(papelizVaultId, 'Welcome.md')
     }
@@ -1147,6 +1160,38 @@ export class PapelizSyncFakeEngine implements PapelizSyncEngine {
     })
     this.refreshFakeLocalVaultStatuses()
     return createFakeDoneOutcome(null)
+  }
+
+  // Download them again shows Syncing while the files come back (at once in tests); They were deleted
+  // clears them at once.
+  async downloadMissingSyncFilesAgain(papelizVaultId: string): Promise<PapelizSyncActionOutcome> {
+    await this.waitForFakeCall('downloadMissingSyncFilesAgain')
+    const papelizSyncVaultId = this.readFakeMissingFilesSyncVaultId(papelizVaultId)
+    if (papelizSyncVaultId === null) return createFakeFailedOutcome('not-found')
+    const fakeMissingFileCount = this.fakeMissingFileCountsBySyncVaultId.get(papelizSyncVaultId) ?? 0
+    this.fakeMissingFileCountsBySyncVaultId.delete(papelizSyncVaultId)
+    if (this.fakeCallDelayMilliseconds === 0) {
+      this.refreshFakeLocalVaultStatuses()
+      return createFakeDoneOutcome(null)
+    }
+    this.setFakeSyncVaultStatus(papelizVaultId, { syncStatusKind: 'syncing', syncingFileCount: fakeMissingFileCount }, null)
+    setTimeout(() => this.refreshFakeLocalVaultStatuses(), 4 * this.fakeCallDelayMilliseconds)
+    return createFakeDoneOutcome(null)
+  }
+
+  async confirmMissingSyncFilesDeleted(papelizVaultId: string): Promise<PapelizSyncActionOutcome> {
+    await this.waitForFakeCall('confirmMissingSyncFilesDeleted')
+    const papelizSyncVaultId = this.readFakeMissingFilesSyncVaultId(papelizVaultId)
+    if (papelizSyncVaultId === null) return createFakeFailedOutcome('not-found')
+    this.fakeMissingFileCountsBySyncVaultId.delete(papelizSyncVaultId)
+    this.refreshFakeLocalVaultStatuses()
+    return createFakeDoneOutcome(null)
+  }
+
+  // The synced vault of an attached vault with files missing here, or null.
+  private readFakeMissingFilesSyncVaultId(papelizVaultId: string): string | null {
+    const papelizSyncVaultId = this.fakeEngineSnapshot.syncLocalVaults.find((syncLocalVault) => syncLocalVault.papelizVaultId === papelizVaultId)?.papelizSyncVaultId
+    return papelizSyncVaultId !== undefined && this.fakeMissingFileCountsBySyncVaultId.has(papelizSyncVaultId) ? papelizSyncVaultId : null
   }
 
   async listSyncFileVersions(papelizVaultId: string, _vaultFileRelativePath: string): Promise<PapelizSyncActionOutcome<PapelizSyncFileVersionReading[]>> {

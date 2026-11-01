@@ -47,6 +47,10 @@ interface PapelizSyncFlowState {
   shownSyncNoteClashId: string | null
   laterSyncNoteClashIds: readonly string[]
   isSyncOldVersionsDialogShown: boolean
+  // The open vault whose missing-files dialog shows, and the vaults put off with Not now (until the
+  // status bar or the Sync page opens it again).
+  shownMissingSyncFilesVaultId: string | null
+  laterMissingSyncFilesVaultIds: readonly string[]
 }
 
 export const usePapelizSyncFlowStore = create<PapelizSyncFlowState>()(() => ({
@@ -56,6 +60,8 @@ export const usePapelizSyncFlowStore = create<PapelizSyncFlowState>()(() => ({
   shownSyncNoteClashId: null,
   laterSyncNoteClashIds: [],
   isSyncOldVersionsDialogShown: false,
+  shownMissingSyncFilesVaultId: null,
+  laterMissingSyncFilesVaultIds: [],
 }))
 
 const setSyncFlowState = usePapelizSyncFlowStore.setState
@@ -262,6 +268,24 @@ export function setPapelizSyncOldVersionsDialogShown(isSyncOldVersionsDialogShow
   setSyncFlowState({ isSyncOldVersionsDialogShown })
 }
 
+// Files missing here: the dialog opens by itself once for the open vault. Not now, or a choice, puts it
+// off until the status bar or the Sync page opens it again.
+export function showPapelizSyncMissingFiles(papelizVaultId: string): void {
+  setSyncFlowState((syncFlowState) => ({
+    shownMissingSyncFilesVaultId: papelizVaultId,
+    laterMissingSyncFilesVaultIds: syncFlowState.laterMissingSyncFilesVaultIds.filter((laterVaultId) => laterVaultId !== papelizVaultId),
+  }))
+}
+
+export function putOffPapelizSyncMissingFiles(papelizVaultId: string): void {
+  setSyncFlowState((syncFlowState) => ({
+    shownMissingSyncFilesVaultId: null,
+    laterMissingSyncFilesVaultIds: syncFlowState.laterMissingSyncFilesVaultIds.includes(papelizVaultId)
+      ? syncFlowState.laterMissingSyncFilesVaultIds
+      : [...syncFlowState.laterMissingSyncFilesVaultIds, papelizVaultId],
+  }))
+}
+
 // Tests start each case from nothing.
 export function resetPapelizSyncFlowsForTests(): void {
   cancelPapelizSyncSignIn()
@@ -272,5 +296,7 @@ export function resetPapelizSyncFlowsForTests(): void {
     shownSyncNoteClashId: null,
     laterSyncNoteClashIds: [],
     isSyncOldVersionsDialogShown: false,
+    shownMissingSyncFilesVaultId: null,
+    laterMissingSyncFilesVaultIds: [],
   })
 }
