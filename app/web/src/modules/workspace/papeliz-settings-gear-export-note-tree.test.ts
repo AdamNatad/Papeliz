@@ -30,6 +30,21 @@ const readingListExportTreeNode = requireExportTreeNode(testExportNoteTree[1])
 const gardenClubExportTreeNode = requireExportTreeNode(projectsExportTreeNode.childExportTreeNodes[0])
 
 describe('the Export page note tree', () => {
+  it('leaves out text files, and a folder holding only text files', () => {
+    const exportNoteTreeWithTextFiles = buildPapelizExportNoteTree(
+      [
+        ...testVaultEntries,
+        { vaultEntryRelativePath: 'settings.json', vaultEntryKind: 'text-file' as const },
+        { vaultEntryRelativePath: 'Agent', vaultEntryKind: 'folder' as const },
+        { vaultEntryRelativePath: 'Agent/hooks.json', vaultEntryKind: 'text-file' as const },
+        { vaultEntryRelativePath: 'Projects/notes.txt', vaultEntryKind: 'text-file' as const },
+      ],
+      {},
+    )
+    expect(listExportNoteRelativePaths(exportNoteTreeWithTextFiles)).toEqual(listExportNoteRelativePaths(testExportNoteTree))
+    expect(exportNoteTreeWithTextFiles.map((exportTreeNode) => exportTreeNode.exportTreeNodeName)).toEqual(['Projects', 'Reading list', 'Weekly plan'])
+  })
+
   it('follows the file list order and leaves out folders with no notes', () => {
     expect(testExportNoteTree.map((exportTreeNode) => exportTreeNode.exportTreeNodeName)).toEqual(['Projects', 'Reading list', 'Weekly plan'])
     expect(projectsExportTreeNode.childExportTreeNodes.map((exportTreeNode) => exportTreeNode.exportTreeNodeName)).toEqual(['Garden club', 'Welcome guide'])

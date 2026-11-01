@@ -352,7 +352,7 @@ export function PapelizNoteTabsBar() {
         isNoteTabsStacked ? 'min-h-10' : 'h-10',
       )}
     >
-      {/* Scroll: when the tabs don't fit, a thin gray scrollbar runs under them, shown only while the
+      {/* Scroll: when the tabs don't fit, a thin blue scrollbar runs under them, shown only while the
           pointer is over the tabs or they scroll; the tabs keep their height and rise into the gap
           above them to make room, and a mouse wheel scrolls the strip sideways. Stack
           (Appearance): the tabs wrap onto more rows, so every one shows. */}

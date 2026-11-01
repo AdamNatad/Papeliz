@@ -11,6 +11,7 @@ import { describePapelizNoteSaveFailure } from './papeliz-note-save-failure-word
 import { papelizNoteZoomPercentChoices, papelizNoteZoomPercentLimits, usePapelizNoteTypographyStore } from './papeliz-note-typography-store'
 import type { PapelizVaultNoteEditingLock } from './papeliz-vault-entry-locks'
 import {
+  selectShownNoteViewMode,
   usePapelizActiveVaultNoteEditingLock,
   usePapelizWorkspaceStore,
   type PapelizNoteSaveState,
@@ -119,7 +120,8 @@ export function PapelizStatusBar() {
   const activeLoadedVaultNote = usePapelizWorkspaceStore((workspaceState) =>
     workspaceState.activeVaultNoteRelativePath === null ? undefined : workspaceState.loadedVaultNotesByRelativePath[workspaceState.activeVaultNoteRelativePath],
   )
-  const noteViewMode = usePapelizWorkspaceStore((workspaceState) => workspaceState.noteViewMode)
+  // A text file in front shows MD Code whatever view notes have.
+  const noteViewMode = usePapelizWorkspaceStore(selectShownNoteViewMode)
   const activeVaultNoteEditingLock = usePapelizActiveVaultNoteEditingLock()
   const saveVaultNoteNow = usePapelizWorkspaceStore((workspaceState) => workspaceState.saveVaultNoteNow)
   const activeVaultNoteSaveConflict = usePapelizWorkspaceStore((workspaceState) =>

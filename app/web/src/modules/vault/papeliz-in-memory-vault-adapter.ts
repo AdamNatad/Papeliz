@@ -3,6 +3,7 @@ import {
   isPapelizVaultSettingsFileName,
   getVaultEntryName,
   getVaultEntryParentFolderRelativePath,
+  isVaultNoteFileName,
   isVaultRelativePathHidden,
   isVaultRelativePathInsideFolder,
   isVaultRelativePathInTrash,
@@ -56,9 +57,10 @@ export class PapelizInMemoryVaultAdapter implements PapelizVaultAdapter {
         vaultTreeEntries.push({ vaultEntryRelativePath: vaultFolderRelativePath, vaultEntryKind: 'folder' })
       }
     }
+    // Everything kept here as text is a note or, by any other name, a text file.
     for (const vaultNoteRelativePath of this.vaultNoteTextsByRelativePath.keys()) {
       if (isEveryHiddenVaultEntryListed || isVaultRelativePathWritableByPapeliz(vaultNoteRelativePath)) {
-        vaultTreeEntries.push({ vaultEntryRelativePath: vaultNoteRelativePath, vaultEntryKind: 'note' })
+        vaultTreeEntries.push({ vaultEntryRelativePath: vaultNoteRelativePath, vaultEntryKind: isVaultNoteFileName(getVaultEntryName(vaultNoteRelativePath)) ? 'note' : 'text-file' })
       }
     }
     return vaultTreeEntries

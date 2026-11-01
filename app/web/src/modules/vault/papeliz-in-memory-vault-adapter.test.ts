@@ -16,6 +16,15 @@ describe('the in-memory vault', () => {
     expect(listedPaths).toEqual(['Guides', 'Guides/Callouts.md', 'Guides/Deep', 'Guides/Deep/Links.md', 'Inbox.md'])
   })
 
+  it('lists a kept file that isn’t a note as a text file', async () => {
+    const testVault = new PapelizInMemoryVaultAdapter([
+      { vaultNoteRelativePath: 'Inbox.md', vaultNoteText: '# Inbox' },
+      { vaultNoteRelativePath: 'Agent/settings.json', vaultNoteText: '{}' },
+    ])
+    const listedEntries = (await testVault.listVaultTreeEntries()).map((vaultTreeEntry) => `${vaultTreeEntry.vaultEntryKind}:${vaultTreeEntry.vaultEntryRelativePath}`).sort()
+    expect(listedEntries).toEqual(['folder:Agent', 'note:Inbox.md', 'text-file:Agent/settings.json'])
+  })
+
   it('renames a folder with everything inside it', async () => {
     const testVault = createTestVault()
     await testVault.renameVaultEntry('Guides', 'Help')

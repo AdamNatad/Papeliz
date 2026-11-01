@@ -688,7 +688,7 @@ label:has(> input[type='search']:focus-visible) {
     left 380ms var(--papeliz-switch-ease) 30ms;
 }
 
-.papeliz-note-view-switch[data-papeliz-chosen-note-view='md-code']:has(.papeliz-note-view-switch-option[aria-pressed='false']:active) {
+.papeliz-note-view-switch[data-papeliz-chosen-note-view='md-code']:has(.papeliz-note-view-switch-option[aria-pressed='false']:not([aria-disabled='true']):active) {
   --papeliz-switch-lean-right: 6px;
 }
 
@@ -754,6 +754,18 @@ label:has(> input[type='search']:focus-visible) {
 .papeliz-note-view-switch-option[aria-pressed='false']:hover {
   color: #ffffff;
   background: rgb(255 255 255 / 0.1);
+}
+
+/* MD View while a text file is in front: greyed out, and nothing moves when it is pressed. */
+.papeliz-note-view-switch-option[aria-disabled='true'],
+.papeliz-note-view-switch-option[aria-disabled='true']:hover {
+  cursor: not-allowed;
+  color: rgb(255 255 255 / 0.45);
+  background: transparent;
+}
+
+.papeliz-note-view-switch-option[aria-disabled='true']:active svg {
+  transform: none;
 }
 
 .papeliz-note-view-switch-option svg {
@@ -2063,7 +2075,7 @@ label:has(> input[type='search']:focus-visible) {
   }
 }
 
-/* The open-notes strip's scrollbar: a thin gray bar under the tabs, there only when the tabs don't
+/* The open-notes strip's scrollbar: a thin blue bar under the tabs, there only when the tabs don't
    fit, and seen only while a mouse is over them or they scroll. papeliz-note-tabs-bar.tsx marks both
    on the strip: Chrome doesn't redraw a scrollbar when only :hover changes. */
 .papeliz-note-tabs-scroller::-webkit-scrollbar {
@@ -2081,11 +2093,11 @@ label:has(> input[type='search']:focus-visible) {
 
 .papeliz-note-tabs-scroller[data-papeliz-note-tabs-pointer-over='true']::-webkit-scrollbar-thumb,
 .papeliz-note-tabs-scroller[data-papeliz-note-tabs-scrolling='true']::-webkit-scrollbar-thumb {
-  background: color-mix(in srgb, var(--color-papeliz-ink-subtle) 60%, transparent);
+  background: var(--color-papeliz-blue);
 }
 
 .papeliz-note-tabs-scroller::-webkit-scrollbar-thumb:hover {
-  background: var(--color-papeliz-ink-subtle);
+  background: var(--color-papeliz-blue-hover);
 }
 
 @supports not selector(::-webkit-scrollbar) {
@@ -2096,7 +2108,7 @@ label:has(> input[type='search']:focus-visible) {
 
   .papeliz-note-tabs-scroller[data-papeliz-note-tabs-pointer-over='true'],
   .papeliz-note-tabs-scroller[data-papeliz-note-tabs-scrolling='true'] {
-    scrollbar-color: color-mix(in srgb, var(--color-papeliz-ink-subtle) 60%, transparent) transparent;
+    scrollbar-color: var(--color-papeliz-blue) transparent;
   }
 }
 

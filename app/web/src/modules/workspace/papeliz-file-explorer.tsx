@@ -8,6 +8,8 @@ import {
   Copy,
   CopyPlus,
   Ellipsis,
+  FileBraces,
+  FileCode,
   FilePlus,
   FileText,
   Folder,
@@ -34,12 +36,14 @@ import {
   getVaultEntryName,
   getVaultEntryParentFolderRelativePath,
   getVaultNoteTitle,
+  isVaultNoteFileName,
   isVaultRelativePathHidden,
   isVaultRelativePathInTrash,
   papelizVaultRootFolderRelativePath,
   papelizVaultTrashFolderName,
   pickFreeVaultEntryName,
 } from '../vault/papeliz-vault-relative-paths'
+import { isVaultJsonFileName } from '../vault/papeliz-vault-text-files'
 import { usePapelizFileExplorerSearchRequestStore } from './papeliz-file-explorer-search-request-store'
 import { getPapelizVaultSearchClient, usePapelizVaultKnowledgeStore } from './papeliz-vault-knowledge-store'
 import { listVaultFolderEntryNamesInOrder, sortVaultFolderEntries, type PapelizVaultEntryOrder, type PapelizVaultEntryPlacement } from './papeliz-vault-entry-order'
@@ -81,7 +85,6 @@ function buildFileExplorerTree(vaultTreeEntries: readonly PapelizVaultTreeEntry[
 function getVaultEntryDisplayName(vaultEntryRelativePath: string, vaultEntryKind: PapelizVaultEntryKind): string {
   return vaultEntryKind === 'note' ? getVaultNoteTitle(vaultEntryRelativePath) : getVaultEntryName(vaultEntryRelativePath)
 }
-
 function focusNoteEditorText(): void {
   requestAnimationFrame(() => document.querySelector<HTMLElement>('.papeliz-note-editor .cm-content')?.focus())
 }
@@ -198,12 +201,14 @@ export function PapelizFileExplorer({ fileListFootSection }: PapelizFileExplorer
 
   const fileExplorerTreeNodes = useMemo(() => buildFileExplorerTree(vaultTreeEntries, vaultEntryOrder), [vaultTreeEntries, vaultEntryOrder])
   const vaultNoteCount = useMemo(() => vaultTreeEntries.filter((vaultTreeEntry) => vaultTreeEntry.vaultEntryKind === 'note').length, [vaultTreeEntries])
+  // Notes and text files whose name matches; only notes are searched by their text.
   const filteredVaultNoteEntries = useMemo(() => {
     const lowerCaseFilterText = noteNameFilterText.trim().toLowerCase()
     if (lowerCaseFilterText.length === 0) return null
     return vaultTreeEntries.filter(
       (vaultTreeEntry) =>
-        vaultTreeEntry.vaultEntryKind === 'note' && getVaultNoteTitle(vaultTreeEntry.vaultEntryRelativePath).toLowerCase().includes(lowerCaseFilterText),
+        vaultTreeEntry.vaultEntryKind !== 'folder' &&
+        getVaultEntryDisplayName(vaultTreeEntry.vaultEntryRelativePath, vaultTreeEntry.vaultEntryKind).toLowerCase().includes(lowerCaseFilterText),
     )
   }, [noteNameFilterText, vaultTreeEntries])
   const [noteTextSearchResults, setNoteTextSearchResults] = useState<PapelizVaultSearchResult[]>([])
@@ -417,7 +422,7 @@ export function PapelizFileExplorer({ fileListFootSection }: PapelizFileExplorer
       {
         menuItemKey: 'copy',
         // Beside Duplicate, "Copy" alone could mean the note's text.
-        menuItemLabel: menuVaultEntry.vaultEntryKind === 'folder' ? 'Copy Folder' : 'Copy Note',
+        menuItemLabel: menuVaultEntry.vaultEntryKind === 'folder' ? 'Copy Folder' : menuVaultEntry.vaultEntryKind === 'note' ? 'Copy Note' : 'Copy File',
         MenuItemIcon: Copy,
         onMenuItemSelect: () => copyVaultEntryForPaste(menuVaultEntry),
       },
@@ -686,7 +691,8 @@ export function PapelizFileExplorer({ fileListFootSection }: PapelizFileExplorer
         )}
       </nav>
 
-      {fileListFootSection}
+      {/* This note's outline and links are a note's alone, not a text file's. */}
+      {(activeVaultNoteRelativePath === null || isVaultNoteFileName(getVaultEntryName(activeVaultNoteRelativePath))) && fileListFootSection}
 
       {/* The note count, and Show Hidden: hidden folders and notes, such as the Assistant's saved
           chats in `.csessions`, the trash and other apps' folders. Notes in a hidden folder open
@@ -960,10 +966,20 @@ function PapelizFileExplorerRow({
     }
   }
 
-  // A folder shows its arrow, then its icon; a note its icon. Both take the color and icon picked in
-  // Color and Icon (papeliz-vault-entry-looks.ts), the color on the name too.
+  // A folder shows its arrow, then its icon; a note or text file its icon. All take the color and icon
+  // picked in Color and Icon (papeliz-vault-entry-looks.ts), the color on the name too.
+  // A JSON file shows braces and another text file code.
+  const isJsonTextFile = vaultEntryKind === 'text-file' && isVaultJsonFileName(getVaultEntryName(vaultEntryRelativePath))
   const VaultEntryLookIcon =
-    vaultEntryLook?.lookIconName !== undefined ? papelizVaultEntryLookIcons[vaultEntryLook.lookIconName] : vaultEntryKind === 'folder' ? Folder : FileText
+    vaultEntryLook?.lookIconName !== undefined
+      ? papelizVaultEntryLookIcons[vaultEntryLook.lookIconName]
+      : vaultEntryKind === 'folder'
+        ? Folder
+        : vaultEntryKind === 'note'
+          ? FileText
+          : isJsonTextFile
+            ? FileBraces
+            : FileCode
   const vaultEntryLookColorStyle = vaultEntryLook?.lookColor === undefined ? undefined : { color: describePapelizVaultEntryLookColor(vaultEntryLook.lookColor) }
 
   return (
@@ -1220,7 +1236,7 @@ function PapelizFileExplorerRenameField({ vaultEntryRelativePath, vaultEntryKind
     <div className="py-0.5" style={{ paddingLeft: rowIndentStyle.paddingLeft - 6 }}>
       <input
         autoFocus
-        aria-label={vaultEntryKind === 'folder' ? 'Folder name' : 'Note name'}
+        aria-label={vaultEntryKind === 'folder' ? 'Folder name' : vaultEntryKind === 'note' ? 'Note name' : 'File name'}
         aria-invalid={renameProblemMessage !== null}
         aria-describedby={renameProblemMessage !== null ? renameProblemMessageId : undefined}
         value={typedVaultEntryName}

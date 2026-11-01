@@ -14,8 +14,7 @@ import { PapelizConfirmDialog } from '../ui/papeliz-confirm-dialog'
 import { usePapelizMediaQuery } from '../ui/papeliz-media-query'
 import { PapelizPanelResizeHandle } from '../ui/papeliz-panel-resize-handle'
 import { getVaultNoteTitle } from '../vault/papeliz-vault-relative-paths'
-import { PapelizBrowserVaultChangesSinceBackupLine, useDownloadOpenBrowserVaultBackupWithNotice } from './papeliz-browser-vault-backup-status'
-import { usePapelizBrowserVaultBackupReminderStore } from './papeliz-browser-vault-backup-reminder-store'
+import { PapelizBrowserVaultChangesSinceBackupLine } from './papeliz-browser-vault-backup-status'
 import { PapelizFileExplorer } from './papeliz-file-explorer'
 import { PapelizFileListThisNoteSection } from './papeliz-file-list-this-note-section'
 import { usePapelizFileListThisNoteStore } from './papeliz-file-list-this-note-store'
@@ -57,11 +56,6 @@ export function PapelizWorkspace() {
   const isAssistantProposalPreviewShown = usePapelizWorkspaceStore((workspaceState) => workspaceState.assistantProposalPreview !== null)
   const openVault = usePapelizWorkspaceStore((workspaceState) => workspaceState.openVault)
   const isVaultCloseConfirmationShown = usePapelizWorkspaceStore((workspaceState) => workspaceState.isVaultCloseConfirmationShown)
-  // A browser vault with changes since its last backup offers one before it closes.
-  const openBrowserVaultRecord = usePapelizBrowserVaultBackupReminderStore((reminderState) => reminderState.openBrowserVaultRecord)
-  const isBrowserVaultBackupDownloading = usePapelizBrowserVaultBackupReminderStore((reminderState) => reminderState.isBrowserVaultBackupDownloading)
-  const downloadBackupWithNotice = useDownloadOpenBrowserVaultBackupWithNotice()
-  const isOpenBrowserVaultChangedSinceBackup = (openBrowserVaultRecord?.papelizBrowserVaultFirstChangeSinceBackupAt ?? null) !== null
   const setVaultCloseConfirmationShown = usePapelizWorkspaceStore((workspaceState) => workspaceState.setVaultCloseConfirmationShown)
   const closeVaultInWorkspace = usePapelizWorkspaceStore((workspaceState) => workspaceState.closeVaultInWorkspace)
   const setExplorerPanelOpen = usePapelizWorkspaceStore((workspaceState) => workspaceState.setExplorerPanelOpen)
@@ -242,15 +236,6 @@ export function PapelizWorkspace() {
             )
           }
           confirmButtonLabel="Close Vault"
-          confirmDialogSecondaryAction={
-            isOpenBrowserVaultChangedSinceBackup
-              ? {
-                  secondaryActionLabel: isBrowserVaultBackupDownloading ? 'Backing up…' : 'Download Backup',
-                  isSecondaryActionDisabled: isBrowserVaultBackupDownloading,
-                  onSecondaryActionSelect: () => void downloadBackupWithNotice(),
-                }
-              : undefined
-          }
           onCancel={() => setVaultCloseConfirmationShown(false)}
           onConfirm={() => {
             setVaultCloseConfirmationShown(false)

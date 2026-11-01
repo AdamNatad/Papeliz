@@ -45,6 +45,14 @@ export function isVaultNoteFileName(vaultEntryName: string): boolean {
   return vaultEntryName.toLowerCase().endsWith(papelizVaultNoteFileExtension)
 }
 
+// A file's name before and from its last dot, for picking a free name ("settings 2.json"): "settings"
+// and ".json". A name with no dot past its first character (".gitignore", "LICENSE") is all base.
+export function splitVaultFileNameAtExtension(vaultFileName: string): { vaultFileBaseName: string; vaultFileExtension: string } {
+  const extensionDotIndex = vaultFileName.lastIndexOf('.')
+  if (extensionDotIndex <= 0) return { vaultFileBaseName: vaultFileName, vaultFileExtension: '' }
+  return { vaultFileBaseName: vaultFileName.slice(0, extensionDotIndex), vaultFileExtension: vaultFileName.slice(extensionDotIndex) }
+}
+
 // "Ideas/Offline-first apps.md" -> "Offline-first apps"
 export function getVaultNoteTitle(vaultNoteRelativePath: string): string {
   const vaultNoteFileName = getVaultEntryName(vaultNoteRelativePath)

@@ -350,7 +350,10 @@ export async function executePapelizAssistantVaultTool(toolCall: PapelizChatTool
     }
     case 'proposeVaultEntriesTrash': {
       const { vaultTreeEntries, isWholeVaultEditingLocked, lockedVaultEntryRelativePaths } = usePapelizWorkspaceStore.getState()
-      const vaultEntryRelativePaths = vaultTreeEntries.map((vaultTreeEntry) => vaultTreeEntry.vaultEntryRelativePath)
+      // Notes and folders: a text file (JSON, a script) is the file list's alone.
+      const vaultEntryRelativePaths = vaultTreeEntries
+        .filter((vaultTreeEntry) => vaultTreeEntry.vaultEntryKind !== 'text-file')
+        .map((vaultTreeEntry) => vaultTreeEntry.vaultEntryRelativePath)
       const typedVaultEntryRelativePaths = (Array.isArray(toolArguments['vaultEntryRelativePaths']) ? toolArguments['vaultEntryRelativePaths'] : []).filter(
         (typedVaultEntryRelativePath): typedVaultEntryRelativePath is string => typeof typedVaultEntryRelativePath === 'string',
       )

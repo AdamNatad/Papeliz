@@ -32,6 +32,7 @@ import {
   papelizVaultSettingsFolderName,
   pickFreeVaultEntryName,
   replaceVaultRelativePathPrefix,
+  splitVaultFileNameAtExtension,
   splitVaultRelativePath,
 } from '../vault/papeliz-vault-relative-paths'
 import {
@@ -98,6 +99,17 @@ import {
 
 export type { PapelizNoteViewMode }
 export type { PapelizVaultEntryPlacement }
+
+// A text file is in front: an open tab that isn't a `.md` note (JSON, `.gitignore`, a script).
+export function selectIsVaultTextFileTabInFront(workspaceState: Pick<PapelizWorkspaceState, 'activeVaultNoteRelativePath'>): boolean {
+  return workspaceState.activeVaultNoteRelativePath !== null && !isVaultNoteFileName(getVaultEntryName(workspaceState.activeVaultNoteRelativePath))
+}
+
+// The view the tab in front shows: a text file has only MD Code, while the view picked for notes
+// stays as it was and comes back on a note's tab.
+export function selectShownNoteViewMode(workspaceState: Pick<PapelizWorkspaceState, 'activeVaultNoteRelativePath' | 'noteViewMode'>): PapelizNoteViewMode {
+  return selectIsVaultTextFileTabInFront(workspaceState) ? 'md-code' : workspaceState.noteViewMode
+}
 
 // The locked note or folder that keeps the open note from being edited, or null.
 export function selectActiveVaultNoteLockingEntry(workspaceState: Pick<PapelizWorkspaceState, 'lockedVaultEntryRelativePaths' | 'activeVaultNoteRelativePath'>): string | null {
@@ -889,6 +901,14 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
     return isVaultNoteFileName(vaultEntryName) ? getVaultNoteTitle(vaultEntryRelativePath) : vaultEntryName
   }
 
+  // What a failure calls the entry: a note, a text file or a folder.
+  const describeVaultEntryKindForFailure = (vaultEntryRelativePath: string): 'note' | 'file' | 'folder' => {
+    const listedVaultEntryKind = getWorkspaceState().vaultTreeEntries.find((vaultTreeEntry) => vaultTreeEntry.vaultEntryRelativePath === vaultEntryRelativePath)?.vaultEntryKind
+    if (listedVaultEntryKind === 'text-file') return 'file'
+    if (listedVaultEntryKind !== undefined) return listedVaultEntryKind
+    return isVaultNoteFileName(getVaultEntryName(vaultEntryRelativePath)) ? 'note' : 'folder'
+  }
+
   // Copies a note or folder into a folder under a free name: "Plan copy.md" for a duplicate, or its
   // own name when free for a paste. The copy comes right after the original when both share a folder
   // with a chosen order, and its folder opens so it can be seen.
@@ -905,9 +925,10 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
       return
     }
     const sourceVaultEntryName = getVaultEntryName(sourceVaultEntryRelativePath)
-    const isSourceNote = sourceVaultEntry.vaultEntryKind === 'note'
-    const sourceBaseName = isSourceNote ? sourceVaultEntryName.replace(/\.md$/i, '') : sourceVaultEntryName
-    const sourceExtension = isSourceNote ? sourceVaultEntryName.slice(sourceBaseName.length) : ''
+    const isSourceFile = sourceVaultEntry.vaultEntryKind !== 'folder'
+    const { vaultFileBaseName: sourceBaseName, vaultFileExtension: sourceExtension } = isSourceFile
+      ? splitVaultFileNameAtExtension(sourceVaultEntryName)
+      : { vaultFileBaseName: sourceVaultEntryName, vaultFileExtension: '' }
     const isNameTaken = (candidateVaultEntryName: string) =>
       isVaultEntryNameTakenInFolder(getWorkspaceState().vaultTreeEntries, targetVaultFolderRelativePath, candidateVaultEntryName, '')
     const copyVaultEntryName =
@@ -918,7 +939,7 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
     await saveVaultNotesInside(sourceVaultEntryRelativePath)
     try {
       await runVaultOperationInOrder(() => openVault.papelizVaultAdapter.copyVaultEntry(sourceVaultEntryRelativePath, copyVaultEntryRelativePath))
-      if (isSourceNote) reportPapelizSyncVaultFileSaved(openVault.papelizVaultId, copyVaultEntryRelativePath)
+      if (isSourceFile) reportPapelizSyncVaultFileSaved(openVault.papelizVaultId, copyVaultEntryRelativePath)
       else reportPapelizSyncVaultFolderCopied(openVault.papelizVaultId, openVault.papelizVaultAdapter, copyVaultEntryRelativePath)
     } catch (vaultCopyError) {
       showWorkspaceNotice('error', describePapelizFailureMessage(`Couldn’t copy “${describeVaultEntryForNotice(sourceVaultEntryRelativePath)}”`, vaultCopyError))
@@ -1059,8 +1080,9 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
     if (rememberedNoteTabs === null || workspaceState.openVault !== papelizOpenVault || workspaceState.vaultTreeLoadState !== 'loaded') return
     // A note opened meanwhile (a click in the file list) is kept as it is.
     if (workspaceState.openNoteTabRelativePaths.length > 0) return
+    // Text files open in tabs too.
     const vaultNoteRelativePathsInVault = new Set(
-      workspaceState.vaultTreeEntries.filter((vaultTreeEntry) => vaultTreeEntry.vaultEntryKind === 'note').map((vaultTreeEntry) => vaultTreeEntry.vaultEntryRelativePath),
+      workspaceState.vaultTreeEntries.filter((vaultTreeEntry) => vaultTreeEntry.vaultEntryKind !== 'folder').map((vaultTreeEntry) => vaultTreeEntry.vaultEntryRelativePath),
     )
     const noteTabsToRestore = pickPapelizRememberedNoteTabsStillInVault(rememberedNoteTabs, (vaultNoteRelativePath) => vaultNoteRelativePathsInVault.has(vaultNoteRelativePath))
     if (noteTabsToRestore.activeVaultNoteRelativePath === null) return
@@ -1399,7 +1421,7 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
           vaultEntryRenameOutcome: 'refused',
           vaultEntryRenameProblem: describePapelizFailureCode('Name Taken', {
             failedEntryName: isRenamingNote ? getVaultNoteTitle(newVaultEntryRelativePath) : newVaultEntryName,
-            failedEntryKind: isRenamingNote ? 'note' : 'folder',
+            failedEntryKind: describeVaultEntryKindForFailure(vaultEntryRelativePath),
           }),
         }
       }
@@ -1441,7 +1463,7 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
           'error',
           describePapelizFailureCodeMessage(`Couldn’t move “${getVaultNoteTitle(vaultEntryRelativePath)}”`, 'Name Taken', {
             failedEntryName: getVaultNoteTitle(vaultEntryRelativePath),
-            failedEntryKind: isVaultNoteFileName(vaultEntryName) ? 'note' : 'folder',
+            failedEntryKind: describeVaultEntryKindForFailure(vaultEntryRelativePath),
             failedEntryAction: 'move',
           }),
         )
@@ -1509,19 +1531,18 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
         const preferredRestorePath = findVaultTrashEntryRestorePath(vaultTrashEntryRelativePath, vaultTrashOrigins)
         const restoreFolderRelativePath = getVaultEntryParentFolderRelativePath(preferredRestorePath)
         const preferredRestoreName = getVaultEntryName(preferredRestorePath)
-        const isRestoredNote = vaultTrashEntryKind === 'note' && isVaultNoteFileName(preferredRestoreName)
+        const { vaultFileBaseName: preferredRestoreBaseName, vaultFileExtension: preferredRestoreExtension } =
+          vaultTrashEntryKind === 'folder' ? { vaultFileBaseName: preferredRestoreName, vaultFileExtension: '' } : splitVaultFileNameAtExtension(preferredRestoreName)
         // Something else took its name meanwhile: "Inbox 2.md".
-        const restoredVaultEntryName = pickFreeVaultEntryName(
-          isRestoredNote ? preferredRestoreName.slice(0, -papelizVaultNoteFileExtension.length) : preferredRestoreName,
-          isRestoredNote ? preferredRestoreName.slice(-papelizVaultNoteFileExtension.length) : '',
-          (candidateName) => isVaultEntryNameTakenInFolder(getWorkspaceState().vaultTreeEntries, restoreFolderRelativePath, candidateName),
+        const restoredVaultEntryName = pickFreeVaultEntryName(preferredRestoreBaseName, preferredRestoreExtension, (candidateName) =>
+          isVaultEntryNameTakenInFolder(getWorkspaceState().vaultTreeEntries, restoreFolderRelativePath, candidateName),
         )
         restoredVaultEntryRelativePath = joinVaultRelativePath(restoreFolderRelativePath, restoredVaultEntryName)
         await runVaultOperationInOrder(async () => {
           await createMissingVaultFolders(openVault, restoreFolderRelativePath)
           await openVault.papelizVaultAdapter.restoreVaultEntryFromTrash(vaultTrashEntryRelativePath, restoredVaultEntryRelativePath)
           // Sync never carries `.trash/`, so what comes back is new to it.
-          if (vaultTrashEntryKind === 'note') reportPapelizSyncVaultFileSaved(openVault.papelizVaultId, restoredVaultEntryRelativePath)
+          if (vaultTrashEntryKind !== 'folder') reportPapelizSyncVaultFileSaved(openVault.papelizVaultId, restoredVaultEntryRelativePath)
           else reportPapelizSyncVaultFolderCopied(openVault.papelizVaultId, openVault.papelizVaultAdapter, restoredVaultEntryRelativePath)
         })
       } catch (vaultRestoreError) {
@@ -1631,8 +1652,11 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
     },
 
     setNoteViewMode: (noteViewMode) => setWorkspaceState({ noteViewMode }),
+    // The switch's shortcut does nothing while a text file, which has only MD Code, is in front.
     toggleNoteViewMode: () =>
-      setWorkspaceState((workspaceState) => ({ noteViewMode: workspaceState.noteViewMode === 'md-code' ? 'md-view' : 'md-code' })),
+      setWorkspaceState((workspaceState) =>
+        selectIsVaultTextFileTabInFront(workspaceState) ? {} : { noteViewMode: workspaceState.noteViewMode === 'md-code' ? 'md-view' : 'md-code' },
+      ),
     duplicateVaultEntry: async (vaultEntryRelativePath) => {
       const duplicatedVaultEntry = getWorkspaceState().vaultTreeEntries.find((vaultTreeEntry) => vaultTreeEntry.vaultEntryRelativePath === vaultEntryRelativePath)
       if (duplicatedVaultEntry === undefined) return

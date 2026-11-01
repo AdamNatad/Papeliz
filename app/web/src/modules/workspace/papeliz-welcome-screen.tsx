@@ -60,7 +60,6 @@ import { PapelizNewVaultForm, type PapelizNewVaultPlace } from './papeliz-new-va
 import { readPapelizRecentVaultSyncEncryptionKinds } from './papeliz-recent-vault-sync-badges'
 import { PapelizSettingsGearButton } from './papeliz-settings-gear-button'
 import { usePapelizStartScreenEyePreviewStore, type PapelizStartScreenEyePreview } from './papeliz-start-screen-eye-preview-store'
-import { PapelizWorkspaceEyePreviewerSlot } from './papeliz-workspace-eye-previewer-slot'
 import { PapelizWorkspaceNotice } from './papeliz-workspace-notice'
 import { usePapelizWorkspaceStore } from './papeliz-workspace-store'
 
@@ -319,7 +318,7 @@ function describeRecentVaultDeleteRequest(recentVaultDeleteRequest: PapelizRecen
 // the browser. Hide only takes a vault off Recent vaults; Delete in the Hidden list erases it, from
 // the disk or from this browser, once its name is typed. In a browser that can keep neither kind, the
 // actions say so on a badge, on hover and in a toast; where only folders are missing, Open Vault goes.
-// In development builds the eye previewer in the Recent Vaults heading can hold it in any of its
+// In development builds the eye previewer in an open vault's file list can hold it in any of its
 // states, with made-up vaults; nothing on the disk or in the browser's storage changes then.
 export function PapelizWelcomeScreen() {
   const heldStartScreenEyePreview = usePapelizStartScreenEyePreviewStore((eyePreviewState) => eyePreviewState.heldStartScreenEyePreview)
@@ -1036,7 +1035,6 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                         <span className="max-sm:sr-only">Try Sample</span>
                       </PapelizPillButton>
                     )}
-                    <PapelizWorkspaceEyePreviewerSlot />
                     {/* The eye follows the view: crossed out on Recent Vaults (the vaults hidden from it, counted on
                         its corner), open in the Hidden list (they are showing). */}
                     {isHiddenVaultToggleShown && (

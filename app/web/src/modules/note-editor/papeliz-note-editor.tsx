@@ -160,8 +160,9 @@ function createNoteEditorState(
 }
 
 // Brings the editor to `vaultNoteText` when the note changed outside it (an accepted assistant
-// edit): only the changed stretch is replaced, as one change that Undo can take back.
-function syncNoteEditorViewToText(noteEditorView: EditorView, vaultNoteText: string): void {
+// edit): only the changed stretch is replaced, as one change that Undo can take back. A text file's
+// editor uses it too (papeliz-vault-text-file-editor.tsx).
+export function syncNoteEditorViewToText(noteEditorView: EditorView, vaultNoteText: string): void {
   const editorText = noteEditorView.state.doc.toString()
   if (editorText === vaultNoteText) return
   let sharedStartLength = 0

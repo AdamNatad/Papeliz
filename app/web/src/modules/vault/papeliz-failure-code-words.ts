@@ -9,9 +9,9 @@ import { describePapelizVaultError } from './papeliz-vault-adapter'
 // A save's own words build on these (papeliz-note-save-failure-words.ts).
 
 export interface PapelizFailureCodeContext {
-  // The vault, note or folder the failure is about, named in the sentence where it helps.
+  // The vault, note, text file or folder the failure is about, named in the sentence where it helps.
   failedEntryName?: string
-  failedEntryKind?: 'vault' | 'note' | 'folder'
+  failedEntryKind?: 'vault' | 'note' | 'file' | 'folder'
   // What was being done: naming it (the default), or moving it into another folder.
   failedEntryAction?: 'name' | 'move'
 }
@@ -24,6 +24,7 @@ function describeNameTakenFailure({ failedEntryName, failedEntryKind, failedEntr
   if (failedEntryKind === 'vault') return `A vault named “${failedEntryName}” already exists. ${whatToDo}`
   if (failedEntryKind === 'folder') return `A folder named “${failedEntryName}” is already there. ${whatToDo}`
   if (failedEntryKind === 'note') return `A note named “${failedEntryName}” is already there. ${whatToDo}`
+  if (failedEntryKind === 'file') return `A file named “${failedEntryName}” is already there. ${whatToDo}`
   return `A note or folder named “${failedEntryName}” is already there. ${whatToDo}`
 }
 

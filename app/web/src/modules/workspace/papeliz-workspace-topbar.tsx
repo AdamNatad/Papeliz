@@ -4,7 +4,7 @@ import { PapelizFileListToggleIcon } from '../ui/papeliz-file-list-toggle-icon'
 import { PapelizMark } from '../ui/papeliz-mark'
 import { usePapelizKeyBindingShortcutLabel } from './papeliz-key-bindings-store'
 import { PapelizSettingsGearButton } from './papeliz-settings-gear-button'
-import { usePapelizWorkspaceStore, type PapelizNoteViewMode } from './papeliz-workspace-store'
+import { selectIsVaultTextFileTabInFront, selectShownNoteViewMode, usePapelizWorkspaceStore, type PapelizNoteViewMode } from './papeliz-workspace-store'
 
 const papelizNoteViewChoices = [
   { noteViewMode: 'md-code', noteViewLabel: 'MD Code', NoteViewIcon: Code },
@@ -15,21 +15,31 @@ const papelizNoteViewChoices = [
 // own, the leading edge first, so it stretches toward the new view and then settles; pressing the
 // other view leans it that way before the click lands. The motion lives in papeliz-webapp.css
 // (.papeliz-note-view-switch).
+// A text file (JSON, `.gitignore`, a script) has only MD Code: while one is in front the switch shows
+// MD Code and MD View is greyed out, and the view picked for notes comes back on a note's tab.
 function PapelizNoteViewSwitch() {
-  const noteViewMode = usePapelizWorkspaceStore((workspaceState) => workspaceState.noteViewMode)
+  const shownNoteViewMode = usePapelizWorkspaceStore(selectShownNoteViewMode)
+  const isVaultTextFileTabInFront = usePapelizWorkspaceStore(selectIsVaultTextFileTabInFront)
   const setNoteViewMode = usePapelizWorkspaceStore((workspaceState) => workspaceState.setNoteViewMode)
   const noteViewSwitchShortcutLabel = usePapelizKeyBindingShortcutLabel('note-view-switch')
   return (
-    <div role="group" aria-label="Note view" className="papeliz-note-view-switch" data-papeliz-chosen-note-view={noteViewMode}>
+    <div role="group" aria-label="Note view" className="papeliz-note-view-switch" data-papeliz-chosen-note-view={shownNoteViewMode}>
       <span aria-hidden="true" className="papeliz-note-view-switch-pill" />
       {papelizNoteViewChoices.map(({ noteViewMode: choiceNoteViewMode, noteViewLabel, NoteViewIcon }) => (
         <button
           key={choiceNoteViewMode}
           type="button"
-          aria-pressed={noteViewMode === choiceNoteViewMode}
+          aria-pressed={shownNoteViewMode === choiceNoteViewMode}
+          aria-disabled={isVaultTextFileTabInFront && choiceNoteViewMode === 'md-view' ? true : undefined}
           aria-label={noteViewLabel}
-          title={`${noteViewLabel} (${noteViewSwitchShortcutLabel} switches)`}
-          onClick={() => setNoteViewMode(choiceNoteViewMode)}
+          title={
+            isVaultTextFileTabInFront && choiceNoteViewMode === 'md-view'
+              ? 'MD View is for notes. This file opens in MD Code only.'
+              : `${noteViewLabel} (${noteViewSwitchShortcutLabel} switches)`
+          }
+          onClick={() => {
+            if (!(isVaultTextFileTabInFront && choiceNoteViewMode === 'md-view')) setNoteViewMode(choiceNoteViewMode)
+          }}
           className="papeliz-note-view-switch-option"
         >
           <NoteViewIcon className="size-[14px]" aria-hidden="true" />

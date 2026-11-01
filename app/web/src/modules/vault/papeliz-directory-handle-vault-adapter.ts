@@ -16,6 +16,7 @@ import {
   pickFreeVaultEntryName,
   splitVaultRelativePath,
 } from './papeliz-vault-relative-paths'
+import { classifyVaultFileByName, isVaultFileSampleBytesPlainText, papelizVaultFileByteCheckLength } from './papeliz-vault-text-files'
 
 type PapelizVaultEntryHandle = FileSystemFileHandle | FileSystemDirectoryHandle
 
@@ -63,6 +64,8 @@ export abstract class PapelizDirectoryHandleVaultAdapter implements PapelizVault
     const collectVaultFolderEntries = async (vaultFolderHandle: FileSystemDirectoryHandle, vaultFolderRelativePath: string) => {
       for await (const [vaultEntryName, listedVaultEntryHandle] of vaultFolderHandle.entries()) {
         const vaultEntryRelativePath = joinVaultRelativePath(vaultFolderRelativePath, vaultEntryName)
+        // Papeliz's own settings are never listed, Show Hidden or not.
+        if (vaultEntryRelativePath === papelizVaultSettingsFolderName) continue
         // Hidden folders and files (.git, .trash, ...) are not part of the notes, except Papeliz's
         // own saved chats; Show Hidden lists them all.
         if (vaultEntryName.startsWith('.') && !isEveryHiddenVaultEntryListed && !isVaultRelativePathWritableByPapeliz(vaultEntryRelativePath)) continue
@@ -70,13 +73,42 @@ export abstract class PapelizDirectoryHandleVaultAdapter implements PapelizVault
         if (vaultEntryHandle.kind === 'directory') {
           vaultTreeEntries.push({ vaultEntryRelativePath, vaultEntryKind: 'folder' })
           if (vaultEntryName !== papelizVaultGitFolderName) await collectVaultFolderEntries(vaultEntryHandle, vaultEntryRelativePath)
-        } else if (isVaultNoteFileName(vaultEntryName)) {
+          continue
+        }
+        const vaultFileNameKind = classifyVaultFileByName(vaultEntryName)
+        if (vaultFileNameKind === 'vault-note') {
           vaultTreeEntries.push({ vaultEntryRelativePath, vaultEntryKind: 'note' })
+        } else if (vaultFileNameKind === 'vault-text-file' || (vaultFileNameKind === 'vault-file-needing-byte-check' && (await this.isVaultFilePlainText(vaultEntryHandle, vaultEntryRelativePath)))) {
+          vaultTreeEntries.push({ vaultEntryRelativePath, vaultEntryKind: 'text-file' })
         }
       }
     }
     await collectVaultFolderEntries(this.vaultRootFolderHandle, papelizVaultRootFolderRelativePath)
     return vaultTreeEntries
+  }
+
+  // The byte check of a file whose name doesn't say whether it is text, kept until the file changes,
+  // so listing the vault again reads only files that are new or changed.
+  private readonly vaultFileByteChecksByRelativePath = new Map<string, { checkedVaultFileByteLength: number; checkedVaultFileModifiedAt: number; isCheckedVaultFilePlainText: boolean }>()
+
+  private async isVaultFilePlainText(vaultFileHandle: FileSystemFileHandle, vaultFileRelativePath: string): Promise<boolean> {
+    try {
+      const vaultFile = await vaultFileHandle.getFile()
+      const earlierVaultFileByteCheck = this.vaultFileByteChecksByRelativePath.get(vaultFileRelativePath)
+      if (earlierVaultFileByteCheck?.checkedVaultFileByteLength === vaultFile.size && earlierVaultFileByteCheck.checkedVaultFileModifiedAt === vaultFile.lastModified) {
+        return earlierVaultFileByteCheck.isCheckedVaultFilePlainText
+      }
+      const isCheckedVaultFilePlainText = isVaultFileSampleBytesPlainText(new Uint8Array(await vaultFile.slice(0, papelizVaultFileByteCheckLength).arrayBuffer()))
+      this.vaultFileByteChecksByRelativePath.set(vaultFileRelativePath, {
+        checkedVaultFileByteLength: vaultFile.size,
+        checkedVaultFileModifiedAt: vaultFile.lastModified,
+        isCheckedVaultFilePlainText,
+      })
+      return isCheckedVaultFilePlainText
+    } catch {
+      // Unreadable right now (another tab swapping it in, say): left out until the next listing.
+      return false
+    }
   }
 
   async readPapelizVaultSettingsFile(papelizVaultSettingsFileName: string): Promise<string | null> {

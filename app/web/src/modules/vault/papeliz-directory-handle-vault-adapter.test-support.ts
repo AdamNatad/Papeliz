@@ -37,6 +37,40 @@ export function describePapelizDirectoryHandleVaultAdapterCases(
       ])
     })
 
+    it('lists text files besides notes, known by name or by their first bytes, and leaves out pictures and binary files', async () => {
+      const { fakeVaultRootHandle, directoryHandleVaultAdapter } = await createTestDirectoryHandleVault()
+      await addPapelizFakeVaultFiles(fakeVaultRootHandle, {
+        'LICENSE': 'MIT License',
+        'Agent/settings.json': '{"hooks":{}}',
+        'Agent/plan.draft': 'plain words',
+        'Agent/blob.draft': 'bytes\u0000with a zero byte',
+        'Agent/.gitignore': 'node_modules/',
+      })
+      await directoryHandleVaultAdapter.writePapelizVaultSettingsFile('file-list-order.json', '{"fileListOrder":{}}')
+      const describeListedTextFilesAndFolders = (listedVaultTreeEntries: readonly { vaultEntryRelativePath: string; vaultEntryKind: string }[]) =>
+        listedVaultTreeEntries
+          .filter((vaultTreeEntry) => vaultTreeEntry.vaultEntryKind !== 'note')
+          .map((vaultTreeEntry) => `${vaultTreeEntry.vaultEntryKind}:${vaultTreeEntry.vaultEntryRelativePath}`)
+          .sort()
+      expect(describeListedTextFilesAndFolders(await directoryHandleVaultAdapter.listVaultTreeEntries())).toEqual([
+        'folder:Agent',
+        'folder:Empty folder',
+        'folder:Ideas',
+        'folder:Ideas/Deep',
+        'text-file:Agent/plan.draft',
+        'text-file:Agent/settings.json',
+        'text-file:LICENSE',
+      ])
+      // Show Hidden adds hidden files that are text, but never Papeliz's own `.papeliz/`.
+      const everyListedEntry = describeListedTextFilesAndFolders(await directoryHandleVaultAdapter.listVaultTreeEntries({ isEveryHiddenVaultEntryListed: true }))
+      expect(everyListedEntry).toEqual(expect.arrayContaining(['text-file:Agent/.gitignore', 'folder:.other-app', 'text-file:.other-app/app.json', 'folder:.git']))
+      expect(everyListedEntry.some((listedEntry) => listedEntry.includes('.papeliz'))).toBe(false)
+      // A text file reads and saves like a note.
+      expect(await directoryHandleVaultAdapter.readVaultNoteText('Agent/settings.json')).toBe('{"hooks":{}}')
+      await directoryHandleVaultAdapter.writeVaultNoteText('Agent/settings.json', '{"hooks":{"Stop":[]}}')
+      expect((await readPapelizFakeVaultFolder(fakeVaultRootHandle))['Agent/settings.json']).toBe('{"hooks":{"Stop":[]}}')
+    })
+
     it('keeps Papeliz’s own files in .papeliz/, hidden from the notes, and only by plain name', async () => {
       const { fakeVaultRootHandle, directoryHandleVaultAdapter } = await createTestDirectoryHandleVault()
       expect(await directoryHandleVaultAdapter.readPapelizVaultSettingsFile('file-list-order.json')).toBeNull()

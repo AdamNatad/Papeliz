@@ -10,7 +10,10 @@ export function isPapelizVaultKeptBeyondThisTab(papelizVaultKind: PapelizVaultKi
   return papelizVaultKind !== 'sample-vault-in-memory'
 }
 
-export type PapelizVaultEntryKind = 'note' | 'folder'
+// A text file is a plain-text file that isn't a note (JSON, YAML, `.gitignore`, a script):
+// it shows in the file list and opens in a tab, but links, search, the outline, the AI Assistant's
+// note tools and export know only notes (papeliz-vault-text-files.ts says which files are text).
+export type PapelizVaultEntryKind = 'note' | 'folder' | 'text-file'
 
 export interface PapelizVaultTreeEntry {
   vaultEntryRelativePath: string
@@ -25,10 +28,12 @@ export interface PapelizVaultTreeListingOptions {
 
 export interface PapelizVaultAdapter {
   readonly papelizVaultKind: PapelizVaultKind
-  // Every folder and `.md` note. Hidden folders (`.git/`, `.trash/`, ...) are left out, except
-  // Papeliz's own `.csessions/` (and the earlier `.chatsession/`), unless the options ask for every
-  // hidden entry.
+  // Every folder, `.md` note and text file. Hidden folders and files (`.git/`, `.trash/`,
+  // `.gitignore`, ...) are left out, except Papeliz's own `.csessions/` (and the earlier
+  // `.chatsession/`), unless the options ask for every hidden entry. Papeliz's own `.papeliz/` is
+  // never listed.
   listVaultTreeEntries(vaultTreeListingOptions?: PapelizVaultTreeListingOptions): Promise<PapelizVaultTreeEntry[]>
+  // A note's or a text file's text; writing it and the rest below take either.
   readVaultNoteText(vaultNoteRelativePath: string): Promise<string>
   writeVaultNoteText(vaultNoteRelativePath: string, vaultNoteText: string): Promise<void>
   // Fails when something already has that name.

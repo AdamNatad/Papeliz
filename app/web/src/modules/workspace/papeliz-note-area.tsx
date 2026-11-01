@@ -24,13 +24,16 @@ import {
   getVaultEntryName,
   getVaultEntryParentFolderRelativePath,
   getVaultNoteTitle,
+  isVaultNoteFileName,
   isVaultRelativePathHidden,
   isVaultRelativePathInTrash,
   splitVaultRelativePath,
 } from '../vault/papeliz-vault-relative-paths'
+import { PapelizVaultTextFileEditor } from '../text-file-view/papeliz-vault-text-file-editor'
+import { isVaultJsonFileName } from '../vault/papeliz-vault-text-files'
 import { usePapelizNoteTypographyStore } from './papeliz-note-typography-store'
 import type { PapelizVaultNoteEditingLock } from './papeliz-vault-entry-locks'
-import { usePapelizActiveVaultNoteEditingLock, usePapelizWorkspaceStore } from './papeliz-workspace-store'
+import { selectIsVaultTextFileTabInFront, selectShownNoteViewMode, usePapelizActiveVaultNoteEditingLock, usePapelizWorkspaceStore } from './papeliz-workspace-store'
 
 // After a breadcrumb opens the file list, scrolls the matching row into view and puts focus on it.
 function showVaultEntryRowSoon(vaultEntryRelativePath: string): void {
@@ -74,7 +77,9 @@ function isNoteTypingKey(keyboardEvent: KeyboardEvent): boolean {
 
 // What typing into a note that can't be changed says, and how to change it.
 function describeLockedNoteTyping(vaultNoteEditingLock: PapelizVaultNoteEditingLock, vaultNoteRelativePath: string): string {
-  if (vaultNoteEditingLock.vaultNoteEditingLockKind === 'hidden-folder') return 'Notes in hidden folders open read-only.'
+  if (vaultNoteEditingLock.vaultNoteEditingLockKind === 'hidden-folder') {
+    return isVaultNoteFileName(getVaultEntryName(vaultNoteRelativePath)) ? 'Notes in hidden folders open read-only.' : 'Hidden files open read-only.'
+  }
   if (vaultNoteEditingLock.vaultNoteEditingLockKind === 'whole-vault') return 'All notes are locked. Turn off Lock All Notes in the Settings gear.'
   const vaultNoteTitle = getVaultNoteTitle(vaultNoteRelativePath)
   if (vaultNoteEditingLock.lockingVaultEntryRelativePath === vaultNoteRelativePath) return `“${vaultNoteTitle}” is locked. Press the lock on its tab to edit it.`
@@ -109,7 +114,8 @@ export function PapelizNoteArea({ noteEditorSessionCache }: PapelizNoteAreaProps
   const activeLoadedVaultNote = usePapelizWorkspaceStore((workspaceState) =>
     workspaceState.activeVaultNoteRelativePath === null ? undefined : workspaceState.loadedVaultNotesByRelativePath[workspaceState.activeVaultNoteRelativePath],
   )
-  const noteViewMode = usePapelizWorkspaceStore((workspaceState) => workspaceState.noteViewMode)
+  // A text file in front is always in MD Code; notes show the view picked for them.
+  const noteViewMode = usePapelizWorkspaceStore(selectShownNoteViewMode)
   // The open note is locked by itself or by a folder it is in.
   const activeVaultNoteEditingLock = usePapelizActiveVaultNoteEditingLock()
   const isNoteEditingLocked = activeVaultNoteEditingLock !== null
@@ -263,10 +269,15 @@ export function PapelizNoteArea({ noteEditorSessionCache }: PapelizNoteAreaProps
     return () => window.removeEventListener('wheel', zoomNoteOnModifiedWheel)
   }, [])
 
+  // A text file (anything open that isn't a `.md` note) has only MD Code, in an editor of its own.
+  const isActiveVaultTabTextFile = usePapelizWorkspaceStore(selectIsVaultTextFileTabInFront)
+  const readOnlyNoteTypingMessage =
+    activeVaultNoteRelativePath === null || activeVaultNoteEditingLock === null ? null : describeLockedNoteTyping(activeVaultNoteEditingLock, activeVaultNoteRelativePath)
+
   // Typing into a note that can't be changed says why, at most every few seconds: in MD Code's
   // read-only editor, or after a click in MD View's locked page, which takes no focus.
   useEffect(() => {
-    if (activeVaultNoteEditingLock === null || activeVaultNoteRelativePath === null) return
+    if (readOnlyNoteTypingMessage === null) return
     let wasLastPointerDownInNote = false
     let lockedNoteTypingNoticeShownAt = Number.NEGATIVE_INFINITY
     const rememberPointerDownPlace = (pointerEvent: PointerEvent) => {
@@ -276,11 +287,11 @@ export function PapelizNoteArea({ noteEditorSessionCache }: PapelizNoteAreaProps
       if (!isNoteTypingKey(keyboardEvent)) return
       const keyTarget = keyboardEvent.target
       const isTypingIntoNote =
-        keyTarget instanceof Element && keyTarget.closest('#papeliz-note-panel') !== null && keyTarget.closest('input, textarea, select') === null
+        keyTarget instanceof Element && keyTarget.closest('#papeliz-note-panel') !== null && keyTarget.closest('input, textarea, select, button, a') === null
       if (!isTypingIntoNote && !(keyTarget === document.body && wasLastPointerDownInNote)) return
       if (performance.now() - lockedNoteTypingNoticeShownAt < papelizLockedNoteTypingNoticeGapMilliseconds) return
       lockedNoteTypingNoticeShownAt = performance.now()
-      showWorkspaceNotice('info', describeLockedNoteTyping(activeVaultNoteEditingLock, activeVaultNoteRelativePath))
+      showWorkspaceNotice('info', readOnlyNoteTypingMessage)
     }
     window.addEventListener('pointerdown', rememberPointerDownPlace, true)
     window.addEventListener('keydown', explainLockedNoteTyping, true)
@@ -288,7 +299,7 @@ export function PapelizNoteArea({ noteEditorSessionCache }: PapelizNoteAreaProps
       window.removeEventListener('pointerdown', rememberPointerDownPlace, true)
       window.removeEventListener('keydown', explainLockedNoteTyping, true)
     }
-  }, [activeVaultNoteEditingLock, activeVaultNoteRelativePath, showWorkspaceNotice])
+  }, [readOnlyNoteTypingMessage, showWorkspaceNotice])
 
   if (openVault === null) return null
 
@@ -325,6 +336,7 @@ export function PapelizNoteArea({ noteEditorSessionCache }: PapelizNoteAreaProps
 
   // The note's text column (the "Aa" button's text width); MD Code adds room for its line numbers.
   const noteColumnMaxWidth = noteViewMode === 'md-code' ? 'calc(var(--papeliz-note-column-width) + 60px)' : 'var(--papeliz-note-column-width)'
+  const openedThingWord = isActiveVaultTabTextFile ? 'file' : 'note'
   // A note gone from the folder can't be read again; any other failure may pass.
   const isFailedNoteStillListed = vaultTreeEntries.some((vaultTreeEntry) => vaultTreeEntry.vaultEntryRelativePath === activeVaultNoteRelativePath)
 
@@ -338,7 +350,7 @@ export function PapelizNoteArea({ noteEditorSessionCache }: PapelizNoteAreaProps
       {/* The path line takes the text column's width, in MD Code too (past its line numbers), and
           moves left by its buttons' padding, so its words start where the note's text does. */}
       <nav
-        aria-label="Where this note is"
+        aria-label={`Where this ${openedThingWord} is`}
         className="relative -left-1 mx-auto mb-[18px] flex flex-wrap items-center gap-0.5 text-[13px] text-papeliz-ink-subtle"
         style={{ maxWidth: 'var(--papeliz-note-column-width)' }}
       >
@@ -348,7 +360,9 @@ export function PapelizNoteArea({ noteEditorSessionCache }: PapelizNoteAreaProps
             <button
               type="button"
               aria-current={breadcrumb.breadcrumbVaultEntryKind === 'note' ? 'page' : undefined}
-              title={breadcrumb.breadcrumbVaultEntryKind === 'folder' ? `Show the “${breadcrumb.breadcrumbLabel}” folder in the file list` : 'Show this note in the file list'}
+              title={
+                breadcrumb.breadcrumbVaultEntryKind === 'folder' ? `Show the “${breadcrumb.breadcrumbLabel}” folder in the file list` : `Show this ${openedThingWord} in the file list`
+              }
               onClick={() => {
                 revealVaultEntryInFileList(breadcrumb.breadcrumbVaultEntryRelativePath, breadcrumb.breadcrumbVaultEntryKind)
                 showVaultEntryRowSoon(breadcrumb.breadcrumbVaultEntryRelativePath)
@@ -372,13 +386,13 @@ export function PapelizNoteArea({ noteEditorSessionCache }: PapelizNoteAreaProps
 
       {activeLoadedVaultNote.noteLoadState === 'loading' && (
         <p className="mx-auto text-papeliz-ink-subtle" style={{ maxWidth: 'var(--papeliz-note-column-width)' }}>
-          Opening the note…
+          Opening the {openedThingWord}…
         </p>
       )}
 
       {activeLoadedVaultNote.noteLoadState === 'load-failed' && (
         <div role="alert" className="mx-auto max-w-[720px] rounded-2xl bg-papeliz-diff-removed px-5 py-4 text-papeliz-diff-removed-ink">
-          <p className="font-semibold">This note couldn’t be opened.</p>
+          <p className="font-semibold">This {openedThingWord} couldn’t be opened.</p>
           <p className="mt-1 text-sm">{activeLoadedVaultNote.noteLoadErrorMessage}</p>
           <div className="mt-3 flex flex-wrap gap-2">
             {isFailedNoteStillListed && (
@@ -395,7 +409,22 @@ export function PapelizNoteArea({ noteEditorSessionCache }: PapelizNoteAreaProps
         </div>
       )}
 
+      {activeLoadedVaultNote.noteLoadState === 'loaded' && isActiveVaultTabTextFile && (
+        <div className="papeliz-note-view-enter mx-auto" style={{ maxWidth: noteColumnMaxWidth }}>
+          <PapelizVaultTextFileEditor
+            key={activeLoadedVaultNote.loadedNoteSessionId}
+            loadedNoteSessionId={activeLoadedVaultNote.loadedNoteSessionId}
+            vaultTextFileText={activeLoadedVaultNote.draftVaultNoteText}
+            vaultTextFileLanguage={isVaultJsonFileName(getVaultEntryName(activeVaultNoteRelativePath)) ? 'json' : 'plain-text'}
+            editorStatesByLoadedNoteSessionId={noteEditorSessionCache.editorStatesByLoadedNoteSessionId}
+            isVaultTextFileEditingLocked={isNoteEditingLocked}
+            onVaultTextFileTextChange={updateVaultNoteDraftText}
+          />
+        </div>
+      )}
+
       {activeLoadedVaultNote.noteLoadState === 'loaded' &&
+        !isActiveVaultTabTextFile &&
         (noteViewMode === 'md-view' && isNoteEditingLocked ? (
           <div className="papeliz-note-view-enter">
             <PapelizMdViewRenderedPage

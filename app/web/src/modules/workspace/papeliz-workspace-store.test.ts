@@ -6,7 +6,7 @@ import { PapelizFolderOnDiskVaultAdapter } from '../vault/papeliz-folder-on-disk
 import { PapelizInMemoryVaultAdapter, type PapelizInMemoryVaultNote } from '../vault/papeliz-in-memory-vault-adapter'
 import type { PapelizRememberedNoteTabs } from '../vault/papeliz-remembered-note-tabs'
 import type { PapelizVaultAdapter } from '../vault/papeliz-vault-adapter'
-import { selectActiveVaultNoteLockingEntry, usePapelizWorkspaceStore } from './papeliz-workspace-store'
+import { selectActiveVaultNoteLockingEntry, selectIsVaultTextFileTabInFront, selectShownNoteViewMode, usePapelizWorkspaceStore } from './papeliz-workspace-store'
 
 // Each vault's remembered tabs, kept in memory for these tests in place of the browser database.
 const rememberedTestNoteTabsByVaultId = vi.hoisted(() => new Map<string, PapelizRememberedNoteTabs>())
@@ -635,5 +635,75 @@ describe('what Papeliz Sync hears from the workspace', () => {
     await usePapelizWorkspaceStore.getState().renameVaultEntry('Inbox.md', 'Outbox')
     await usePapelizWorkspaceStore.getState().writeVaultNoteTextFromAssistant('Outbox.md', 'written')
     expect(await vaultAdapter.readVaultNoteText('Outbox.md')).toBe('written')
+  })
+})
+
+describe('text files', () => {
+  it('opens a text file in a tab and saves it a moment after typing stops, as a note', async () => {
+    const vaultAdapter = await openTestVault([
+      { vaultNoteRelativePath: 'Inbox.md', vaultNoteText: '# Inbox' },
+      { vaultNoteRelativePath: 'Agent/settings.json', vaultNoteText: '{}' },
+    ])
+    expect(usePapelizWorkspaceStore.getState().vaultTreeEntries).toContainEqual({ vaultEntryRelativePath: 'Agent/settings.json', vaultEntryKind: 'text-file' })
+    await usePapelizWorkspaceStore.getState().openVaultNote('Agent/settings.json')
+    expect(usePapelizWorkspaceStore.getState().openNoteTabRelativePaths).toEqual(['Agent/settings.json'])
+    typeIntoVaultNote('Agent/settings.json', '{"hooks": {}}')
+    await vi.advanceTimersByTimeAsync(800)
+    await waitForQueuedVaultOperations()
+    expect(getNoteSaveState('Agent/settings.json')).toBe('saved')
+    expect(await vaultAdapter.readVaultNoteText('Agent/settings.json')).toBe('{"hooks": {}}')
+  })
+
+  it('shows a text file in MD Code only, and gives notes back the view picked for them', async () => {
+    await openTestVault([
+      { vaultNoteRelativePath: 'Inbox.md', vaultNoteText: '# Inbox' },
+      { vaultNoteRelativePath: 'settings.json', vaultNoteText: '{}' },
+    ])
+    await usePapelizWorkspaceStore.getState().openVaultNote('Inbox.md')
+    usePapelizWorkspaceStore.getState().setNoteViewMode('md-view')
+    await usePapelizWorkspaceStore.getState().openVaultNote('settings.json')
+    expect(selectIsVaultTextFileTabInFront(usePapelizWorkspaceStore.getState())).toBe(true)
+    expect(selectShownNoteViewMode(usePapelizWorkspaceStore.getState())).toBe('md-code')
+    // The switch's shortcut does nothing on a text file.
+    usePapelizWorkspaceStore.getState().toggleNoteViewMode()
+    expect(usePapelizWorkspaceStore.getState().noteViewMode).toBe('md-view')
+    await usePapelizWorkspaceStore.getState().openVaultNote('Inbox.md')
+    expect(selectShownNoteViewMode(usePapelizWorkspaceStore.getState())).toBe('md-view')
+  })
+
+  it('duplicates a text file and restores it from the trash with its extension kept last', async () => {
+    const vaultAdapter = await openTestVault([{ vaultNoteRelativePath: 'settings.json', vaultNoteText: '{"a": 1}' }])
+    await usePapelizWorkspaceStore.getState().duplicateVaultEntry('settings.json')
+    expect(await vaultAdapter.readVaultNoteText('settings copy.json')).toBe('{"a": 1}')
+    expect(usePapelizWorkspaceStore.getState().workspaceNotice?.workspaceNoticeMessage).toBe('Duplicated “settings.json”.')
+    await usePapelizWorkspaceStore.getState().moveVaultEntryToTrash('settings.json')
+    await vaultAdapter.createVaultNote('settings.json', '{"a": 2}')
+    await usePapelizWorkspaceStore.getState().refreshVaultTree()
+    expect(await usePapelizWorkspaceStore.getState().restoreVaultEntryFromTrash('.trash/settings.json', 'text-file')).toBe('settings 2.json')
+    expect(await vaultAdapter.readVaultNoteText('settings 2.json')).toBe('{"a": 1}')
+    expect(usePapelizWorkspaceStore.getState().workspaceNotice?.workspaceNoticeMessage).toBe('Restored “settings 2.json” to the top.')
+  })
+
+  it('names a text file as a file when its name is taken', async () => {
+    await openTestVault([
+      { vaultNoteRelativePath: 'notes.txt', vaultNoteText: 'one' },
+      { vaultNoteRelativePath: 'todo.txt', vaultNoteText: 'two' },
+    ])
+    expect(await usePapelizWorkspaceStore.getState().renameVaultEntry('notes.txt', 'todo.txt')).toEqual({
+      vaultEntryRenameOutcome: 'refused',
+      vaultEntryRenameProblem: 'A file named “todo.txt” is already there. Pick another name.',
+    })
+  })
+
+  it('brings a text file’s tab back when the vault opens again', async () => {
+    rememberTestNoteTabs('vault-with-a-text-file-tab', ['Inbox.md', '.claude/settings.json', 'LICENSE'], 'LICENSE')
+    const fakeVaultRootHandle = await createPapelizFakeVaultFolder('Agent vault', { 'Inbox.md': '# Inbox', 'LICENSE': 'MIT License', '.claude/settings.json': '{}' })
+    await usePapelizWorkspaceStore.getState().openVaultInWorkspace(
+      { papelizVaultId: 'vault-with-a-text-file-tab', papelizVaultDisplayName: 'Agent vault', papelizVaultAdapter: new PapelizFolderOnDiskVaultAdapter(fakeVaultRootHandle.asFileSystemDirectoryHandle()) },
+      { firstVaultNoteRelativePathToOpen: null, firstNoteViewMode: 'md-code', expandAllTopLevelFolders: false },
+    )
+    // A hidden file is listed only with Show Hidden, so its tab stays closed.
+    expect(usePapelizWorkspaceStore.getState().openNoteTabRelativePaths).toEqual(['Inbox.md', 'LICENSE'])
+    expect(usePapelizWorkspaceStore.getState().loadedVaultNotesByRelativePath['LICENSE']).toMatchObject({ noteLoadState: 'loaded', draftVaultNoteText: 'MIT License' })
   })
 })
