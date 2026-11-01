@@ -1,0 +1,23 @@
+import { describe, expect, it } from 'vitest'
+import { describePapelizNoteSaveFailure, describePapelizNoteSaveFailureMessage } from './papeliz-note-save-failure-words'
+
+describe('a failed save in plain words', () => {
+  it('says what to do when another program has the file', () => {
+    expect(describePapelizNoteSaveFailure('File In Use')).toEqual({
+      noteSaveFailureShortReason: 'File open elsewhere',
+      noteSaveFailureAdvice: 'Another program has the file open. Close it there, then press Try again.',
+    })
+    expect(describePapelizNoteSaveFailureMessage('Garden plan', 'File In Use')).toBe(
+      'Couldn’t save “Garden plan”. Another program has the file open. Close it there, then press Try again.',
+    )
+  })
+
+  it('never shows a bare code, even for one it does not know', () => {
+    for (const noteSaveErrorCode of ['No Permission', 'File Not Found', 'Disk Full', 'Browser Storage Full', 'Unknown Error', 'Something New', null]) {
+      const { noteSaveFailureShortReason, noteSaveFailureAdvice } = describePapelizNoteSaveFailure(noteSaveErrorCode)
+      expect(noteSaveFailureShortReason).not.toBe(noteSaveErrorCode)
+      expect(noteSaveFailureAdvice).toMatch(/\.$/)
+    }
+    expect(describePapelizNoteSaveFailure('Something New').noteSaveFailureAdvice).toBe('Press Try again. If it keeps failing, copy your changes somewhere safe.')
+  })
+})

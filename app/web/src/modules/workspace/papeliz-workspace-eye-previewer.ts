@@ -140,6 +140,9 @@ class PapelizWorkspaceEyePreviewerVaultAdapter implements PapelizVaultAdapter {
   moveVaultEntryToTrash(vaultEntryRelativePath: string) {
     return this.inMemoryVaultAdapter.moveVaultEntryToTrash(vaultEntryRelativePath)
   }
+  restoreVaultEntryFromTrash(vaultTrashEntryRelativePath: string, toVaultEntryRelativePath: string) {
+    return this.inMemoryVaultAdapter.restoreVaultEntryFromTrash(vaultTrashEntryRelativePath, toVaultEntryRelativePath)
+  }
   readPapelizVaultSettingsFile(papelizVaultSettingsFileName: string) {
     return this.inMemoryVaultAdapter.readPapelizVaultSettingsFile(papelizVaultSettingsFileName)
   }

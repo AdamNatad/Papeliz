@@ -255,9 +255,16 @@ export function PapelizAssistantComposer({ composerPlacement }: PapelizAssistant
             ? 'Steer the answer, or queue a message'
             : isAssistantQuestionOpen
               ? 'Pick an answer above, or write your own'
-              : isNoteContextShown
-                ? 'Ask about this note, or ask for a change'
-                : 'Ask about your notes'
+              : // The prompt follows the mode: only Write changes notes.
+                assistantMode === 'write'
+                ? isNoteContextShown
+                  ? 'Ask for a change to this note'
+                  : 'Ask for a change'
+                : assistantMode === 'plan'
+                  ? 'Describe what to plan'
+                  : isNoteContextShown
+                    ? 'Ask about this note'
+                    : 'Ask about your notes'
         }
         onChange={(changeEvent) => setComposerDraftText(changeEvent.target.value)}
         // A pasted picture or file is added to the message.

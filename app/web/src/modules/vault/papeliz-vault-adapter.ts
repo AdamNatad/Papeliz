@@ -50,6 +50,9 @@ export interface PapelizVaultAdapter {
   // Moves a note or folder into the vault's `.trash/` folder; never deletes it.
   // Returns where it went, for example ".trash/Inbox.md".
   moveVaultEntryToTrash(vaultEntryRelativePath: string): Promise<string>
+  // Moves a note or folder out of `.trash/` (Restore) to a path outside hidden folders. That path's
+  // folder must be there already, and its name free.
+  restoreVaultEntryFromTrash(vaultTrashEntryRelativePath: string, toVaultEntryRelativePath: string): Promise<void>
   // Papeliz's own files for this vault, in its `.papeliz/` folder (the file list's order, say), by
   // plain file name. Reading gives null when the file is not there yet; writing makes the folder
   // when needed. Nothing else in a hidden folder is read or written.

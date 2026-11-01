@@ -499,6 +499,24 @@
   right: -3px;
 }
 
+/* Keyboard focus on a search box shows the same 2 px blue ring as every other control, around the
+   whole pill (the file list's, the start page's). A pale ring on white was hard to see. */
+label:has(> input[type='search']:focus-visible) {
+  outline: 2px solid var(--color-papeliz-blue);
+  outline-offset: 1px;
+}
+
+/* A Recent Vaults row: keyboard focus on it rings the whole card, its Hide button included
+   (papeliz-welcome-screen.tsx). */
+.papeliz-recent-vault-row:has(> button:first-child:focus-visible) {
+  outline: 2px solid var(--color-papeliz-blue);
+  outline-offset: 2px;
+}
+
+.papeliz-recent-vault-row > button:first-child:focus-visible {
+  outline: none;
+}
+
 /* The note's zoom in the status bar: - 100% + (papeliz-status-bar.tsx). */
 .papeliz-note-zoom-button {
   display: grid;
@@ -726,6 +744,24 @@
 
 .papeliz-note-view-switch-option:focus-visible {
   outline-color: #ffffff;
+}
+
+/* On touch screens each choice takes taps over 44 px of height, and past the switch's outer ends,
+   without looking bigger. */
+@media (pointer: coarse) {
+  .papeliz-note-view-switch-option::before {
+    content: '';
+    position: absolute;
+    inset: -7px -1px;
+  }
+
+  .papeliz-note-view-switch-option:first-of-type::before {
+    left: -7px;
+  }
+
+  .papeliz-note-view-switch-option:last-of-type::before {
+    right: -7px;
+  }
 }
 
 /* The chosen view is not a switch to press: no hover, no lean, no press state. */
@@ -1499,6 +1535,20 @@
 
 .papeliz-md-view .cm-papeliz-md-view-task-checkbox:active {
   transform: scale(0.9);
+}
+
+/* On touch screens a task box takes taps about 44 px high, mostly toward the line's start, so a tap
+   on the task's words still places the cursor. It looks the same. */
+@media (pointer: coarse) {
+  .papeliz-md-view .cm-papeliz-md-view-task-checkbox {
+    position: relative;
+  }
+
+  .papeliz-md-view .cm-papeliz-md-view-task-checkbox::before {
+    content: '';
+    position: absolute;
+    inset: -13px -4px -13px -14px;
+  }
 }
 
 .papeliz-md-view .cm-papeliz-md-view-task-checkbox:checked {

@@ -277,7 +277,7 @@ export function PapelizAssistantProviderSettingsDialog({ onProviderSettingsDialo
             <h2 id={`${providerFieldIdPrefix}-title`} className="text-lg font-semibold">
               AI Assistant provider
             </h2>
-            <p className="text-sm text-papeliz-ink-muted">Bring your own key. Papeliz has no server; the assistant talks straight to the provider you pick.</p>
+            <p className="text-sm text-papeliz-ink-muted">Bring your own key. The assistant talks straight from this browser to the provider you pick, with your key.</p>
           </div>
           <PapelizIconButton iconButtonLabel="Close" iconButtonSize="small" onClick={onProviderSettingsDialogClose}>
             <X className="size-4" aria-hidden="true" />

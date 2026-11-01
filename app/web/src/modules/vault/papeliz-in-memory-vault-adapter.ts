@@ -5,6 +5,7 @@ import {
   getVaultEntryParentFolderRelativePath,
   isVaultRelativePathHidden,
   isVaultRelativePathInsideFolder,
+  isVaultRelativePathInTrash,
   isVaultRelativePathWritableByPapeliz,
   joinVaultRelativePath,
   papelizVaultRootFolderRelativePath,
@@ -165,6 +166,19 @@ export class PapelizInMemoryVaultAdapter implements PapelizVaultAdapter {
     this.vaultFolderRelativePaths.add(papelizVaultTrashFolderName)
     this.moveVaultEntry(vaultEntryRelativePath, trashVaultEntryRelativePath)
     return trashVaultEntryRelativePath
+  }
+
+  async restoreVaultEntryFromTrash(vaultTrashEntryRelativePath: string, toVaultEntryRelativePath: string): Promise<void> {
+    if (!isVaultRelativePathInTrash(vaultTrashEntryRelativePath) || splitVaultRelativePath(vaultTrashEntryRelativePath).length < 2) {
+      throw new PapelizVaultOperationError('Not In Trash')
+    }
+    this.assertWritableByPapeliz(toVaultEntryRelativePath)
+    const toVaultParentFolderRelativePath = getVaultEntryParentFolderRelativePath(toVaultEntryRelativePath)
+    if (toVaultParentFolderRelativePath !== papelizVaultRootFolderRelativePath && !this.vaultFolderRelativePaths.has(toVaultParentFolderRelativePath)) {
+      throw new PapelizVaultOperationError('Not In Vault')
+    }
+    this.assertNameIsFree(toVaultEntryRelativePath)
+    this.moveVaultEntry(vaultTrashEntryRelativePath, toVaultEntryRelativePath)
   }
 
   private moveVaultEntry(fromVaultEntryRelativePath: string, toVaultEntryRelativePath: string): void {

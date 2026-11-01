@@ -46,6 +46,14 @@ import {
 } from './papeliz-vault-entry-order'
 import { usePapelizWorkspacePanelWidthsStore } from './papeliz-workspace-panel-widths-store'
 import {
+  findVaultTrashEntryRestorePath,
+  formatPapelizTrashOriginsFile,
+  getTopVaultTrashEntryRelativePath,
+  papelizTrashOriginsFileName,
+  parsePapelizTrashOriginsFile,
+  type PapelizVaultTrashOrigins,
+} from './papeliz-vault-trash-origins'
+import {
   carryVaultEntryLocksThroughMove,
   findLockingVaultEntry,
   findVaultNoteEditingLock,
@@ -162,6 +170,10 @@ export type PapelizVaultEntryRenameResult =
   | { vaultEntryRenameOutcome: 'renamed' | 'unchanged'; renamedVaultEntryRelativePath: string }
   | { vaultEntryRenameOutcome: 'refused'; vaultEntryRenameProblem: string }
 
+export type PapelizNewVaultFolderNamingResult =
+  | { newVaultFolderNamingOutcome: 'created'; newVaultFolderRelativePath: string }
+  | { newVaultFolderNamingOutcome: 'refused'; newVaultFolderNameProblem: string }
+
 interface PapelizWorkspaceState {
   openVault: PapelizOpenVault | null
   vaultTreeEntries: PapelizVaultTreeEntry[]
@@ -183,10 +195,16 @@ interface PapelizWorkspaceState {
   areHiddenVaultEntriesShown: boolean
   expandedVaultFolderRelativePaths: Record<string, true>
   vaultEntryBeingRenamedRelativePath: string | null
+  // New folder: the folder ('' is the top of the vault) where a new folder's name is being typed.
+  // Nothing is made until the name is confirmed, so Escape leaves no folder behind.
+  newVaultFolderParentRelativePath: string | null
   isExplorerPanelOpen: boolean
   isAssistantPanelOpen: boolean
   // Which of the two side panels opened last: it stays when the window gets too narrow for both.
   lastOpenedWorkspaceSidePanel: PapelizWorkspaceSidePanel
+  // The docked file list closed only to make room for the Assistant: it opens again when the
+  // Assistant closes. Closing or opening the file list yourself clears it.
+  isExplorerPanelClosedForAssistant: boolean
   isFocusModeOn: boolean
   // The "Close vault?" question is open. Every button that leaves the vault asks it first.
   isVaultCloseConfirmationShown: boolean
@@ -209,9 +227,16 @@ interface PapelizWorkspaceState {
   saveVaultNoteNow: (vaultNoteRelativePath: string) => Promise<void>
   saveAllVaultNotesNow: () => Promise<void>
   createVaultNoteInFolder: (vaultFolderRelativePath: string) => Promise<void>
+  // Opens a name box for a new folder in the file list (see newVaultFolderParentRelativePath).
   createVaultFolderInFolder: (vaultFolderRelativePath: string) => Promise<void>
+  // Makes the new folder under the typed name, or says what is wrong with the name.
+  finishNamingNewVaultFolder: (typedVaultFolderName: string) => Promise<PapelizNewVaultFolderNamingResult>
+  cancelNamingNewVaultFolder: () => void
   renameVaultEntry: (vaultEntryRelativePath: string, typedVaultEntryName: string) => Promise<PapelizVaultEntryRenameResult>
   moveVaultEntryToTrash: (vaultEntryRelativePath: string) => Promise<void>
+  // Restore: moves a note or folder from `.trash/` back where it was (papeliz-vault-trash-origins.ts),
+  // under a free name, making its folders again when they are gone. Gives back where it went.
+  restoreVaultEntryFromTrash: (vaultTrashEntryRelativePath: string, vaultTrashEntryKind: PapelizVaultEntryKind) => Promise<string | null>
   // Moves a note or folder into another folder ('' is the top of the vault), as a drag in the file
   // list does. Refused, with a notice, when the name is taken there or a folder would go into itself.
   moveVaultEntryIntoFolder: (vaultEntryRelativePath: string, targetVaultFolderRelativePath: string) => Promise<void>
@@ -387,6 +412,7 @@ function createInitialWorkspaceLayout() {
     isExplorerPanelOpen: matchesMediaQuery(papelizWideScreenMediaQuery),
     isAssistantPanelOpen: matchesMediaQuery(papelizAssistantOpenAtStartMediaQuery) && doWorkspaceSidePanelsFitBesideNote(),
     lastOpenedWorkspaceSidePanel: 'explorer' as PapelizWorkspaceSidePanel,
+    isExplorerPanelClosedForAssistant: false,
     isFocusModeOn: false,
     isVaultCloseConfirmationShown: false,
     vaultEntryOrder: {},
@@ -926,13 +952,37 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
     })
   }
 
+  // The trash's record of where each entry came from (papeliz-vault-trash-origins.ts), read and
+  // changed one update after another so two quick changes never drop each other's entries.
+  let vaultTrashOriginsUpdates: Promise<unknown> = Promise.resolve()
+  const updateVaultTrashOrigins = (
+    openVault: PapelizOpenVault,
+    changeVaultTrashOrigins: (vaultTrashOrigins: PapelizVaultTrashOrigins) => PapelizVaultTrashOrigins,
+  ): Promise<PapelizVaultTrashOrigins> => {
+    const vaultTrashOriginsUpdate = vaultTrashOriginsUpdates.then(async () => {
+      const savedTrashOrigins = parsePapelizTrashOriginsFile(
+        await openVault.papelizVaultAdapter.readPapelizVaultSettingsFile(papelizTrashOriginsFileName).catch(() => null),
+      )
+      const changedTrashOrigins = changeVaultTrashOrigins(savedTrashOrigins)
+      if (changedTrashOrigins !== savedTrashOrigins) {
+        writePapelizVaultSettingsFileInOrder(papelizTrashOriginsFileName, formatPapelizTrashOriginsFile(changedTrashOrigins), 'where the trash’s notes came from')
+        await papelizVaultSettingsFileWrites
+      }
+      return savedTrashOrigins
+    })
+    vaultTrashOriginsUpdates = vaultTrashOriginsUpdate.catch(() => undefined)
+    return vaultTrashOriginsUpdate
+  }
+
   // Moves a note or folder into `.trash` after saving what is open inside it, and tidies up after it:
-  // its tabs close, a copy waiting to be pasted is forgotten, and its locks go. Throws on failure.
-  const trashVaultEntryAndTidyUp = async (openVault: PapelizOpenVault, vaultEntryRelativePath: string) => {
+  // its tabs close, a copy waiting to be pasted is forgotten, and its locks go. The trash notes down
+  // where it was, for Restore. Gives back where it went; throws on failure.
+  const trashVaultEntryAndTidyUp = async (openVault: PapelizOpenVault, vaultEntryRelativePath: string): Promise<string> => {
     await saveVaultNotesInside(vaultEntryRelativePath)
-    await runVaultOperationInOrder(async () => {
+    return runVaultOperationInOrder(async () => {
       const vaultTrashRelativePath = await openVault.papelizVaultAdapter.moveVaultEntryToTrash(vaultEntryRelativePath)
       reportPapelizSyncVaultEntryMovedToTrash(openVault.papelizVaultId, vaultEntryRelativePath, vaultTrashRelativePath)
+      void updateVaultTrashOrigins(openVault, (vaultTrashOrigins) => ({ ...vaultTrashOrigins, [vaultTrashRelativePath]: vaultEntryRelativePath }))
       closeTabsInside(vaultEntryRelativePath)
       const copiedVaultEntryBeforeTrash = getWorkspaceState().copiedVaultEntry
       if (copiedVaultEntryBeforeTrash !== null && isVaultRelativePathInsideFolder(copiedVaultEntryBeforeTrash.vaultEntryRelativePath, vaultEntryRelativePath)) {
@@ -950,6 +1000,7 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
         setWorkspaceState({ vaultEntryLooks: looksAfterTrash })
         saveVaultEntryLooks()
       }
+      return vaultTrashRelativePath
     })
   }
 
@@ -1024,6 +1075,7 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
     copiedVaultEntry: null,
     expandedVaultFolderRelativePaths: {},
     vaultEntryBeingRenamedRelativePath: null,
+    newVaultFolderParentRelativePath: null,
     ...createInitialWorkspaceLayout(),
     workspaceNotice: null,
     assistantProposalPreview: null,
@@ -1041,6 +1093,7 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
         noteViewMode: openVaultOptions.firstNoteViewMode,
         expandedVaultFolderRelativePaths: {},
         vaultEntryBeingRenamedRelativePath: null,
+        newVaultFolderParentRelativePath: null,
         ...createInitialWorkspaceLayout(),
         workspaceNotice: null,
         assistantProposalPreview: null,
@@ -1102,6 +1155,7 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
         activeVaultNoteRelativePath: null,
         loadedVaultNotesByRelativePath: {},
         vaultEntryBeingRenamedRelativePath: null,
+        newVaultFolderParentRelativePath: null,
         workspaceNotice: null,
         assistantProposalPreview: null,
         vaultNoteSaveConflictsByLoadedNoteSessionId: {},
@@ -1162,6 +1216,8 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
           noteLoadState: 'load-failed',
           noteLoadErrorMessage: describePapelizVaultError(vaultReadError),
         }))
+        // Gone from the folder: the file list stops showing it, and the note's tab offers Close tab.
+        if (isPapelizVaultEntryMissingError(vaultReadError)) await loadVaultTreeEntriesAfterChange()
       }
     },
 
@@ -1255,23 +1311,38 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
     },
 
     createVaultFolderInFolder: async (vaultFolderRelativePath) => {
+      if (getWorkspaceState().openVault === null) return
+      // The folder it goes in opens, so the name box shows at the top of it.
+      if (vaultFolderRelativePath !== papelizVaultRootFolderRelativePath) expandParentFoldersOf(joinVaultRelativePath(vaultFolderRelativePath, 'New folder'))
+      getWorkspaceState().setExplorerPanelOpen(true)
+      setWorkspaceState({ vaultEntryBeingRenamedRelativePath: null, newVaultFolderParentRelativePath: vaultFolderRelativePath })
+    },
+
+    finishNamingNewVaultFolder: async (typedVaultFolderName) => {
       const openVault = getWorkspaceState().openVault
-      if (openVault === null) return
-      const newVaultFolderName = pickFreeVaultEntryName('New folder', '', (candidateName) =>
-        isVaultEntryNameTakenInFolder(getWorkspaceState().vaultTreeEntries, vaultFolderRelativePath, candidateName),
-      )
-      const newVaultFolderRelativePath = joinVaultRelativePath(vaultFolderRelativePath, newVaultFolderName)
+      const newVaultFolderParentRelativePath = getWorkspaceState().newVaultFolderParentRelativePath
+      if (openVault === null || newVaultFolderParentRelativePath === null) {
+        return { newVaultFolderNamingOutcome: 'refused', newVaultFolderNameProblem: 'No Vault Open' }
+      }
+      const vaultFolderNameProblem = describeVaultEntryNameProblem(typedVaultFolderName)
+      if (vaultFolderNameProblem !== null) return { newVaultFolderNamingOutcome: 'refused', newVaultFolderNameProblem: vaultFolderNameProblem }
+      const newVaultFolderName = typedVaultFolderName.trim()
+      if (isVaultEntryNameTakenInFolder(getWorkspaceState().vaultTreeEntries, newVaultFolderParentRelativePath, newVaultFolderName)) {
+        return { newVaultFolderNamingOutcome: 'refused', newVaultFolderNameProblem: 'Name Taken' }
+      }
+      const newVaultFolderRelativePath = joinVaultRelativePath(newVaultFolderParentRelativePath, newVaultFolderName)
       try {
         await runVaultOperationInOrder(() => openVault.papelizVaultAdapter.createVaultFolder(newVaultFolderRelativePath))
       } catch (vaultCreateError) {
-        showWorkspaceNotice('error', `Couldn’t create the folder (${describePapelizVaultError(vaultCreateError)})`)
-        return
+        return { newVaultFolderNamingOutcome: 'refused', newVaultFolderNameProblem: describePapelizVaultError(vaultCreateError) }
       }
+      setWorkspaceState({ newVaultFolderParentRelativePath: null })
       await loadVaultTreeEntriesAfterChange()
       expandParentFoldersOf(newVaultFolderRelativePath)
-      getWorkspaceState().setExplorerPanelOpen(true)
-      setWorkspaceState({ vaultEntryBeingRenamedRelativePath: newVaultFolderRelativePath })
+      return { newVaultFolderNamingOutcome: 'created', newVaultFolderRelativePath }
     },
+
+    cancelNamingNewVaultFolder: () => setWorkspaceState({ newVaultFolderParentRelativePath: null }),
 
     renameVaultEntry: async (vaultEntryRelativePath, typedVaultEntryName) => {
       const openVault = getWorkspaceState().openVault
@@ -1351,15 +1422,82 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
     moveVaultEntryToTrash: async (vaultEntryRelativePath) => {
       const openVault = getWorkspaceState().openVault
       if (openVault === null) return
+      const trashedVaultEntryKind: PapelizVaultEntryKind =
+        getWorkspaceState().vaultTreeEntries.find((vaultTreeEntry) => vaultTreeEntry.vaultEntryRelativePath === vaultEntryRelativePath)?.vaultEntryKind ??
+        (isVaultNoteFileName(getVaultEntryName(vaultEntryRelativePath)) ? 'note' : 'folder')
+      // Undo opens the note again when it was open.
+      const wasTrashedNoteOpenInTab = getWorkspaceState().openNoteTabRelativePaths.includes(vaultEntryRelativePath)
+      let vaultTrashRelativePath: string
       try {
-        await trashVaultEntryAndTidyUp(openVault, vaultEntryRelativePath)
+        vaultTrashRelativePath = await trashVaultEntryAndTidyUp(openVault, vaultEntryRelativePath)
       } catch (vaultTrashError) {
         showWorkspaceNotice('error', `Couldn’t move “${getVaultNoteTitle(vaultEntryRelativePath)}” to the trash (${describePapelizVaultError(vaultTrashError)})`)
         await loadVaultTreeEntriesAfterChange()
         return
       }
       await loadVaultTreeEntriesAfterChange()
-      showWorkspaceNotice('info', `Moved “${getVaultNoteTitle(vaultEntryRelativePath)}” to the trash.`)
+      showWorkspaceNotice('info', `Moved “${getVaultNoteTitle(vaultEntryRelativePath)}” to the trash.`, {
+        workspaceNoticeActionLabel: 'Undo',
+        onWorkspaceNoticeAction: () => {
+          if (getWorkspaceState().openVault !== openVault) return
+          void getWorkspaceState()
+            .restoreVaultEntryFromTrash(vaultTrashRelativePath, trashedVaultEntryKind)
+            .then((restoredVaultEntryRelativePath) => {
+              if (restoredVaultEntryRelativePath !== null && wasTrashedNoteOpenInTab && getWorkspaceState().openVault === openVault) {
+                void getWorkspaceState().openVaultNote(restoredVaultEntryRelativePath)
+              }
+            })
+        },
+      })
+    },
+
+    restoreVaultEntryFromTrash: async (vaultTrashEntryRelativePath, vaultTrashEntryKind) => {
+      const openVault = getWorkspaceState().openVault
+      if (openVault === null) return null
+      const vaultTrashEntryName = getVaultEntryName(vaultTrashEntryRelativePath)
+      const vaultTrashEntryTitle = vaultTrashEntryKind === 'note' ? getVaultNoteTitle(vaultTrashEntryRelativePath) : vaultTrashEntryName
+      let restoredVaultEntryRelativePath: string
+      try {
+        const vaultTrashOrigins = await updateVaultTrashOrigins(openVault, (savedTrashOrigins) => savedTrashOrigins)
+        const preferredRestorePath = findVaultTrashEntryRestorePath(vaultTrashEntryRelativePath, vaultTrashOrigins)
+        const restoreFolderRelativePath = getVaultEntryParentFolderRelativePath(preferredRestorePath)
+        const preferredRestoreName = getVaultEntryName(preferredRestorePath)
+        const isRestoredNote = vaultTrashEntryKind === 'note' && isVaultNoteFileName(preferredRestoreName)
+        // Something else took its name meanwhile: "Inbox 2.md".
+        const restoredVaultEntryName = pickFreeVaultEntryName(
+          isRestoredNote ? preferredRestoreName.slice(0, -papelizVaultNoteFileExtension.length) : preferredRestoreName,
+          isRestoredNote ? preferredRestoreName.slice(-papelizVaultNoteFileExtension.length) : '',
+          (candidateName) => isVaultEntryNameTakenInFolder(getWorkspaceState().vaultTreeEntries, restoreFolderRelativePath, candidateName),
+        )
+        restoredVaultEntryRelativePath = joinVaultRelativePath(restoreFolderRelativePath, restoredVaultEntryName)
+        await runVaultOperationInOrder(async () => {
+          await createMissingVaultFolders(openVault, restoreFolderRelativePath)
+          await openVault.papelizVaultAdapter.restoreVaultEntryFromTrash(vaultTrashEntryRelativePath, restoredVaultEntryRelativePath)
+          // Sync never carries `.trash/`, so what comes back is new to it.
+          if (vaultTrashEntryKind === 'note') reportPapelizSyncVaultFileSaved(openVault.papelizVaultId, restoredVaultEntryRelativePath)
+          else reportPapelizSyncVaultFolderCopied(openVault.papelizVaultId, openVault.papelizVaultAdapter, restoredVaultEntryRelativePath)
+        })
+      } catch (vaultRestoreError) {
+        showWorkspaceNotice('error', `Couldn’t restore “${vaultTrashEntryTitle}” (${describePapelizVaultError(vaultRestoreError)})`)
+        await loadVaultTreeEntriesAfterChange()
+        return null
+      }
+      if (getTopVaultTrashEntryRelativePath(vaultTrashEntryRelativePath) === vaultTrashEntryRelativePath) {
+        void updateVaultTrashOrigins(openVault, (savedTrashOrigins) =>
+          Object.fromEntries(Object.entries(savedTrashOrigins).filter(([savedVaultTrashEntryRelativePath]) => savedVaultTrashEntryRelativePath !== vaultTrashEntryRelativePath)),
+        )
+      }
+      await loadVaultTreeEntriesAfterChange()
+      expandParentFoldersOf(restoredVaultEntryRelativePath)
+      const restoredIntoFolderRelativePath = getVaultEntryParentFolderRelativePath(restoredVaultEntryRelativePath)
+      const restoredVaultEntryTitle = describeVaultEntryForNotice(restoredVaultEntryRelativePath)
+      showWorkspaceNotice(
+        'info',
+        restoredIntoFolderRelativePath === papelizVaultRootFolderRelativePath
+          ? `Restored “${restoredVaultEntryTitle}” to the top.`
+          : `Restored “${restoredVaultEntryTitle}” into “${getVaultEntryName(restoredIntoFolderRelativePath)}”.`,
+      )
+      return restoredVaultEntryRelativePath
     },
 
     writeVaultNoteTextFromAssistant: async (vaultNoteRelativePath, newVaultNoteText, assistantVaultNoteWritePurpose = 'accepted-change') => {
@@ -1514,24 +1652,37 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
               isExplorerPanelOpen,
               isAssistantPanelOpen: workspaceState.isAssistantPanelOpen && doWorkspaceSidePanelsFitBesideNote(),
               lastOpenedWorkspaceSidePanel: 'explorer',
+              isExplorerPanelClosedForAssistant: false,
             }
-          : { isExplorerPanelOpen },
+          : { isExplorerPanelOpen, isExplorerPanelClosedForAssistant: false },
       ),
     setAssistantPanelOpen: (isAssistantPanelOpen) =>
-      setWorkspaceState((workspaceState) =>
-        isAssistantPanelOpen
-          ? {
-              isAssistantPanelOpen,
-              isExplorerPanelOpen: workspaceState.isExplorerPanelOpen && doWorkspaceSidePanelsFitBesideNote(),
-              lastOpenedWorkspaceSidePanel: 'assistant',
-            }
-          : { isAssistantPanelOpen },
-      ),
+      setWorkspaceState((workspaceState) => {
+        if (!isAssistantPanelOpen) {
+          return {
+            isAssistantPanelOpen,
+            isExplorerPanelOpen: workspaceState.isExplorerPanelOpen || (workspaceState.isExplorerPanelClosedForAssistant && isWideScreenForPapelizWorkspace()),
+            isExplorerPanelClosedForAssistant: false,
+          }
+        }
+        const doesExplorerPanelStayOpen = workspaceState.isExplorerPanelOpen && doWorkspaceSidePanelsFitBesideNote()
+        return {
+          isAssistantPanelOpen,
+          isExplorerPanelOpen: doesExplorerPanelStayOpen,
+          lastOpenedWorkspaceSidePanel: 'assistant',
+          isExplorerPanelClosedForAssistant:
+            workspaceState.isExplorerPanelClosedForAssistant || (workspaceState.isExplorerPanelOpen && !doesExplorerPanelStayOpen && isWideScreenForPapelizWorkspace()),
+        }
+      }),
     fitWorkspaceSidePanelsToWindow: (keptWorkspaceSidePanel) => {
       const workspaceState = getWorkspaceState()
       if (!workspaceState.isExplorerPanelOpen || !workspaceState.isAssistantPanelOpen || doWorkspaceSidePanelsFitBesideNote()) return
       const stayingWorkspaceSidePanel = keptWorkspaceSidePanel ?? workspaceState.lastOpenedWorkspaceSidePanel
-      setWorkspaceState(stayingWorkspaceSidePanel === 'assistant' ? { isExplorerPanelOpen: false } : { isAssistantPanelOpen: false })
+      setWorkspaceState(
+        stayingWorkspaceSidePanel === 'assistant'
+          ? { isExplorerPanelOpen: false, isExplorerPanelClosedForAssistant: isWideScreenForPapelizWorkspace() }
+          : { isAssistantPanelOpen: false },
+      )
     },
     setFocusModeOn: (isFocusModeOn) => setWorkspaceState({ isFocusModeOn }),
     setVaultCloseConfirmationShown: (isVaultCloseConfirmationShown) => setWorkspaceState({ isVaultCloseConfirmationShown }),

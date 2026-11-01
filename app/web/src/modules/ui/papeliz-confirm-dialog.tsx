@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { PapelizPillButton } from './papeliz-buttons'
 
 interface PapelizConfirmDialogProps {
@@ -28,11 +28,15 @@ export function PapelizConfirmDialog({
   onCancel,
 }: PapelizConfirmDialogProps) {
   const confirmDialogRef = useRef<HTMLDialogElement>(null)
+  // What focus goes back to when the dialog closes: read once, before the dialog takes focus (an
+  // effect that runs again, as React's development checks do, would find the dialog's own button). A
+  // dialog opened from a menu finds what the menu gave focus back to before its item ran
+  // (papeliz-popover-menu.tsx).
+  const [focusedBeforeDialog] = useState(() => (document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : null))
 
   useEffect(() => {
     const confirmDialogElement = confirmDialogRef.current
     if (confirmDialogElement === null) return
-    const focusedBeforeDialog = document.activeElement instanceof HTMLElement ? document.activeElement : null
     confirmDialogElement.showModal()
     return () => {
       confirmDialogElement.close()
@@ -40,7 +44,7 @@ export function PapelizConfirmDialog({
         focusedBeforeDialog.focus()
       }
     }
-  }, [])
+  }, [focusedBeforeDialog])
 
   return (
     <dialog

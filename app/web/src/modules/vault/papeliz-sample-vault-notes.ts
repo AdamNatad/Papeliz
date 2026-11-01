@@ -19,13 +19,13 @@ Welcome to the sample vault. Every note here is a plain Markdown file, kept in m
 ## Try these
 
 - [ ] Click into this line and type: **MD View** shows the note rendered and you can write in it.
-- [ ] Switch to **MD Code** with the switch at the top (or \`Ctrl+E\`) to see the raw Markdown.
-- [ ] Press the lock at the top right to read without changing anything.
+- [ ] Switch to **MD Code** at the top (the \`<>\` button) to see the raw Markdown. On a keyboard, \`Ctrl+E\` switches too.
+- [ ] Press the lock on this note's tab to read without changing anything.
 - [ ] Follow a link: [[Links between notes]].
-- [ ] Rename this note from the file list on the left, or make one of your own with **New**.
+- [ ] Rename this note from the file list, or make a new one with the **+** next to the tabs.
 
 > [!tip] Your own folder
-> When you're ready, go back to the start page and open a folder of \`.md\` files. Papeliz edits them right where they are.
+> When you're ready, choose **Close Vault** in the gear menu at the top right to go back to the start page, then open a folder of \`.md\` files. Papeliz edits them right where they are.
 
 Read on: [[Writing in MD View]], [[Writing in MD Code]], [[Callouts]] and [[Your files stay yours]].
 `,

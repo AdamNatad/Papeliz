@@ -13,6 +13,7 @@ import { createPapelizNoteEditorSessionCache } from '../note-editor/papeliz-note
 import { PapelizConfirmDialog } from '../ui/papeliz-confirm-dialog'
 import { usePapelizMediaQuery } from '../ui/papeliz-media-query'
 import { PapelizPanelResizeHandle } from '../ui/papeliz-panel-resize-handle'
+import { getVaultNoteTitle } from '../vault/papeliz-vault-relative-paths'
 import { PapelizBrowserVaultChangesSinceBackupLine, useDownloadOpenBrowserVaultBackupWithNotice } from './papeliz-browser-vault-backup-status'
 import { usePapelizBrowserVaultBackupReminderStore } from './papeliz-browser-vault-backup-reminder-store'
 import { PapelizFileExplorer } from './papeliz-file-explorer'
@@ -20,6 +21,7 @@ import { PapelizFileListThisNoteSection } from './papeliz-file-list-this-note-se
 import { usePapelizFileListThisNoteStore } from './papeliz-file-list-this-note-store'
 import { isPapelizKeyBindingPressed, usePapelizKeyBindingsStore } from './papeliz-key-bindings-store'
 import { PapelizNoteArea } from './papeliz-note-area'
+import { describePapelizNoteSaveFailureMessage } from './papeliz-note-save-failure-words'
 import { PapelizNoteTabsBar } from './papeliz-note-tabs-bar'
 import { PapelizSlidingSidePanel } from './papeliz-sliding-side-panel'
 import { PapelizStatusBar } from './papeliz-status-bar'
@@ -131,6 +133,25 @@ export function PapelizWorkspace() {
     }
     window.addEventListener('keydown', handleWorkspaceShortcut)
     return () => window.removeEventListener('keydown', handleWorkspaceShortcut)
+  }, [])
+
+  useEffect(() => {
+    // A note whose save fails says so once, in plain words with what to do and Try again, until it
+    // saves again; its tab keeps a red dot (papeliz-note-tabs-bar.tsx) and the status bar its reason.
+    const noteSaveErrorCodesShownByRelativePath = new Map<string, string | null>()
+    return usePapelizWorkspaceStore.subscribe((workspaceState) => {
+      for (const [vaultNoteRelativePath, loadedVaultNote] of Object.entries(workspaceState.loadedVaultNotesByRelativePath)) {
+        if (loadedVaultNote.noteSaveState === 'saved') noteSaveErrorCodesShownByRelativePath.delete(vaultNoteRelativePath)
+        if (loadedVaultNote.noteSaveState !== 'save-failed') continue
+        const noteSaveErrorCode = loadedVaultNote.noteSaveErrorMessage
+        if (noteSaveErrorCodesShownByRelativePath.has(vaultNoteRelativePath) && noteSaveErrorCodesShownByRelativePath.get(vaultNoteRelativePath) === noteSaveErrorCode) continue
+        noteSaveErrorCodesShownByRelativePath.set(vaultNoteRelativePath, noteSaveErrorCode)
+        workspaceState.showWorkspaceNotice('error', describePapelizNoteSaveFailureMessage(getVaultNoteTitle(vaultNoteRelativePath), noteSaveErrorCode), {
+          workspaceNoticeActionLabel: 'Try again',
+          onWorkspaceNoticeAction: () => void usePapelizWorkspaceStore.getState().saveVaultNoteNow(vaultNoteRelativePath),
+        })
+      }
+    })
   }, [])
 
   useEffect(() => {

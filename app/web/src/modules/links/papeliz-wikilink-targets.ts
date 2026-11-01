@@ -2,6 +2,7 @@ import {
   getVaultEntryParentFolderRelativePath,
   getVaultNoteTitle,
   isVaultNoteFileName,
+  isVaultRelativePathInTrash,
   joinVaultRelativePath,
   papelizVaultNoteFileExtension,
 } from '../vault/papeliz-vault-relative-paths'
@@ -44,11 +45,13 @@ export type PapelizWikilinkTargetResolver = (wikilinkTargetNoteName: string, fro
 
 // Finds the note a wikilink points to, the way most Markdown vault apps do: an exact path first,
 // then a path next to the linking note, then any note with that name (the nearest, then the
-// shortest path). Names compare without case.
+// shortest path). Names compare without case. A note in the vault's `.trash/` is never a link's
+// target, even while hidden notes are listed.
 export function createPapelizWikilinkTargetResolver(vaultNoteRelativePaths: readonly string[]): PapelizWikilinkTargetResolver {
   const vaultNoteRelativePathsByLowerCasePath = new Map<string, string>()
   const vaultNoteRelativePathsByLowerCaseTitle = new Map<string, string[]>()
   for (const vaultNoteRelativePath of vaultNoteRelativePaths) {
+    if (isVaultRelativePathInTrash(vaultNoteRelativePath)) continue
     vaultNoteRelativePathsByLowerCasePath.set(vaultNoteRelativePath.toLowerCase(), vaultNoteRelativePath)
     const lowerCaseVaultNoteTitle = getVaultNoteTitle(vaultNoteRelativePath).toLowerCase()
     const sameTitleVaultNoteRelativePaths = vaultNoteRelativePathsByLowerCaseTitle.get(lowerCaseVaultNoteTitle) ?? []

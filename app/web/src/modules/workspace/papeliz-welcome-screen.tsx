@@ -1,4 +1,4 @@
-import { AppWindow, BookOpen, CloudCheck, CloudDownload, Code, Download, Eye, EyeOff, FolderOpen, FolderPlus, HardDrive, History, Lock, Pencil, RefreshCw, RotateCcw, Search, Trash2, type LucideIcon } from 'lucide-react'
+import { AppWindow, BookOpen, CloudCheck, CloudDownload, Code, Download, Ellipsis, Eye, EyeOff, FolderOpen, FolderPlus, HardDrive, History, Lock, Pencil, RefreshCw, RotateCcw, Search, Trash2, type LucideIcon } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type Ref } from 'react'
 import { isPapelizSyncEngineInThisBuild } from 'virtual:papeliz-sync-engine-availability'
 import type { PapelizSyncVaultEncryptionKind } from '../sync/papeliz-sync-engine-contract'
@@ -72,6 +72,9 @@ const PapelizSyncSyncedVaultsPagePreviewerButton = import.meta.env.DEV
       })),
     )
   : null
+
+// Papeliz's code, on GitHub: the foot of the blue panel links to it.
+const papelizPublicGitHubRepositoryUrl = 'https://github.com/AdamNatad/Papeliz'
 
 const papelizRelativeTimeFormat = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' })
 // The reload's ring stays at least this long, so a quick reload is still seen to happen.
@@ -291,7 +294,13 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
       : null,
   )
   const [isOpeningVault, setIsOpeningVault] = useState(false)
-  // The recent vault whose right-click menu is open, and where.
+  // The system's folder window is open (Open Vault, or New Vault's Pick Folder): the list says so, in
+  // case the window opened behind this one or on another screen.
+  const [isVaultFolderWindowOpen, setVaultFolderWindowOpen] = useState(false)
+  // The start card's right-hand panel (Recent Vaults, New Vault, Synced Vaults). On a phone it sits under
+  // the blue panel's buttons, so pressing one scrolls it to the top of the screen.
+  const startPagePanelRef = useRef<HTMLElement>(null)
+  // The recent vault whose menu is open (from a right-click or its "…" button), and where.
   const [recentVaultMenu, setRecentVaultMenu] = useState<{
     recentVault: PapelizRecentVault
     recentVaultMenuPosition: PapelizPopoverMenuPosition
@@ -481,6 +490,13 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
   // one of them on this device.
   const recentVaultIds = useMemo(() => new Set(recentVaults.map((recentVault) => recentVault.papelizVaultId)), [recentVaults])
 
+  // On a phone the right-hand panel sits under the blue panel's buttons: the page one of them chose
+  // scrolls up to open at its top.
+  const scrollStartPagePanelIntoViewOnPhone = () => {
+    if (window.matchMedia('(min-width: 768px)').matches) return
+    requestAnimationFrame(() => startPagePanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+  }
+
   // Synced Vaults: only its page in the start card. Nothing of Sync loads or signs in until its
   // Fetch button is pressed.
   const openSyncedVaultsPage = () => {
@@ -490,6 +506,7 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
     }
     setNewVaultFormRequest(null)
     setSyncedVaultsPageShown(true)
+    scrollStartPagePanelIntoViewOnPhone()
   }
 
   const closeSyncedVaultsPage = () => {
@@ -530,6 +547,7 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
       else void openFolderVault(true)
       return
     }
+    scrollStartPagePanelIntoViewOnPhone()
     if (newVaultFormRequest !== null) return
     setNewVaultFormRequest({ suggestedBrowserVaultName: pickFreePapelizBrowserVaultName('Notes', browserVaultRecords) })
   }
@@ -594,8 +612,15 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
   // Shows the folder window and opens the folder picked. Must run from a click.
   const pickAndOpenFolderVault = async (isNewVault: boolean) => {
     setIsOpeningVault(true)
+    setVaultFolderWindowOpen(true)
     try {
-      await finishOpeningVault(await pickAndOpenPapelizVaultFolder(), isNewVault)
+      let pickedVaultFolderOpenResult: PapelizOpenVaultResult
+      try {
+        pickedVaultFolderOpenResult = await pickAndOpenPapelizVaultFolder()
+      } finally {
+        setVaultFolderWindowOpen(false)
+      }
+      await finishOpeningVault(pickedVaultFolderOpenResult, isNewVault)
     } finally {
       setIsOpeningVault(false)
     }
@@ -765,7 +790,10 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                 welcomeActionDescription="Vaults opened before."
                 isWelcomeActionDisabled={false}
                 isWelcomeActionCurrent={isRecentVaultListOnScreen}
-                onWelcomeActionSelect={showRecentVaults}
+                onWelcomeActionSelect={() => {
+                  showRecentVaults()
+                  scrollStartPagePanelIntoViewOnPhone()
+                }}
               />
               <PapelizWelcomeAction
                 WelcomeActionIcon={FolderPlus}
@@ -815,14 +843,23 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                   />
                 </div>
               )}
-              <p className="mt-[9px] flex items-center gap-2 border-t border-white/15 pt-[9px] text-[11px] font-medium text-white/80">
-                <Code className="size-3.5 flex-none" aria-hidden="true" />
-                Open Source (MIT License)
+              <p className="mt-[9px] border-t border-white/15 pt-[9px]">
+                <a
+                  href={papelizPublicGitHubRepositoryUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Papeliz on GitHub"
+                  className="inline-flex items-center gap-2 rounded text-[11px] font-medium text-white/80 underline-offset-2 transition-colors hover:text-white hover:underline focus-visible:outline-white"
+                >
+                  <Code className="size-3.5 flex-none" aria-hidden="true" />
+                  Open Source (MIT License)
+                </a>
               </p>
             </div>
           </section>
 
           <section
+            ref={startPagePanelRef}
             aria-labelledby={
               isSyncedVaultsPageOnScreen ? 'papeliz-synced-vaults-page-heading' : newVaultFormRequest === null ? 'papeliz-welcome-recent-heading' : 'papeliz-new-vault-form-heading'
             }
@@ -938,6 +975,15 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                       <span className="text-[12.5px] font-semibold text-papeliz-ink-muted">Reloading…</span>
                     </div>
                   )}
+                  {isVaultFolderWindowOpen && (
+                    <div role="status" className="papeliz-recent-vaults-reload-overlay px-6 text-center">
+                      <span className="grid size-11 place-items-center rounded-xl bg-papeliz-blue-soft text-papeliz-blue">
+                        <FolderOpen className="size-5" aria-hidden="true" />
+                      </span>
+                      <p className="text-[14px] font-semibold">Choose a folder in the window that opened</p>
+                      <p className="-mt-1.5 max-w-[300px] text-[12.5px] text-papeliz-ink-muted">If you can’t see it, it may be behind this window.</p>
+                    </div>
+                  )}
                   {listedRecentVaults.length === 0 ? (
                     <div className="flex flex-1 flex-col items-center justify-center px-4 py-8 text-center">
                       <span className="grid size-11 place-items-center rounded-xl bg-papeliz-blue-soft text-papeliz-blue">
@@ -946,7 +992,7 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                       <p className="mt-3 text-[14px] font-semibold">{isHiddenVaultListShown ? 'Nothing is hidden' : 'No recent vaults yet'}</p>
                       <p className="mt-1 max-w-[300px] text-[12.5px] text-papeliz-ink-muted">
                         {isHiddenVaultListShown
-                          ? 'Right-click a vault and choose Hide.'
+                          ? 'Use the hide button on a vault’s row, or its … menu.'
                           : isBrowserVaultOn
                             ? `Vaults you make or ${isFolderVaultOn ? 'open' : 'import'} show up here, so you can come back to them in one click.`
                             : (folderAccessOffReasonText ?? 'Folders you open show up here, so you can come back to them in one click.')}
@@ -1042,7 +1088,7 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                                   })
                                 }}
                                 className={joinPapelizClassNames(
-                                  'group flex items-center rounded-xl border bg-papeliz-surface transition-[border-color,background-color,box-shadow] duration-150',
+                                  'papeliz-recent-vault-row group flex items-center rounded-xl border bg-papeliz-surface transition-[border-color,background-color,box-shadow] duration-150',
                                   syncStartScreenDownload === undefined
                                     ? 'border-papeliz-line hover:border-papeliz-blue-line hover:bg-papeliz-blue-soft/40 hover:shadow-papeliz-card'
                                     : isSyncDownloadStopped
@@ -1105,14 +1151,32 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                                   </button>
                                 ) : (
                                   syncStartScreenDownload === undefined && (
-                                    <PapelizIconButton
-                                      iconButtonLabel={`Hide ${recentVault.papelizVaultDisplayName}`}
-                                      iconButtonSize="small"
-                                      className="mr-2.5 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 max-md:opacity-100"
-                                      onClick={() => setRecentVaultHidden(recentVault, true)}
-                                    >
-                                      <EyeOff className="size-[15px]" aria-hidden="true" />
-                                    </PapelizIconButton>
+                                    <>
+                                      <PapelizIconButton
+                                        iconButtonLabel={`Hide ${recentVault.papelizVaultDisplayName}`}
+                                        iconButtonSize="small"
+                                        className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 max-md:opacity-100"
+                                        onClick={() => setRecentVaultHidden(recentVault, true)}
+                                      >
+                                        <EyeOff className="size-[15px]" aria-hidden="true" />
+                                      </PapelizIconButton>
+                                      {/* The row's menu (the right-click one), for a mouse, a keyboard or a finger. */}
+                                      <PapelizIconButton
+                                        iconButtonLabel={`More for ${recentVault.papelizVaultDisplayName}`}
+                                        iconButtonSize="small"
+                                        aria-haspopup="menu"
+                                        className="mr-2.5 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 max-md:opacity-100"
+                                        onClick={(clickEvent) => {
+                                          const moreButtonRect = clickEvent.currentTarget.getBoundingClientRect()
+                                          setRecentVaultMenu({
+                                            recentVault,
+                                            recentVaultMenuPosition: { menuAnchorLeft: moreButtonRect.left, menuAnchorTop: moreButtonRect.bottom + 4 },
+                                          })
+                                        }}
+                                      >
+                                        <Ellipsis className="size-[15px]" aria-hidden="true" />
+                                      </PapelizIconButton>
+                                    </>
                                   )
                                 )}
                               </li>

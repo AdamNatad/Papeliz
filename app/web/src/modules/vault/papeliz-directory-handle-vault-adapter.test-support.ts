@@ -115,6 +115,22 @@ export function describePapelizDirectoryHandleVaultAdapterCases(
       expect(listedPaths).toEqual(['Empty folder'])
     })
 
+    it('restores a note or folder from .trash with everything in it, onto a free name only', async () => {
+      const { fakeVaultRootHandle, directoryHandleVaultAdapter } = await createTestDirectoryHandleVault()
+      await directoryHandleVaultAdapter.moveVaultEntryToTrash('Ideas')
+      await directoryHandleVaultAdapter.moveVaultEntryToTrash('Inbox.md')
+      await directoryHandleVaultAdapter.restoreVaultEntryFromTrash('.trash/Ideas', 'Empty folder/Ideas')
+      await directoryHandleVaultAdapter.createVaultNote('Inbox.md', 'a new inbox')
+      await expect(directoryHandleVaultAdapter.restoreVaultEntryFromTrash('.trash/Inbox.md', 'Inbox.md')).rejects.toThrow('Name Taken')
+      await expect(directoryHandleVaultAdapter.restoreVaultEntryFromTrash('Inbox.md', 'Inbox 2.md')).rejects.toThrow('Not In Trash')
+      await expect(directoryHandleVaultAdapter.restoreVaultEntryFromTrash('.trash/Inbox.md', '.other-app/Inbox.md')).rejects.toThrow('Hidden Folder')
+      const vaultFolderContents = await readPapelizFakeVaultFolder(fakeVaultRootHandle)
+      expect(vaultFolderContents['Empty folder/Ideas/sketch.png']).toBe('png bytes')
+      expect(vaultFolderContents['Empty folder/Ideas/Deep/Notes.md']).toBe('# Notes')
+      expect(vaultFolderContents['.trash/Inbox.md']).toBe('# Inbox')
+      expect(Object.keys(vaultFolderContents).some((vaultRelativePath) => vaultRelativePath.startsWith('.trash/Ideas'))).toBe(false)
+    })
+
     it('never writes inside .other-app or any other hidden folder', async () => {
       const { fakeVaultRootHandle, directoryHandleVaultAdapter } = await createTestDirectoryHandleVault()
       await expect(directoryHandleVaultAdapter.writeVaultNoteText('.other-app/app.md', 'x')).rejects.toThrow('Hidden Folder')

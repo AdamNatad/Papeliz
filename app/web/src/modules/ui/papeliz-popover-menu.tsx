@@ -29,13 +29,44 @@ interface PapelizPopoverMenuProps {
 }
 
 const papelizPopoverMenuViewportMargin = 8
+// A right-click this recent opened the menu that is opening now.
+const papelizRightClickMenuOpeningMilliseconds = 1000
+const papelizFocusableElementSelector = 'button, a[href], input, select, textarea, [tabindex]'
+
+// A right-click doesn't move focus, so the item right-clicked is noted here: a menu it opens gives
+// focus back to it, and so does a dialog opened from that menu (papeliz-confirm-dialog.tsx takes
+// focus from whatever had it as it opens).
+let lastRightClickedElement: Element | null = null
+let lastRightClickedAt = 0
+if (typeof document !== 'undefined') {
+  document.addEventListener(
+    'contextmenu',
+    (contextMenuEvent) => {
+      lastRightClickedElement = contextMenuEvent.target instanceof Element ? contextMenuEvent.target : null
+      lastRightClickedAt = performance.now()
+    },
+    true,
+  )
+}
+
+// What the menu gives focus back to when it closes: what had focus, else the item just right-clicked.
+function findPapelizPopoverMenuReturnFocusElement(): HTMLElement | null {
+  const focusedElement = document.activeElement
+  if (focusedElement instanceof HTMLElement && focusedElement !== document.body) return focusedElement
+  if (performance.now() - lastRightClickedAt > papelizRightClickMenuOpeningMilliseconds) return null
+  const rightClickedFocusableElement = lastRightClickedElement?.closest(papelizFocusableElementSelector)
+  return rightClickedFocusableElement instanceof HTMLElement ? rightClickedFocusableElement : null
+}
 
 // A small menu that opens at a point (a button's corner or the mouse), with arrow keys, Home, End,
-// Enter and Esc. Focus returns to whatever had it when the menu opened.
+// Enter and Esc. Focus returns to whatever had it when the menu opened, or to the item right-clicked.
 export function PapelizPopoverMenu({ menuLabel, menuPosition, menuItems, onMenuClose }: PapelizPopoverMenuProps) {
   const popoverMenuRef = useRef<HTMLDivElement>(null)
   const menuItemButtonRefs = useRef<Array<HTMLButtonElement | null>>([])
   const [clampedMenuPosition, setClampedMenuPosition] = useState(menuPosition)
+  // Read once, before the menu takes focus: an effect that runs again (React's development checks
+  // run each twice) would find the menu's own first item instead.
+  const [focusedBeforeMenu] = useState(findPapelizPopoverMenuReturnFocusElement)
   const onMenuCloseRef = useRef(onMenuClose)
 
   useEffect(() => {
@@ -59,7 +90,6 @@ export function PapelizPopoverMenu({ menuLabel, menuPosition, menuItems, onMenuC
   }, [menuPosition])
 
   useEffect(() => {
-    const focusedBeforeMenu = document.activeElement instanceof HTMLElement ? document.activeElement : null
     menuItemButtonRefs.current[0]?.focus()
     const closeOnOutsidePointer = (pointerEvent: PointerEvent) => {
       if (!popoverMenuRef.current?.contains(pointerEvent.target as Node)) onMenuCloseRef.current()
@@ -77,7 +107,7 @@ export function PapelizPopoverMenu({ menuLabel, menuPosition, menuItems, onMenuC
         focusedBeforeMenu.focus()
       }
     }
-  }, [])
+  }, [focusedBeforeMenu])
 
   const moveMenuFocus = (keyboardEvent: KeyboardEvent<HTMLDivElement>) => {
     const menuItemButtons = menuItemButtonRefs.current.filter((menuItemButton): menuItemButton is HTMLButtonElement => menuItemButton !== null)
@@ -124,6 +154,8 @@ export function PapelizPopoverMenu({ menuLabel, menuPosition, menuItems, onMenuC
           aria-checked={menuItem.isMenuItemChecked}
           tabIndex={-1}
           onClick={() => {
+            // Focus goes back first, so a dialog the item opens returns it there when it closes.
+            if (focusedBeforeMenu?.isConnected) focusedBeforeMenu.focus({ preventScroll: true })
             onMenuClose()
             menuItem.onMenuItemSelect()
           }}

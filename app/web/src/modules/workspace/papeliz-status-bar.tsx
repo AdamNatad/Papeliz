@@ -7,6 +7,7 @@ import { getVaultEntryName } from '../vault/papeliz-vault-relative-paths'
 import { PapelizSyncStatusBarIndicator, PapelizSyncWorkspaceConnection } from '../sync/papeliz-sync-status-bar-indicator'
 import { PapelizBrowserVaultBackupStatus } from './papeliz-browser-vault-backup-status'
 import { PapelizNoteSaveConflictDialog } from './papeliz-note-save-conflict-dialog'
+import { describePapelizNoteSaveFailure } from './papeliz-note-save-failure-words'
 import { papelizNoteZoomPercentChoices, papelizNoteZoomPercentLimits, usePapelizNoteTypographyStore } from './papeliz-note-typography-store'
 import type { PapelizVaultNoteEditingLock } from './papeliz-vault-entry-locks'
 import {
@@ -49,14 +50,15 @@ function describeVaultNoteEditingLock(vaultNoteEditingLock: PapelizVaultNoteEdit
 }
 
 // The note's zoom, at the status bar's right end: - 100% +, and a click on the percentage lists the
-// usual sizes. Ctrl+scroll over the note zooms too (papeliz-note-area.tsx).
+// usual sizes. Ctrl+scroll over the note zooms too (papeliz-note-area.tsx). Phones leave it out: its
+// buttons can't be big enough for a finger in the bar, and pinching zooms there.
 function PapelizNoteZoomControl() {
   const noteZoomPercent = usePapelizNoteTypographyStore((typographyState) => typographyState.noteZoomPercent)
   const setNoteZoomPercent = usePapelizNoteTypographyStore((typographyState) => typographyState.setNoteZoomPercent)
   const stepNoteZoomPercent = usePapelizNoteTypographyStore((typographyState) => typographyState.stepNoteZoomPercent)
   const [noteZoomMenuPosition, setNoteZoomMenuPosition] = useState<PapelizPopoverMenuPosition | null>(null)
   return (
-    <span className="flex flex-none items-center gap-0.5" role="group" aria-label="Zoom">
+    <span className="flex flex-none items-center gap-0.5 max-sm:hidden" role="group" aria-label="Zoom">
       <button
         type="button"
         aria-label="Zoom out"
@@ -135,7 +137,9 @@ export function PapelizStatusBar() {
   const isNoteReady = activeLoadedVaultNote !== undefined && activeLoadedVaultNote.noteLoadState === 'loaded'
 
   return (
-    <footer className="flex h-7 flex-none items-center gap-4 overflow-hidden bg-papeliz-topbar px-3 text-[12px] whitespace-nowrap text-white/85 sm:px-4">
+    // Text is white at 95% or more, which reaches 4.5:1 on the light theme's blue; only the "/" before
+    // the path and the icons stay fainter.
+    <footer className="flex h-7 flex-none items-center gap-4 overflow-hidden bg-papeliz-topbar px-3 text-[12px] whitespace-nowrap text-white/95 sm:px-4">
       <span
         className="flex min-w-0 items-center gap-1.5"
         title={
@@ -157,7 +161,14 @@ export function PapelizStatusBar() {
             Temporary
           </span>
         )}
-        {activeVaultNoteRelativePath !== null && <span className="truncate text-white/70 max-sm:hidden">/ {activeVaultNoteRelativePath}</span>}
+        {activeVaultNoteRelativePath !== null && (
+          <span className="truncate text-white/95 max-sm:hidden">
+            <span className="text-white/60" aria-hidden="true">
+              /
+            </span>{' '}
+            {activeVaultNoteRelativePath}
+          </span>
+        )}
       </span>
       <span className="ml-auto flex flex-none items-center gap-4">
         {openVaultKind === 'browser-vault-in-opfs' && <PapelizBrowserVaultBackupStatus papelizVaultId={openVault.papelizVaultId} />}
@@ -203,8 +214,13 @@ export function PapelizStatusBar() {
             )}
             {activeLoadedVaultNote.noteSaveState === 'save-failed' && (
               <>
-                <span role="alert" className="max-w-[40vw] truncate text-white" title={activeLoadedVaultNote.noteSaveErrorMessage ?? undefined}>
-                  {activeLoadedVaultNote.noteSaveErrorMessage}
+                {/* A few plain words here; what to do is in their tooltip and in the message that
+                    appeared when the save failed (papeliz-workspace.tsx). */}
+                <span
+                  className="max-w-[40vw] truncate text-white"
+                  title={describePapelizNoteSaveFailure(activeLoadedVaultNote.noteSaveErrorMessage).noteSaveFailureAdvice}
+                >
+                  {describePapelizNoteSaveFailure(activeLoadedVaultNote.noteSaveErrorMessage).noteSaveFailureShortReason}
                 </span>
                 <button
                   type="button"

@@ -6,6 +6,7 @@ import {
   isVaultFileRelativePathSyncable,
   isVaultNoteFileName,
   isVaultRelativePathInsideFolder,
+  isVaultRelativePathInTrash,
   isVaultRelativePathWritableByPapeliz,
   joinVaultRelativePath,
   papelizVaultRootFolderRelativePath,
@@ -264,6 +265,17 @@ export abstract class PapelizDirectoryHandleVaultAdapter implements PapelizVault
     return joinVaultRelativePath(papelizVaultTrashFolderName, trashVaultEntryName)
   }
 
+  async restoreVaultEntryFromTrash(vaultTrashEntryRelativePath: string, toVaultEntryRelativePath: string): Promise<void> {
+    assertVaultPathInsideTrash(vaultTrashEntryRelativePath)
+    assertVaultPathWritableByPapeliz(toVaultEntryRelativePath)
+    const vaultTrashParentFolderHandle = await this.getVaultFolderHandle(getVaultEntryParentFolderRelativePath(vaultTrashEntryRelativePath))
+    const toVaultParentFolderHandle = await this.getVaultFolderHandle(getVaultEntryParentFolderRelativePath(toVaultEntryRelativePath))
+    const toVaultEntryName = getVaultEntryName(toVaultEntryRelativePath)
+    await assertVaultEntryNameIsFree(toVaultParentFolderHandle, toVaultEntryName)
+    await this.moveVaultEntryHandle(vaultTrashParentFolderHandle, getVaultEntryName(vaultTrashEntryRelativePath), toVaultParentFolderHandle, toVaultEntryName)
+    this.noteVaultChanged()
+  }
+
   private async getVaultFolderHandle(vaultFolderRelativePath: string): Promise<FileSystemDirectoryHandle> {
     let vaultFolderHandle = this.vaultRootFolderHandle
     for (const vaultPathSegment of splitVaultRelativePath(vaultFolderRelativePath)) {
@@ -332,6 +344,13 @@ function assertPapelizVaultSettingsFileName(papelizVaultSettingsFileName: string
 function assertVaultPathWritableByPapeliz(vaultEntryRelativePath: string): void {
   if (!isVaultRelativePathWritableByPapeliz(vaultEntryRelativePath)) {
     throw new PapelizVaultOperationError('Hidden Folder')
+  }
+}
+
+// A note or folder inside `.trash/`, never the trash folder itself.
+function assertVaultPathInsideTrash(vaultEntryRelativePath: string): void {
+  if (!isVaultRelativePathInTrash(vaultEntryRelativePath) || splitVaultRelativePath(vaultEntryRelativePath).length < 2) {
+    throw new PapelizVaultOperationError('Not In Trash')
   }
 }
 

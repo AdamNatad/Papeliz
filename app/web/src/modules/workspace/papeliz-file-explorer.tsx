@@ -18,11 +18,13 @@ import {
   Palette,
   PanelLeftClose,
   Pencil,
+  RotateCcw,
   Search,
   Trash2,
 } from 'lucide-react'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
 import type { PapelizVaultSearchResult } from '../search/papeliz-vault-search-core'
+import { splitVaultSearchSnippetAtMatchedWords } from '../search/papeliz-vault-search-snippets'
 import { PapelizIconButton } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { PapelizConfirmDialog } from '../ui/papeliz-confirm-dialog'
@@ -33,7 +35,10 @@ import {
   getVaultEntryParentFolderRelativePath,
   getVaultNoteTitle,
   isVaultRelativePathHidden,
+  isVaultRelativePathInTrash,
   papelizVaultRootFolderRelativePath,
+  papelizVaultTrashFolderName,
+  pickFreeVaultEntryName,
 } from '../vault/papeliz-vault-relative-paths'
 import { getPapelizVaultSearchClient, usePapelizVaultKnowledgeStore } from './papeliz-vault-knowledge-store'
 import { listVaultFolderEntryNamesInOrder, sortVaultFolderEntries, type PapelizVaultEntryOrder, type PapelizVaultEntryPlacement } from './papeliz-vault-entry-order'
@@ -155,6 +160,10 @@ export function PapelizFileExplorer({ fileListFootSection }: PapelizFileExplorer
   const copyVaultEntryForPaste = usePapelizWorkspaceStore((workspaceState) => workspaceState.copyVaultEntryForPaste)
   const pasteCopiedVaultEntry = usePapelizWorkspaceStore((workspaceState) => workspaceState.pasteCopiedVaultEntry)
   const moveVaultEntryUpOrDown = usePapelizWorkspaceStore((workspaceState) => workspaceState.moveVaultEntryUpOrDown)
+  const restoreVaultEntryFromTrash = usePapelizWorkspaceStore((workspaceState) => workspaceState.restoreVaultEntryFromTrash)
+  const newVaultFolderParentRelativePath = usePapelizWorkspaceStore((workspaceState) => workspaceState.newVaultFolderParentRelativePath)
+  // The menu of the list's empty space, for the top of the vault.
+  const [vaultTopMenuPosition, setVaultTopMenuPosition] = useState<PapelizPopoverMenuPosition | null>(null)
   const folderAutoExpandRef = useRef<{ autoExpandVaultFolderRelativePath: string; autoExpandTimer: ReturnType<typeof setTimeout> } | null>(null)
   const fileExplorerNotesNavRef = useRef<HTMLElement>(null)
   const activeNoteHighlightRef = useRef<HTMLSpanElement>(null)
@@ -163,6 +172,13 @@ export function PapelizFileExplorer({ fileListFootSection }: PapelizFileExplorer
   const activeNoteHighlightGlideEndsAtRef = useRef(0)
 
   useEffect(() => () => clearTimeout(folderAutoExpandRef.current?.autoExpandTimer), [])
+
+  // A new folder's name box shows in the tree, so a search in progress gives way to it.
+  const [shownNewVaultFolderParentRelativePath, setShownNewVaultFolderParentRelativePath] = useState(newVaultFolderParentRelativePath)
+  if (shownNewVaultFolderParentRelativePath !== newVaultFolderParentRelativePath) {
+    setShownNewVaultFolderParentRelativePath(newVaultFolderParentRelativePath)
+    if (newVaultFolderParentRelativePath !== null) setNoteNameFilterText('')
+  }
 
   const fileExplorerTreeNodes = useMemo(() => buildFileExplorerTree(vaultTreeEntries, vaultEntryOrder), [vaultTreeEntries, vaultEntryOrder])
   const vaultNoteCount = useMemo(() => vaultTreeEntries.filter((vaultTreeEntry) => vaultTreeEntry.vaultEntryKind === 'note').length, [vaultTreeEntries])
@@ -290,10 +306,24 @@ export function PapelizFileExplorer({ fileListFootSection }: PapelizFileExplorer
   const folderForNewEntries =
     activeVaultNoteRelativePath === null ? papelizVaultRootFolderRelativePath : getVaultEntryParentFolderRelativePath(activeVaultNoteRelativePath)
 
-  const openVaultEntryMenu = (menuVaultEntry: PapelizVaultTreeEntry, menuPosition: PapelizPopoverMenuPosition) =>
+  const openVaultEntryMenu = (menuVaultEntry: PapelizVaultTreeEntry, menuPosition: PapelizPopoverMenuPosition) => {
+    if (menuVaultEntry.vaultEntryRelativePath === papelizVaultTrashFolderName) return
     setFileExplorerMenuState({ menuPosition, menuVaultEntry })
+  }
 
   const getVaultEntryMenuItems = (menuVaultEntry: PapelizVaultTreeEntry): PapelizPopoverMenuItem[] => {
+    // In the trash, a note or folder can only go back; Papeliz changes nothing else there.
+    if (isVaultRelativePathInTrash(menuVaultEntry.vaultEntryRelativePath)) {
+      if (menuVaultEntry.vaultEntryRelativePath === papelizVaultTrashFolderName) return []
+      return [
+        {
+          menuItemKey: 'restore-from-trash',
+          menuItemLabel: 'Restore',
+          MenuItemIcon: RotateCcw,
+          onMenuItemSelect: () => void restoreVaultEntryFromTrash(menuVaultEntry.vaultEntryRelativePath, menuVaultEntry.vaultEntryKind),
+        },
+      ]
+    }
     const vaultEntryMenuItems: PapelizPopoverMenuItem[] = []
     if (menuVaultEntry.vaultEntryKind === 'folder') {
       vaultEntryMenuItems.push(
@@ -368,7 +398,13 @@ export function PapelizFileExplorer({ fileListFootSection }: PapelizFileExplorer
         menuItemGroupHeading: 'Copies',
         onMenuItemSelect: () => void duplicateVaultEntry(menuVaultEntry.vaultEntryRelativePath),
       },
-      { menuItemKey: 'copy', menuItemLabel: 'Copy', MenuItemIcon: Copy, onMenuItemSelect: () => copyVaultEntryForPaste(menuVaultEntry) },
+      {
+        menuItemKey: 'copy',
+        // Beside Duplicate, "Copy" alone could mean the note's text.
+        menuItemLabel: menuVaultEntry.vaultEntryKind === 'folder' ? 'Copy folder' : 'Copy note',
+        MenuItemIcon: Copy,
+        onMenuItemSelect: () => copyVaultEntryForPaste(menuVaultEntry),
+      },
     )
     if (copiedVaultEntry !== null) {
       vaultEntryMenuItems.push({
@@ -388,6 +424,32 @@ export function PapelizFileExplorer({ fileListFootSection }: PapelizFileExplorer
     })
     return vaultEntryMenuItems
   }
+
+  // The top of the vault: what the header's buttons do, and Paste when a note or folder is copied.
+  const getVaultTopMenuItems = (): PapelizPopoverMenuItem[] => [
+    {
+      menuItemKey: 'new-note-at-top',
+      menuItemLabel: 'New note',
+      MenuItemIcon: FilePlus,
+      onMenuItemSelect: () => void createVaultNoteInFolder(papelizVaultRootFolderRelativePath),
+    },
+    {
+      menuItemKey: 'new-folder-at-top',
+      menuItemLabel: 'New folder',
+      MenuItemIcon: FolderPlus,
+      onMenuItemSelect: () => void createVaultFolderInFolder(papelizVaultRootFolderRelativePath),
+    },
+    ...(copiedVaultEntry === null
+      ? []
+      : [
+          {
+            menuItemKey: 'paste-at-top',
+            menuItemLabel: `Paste “${getVaultEntryDisplayName(copiedVaultEntry.vaultEntryRelativePath, copiedVaultEntry.vaultEntryKind)}” here`,
+            MenuItemIcon: ClipboardPaste,
+            onMenuItemSelect: () => void pasteCopiedVaultEntry(papelizVaultRootFolderRelativePath),
+          },
+        ]),
+  ]
 
   // A folder never goes into itself, and an entry is never placed against itself.
   const canDropAtTarget = (proposedDropTarget: PapelizVaultEntryDropTarget): boolean => {
@@ -512,6 +574,12 @@ export function PapelizFileExplorer({ fileListFootSection }: PapelizFileExplorer
           dragEvent.preventDefault()
           dropDraggedVaultEntry(vaultRootDropTarget)
         }}
+        // A right-click on the space around the rows is the top of the vault.
+        onContextMenu={(contextMenuEvent) => {
+          if (contextMenuEvent.defaultPrevented || (contextMenuEvent.target as Element).closest('li, input') !== null) return
+          contextMenuEvent.preventDefault()
+          setVaultTopMenuPosition({ menuAnchorLeft: contextMenuEvent.clientX, menuAnchorTop: contextMenuEvent.clientY })
+        }}
       >
         <span aria-hidden="true" ref={activeNoteHighlightRef} className="papeliz-file-explorer-active-note-highlight" />
         {vaultTreeLoadState === 'loading' && <p className="px-2.5 py-2 text-[13px] text-papeliz-ink-subtle">Reading the folder…</p>}
@@ -557,7 +625,18 @@ export function PapelizFileExplorer({ fileListFootSection }: PapelizFileExplorer
                           <FileText className="size-[15px] flex-none text-papeliz-ink-subtle" aria-hidden="true" />
                           <span className="truncate">{vaultSearchResult.vaultNoteTitle}</span>
                         </span>
-                        <span className="line-clamp-2 pl-[23px] text-xs text-papeliz-ink-subtle">{vaultSearchResult.searchResultSnippet}</span>
+                        <span className="line-clamp-2 pl-[23px] text-xs text-papeliz-ink-subtle">
+                          {splitVaultSearchSnippetAtMatchedWords(vaultSearchResult.searchResultSnippet, vaultSearchResult.searchResultMatchedWords).map(
+                            (snippetPart, snippetPartIndex) =>
+                              snippetPart.isMatchedWord ? (
+                                <strong key={snippetPartIndex} className="font-semibold text-papeliz-ink-muted">
+                                  {snippetPart.snippetPartText}
+                                </strong>
+                              ) : (
+                                snippetPart.snippetPartText
+                              ),
+                          )}
+                        </span>
                       </button>
                     </li>
                   ))}
@@ -568,6 +647,14 @@ export function PapelizFileExplorer({ fileListFootSection }: PapelizFileExplorer
           )
         ) : (
           <ul className="flex flex-col">
+            {newVaultFolderParentRelativePath === papelizVaultRootFolderRelativePath && (
+              <li>
+                <PapelizFileExplorerNewFolderNameField
+                  newVaultFolderParentRelativePath={papelizVaultRootFolderRelativePath}
+                  rowIndentStyle={{ paddingLeft: getFileExplorerRowIndent(0) }}
+                />
+              </li>
+            )}
             {fileExplorerTreeNodes.map((fileExplorerTreeNode, treeNodeIndex) => (
               <PapelizFileExplorerRow
                 key={fileExplorerTreeNode.vaultEntryRelativePath}
@@ -604,6 +691,15 @@ export function PapelizFileExplorer({ fileListFootSection }: PapelizFileExplorer
       </div>
 
       </div>
+
+      {vaultTopMenuPosition !== null && (
+        <PapelizPopoverMenu
+          menuLabel={openVault.papelizVaultDisplayName}
+          menuPosition={vaultTopMenuPosition}
+          menuItems={getVaultTopMenuItems()}
+          onMenuClose={() => setVaultTopMenuPosition(null)}
+        />
+      )}
 
       {fileExplorerMenuState !== null && (
         <PapelizPopoverMenu
@@ -758,6 +854,10 @@ function PapelizFileExplorerRow({
   const vaultTreeEntry: PapelizVaultTreeEntry = { vaultEntryRelativePath, vaultEntryKind }
   const isDraggedRow = fileExplorerRowActions.draggedVaultEntryRelativePath === vaultEntryRelativePath
   const isVaultEntryLocked = usePapelizWorkspaceStore((workspaceState) => workspaceState.lockedVaultEntryRelativePaths.includes(vaultEntryRelativePath))
+  const isVaultEntryInTrash = isVaultRelativePathInTrash(vaultEntryRelativePath)
+  const isNewFolderNamedInHere = usePapelizWorkspaceStore(
+    (workspaceState) => vaultEntryKind === 'folder' && workspaceState.newVaultFolderParentRelativePath === vaultEntryRelativePath,
+  )
   const vaultEntryLook = usePapelizWorkspaceStore((workspaceState) => workspaceState.vaultEntryLooks[vaultEntryRelativePath])
   const rowDropIndicatorKind =
     fileExplorerRowActions.vaultEntryDropTarget?.dropIndicatorVaultEntryRelativePath === vaultEntryRelativePath
@@ -809,6 +909,13 @@ function PapelizFileExplorerRow({
   }
 
   const handleRowKeyDown = (keyboardEvent: KeyboardEvent<HTMLButtonElement>) => {
+    if (isVaultEntryInTrash) {
+      if (vaultEntryKind === 'folder' && (keyboardEvent.key === 'ArrowRight' || keyboardEvent.key === 'ArrowLeft') && isExpandedFolder === (keyboardEvent.key === 'ArrowLeft')) {
+        keyboardEvent.preventDefault()
+        toggleVaultFolderExpanded(vaultEntryRelativePath)
+      }
+      return
+    }
     if (keyboardEvent.key === 'F2') {
       keyboardEvent.preventDefault()
       startRenamingVaultEntry(vaultEntryRelativePath)
@@ -864,8 +971,8 @@ function PapelizFileExplorerRow({
           )}
           onContextMenu={openRowMenuAtPointer}
           // Dragged to reorder it or move it into another folder; a note dropped into a note's text
-          // becomes a link.
-          draggable
+          // becomes a link. What is in the trash stays put until it is restored.
+          draggable={!isVaultEntryInTrash}
           onDragStart={(dragEvent) => {
             dragEvent.dataTransfer.effectAllowed = 'copyMove'
             dragEvent.dataTransfer.setData(papelizVaultEntryDragDataType, vaultEntryRelativePath)
@@ -957,7 +1064,7 @@ function PapelizFileExplorerRow({
               <span className="truncate text-xs font-normal text-papeliz-ink-subtle">{fileExplorerRowSecondaryText}</span>
             )}
           </button>
-          <PapelizIconButton
+          {vaultEntryRelativePath !== papelizVaultTrashFolderName && <PapelizIconButton
             iconButtonLabel={`More for ${vaultEntryDisplayName}`}
             iconButtonSize="extra-small"
             aria-haspopup="menu"
@@ -968,7 +1075,7 @@ function PapelizFileExplorerRow({
             }}
           >
             <Ellipsis className="size-[14px]" aria-hidden="true" />
-          </PapelizIconButton>
+          </PapelizIconButton>}
           {/* The drag grip, at the row's right end on hover; the whole row drags, the grip shows where to hold. */}
           <span
             aria-hidden="true"
@@ -979,9 +1086,17 @@ function PapelizFileExplorerRow({
           </span>
         </div>
       )}
-      {vaultEntryKind === 'folder' && fileExplorerTreeNode.childTreeNodes.length > 0 && (
+      {vaultEntryKind === 'folder' && (fileExplorerTreeNode.childTreeNodes.length > 0 || isNewFolderNamedInHere) && (
         <PapelizFileExplorerFolderChildrenSlide isFolderExpanded={isExpandedFolder}>
           <ul className="flex flex-col">
+            {isNewFolderNamedInHere && (
+              <li>
+                <PapelizFileExplorerNewFolderNameField
+                  newVaultFolderParentRelativePath={vaultEntryRelativePath}
+                  rowIndentStyle={{ paddingLeft: getFileExplorerRowIndent(fileExplorerRowDepth + 1) }}
+                />
+              </li>
+            )}
             {fileExplorerTreeNode.childTreeNodes.map((childTreeNode, childTreeNodeIndex) => (
               <PapelizFileExplorerRow
                 key={childTreeNode.vaultEntryRelativePath}
@@ -1115,6 +1230,85 @@ function PapelizFileExplorerRenameField({ vaultEntryRelativePath, vaultEntryKind
       {renameProblemMessage !== null && (
         <p id={renameProblemMessageId} role="alert" className="px-3 pt-1 text-xs text-papeliz-diff-removed-ink">
           {renameProblemMessage}
+        </p>
+      )}
+    </div>
+  )
+}
+
+interface PapelizFileExplorerNewFolderNameFieldProps {
+  newVaultFolderParentRelativePath: string
+  rowIndentStyle: { paddingLeft: number }
+}
+
+// New folder's name box, at the top of the folder it goes in. Enter (or clicking away) makes the
+// folder; Escape leaves without making one.
+function PapelizFileExplorerNewFolderNameField({ newVaultFolderParentRelativePath, rowIndentStyle }: PapelizFileExplorerNewFolderNameFieldProps) {
+  const vaultTreeEntries = usePapelizWorkspaceStore((workspaceState) => workspaceState.vaultTreeEntries)
+  const finishNamingNewVaultFolder = usePapelizWorkspaceStore((workspaceState) => workspaceState.finishNamingNewVaultFolder)
+  const cancelNamingNewVaultFolder = usePapelizWorkspaceStore((workspaceState) => workspaceState.cancelNamingNewVaultFolder)
+  const showWorkspaceNotice = usePapelizWorkspaceStore((workspaceState) => workspaceState.showWorkspaceNotice)
+  // "New folder", or "New folder 2" when that is taken.
+  const [typedVaultFolderName, setTypedVaultFolderName] = useState(() =>
+    pickFreeVaultEntryName('New folder', '', (candidateName) =>
+      vaultTreeEntries.some(
+        (vaultTreeEntry) =>
+          getVaultEntryParentFolderRelativePath(vaultTreeEntry.vaultEntryRelativePath) === newVaultFolderParentRelativePath &&
+          getVaultEntryName(vaultTreeEntry.vaultEntryRelativePath).toLowerCase() === candidateName.toLowerCase(),
+      ),
+    ),
+  )
+  const [newFolderNameProblemMessage, setNewFolderNameProblemMessage] = useState<string | null>(null)
+  const isNamingSettledRef = useRef(false)
+  const newFolderNameProblemMessageId = `papeliz-new-folder-name-problem-${newVaultFolderParentRelativePath}`
+
+  const finishNaming = async (namingTrigger: 'enter' | 'blur') => {
+    if (isNamingSettledRef.current) return
+    isNamingSettledRef.current = true
+    const newVaultFolderNamingResult = await finishNamingNewVaultFolder(typedVaultFolderName)
+    if (newVaultFolderNamingResult.newVaultFolderNamingOutcome === 'created') {
+      focusFileExplorerRow(newVaultFolderNamingResult.newVaultFolderRelativePath)
+      return
+    }
+    if (namingTrigger === 'enter') {
+      isNamingSettledRef.current = false
+      setNewFolderNameProblemMessage(newVaultFolderNamingResult.newVaultFolderNameProblem)
+      return
+    }
+    showWorkspaceNotice('error', `Couldn’t create the folder (${newVaultFolderNamingResult.newVaultFolderNameProblem})`)
+    cancelNamingNewVaultFolder()
+  }
+
+  return (
+    <div className="py-0.5" style={{ paddingLeft: rowIndentStyle.paddingLeft - 6 }}>
+      <input
+        autoFocus
+        aria-label="New folder name"
+        aria-invalid={newFolderNameProblemMessage !== null}
+        aria-describedby={newFolderNameProblemMessage !== null ? newFolderNameProblemMessageId : undefined}
+        value={typedVaultFolderName}
+        onFocus={(focusEvent) => focusEvent.currentTarget.select()}
+        onChange={(changeEvent) => {
+          setTypedVaultFolderName(changeEvent.target.value)
+          setNewFolderNameProblemMessage(null)
+        }}
+        onKeyDown={(keyboardEvent) => {
+          if (keyboardEvent.key === 'Enter') {
+            keyboardEvent.preventDefault()
+            void finishNaming('enter')
+          } else if (keyboardEvent.key === 'Escape') {
+            keyboardEvent.preventDefault()
+            keyboardEvent.stopPropagation()
+            isNamingSettledRef.current = true
+            cancelNamingNewVaultFolder()
+          }
+        }}
+        onBlur={() => void finishNaming('blur')}
+        className="h-8 w-full rounded-full border border-papeliz-blue-line bg-papeliz-surface px-3 text-sm text-papeliz-ink shadow-[0_0_0_3px_var(--color-papeliz-blue-soft)] outline-none"
+      />
+      {newFolderNameProblemMessage !== null && (
+        <p id={newFolderNameProblemMessageId} role="alert" className="px-3 pt-1 text-xs text-papeliz-diff-removed-ink">
+          {newFolderNameProblemMessage}
         </p>
       )}
     </div>

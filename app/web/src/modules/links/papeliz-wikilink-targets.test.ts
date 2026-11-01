@@ -35,4 +35,11 @@ describe('wikilinks', () => {
   it('returns null for a note that does not exist yet', () => {
     expect(resolveWikilinkTarget('An idea for later', null)).toBeNull()
   })
+
+  it('never points at a note in the trash, even while hidden notes are listed', () => {
+    const resolveWithTrashListed = createPapelizWikilinkTargetResolver(['Start here.md', '.trash/Missing note.md', '.trash/Projects/Garden plan.md', 'Garden plan.md'])
+    expect(resolveWithTrashListed('Missing note', 'Start here.md')).toBeNull()
+    expect(resolveWithTrashListed('.trash/Missing note', null)).toBeNull()
+    expect(resolveWithTrashListed('Garden plan', '.trash/Projects/Old.md')).toBe('Garden plan.md')
+  })
 })

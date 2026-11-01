@@ -319,8 +319,48 @@ export function PapelizNewVaultForm({
         </div>
 
         {/* The comparison: what each place means, side by side; the chosen place's column lights up. Every
-            cell stays on one line, so a phone scrolls the table sideways. */}
-        <div className="relative flex-none overflow-x-auto rounded-xl border border-papeliz-line bg-papeliz-surface-soft">
+            cell stays on one line. Too narrow for that (a phone), each place gets its own short list,
+            one under the other, the chosen one lit. */}
+        <div className="flex flex-none flex-col gap-2 sm:hidden">
+          {papelizNewVaultPlaceDescriptions.map(({ newVaultPlace, NewVaultPlaceIcon, newVaultPlaceTitle }) => (
+            <div
+              key={newVaultPlace}
+              className={joinPapelizClassNames(
+                'rounded-xl border border-papeliz-line text-[12px] leading-snug transition-colors duration-300',
+                newVaultPlace === chosenNewVaultPlace ? 'bg-papeliz-blue-soft' : 'bg-papeliz-surface-soft',
+                newVaultPlace === 'folder-on-disk' && !isFolderVaultOn && 'opacity-55',
+              )}
+            >
+              <h3 className="px-2.5 py-[5px] font-semibold text-papeliz-ink">
+                <NewVaultPlaceIcon
+                  className={joinPapelizClassNames('mr-1.5 inline size-[13px] align-[-2px]', newVaultPlace === chosenNewVaultPlace ? 'text-papeliz-blue' : 'text-papeliz-ink-muted')}
+                  aria-hidden="true"
+                />
+                {newVaultPlaceTitle}
+              </h3>
+              <dl>
+                {papelizNewVaultPlaceComparisonRows.map((comparisonRow) => {
+                  const comparisonCell = comparisonRow.comparisonRowCellByPlace[newVaultPlace]
+                  return (
+                    <div key={comparisonRow.comparisonRowLabel} className="flex items-center justify-between gap-3 border-t border-papeliz-line px-2.5 py-[5px]">
+                      <dt className="font-medium whitespace-nowrap text-papeliz-ink-subtle">{comparisonRow.comparisonRowLabel}</dt>
+                      <dd className={joinPapelizClassNames('flex min-w-0 items-center text-right', newVaultPlace === chosenNewVaultPlace ? 'text-papeliz-ink' : 'text-papeliz-ink-muted')}>
+                        {comparisonCell.comparisonCellText}
+                        <PapelizInfoTip
+                          infoTipButtonLabel={`About “${comparisonCell.comparisonCellText}” in ${newVaultPlaceTitle}`}
+                          infoTipTitle={comparisonCell.comparisonCellInfoTipTitle}
+                          infoTipLines={comparisonCell.comparisonCellInfoTipLines}
+                          infoTipButtonClassName="-my-0.5 ml-1.5"
+                        />
+                      </dd>
+                    </div>
+                  )
+                })}
+              </dl>
+            </div>
+          ))}
+        </div>
+        <div className="relative flex-none overflow-x-auto rounded-xl border border-papeliz-line bg-papeliz-surface-soft max-sm:hidden">
           <table className="w-full border-collapse text-[12px] leading-snug">
             <caption className="sr-only">How the two places compare</caption>
             <thead>

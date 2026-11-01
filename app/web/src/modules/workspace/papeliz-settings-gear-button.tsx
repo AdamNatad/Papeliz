@@ -1,6 +1,7 @@
-import { Accessibility, ChevronLeft, ChevronRight, FolderX, Lock, LockOpen, Maximize2, RefreshCw, Settings, Share, User, type LucideIcon } from 'lucide-react'
+import { Accessibility, ChevronLeft, ChevronRight, FolderX, Lock, LockOpen, Maximize2, RefreshCw, Settings, Share, User, WandSparkles, type LucideIcon } from 'lucide-react'
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { usePapelizAssistantPanelUiStore } from '../assistant/papeliz-assistant-panel-ui-store'
 import { takePapelizSyncPlanPickFromAddress, usePapelizSyncSettingsGearRequestStore } from '../sync/papeliz-sync-settings-gear-request-store'
 import { PapelizIconButton } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
@@ -21,8 +22,9 @@ const papelizSettingsGearPageChoices: Record<PapelizSettingsGearPage, { settings
   accessibility: { settingsGearPageLabel: 'Accessibility', SettingsGearPageIcon: Accessibility },
 }
 
-// The list's groups, split by lines: Account | Sync, Settings, Export | Accessibility (then the
-// switches and Close Vault in the workspace). The start page has no vault, so no Settings or Export.
+// The list's groups, split by lines: Account | Sync, Settings, Export | Accessibility (then AI
+// Assistant, the switches and Close Vault in the workspace). The start page has no vault, so no
+// Settings or Export.
 const papelizSettingsGearWorkspacePageGroups: ReadonlyArray<ReadonlyArray<PapelizSettingsGearPage>> = [['account'], ['sync', 'settings', 'export'], ['accessibility']]
 const papelizSettingsGearStartPagePageGroups: ReadonlyArray<ReadonlyArray<PapelizSettingsGearPage>> = [['account'], ['sync'], ['accessibility']]
 
@@ -82,6 +84,7 @@ export function PapelizSettingsGearButton({ settingsGearPlace }: PapelizSettings
   const isFocusModeOn = usePapelizWorkspaceStore((workspaceState) => workspaceState.isFocusModeOn)
   const setFocusModeOn = usePapelizWorkspaceStore((workspaceState) => workspaceState.setFocusModeOn)
   const setVaultCloseConfirmationShown = usePapelizWorkspaceStore((workspaceState) => workspaceState.setVaultCloseConfirmationShown)
+  const setProviderSettingsDialogOpen = usePapelizAssistantPanelUiStore((panelUiState) => panelUiState.setProviderSettingsDialogOpen)
   const focusModeShortcutLabel = usePapelizKeyBindingShortcutLabel('focus-mode-toggle')
   const [settingsGearPanelAnchor, setSettingsGearPanelAnchor] = useState<{ anchorRight: number; anchorTop: number } | null>(null)
   const [chosenSettingsGearPage, setChosenSettingsGearPage] = useState<PapelizSettingsGearPage>('accessibility')
@@ -190,6 +193,22 @@ export function PapelizSettingsGearButton({ settingsGearPlace }: PapelizSettings
       ))}
       {isWorkspaceSettingsGear && (
         <>
+          {/* The assistant's provider and key: the same dialog as the gear in the assistant's panel. */}
+          <button
+            type="button"
+            aria-haspopup="dialog"
+            title="Choose the AI provider and add your key"
+            onClick={() => {
+              // Focus waits on the gear, so it comes back there when the dialog closes.
+              settingsGearButtonRef.current?.focus()
+              closeSettingsGearPanel()
+              setProviderSettingsDialogOpen(true)
+            }}
+            className={papelizSettingsGearRowClassName}
+          >
+            <WandSparkles className="size-4 flex-none text-papeliz-ink-muted" aria-hidden="true" />
+            <span className="min-w-0 flex-1 truncate">AI Assistant</span>
+          </button>
           <PapelizSettingsGearSwitchRow
             switchRowLabel="Lock All Notes"
             switchRowTitle={

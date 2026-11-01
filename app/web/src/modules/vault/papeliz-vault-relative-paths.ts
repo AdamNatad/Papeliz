@@ -71,6 +71,11 @@ export function replaceVaultRelativePathPrefix(
   return vaultEntryRelativePath
 }
 
+// The vault's `.trash/` folder, or a note or folder inside it.
+export function isVaultRelativePathInTrash(vaultEntryRelativePath: string): boolean {
+  return splitVaultRelativePath(vaultEntryRelativePath)[0] === papelizVaultTrashFolderName
+}
+
 // A hidden entry: it, or a folder it is in, has a name that starts with a dot (`.git`, `.trash`).
 export function isVaultRelativePathHidden(vaultEntryRelativePath: string): boolean {
   return splitVaultRelativePath(vaultEntryRelativePath).some((vaultPathSegment) => vaultPathSegment.startsWith('.'))

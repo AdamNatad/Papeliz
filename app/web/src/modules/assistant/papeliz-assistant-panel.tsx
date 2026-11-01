@@ -1,4 +1,4 @@
-import { ArrowLeft, ChartNoAxesColumn, History, ListChecks, MessageCircleQuestion, PenLine, Settings, SquarePen, WandSparkles, X } from 'lucide-react'
+import { ArrowLeft, ChartNoAxesColumn, History, KeyRound, ListChecks, MessageCircleQuestion, PenLine, SquarePen, WandSparkles, X } from 'lucide-react'
 import { PapelizIconButton, PapelizPillButton } from '../ui/papeliz-buttons'
 import { PapelizSlidingChoiceGroup } from '../ui/papeliz-sliding-choice-group'
 import { PapelizAssistantChatView } from './papeliz-assistant-chat-view'
@@ -24,6 +24,10 @@ const papelizAssistantModeChoices: ReadonlyArray<{
   { assistantMode: 'write', assistantModeLabel: 'Write', AssistantModeIcon: PenLine },
 ]
 
+// On a phone's touch screen the panel fills the screen, and its header buttons grow to 40 px (the
+// header to 48 px) so a finger finds them.
+const papelizAssistantPanelHeaderButtonTouchClassName = 'max-md:pointer-coarse:size-10'
+
 // The line under the mode switch: what the mode does.
 function describeAssistantModeHint(assistantMode: PapelizAssistantMode, isBypassPermissionOn: boolean): string {
   if (assistantMode === 'ask') return 'Ask about your notes. Nothing changes.'
@@ -34,7 +38,7 @@ function describeAssistantModeHint(assistantMode: PapelizAssistantMode, isBypass
 // The docked AI Assistant panel, for the AI only. The chat answers in one of three modes, Ask, Plan
 // and Write, picked in the switch at the top. Sessions (every chat saved in this vault) and Usage
 // (the tokens and cost the assistant used here) open from the header, in place of the chat. The
-// open note's Outline and Backlinks are under the file list, as This note. The gear opens the
+// open note's Outline and Backlinks are under the file list, as This note. The key button opens the
 // provider settings. Until a provider is set up there is nothing to type into: the chat shows the
 // setup card.
 export function PapelizAssistantPanel({ onAssistantPanelClose }: PapelizAssistantPanelProps) {
@@ -57,17 +61,19 @@ export function PapelizAssistantPanel({ onAssistantPanelClose }: PapelizAssistan
 
   return (
     <aside aria-label="AI Assistant" className="flex h-full min-h-0 flex-col bg-papeliz-surface-soft">
-      <div className="flex h-10 flex-none items-center gap-2.5 bg-papeliz-tab-strip pt-1.5 pr-3 pl-[18px] shadow-[inset_0_-1px_0_var(--color-papeliz-line)]">
+      <div className="flex h-10 flex-none items-center gap-2.5 bg-papeliz-tab-strip pt-1.5 pr-3 pl-[18px] shadow-[inset_0_-1px_0_var(--color-papeliz-line)] max-md:pointer-coarse:h-12 max-md:pointer-coarse:pt-0 max-md:pointer-coarse:pr-1.5">
         <span className="grid size-[22px] flex-none place-items-center rounded-full bg-linear-to-r from-papeliz-gradient-start to-papeliz-gradient-end text-white">
           <WandSparkles className="size-3" aria-hidden="true" />
         </span>
         <h2 className="text-[15px] font-semibold">AI Assistant</h2>
         {/* New chat, Sessions, Usage, Provider settings (which the composer's model chip also opens)
-            and Close. */}
+            and Close. Provider settings has a key, not a gear, so it isn't mistaken for the app's
+            Settings gear right above it. */}
         <div className="ml-auto flex items-center gap-0.5">
           <PapelizIconButton
             iconButtonLabel="New chat"
             iconButtonSize="small"
+            className={papelizAssistantPanelHeaderButtonTouchClassName}
             onClick={() => {
               startNewAssistantChat()
               setAssistantPanelTab('chat')
@@ -78,18 +84,36 @@ export function PapelizAssistantPanel({ onAssistantPanelClose }: PapelizAssistan
           <PapelizIconButton
             iconButtonLabel="Sessions"
             iconButtonSize="small"
+            className={papelizAssistantPanelHeaderButtonTouchClassName}
             aria-pressed={assistantPanelTab === 'sessions'}
             onClick={() => toggleAssistantPanelView('sessions')}
           >
             <History className="size-[15px]" aria-hidden="true" />
           </PapelizIconButton>
-          <PapelizIconButton iconButtonLabel="Usage" iconButtonSize="small" aria-pressed={assistantPanelTab === 'usage'} onClick={() => toggleAssistantPanelView('usage')}>
+          <PapelizIconButton
+            iconButtonLabel="Usage"
+            iconButtonSize="small"
+            className={papelizAssistantPanelHeaderButtonTouchClassName}
+            aria-pressed={assistantPanelTab === 'usage'}
+            onClick={() => toggleAssistantPanelView('usage')}
+          >
             <ChartNoAxesColumn className="size-[15px]" aria-hidden="true" />
           </PapelizIconButton>
-          <PapelizIconButton iconButtonLabel="Provider settings" iconButtonSize="small" aria-haspopup="dialog" onClick={() => setProviderSettingsDialogOpen(true)}>
-            <Settings className="size-[15px]" aria-hidden="true" />
+          <PapelizIconButton
+            iconButtonLabel="Provider settings"
+            iconButtonSize="small"
+            className={papelizAssistantPanelHeaderButtonTouchClassName}
+            aria-haspopup="dialog"
+            onClick={() => setProviderSettingsDialogOpen(true)}
+          >
+            <KeyRound className="size-[15px]" aria-hidden="true" />
           </PapelizIconButton>
-          <PapelizIconButton iconButtonLabel="Close the AI Assistant panel" iconButtonSize="small" onClick={onAssistantPanelClose}>
+          <PapelizIconButton
+            iconButtonLabel="Close the AI Assistant panel"
+            iconButtonSize="small"
+            className={papelizAssistantPanelHeaderButtonTouchClassName}
+            onClick={onAssistantPanelClose}
+          >
             <X className="size-[15px]" aria-hidden="true" />
           </PapelizIconButton>
         </div>
@@ -122,7 +146,12 @@ export function PapelizAssistantPanel({ onAssistantPanelClose }: PapelizAssistan
       )}
       {assistantPanelTab !== 'chat' && (
         <div className="flex flex-none items-center gap-1.5 px-2.5 pt-2">
-          <PapelizIconButton iconButtonLabel="Back to the chat" iconButtonSize="small" onClick={() => setAssistantPanelTab('chat')}>
+          <PapelizIconButton
+            iconButtonLabel="Back to the chat"
+            iconButtonSize="small"
+            className={papelizAssistantPanelHeaderButtonTouchClassName}
+            onClick={() => setAssistantPanelTab('chat')}
+          >
             <ArrowLeft className="size-[15px]" aria-hidden="true" />
           </PapelizIconButton>
           <h3 className="text-[14px] font-semibold">{assistantPanelTab === 'sessions' ? 'Sessions' : 'Usage'}</h3>

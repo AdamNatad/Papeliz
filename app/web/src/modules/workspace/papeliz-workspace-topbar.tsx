@@ -42,8 +42,9 @@ function PapelizNoteViewSwitch() {
 
 // The blue bar across the top of the workspace: the file list toggle, Papeliz and the vault's name
 // on the left, the view switch in the middle, the Assistant panel and then the Settings gear on the
-// right (in focus mode Exit focus takes the Assistant's place; the gear stays at the edge). Closing
-// the vault lives in the gear. Its two sides share the leftover width equally,
+// right (in focus mode Exit focus takes the Assistant's place; the gear stays at the edge). The mark
+// and Papeliz are one button that asks to close the vault and go back to the start page, as the
+// gear's Close Vault does. Its two sides share the leftover width equally,
 // so the switch stays centered in the window. Below md the left side never gets narrower than the
 // toggle, the mark and the name, so on the narrowest phones the switch sits a few pixels right of
 // center rather than crowding the name.
@@ -55,6 +56,7 @@ export function PapelizWorkspaceTopbar() {
   const setExplorerPanelOpen = usePapelizWorkspaceStore((workspaceState) => workspaceState.setExplorerPanelOpen)
   const setAssistantPanelOpen = usePapelizWorkspaceStore((workspaceState) => workspaceState.setAssistantPanelOpen)
   const setFocusModeOn = usePapelizWorkspaceStore((workspaceState) => workspaceState.setFocusModeOn)
+  const setVaultCloseConfirmationShown = usePapelizWorkspaceStore((workspaceState) => workspaceState.setVaultCloseConfirmationShown)
 
   return (
     <header className="grid h-12 flex-none grid-cols-[1fr_auto_1fr] items-center gap-1 bg-papeliz-topbar px-2 text-white sm:gap-2 sm:px-3">
@@ -68,11 +70,19 @@ export function PapelizWorkspaceTopbar() {
             <PapelizFileListToggleIcon isFileListOpen={isExplorerPanelOpen} className="size-[18px]" />
           </PapelizIconButton>
         )}
-        <PapelizMark papelizMarkSize={26} papelizMarkTone="on-blue" className="flex-none sm:ml-1" />
-        <span className="text-[15px] font-semibold tracking-[-0.01em]">Papeliz</span>
+        <button
+          type="button"
+          aria-label="Papeliz, close the vault and go to the start page"
+          title="Close vault"
+          onClick={() => setVaultCloseConfirmationShown(true)}
+          className="flex flex-none items-center gap-1 rounded-lg px-1 py-1 transition-colors hover:bg-white/10 focus-visible:outline-white sm:gap-1.5"
+        >
+          <PapelizMark papelizMarkSize={26} papelizMarkTone="on-blue" className="flex-none sm:ml-0.5" />
+          <span className="text-[15px] font-semibold tracking-[-0.01em]">Papeliz</span>
+        </button>
         {openVault !== null && (
-          <span className="min-w-0 truncate text-sm text-white/80 max-md:hidden">
-            <span className="mx-1.5 text-white/50" aria-hidden="true">
+          <span className="min-w-0 truncate text-sm text-white/95 max-md:hidden">
+            <span className="mx-1 text-white/60" aria-hidden="true">
               /
             </span>
             {openVault.papelizVaultDisplayName}

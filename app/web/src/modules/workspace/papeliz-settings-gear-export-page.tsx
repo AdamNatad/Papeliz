@@ -40,6 +40,13 @@ const papelizSettingsGearExportFormatRows: readonly PapelizSettingsGearExportFor
   { exportFormat: 'html', exportFormatLabel: 'HTML', exportFormatLine: 'A web page; several notes make a website', ExportFormatIcon: Globe, isExportFormatReady: true },
 ]
 
+// The one file a single note downloads as, named in the summary under the tree.
+const papelizSettingsGearExportFormatOneNoteFileExtensions: Record<PapelizSettingsGearExportFormat, string> = {
+  word: '.docx',
+  pdf: '.pdf',
+  html: '.html',
+}
+
 // Where an export stands, for the lines under the Export button.
 type PapelizSettingsGearExportRunState =
   | { exportRunKind: 'idle' }
@@ -283,13 +290,14 @@ export function PapelizSettingsGearExportPage() {
     : tickedExportNoteCount > 1
       ? `Export ${tickedExportNoteCount} notes as ${chosenExportFormatLabel}`
       : `Export as ${chosenExportFormatLabel}`
+  // One note downloads as its own file (a vault of one note too); only two or more come as a .zip.
   const exportSelectionSummary =
     tickedExportNoteCount === 0
       ? 'No notes ticked.'
-      : isEveryExportNoteTicked
-        ? `Every note in “${openVault?.papelizVaultDisplayName ?? 'this vault'}”. They download as one .zip, folders kept.`
-        : tickedExportNoteCount === 1
-          ? '1 note ticked.'
+      : tickedExportNoteCount === 1
+        ? `1 note ticked. It downloads as one ${papelizSettingsGearExportFormatOneNoteFileExtensions[chosenExportFormat]} file.`
+        : isEveryExportNoteTicked
+          ? `Every note in “${openVault?.papelizVaultDisplayName ?? 'this vault'}”. They download as one .zip, folders kept.`
           : `${tickedExportNoteCount} notes ticked. They download as one .zip, folders kept.`
 
   const isExportRunning = exportRunState.exportRunKind === 'running'

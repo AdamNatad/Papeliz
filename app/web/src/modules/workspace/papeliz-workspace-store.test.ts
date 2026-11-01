@@ -338,6 +338,99 @@ describe('creating and moving to the trash', () => {
     expect(await vaultAdapter.readVaultNoteText('.trash/Inbox.md')).toBe('keep me')
     expect(workspaceState.vaultTreeEntries.map((vaultTreeEntry) => vaultTreeEntry.vaultEntryRelativePath)).toEqual(['Other.md'])
   })
+
+  it('takes a note that is gone from the folder off the file list when it fails to open', async () => {
+    const vaultAdapter = await openTestVault([
+      { vaultNoteRelativePath: 'Inbox.md', vaultNoteText: '' },
+      { vaultNoteRelativePath: 'Other.md', vaultNoteText: '' },
+    ])
+    // Another app moves it away; this tab still lists it.
+    await vaultAdapter.moveVaultEntryToTrash('Inbox.md')
+    await usePapelizWorkspaceStore.getState().openVaultNote('Inbox.md')
+    const workspaceState = usePapelizWorkspaceStore.getState()
+    expect(workspaceState.loadedVaultNotesByRelativePath['Inbox.md']?.noteLoadState).toBe('load-failed')
+    expect(workspaceState.vaultTreeEntries.map((vaultTreeEntry) => vaultTreeEntry.vaultEntryRelativePath)).toEqual(['Other.md'])
+    await usePapelizWorkspaceStore.getState().closeVaultNoteTab('Inbox.md')
+    expect(usePapelizWorkspaceStore.getState().openNoteTabRelativePaths).toEqual([])
+  })
+
+  it('makes a new folder only once its name is confirmed, so Escape leaves none behind', async () => {
+    await openTestVault([{ vaultNoteRelativePath: 'Projects/Plan.md', vaultNoteText: '' }])
+    const listFolderPaths = () =>
+      usePapelizWorkspaceStore
+        .getState()
+        .vaultTreeEntries.filter((vaultTreeEntry) => vaultTreeEntry.vaultEntryKind === 'folder')
+        .map((vaultTreeEntry) => vaultTreeEntry.vaultEntryRelativePath)
+    await usePapelizWorkspaceStore.getState().createVaultFolderInFolder('Projects')
+    expect(usePapelizWorkspaceStore.getState().newVaultFolderParentRelativePath).toBe('Projects')
+    expect(usePapelizWorkspaceStore.getState().expandedVaultFolderRelativePaths['Projects']).toBe(true)
+    usePapelizWorkspaceStore.getState().cancelNamingNewVaultFolder()
+    expect(usePapelizWorkspaceStore.getState().newVaultFolderParentRelativePath).toBeNull()
+    expect(listFolderPaths()).toEqual(['Projects'])
+
+    await usePapelizWorkspaceStore.getState().createVaultFolderInFolder('Projects')
+    expect(await usePapelizWorkspaceStore.getState().finishNamingNewVaultFolder('Plan.md')).toEqual({
+      newVaultFolderNamingOutcome: 'refused',
+      newVaultFolderNameProblem: 'Name Taken',
+    })
+    expect(await usePapelizWorkspaceStore.getState().finishNamingNewVaultFolder('  Drafts ')).toEqual({
+      newVaultFolderNamingOutcome: 'created',
+      newVaultFolderRelativePath: 'Projects/Drafts',
+    })
+    expect(usePapelizWorkspaceStore.getState().newVaultFolderParentRelativePath).toBeNull()
+    expect(listFolderPaths()).toEqual(['Projects', 'Projects/Drafts'])
+  })
+
+  it('restores a trashed note where it was, by Undo or later from the trash, under a free name', async () => {
+    const vaultAdapter = await openTestVault([
+      { vaultNoteRelativePath: 'Projects/Inbox.md', vaultNoteText: 'first' },
+      { vaultNoteRelativePath: 'Inbox.md', vaultNoteText: 'second' },
+    ])
+    await usePapelizWorkspaceStore.getState().openVaultNote('Projects/Inbox.md')
+    await usePapelizWorkspaceStore.getState().moveVaultEntryToTrash('Projects/Inbox.md')
+    const trashNotice = usePapelizWorkspaceStore.getState().workspaceNotice
+    expect(trashNotice?.workspaceNoticeAction?.workspaceNoticeActionLabel).toBe('Undo')
+    // Undo puts it back in its folder and opens it again.
+    trashNotice?.workspaceNoticeAction?.onWorkspaceNoticeAction()
+    await vi.waitFor(() => expect(usePapelizWorkspaceStore.getState().activeVaultNoteRelativePath).toBe('Projects/Inbox.md'))
+    expect(await vaultAdapter.readVaultNoteText('Projects/Inbox.md')).toBe('first')
+    expect(usePapelizWorkspaceStore.getState().workspaceNotice?.workspaceNoticeMessage).toBe('Restored “Inbox” into “Projects”.')
+
+    // Both go to the trash; the second lands as "Inbox 2.md" there, and still knows its place.
+    await usePapelizWorkspaceStore.getState().moveVaultEntryToTrash('Projects/Inbox.md')
+    await usePapelizWorkspaceStore.getState().moveVaultEntryToTrash('Inbox.md')
+    expect(await vaultAdapter.readPapelizVaultSettingsFile('trash-origins.json')).toContain('".trash/Inbox 2.md": "Inbox.md"')
+    // Meanwhile a new note took the first one's name.
+    await vaultAdapter.createVaultNote('Projects/Inbox.md', 'newer')
+    await usePapelizWorkspaceStore.getState().refreshVaultTree()
+    expect(await usePapelizWorkspaceStore.getState().restoreVaultEntryFromTrash('.trash/Inbox.md', 'note')).toBe('Projects/Inbox 2.md')
+    expect(await usePapelizWorkspaceStore.getState().restoreVaultEntryFromTrash('.trash/Inbox 2.md', 'note')).toBe('Inbox.md')
+    expect(await vaultAdapter.readVaultNoteText('Projects/Inbox 2.md')).toBe('first')
+    expect(await vaultAdapter.readVaultNoteText('Inbox.md')).toBe('second')
+    await waitForQueuedVaultOperations()
+    await vi.waitFor(async () => expect(await vaultAdapter.readPapelizVaultSettingsFile('trash-origins.json')).toContain('"trashOrigins": {}'))
+  })
+
+  it('restores a trashed folder with its notes, making its folder again, and a note from inside a trashed folder', async () => {
+    const fakeVaultRootHandle = await createPapelizFakeVaultFolder('Restore', {
+      'Work/Projects/Plan.md': '# Plan',
+      'Work/Projects/Budget.md': '# Budget',
+      'Work/Notes.md': '',
+    })
+    const vaultAdapter = await openTestVault([], new PapelizFolderOnDiskVaultAdapter(fakeVaultRootHandle.asFileSystemDirectoryHandle()))
+    await usePapelizWorkspaceStore.getState().moveVaultEntryToTrash('Work/Projects')
+    await usePapelizWorkspaceStore.getState().moveVaultEntryToTrash('Work')
+    // One note out of the trashed folder goes where it was inside it, its folders made again.
+    expect(await usePapelizWorkspaceStore.getState().restoreVaultEntryFromTrash('.trash/Projects/Budget.md', 'note')).toBe('Work/Projects/Budget.md')
+    expect(await vaultAdapter.readVaultNoteText('Work/Projects/Budget.md')).toBe('# Budget')
+    // The rest of the folder joins it under a free name.
+    expect(await usePapelizWorkspaceStore.getState().restoreVaultEntryFromTrash('.trash/Projects', 'folder')).toBe('Work/Projects 2')
+    expect(await vaultAdapter.readVaultNoteText('Work/Projects 2/Plan.md')).toBe('# Plan')
+    expect(usePapelizWorkspaceStore.getState().workspaceNotice?.workspaceNoticeMessage).toBe('Restored “Projects 2” into “Work”.')
+    // Nothing outside the trash can be "restored".
+    expect(await usePapelizWorkspaceStore.getState().restoreVaultEntryFromTrash('Work/Notes.md', 'note')).toBeNull()
+    expect(usePapelizWorkspaceStore.getState().workspaceNotice?.workspaceNoticeKind).toBe('error')
+  })
 })
 
 describe('what Papeliz Sync hears from the workspace', () => {
@@ -418,6 +511,21 @@ describe('what Papeliz Sync hears from the workspace', () => {
     expect(papelizSyncFakeEngine.fakeReportedSyncVaultFileSaves.every((reportedSave) => reportedSave.papelizVaultId === papelizVaultId)).toBe(true)
     // The original folder's files weren't changed, so they aren't reported.
     expect(readReportedSavePaths()).not.toContain('Projects/Plan.md')
+  })
+
+  it('hears a note or folder restored from the trash as new files, since it never carries the trash', async () => {
+    const papelizSyncFakeEngine = loadTestSyncEngine()
+    const fakeVaultRootHandle = await createPapelizFakeVaultFolder('Restores', { 'Inbox.md': 'keep me', 'Projects/Plan.md': '# Plan' })
+    await openTestVault([], new PapelizFolderOnDiskVaultAdapter(fakeVaultRootHandle.asFileSystemDirectoryHandle()))
+    await usePapelizWorkspaceStore.getState().moveVaultEntryToTrash('Inbox.md')
+    await usePapelizWorkspaceStore.getState().moveVaultEntryToTrash('Projects')
+    await usePapelizWorkspaceStore.getState().restoreVaultEntryFromTrash('.trash/Inbox.md', 'note')
+    await usePapelizWorkspaceStore.getState().restoreVaultEntryFromTrash('.trash/Projects', 'folder')
+    await vi.waitFor(() =>
+      expect(papelizSyncFakeEngine.fakeReportedSyncVaultFileSaves.map((reportedSave) => reportedSave.vaultFileRelativePath)).toEqual(
+        expect.arrayContaining(['Inbox.md', 'Projects/Plan.md', '.papeliz/trash-origins.json']),
+      ),
+    )
   })
 
   it('reports nothing, and still works, while the engine isn’t loaded', async () => {

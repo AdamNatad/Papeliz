@@ -3,11 +3,15 @@ import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type 
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { getVaultEntryName, getVaultEntryParentFolderRelativePath, getVaultNoteTitle } from '../vault/papeliz-vault-relative-paths'
 import { usePapelizNoteTabsLayoutStore } from './papeliz-note-tabs-layout-store'
+import { describePapelizNoteSaveFailure } from './papeliz-note-save-failure-words'
 import { findVaultNoteEditingLock, type PapelizVaultNoteEditingLock } from './papeliz-vault-entry-locks'
 import { usePapelizWorkspaceStore } from './papeliz-workspace-store'
 
 // How far the pointer travels before a pressed tab lifts and follows it.
 const papelizNoteTabDragStartDistance = 6
+// The room kept between the open tab and the strip's edges when it is scrolled into sight.
+const papelizActiveNoteTabScrollMargin = 12
+const papelizNoteTabKeysDescriptionId = 'papeliz-note-tab-keys-description'
 // The gap between two tabs, where the strip shows through (Tailwind `gap-0.5`).
 const papelizNoteTabGap = 2
 const papelizNoteTabSlideTransition = 'transform 180ms var(--ease-papeliz-out), background-color 150ms ease, color 150ms ease'
@@ -77,8 +81,9 @@ function getNoteTabDragShiftX(noteTabIndex: number, noteTabDrag: PapelizNoteTabD
 // The open notes, as a strip at the top of the note column. Tabs have rounded tops and a small gap
 // between them, on a darker strip, so each reads as its own tab; the open one takes the note's own
 // background (with a blue line on top) and joins the page below. The close button shows on hover; a note with changes on their
-// way to disk shows a dot in its place. A tab is dragged sideways to reorder (it lifts after a few
-// pixels, the others make room, Esc puts it back), or moved with Alt+Shift+Left/Right.
+// way to disk shows a blue dot in its place, and one whose save failed a red dot. A tab is dragged
+// sideways to reorder (it lifts after a few pixels, the others make room, Esc puts it back), or moved
+// with Alt+Shift+Left/Right.
 export function PapelizNoteTabsBar() {
   const openNoteTabRelativePaths = usePapelizWorkspaceStore((workspaceState) => workspaceState.openNoteTabRelativePaths)
   const activeVaultNoteRelativePath = usePapelizWorkspaceStore((workspaceState) => workspaceState.activeVaultNoteRelativePath)
@@ -123,6 +128,19 @@ export function PapelizNoteTabsBar() {
 
   const vaultNoteTabTitles = openNoteTabRelativePaths.map(getVaultNoteTitle)
   const noteTabsNavRef = useRef<HTMLElement>(null)
+  // The tabs are one stop for Tab: the open note's tab (or the first) takes focus, the arrow keys move
+  // between tabs, Delete closes one and L locks or unlocks it. Each tab's lock and close are for the
+  // pointer only.
+  const rovingFocusVaultNoteRelativePath =
+    activeVaultNoteRelativePath !== null && openNoteTabRelativePaths.includes(activeVaultNoteRelativePath) ? activeVaultNoteRelativePath : (openNoteTabRelativePaths[0] ?? null)
+  const focusNoteTabTitleButton = (noteTabIndex: number) => {
+    noteTabsNavRef.current?.querySelectorAll<HTMLButtonElement>('[data-papeliz-note-tab-title]')[noteTabIndex]?.focus()
+  }
+  const focusRovingNoteTabAfterClose = () =>
+    requestAnimationFrame(() => {
+      if (document.activeElement !== null && document.activeElement !== document.body) return
+      noteTabsNavRef.current?.querySelector<HTMLButtonElement>('[data-papeliz-note-tab-title][tabindex="0"]')?.focus()
+    })
   const [noteTabDrag, setNoteTabDrag] = useState<PapelizNoteTabDrag | null>(null)
   // True for the frame after a drop: the tabs swap places in the list then, so nothing may slide.
   const [isNoteTabDropSettling, setNoteTabDropSettling] = useState(false)
@@ -135,9 +153,27 @@ export function PapelizNoteTabsBar() {
   const stopListeningToNoteTabPressRef = useRef<(() => void) | null>(null)
 
   useEffect(() => {
-    // Keep the open tab in sight when many tabs are open.
-    noteTabsNavRef.current?.querySelector('[aria-current="page"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
-  }, [activeVaultNoteRelativePath, openNoteTabRelativePaths])
+    // Keep the open tab wholly in sight, clear of the strip's edges (and so of New note beside it):
+    // when it changes, and whenever the strip changes width (the Assistant opening, a phone turning).
+    // Measured from the layout, not the screen, so a tab still growing in (papeliz-tab-enter) or
+    // sliding during a drag is placed where it ends up.
+    const noteTabsNavElement = noteTabsNavRef.current
+    if (noteTabsNavElement === null || isNoteTabsStacked) return
+    const scrollActiveNoteTabIntoView = () => {
+      const activeNoteTabElement = noteTabsNavElement.querySelector<HTMLElement>('[aria-current="page"]')?.parentElement
+      if (!activeNoteTabElement) return
+      const activeNoteTabStart = activeNoteTabElement.offsetLeft - papelizActiveNoteTabScrollMargin
+      const activeNoteTabEnd = activeNoteTabElement.offsetLeft + activeNoteTabElement.offsetWidth + papelizActiveNoteTabScrollMargin
+      if (activeNoteTabStart < noteTabsNavElement.scrollLeft) noteTabsNavElement.scrollLeft = activeNoteTabStart
+      else if (activeNoteTabEnd > noteTabsNavElement.scrollLeft + noteTabsNavElement.clientWidth) {
+        noteTabsNavElement.scrollLeft = activeNoteTabEnd - noteTabsNavElement.clientWidth
+      }
+    }
+    scrollActiveNoteTabIntoView()
+    const noteTabsNavResizeObserver = new ResizeObserver(scrollActiveNoteTabIntoView)
+    noteTabsNavResizeObserver.observe(noteTabsNavElement)
+    return () => noteTabsNavResizeObserver.disconnect()
+  }, [activeVaultNoteRelativePath, openNoteTabRelativePaths, assistantProposalPreview, isNoteTabsStacked])
 
   useEffect(() => () => stopListeningToNoteTabPressRef.current?.(), [])
 
@@ -293,10 +329,10 @@ export function PapelizNoteTabsBar() {
         void createVaultNoteInFolder(activeVaultNoteRelativePath === null ? '' : getVaultEntryParentFolderRelativePath(activeVaultNoteRelativePath))
       }
       // A solid blue button with a white plus, so it is easy to see. On touch screens it keeps the
-      // same 28 px, centred on the tab row, with no shadow; an invisible 40 × 34 px area around it
-      // takes the tap.
+      // same 28 px, centred on the tab row, with no shadow; an invisible 44 × 40 px area around it
+      // (the strip's full height) takes the tap.
       className={joinPapelizClassNames(
-        'relative grid size-7 flex-none place-items-center rounded-md bg-papeliz-gradient-start text-white shadow-papeliz-card transition-[filter,transform] duration-150 hover:brightness-[1.12] active:scale-[.94] pointer-coarse:ml-2 pointer-coarse:shadow-none pointer-coarse:before:absolute pointer-coarse:before:-inset-x-1.5 pointer-coarse:before:-inset-y-[3px]',
+        'relative grid size-7 flex-none place-items-center rounded-md bg-papeliz-gradient-start text-white shadow-papeliz-card transition-[filter,transform] duration-150 hover:brightness-[1.12] active:scale-[.94] pointer-coarse:ml-2 pointer-coarse:shadow-none pointer-coarse:before:absolute pointer-coarse:before:-inset-x-2 pointer-coarse:before:-inset-y-1.5',
         isNoteTabsStacked ? 'mx-0.5' : 'mx-1 mb-[3px] self-end',
       )}
     >
@@ -323,10 +359,14 @@ export function PapelizNoteTabsBar() {
           if (Math.abs(wheelEvent.deltaY) > Math.abs(wheelEvent.deltaX)) wheelEvent.currentTarget.scrollLeft += wheelEvent.deltaY
         }}
         className={joinPapelizClassNames(
-          'flex min-w-0 items-end',
+          // Relative, so each tab's offsetLeft is measured from the strip (the scroll into sight above).
+          'relative flex min-w-0 items-end',
           isNoteTabsStacked ? 'flex-1 pt-1.5' : 'papeliz-note-tabs-scroller h-10 overflow-x-auto overflow-y-hidden',
         )}
       >
+        <span id={papelizNoteTabKeysDescriptionId} className="sr-only">
+          Left and Right move between tabs, Delete closes a tab, and L locks or unlocks its note.
+        </span>
         <div className={isNoteTabsStacked ? 'flex flex-wrap gap-x-0.5 gap-y-1 [&>*]:h-[34px]' : 'flex h-[34px] flex-none items-stretch gap-0.5'}>
           {openNoteTabRelativePaths.map((vaultNoteRelativePath, vaultNoteTabIndex) => {
             const isActiveTab = vaultNoteRelativePath === activeVaultNoteRelativePath && assistantProposalPreview === null
@@ -336,8 +376,15 @@ export function PapelizNoteTabsBar() {
             const { noteTabLockLabel, noteTabLockTitle } = describeNoteTabLock(vaultNoteEditingLock, vaultNoteRelativePath, vaultNoteTabTitle)
             const stackedDropIndicatorSide =
               noteTabDrag?.stackedDropIndicator?.indicatedVaultNoteRelativePath === vaultNoteRelativePath ? noteTabDrag.stackedDropIndicator.indicatedSide : null
-            const noteSaveState = loadedVaultNotesByRelativePath[vaultNoteRelativePath]?.noteSaveState
-            const hasChangesOnTheirWay = noteSaveState === 'unsaved' || noteSaveState === 'saving'
+            const loadedVaultNote = loadedVaultNotesByRelativePath[vaultNoteRelativePath]
+            const noteSaveState = loadedVaultNote?.noteSaveState
+            // A save that failed or clashed marks the tab red, so it is seen from any note.
+            const isNoteNotSaved = noteSaveState === 'save-failed' || noteSaveState === 'save-conflict'
+            const hasChangesOnTheirWay = noteSaveState === 'unsaved' || noteSaveState === 'saving' || isNoteNotSaved
+            const noteNotSavedReason =
+              noteSaveState === 'save-failed'
+                ? describePapelizNoteSaveFailure(loadedVaultNote?.noteSaveErrorMessage ?? null).noteSaveFailureShortReason
+                : 'Changed elsewhere, press Settle in the status bar'
             // Two tabs with the same title show their folder, so they can be told apart.
             const hasSameTitleTab = vaultNoteTabTitles.filter((otherTabTitle) => otherTabTitle === vaultNoteTabTitle).length > 1
             return (
@@ -393,6 +440,7 @@ export function PapelizNoteTabsBar() {
                 <button
                   type="button"
                   data-papeliz-note-tab-lock=""
+                  tabIndex={-1}
                   aria-pressed={vaultNoteEditingLock !== null}
                   aria-label={noteTabLockLabel}
                   title={noteTabLockTitle}
@@ -407,16 +455,35 @@ export function PapelizNoteTabsBar() {
                 </button>
                 <button
                   type="button"
+                  data-papeliz-note-tab-title=""
+                  tabIndex={vaultNoteRelativePath === rovingFocusVaultNoteRelativePath ? 0 : -1}
                   aria-current={isActiveTab ? 'page' : undefined}
-                  title={vaultNoteRelativePath}
+                  aria-describedby={papelizNoteTabKeysDescriptionId}
+                  title={isNoteNotSaved ? `${vaultNoteRelativePath}\nNot saved: ${noteNotSavedReason}` : vaultNoteRelativePath}
                   onClick={() => void openVaultNote(vaultNoteRelativePath)}
                   onKeyDown={(keyboardEvent: KeyboardEvent<HTMLButtonElement>) => {
+                    const hasNoModifierKey = !keyboardEvent.altKey && !keyboardEvent.ctrlKey && !keyboardEvent.metaKey
                     if (keyboardEvent.key === 'Delete') {
                       keyboardEvent.preventDefault()
-                      void closeVaultNoteTab(vaultNoteRelativePath)
+                      void closeVaultNoteTab(vaultNoteRelativePath).then(focusRovingNoteTabAfterClose)
                     } else if (keyboardEvent.altKey && keyboardEvent.shiftKey && (keyboardEvent.key === 'ArrowLeft' || keyboardEvent.key === 'ArrowRight')) {
                       keyboardEvent.preventDefault()
                       moveVaultNoteTab(vaultNoteRelativePath, vaultNoteTabIndex + (keyboardEvent.key === 'ArrowLeft' ? -1 : 1))
+                    } else if (hasNoModifierKey && ['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(keyboardEvent.key)) {
+                      keyboardEvent.preventDefault()
+                      const lastNoteTabIndex = openNoteTabRelativePaths.length - 1
+                      focusNoteTabTitleButton(
+                        keyboardEvent.key === 'Home'
+                          ? 0
+                          : keyboardEvent.key === 'End'
+                            ? lastNoteTabIndex
+                            : keyboardEvent.key === 'ArrowLeft'
+                              ? Math.max(0, vaultNoteTabIndex - 1)
+                              : Math.min(lastNoteTabIndex, vaultNoteTabIndex + 1),
+                      )
+                    } else if (hasNoModifierKey && (keyboardEvent.key === 'l' || keyboardEvent.key === 'L')) {
+                      keyboardEvent.preventDefault()
+                      toggleVaultNoteTabLock(vaultNoteRelativePath)
                     }
                   }}
                   className="flex h-full min-w-0 flex-1 items-center gap-2 pr-1 pl-1.5 text-left focus-visible:outline-offset-[-3px]"
@@ -431,13 +498,17 @@ export function PapelizNoteTabsBar() {
                 <span className="relative mr-2 grid size-5 flex-none place-items-center pointer-coarse:mr-0.5 pointer-coarse:size-8">
                   {hasChangesOnTheirWay && (
                     <span
-                      aria-label="Unsaved changes"
-                      className="papeliz-saving-dot pointer-events-none absolute size-2 rounded-full bg-papeliz-blue transition-opacity group-hover:opacity-0 group-focus-within:opacity-0"
+                      aria-label={isNoteNotSaved ? `Not saved: ${noteNotSavedReason}` : 'Unsaved changes'}
+                      className={joinPapelizClassNames(
+                        'pointer-events-none absolute rounded-full transition-opacity group-hover:opacity-0 group-focus-within:opacity-0',
+                        isNoteNotSaved ? 'size-2.5 bg-papeliz-error-notice-icon' : 'papeliz-saving-dot size-2 bg-papeliz-blue',
+                      )}
                     />
                   )}
                   <button
                     type="button"
                     data-papeliz-note-tab-close=""
+                    tabIndex={-1}
                     aria-label={`Close ${vaultNoteTabTitle}`}
                     title={`Close ${vaultNoteTabTitle}`}
                     onClick={() => void closeVaultNoteTab(vaultNoteRelativePath)}

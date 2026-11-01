@@ -45,6 +45,20 @@ describe('the in-memory vault', () => {
     expect(listedPaths.some((listedPath) => listedPath.startsWith('.trash'))).toBe(false)
   })
 
+  it('restores from .trash only, into a folder that is there, under a free name', async () => {
+    const testVault = createTestVault()
+    await testVault.moveVaultEntryToTrash('Inbox.md')
+    await expect(testVault.restoreVaultEntryFromTrash('.trash/Inbox.md', 'Gone/Inbox.md')).rejects.toThrow('Not In Vault')
+    await expect(testVault.restoreVaultEntryFromTrash('Ideas', 'Ideas 2')).rejects.toThrow('Not In Trash')
+    await expect(testVault.restoreVaultEntryFromTrash('.trash', 'Trash')).rejects.toThrow('Not In Trash')
+    await expect(testVault.restoreVaultEntryFromTrash('.trash/Inbox.md', '.other-app/Inbox.md')).rejects.toThrow('Hidden Folder')
+    await testVault.restoreVaultEntryFromTrash('.trash/Inbox.md', 'Inbox.md')
+    expect(await testVault.readVaultNoteText('Inbox.md')).toBe('# Inbox')
+    await testVault.moveVaultEntryToTrash('Inbox.md')
+    await testVault.createVaultNote('Inbox.md', 'again')
+    await expect(testVault.restoreVaultEntryFromTrash('.trash/Inbox.md', 'Inbox.md')).rejects.toThrow('Name Taken')
+  })
+
   it('refuses to write inside .other-app', async () => {
     const testVault = createTestVault()
     await expect(testVault.writeVaultNoteText('.other-app/app.md', 'x')).rejects.toThrow()
