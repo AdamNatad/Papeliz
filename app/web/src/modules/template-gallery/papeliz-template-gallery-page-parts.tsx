@@ -6,6 +6,7 @@ import { describePapelizSyncFileCount, formatPapelizSyncByteSize } from '../sync
 import { isVaultJsonFileName } from '../vault/papeliz-vault-text-files'
 import { getVaultEntryName, isVaultNoteFileName } from '../vault/papeliz-vault-relative-paths'
 import {
+  papelizTemplateGalleryTagDisplayNames,
   papelizTemplateLicenseDisplayNames,
   type PapelizTemplateCheckResult,
   type PapelizTemplateFileListEntry,
@@ -16,35 +17,30 @@ import {
   type PapelizTemplateLicenseId,
   type PapelizTemplateRecheckState,
 } from './papeliz-template-gallery-contract'
+import { isPapelizTemplatePictureUrlAllowed } from './papeliz-template-gallery-picture-hosts'
 
-// The pieces the Templates pages share: what they read, a template's thumbnail, tags and votes,
-// Recheck, the checks' results and the file tree.
+// The pieces the Templates pages share: a template's thumbnail, author, tags and votes, Recheck, the
+// checks' results and the file tree.
 
-// Preview's and a template page's reads, which the gallery store doesn't make: the files a vault would
-// get, one file's text, and a picture's address (shown with <img> only).
-export interface PapelizTemplateGalleryFileReads {
-  listTemplateIncludedFiles: (templateGalleryRow: PapelizTemplateGalleryRow) => Promise<readonly PapelizTemplateFileListEntry[]>
-  readTemplateFileText: (templateGalleryRow: PapelizTemplateGalleryRow, templateFileRelativePath: string) => Promise<string>
-  buildTemplatePictureUrl: (templateGalleryRow: PapelizTemplateGalleryRow, templateFileRelativePath: string) => string
-}
-
-// Everything the Templates pages read and do: the gallery store's state and actions with the file
-// reads. Live, they are the gallery store's own; while the start screen's previewer (development builds
-// only) holds a page, its made-up templates stand in, and nothing reaches GitHub, jsDelivr or a vault.
-export type PapelizTemplateGalleryScreenModel = PapelizTemplateGalleryState & PapelizTemplateGalleryActions & PapelizTemplateGalleryFileReads
+// Everything the Templates pages read and do: the gallery store's state and actions. Live, they are
+// the gallery store's own; while the start screen's previewer (development builds only) holds a page,
+// its made-up templates stand in, and nothing reaches GitHub, jsDelivr or a vault.
+export type PapelizTemplateGalleryScreenModel = PapelizTemplateGalleryState & PapelizTemplateGalleryActions
 
 export function describeTemplateGalleryLicense(templateLicenseId: PapelizTemplateLicenseId): string {
   return papelizTemplateLicenseDisplayNames[templateLicenseId]
 }
 
-// A tag as the chips and a template's page show it: "project-workflow" -> "Project Workflow",
-// "ai-agents" -> "AI Agents".
-const papelizTemplateGalleryTagUpperCaseWords: ReadonlySet<string> = new Set(['ai', 'api', 'mcp', 'ui', 'ux', 'cli', 'pdf', 'sql'])
+// A tag as the chips and a template's page show it: its name from the tag list ("ai-agents" -> "AI
+// Agents"), or, for one not on it, its words with capitals ("garden-notes" -> "Garden Notes").
 export function describeTemplateGalleryTag(templateTag: string): string {
-  return templateTag
-    .split('-')
-    .map((templateTagWord) => (papelizTemplateGalleryTagUpperCaseWords.has(templateTagWord) ? templateTagWord.toUpperCase() : templateTagWord.charAt(0).toUpperCase() + templateTagWord.slice(1)))
-    .join(' ')
+  return (
+    papelizTemplateGalleryTagDisplayNames[templateTag] ??
+    templateTag
+      .split('-')
+      .map((templateTagWord) => templateTagWord.charAt(0).toUpperCase() + templateTagWord.slice(1))
+      .join(' ')
+  )
 }
 
 // The New tag stays for a template's first 14 days.
@@ -79,6 +75,79 @@ export function describeTemplateGalleryRowDetail(templateGalleryRow: PapelizTemp
   )
 }
 
+// How the pages get the author's picture: the gallery store's `buildTemplateAuthorPictureUrl`.
+export type PapelizTemplateAuthorPictureUrlBuilder = PapelizTemplateGalleryActions['buildTemplateAuthorPictureUrl']
+
+// The author's GitHub picture, a small circle before their name, read straight from GitHub's picture
+// host with no referrer, and only when it scrolls into view, at twice its size for sharp screens. If it
+// can't be read, the name shows alone.
+export function PapelizTemplateGalleryAuthorPicture({
+  templateRepositoryOwner,
+  authorPictureSize,
+  buildTemplateAuthorPictureUrl,
+}: {
+  templateRepositoryOwner: string
+  authorPictureSize: number
+  buildTemplateAuthorPictureUrl: PapelizTemplateAuthorPictureUrlBuilder
+}) {
+  const [failedAuthorPictureOwner, setFailedAuthorPictureOwner] = useState<string | null>(null)
+  if (failedAuthorPictureOwner === templateRepositoryOwner) return null
+  return (
+    <img
+      src={buildTemplateAuthorPictureUrl(templateRepositoryOwner, authorPictureSize * 2)}
+      alt=""
+      width={authorPictureSize}
+      height={authorPictureSize}
+      loading="lazy"
+      decoding="async"
+      referrerPolicy="no-referrer"
+      draggable={false}
+      data-papeliz-template-author-picture={templateRepositoryOwner}
+      onError={() => setFailedAuthorPictureOwner(templateRepositoryOwner)}
+      style={{ width: authorPictureSize, height: authorPictureSize }}
+      className="inline-block flex-none rounded-full bg-papeliz-surface-gray align-middle"
+    />
+  )
+}
+
+// Under a template's name in a row: the author's picture and name, then the license and file count
+// ("AdamNatad · MIT · 40 files"), or, on New, when it was listed ("Listed 2 days ago · AdamNatad").
+export function PapelizTemplateGalleryRowDetail({
+  templateGalleryRow,
+  templateListedDay,
+  buildTemplateAuthorPictureUrl,
+}: {
+  templateGalleryRow: PapelizTemplateGalleryRow
+  templateListedDay: string | null
+  buildTemplateAuthorPictureUrl: PapelizTemplateAuthorPictureUrlBuilder
+}) {
+  const templateAuthor = (
+    <span className="inline-flex min-w-0 items-center gap-1 align-bottom">
+      <PapelizTemplateGalleryAuthorPicture templateRepositoryOwner={templateGalleryRow.templateRepositoryOwner} authorPictureSize={14} buildTemplateAuthorPictureUrl={buildTemplateAuthorPictureUrl} />
+      <span className="truncate">{templateGalleryRow.templateRepositoryOwner}</span>
+    </span>
+  )
+  return (
+    <span className="truncate text-[11.5px] text-papeliz-ink-subtle">
+      {templateListedDay === null ? (
+        <>
+          {templateAuthor} · {describeTemplateGalleryLicense(templateGalleryRow.templateLicenseId)} · {describeTemplateGalleryFileCount(templateGalleryRow.templateIncludedFileCount)}
+        </>
+      ) : (
+        <>
+          Listed {templateListedDay} · {templateAuthor}
+        </>
+      )}
+    </span>
+  )
+}
+
+// A thumbnail's address is shown only from a host a template's pictures may come from, or drawn in the
+// page itself (a `data:` picture, which reaches no host).
+function isTemplateThumbnailPictureUrlShown(templateGalleryRow: PapelizTemplateGalleryRow, templateThumbnailPictureUrl: string): boolean {
+  return /^data:image\/(?:png|jpeg|webp|svg\+xml)[;,]/i.test(templateThumbnailPictureUrl) || isPapelizTemplatePictureUrlAllowed(templateGalleryRow, templateThumbnailPictureUrl)
+}
+
 // The repository on GitHub, at the commit Papeliz knows.
 export function buildTemplateGalleryGitHubCommitUrl(templateGalleryRow: PapelizTemplateGalleryRow): string {
   return `https://github.com/${templateGalleryRow.papelizTemplateGalleryId}/tree/${templateGalleryRow.templateCommitSha}`
@@ -106,11 +175,13 @@ export function classifyTemplateGalleryFile(templateFileRelativePath: string): P
 const papelizTemplateGalleryFileKindIcons: Record<PapelizTemplateGalleryFileKind, LucideIcon> = { note: FileText, json: Braces, text: FileText, picture: Image }
 
 // A template's thumbnail: the README's first picture, cropped to 16:10, or its first letter on a plain
-// tile when it has none (or it doesn't load). Shown with <img> only, and sends no referrer.
+// tile when it has none (or it doesn't load, or its host isn't one a template's pictures may come
+// from). Shown with <img> only, and sends no referrer.
 export function PapelizTemplateGalleryThumbnail({ templateGalleryRow, templateThumbnailSize }: { templateGalleryRow: PapelizTemplateGalleryRow; templateThumbnailSize: 'row' | 'page' }) {
   const [failedTemplateThumbnailPictureUrl, setFailedTemplateThumbnailPictureUrl] = useState<string | null>(null)
   const templateThumbnailPictureUrl = templateGalleryRow.templateThumbnailPictureUrl
-  const isTemplateThumbnailPictureShown = templateThumbnailPictureUrl !== null && templateThumbnailPictureUrl !== failedTemplateThumbnailPictureUrl
+  const isTemplateThumbnailPictureShown =
+    templateThumbnailPictureUrl !== null && templateThumbnailPictureUrl !== failedTemplateThumbnailPictureUrl && isTemplateThumbnailPictureUrlShown(templateGalleryRow, templateThumbnailPictureUrl)
   return (
     <span
       aria-hidden="true"

@@ -1,7 +1,6 @@
 import {
   papelizTemplateLicenseDisplayNames,
   papelizTemplateManifestFileName,
-  papelizTemplateSourceFileName,
   type PapelizTemplateCheckId,
   type PapelizTemplateCheckOutcome,
   type PapelizTemplateCheckReport,
@@ -11,6 +10,7 @@ import {
   type PapelizTemplateLicenseId,
   type PapelizTemplateManifest,
   type PapelizTemplateRunCommand,
+  type PapelizTemplateRunCommandKind,
 } from './papeliz-template-gallery-contract'
 import { detectPapelizTemplatePictureFormat, findPapelizTemplatePictureFormatByName } from './papeliz-template-gallery-picture-metadata'
 
@@ -34,6 +34,8 @@ const papelizTemplateNameLongestLength = 80
 const papelizTemplateDescriptionLongestLength = 300
 const papelizTemplateMostTagCount = 5
 const papelizTemplateTagLongestLength = 30
+// In each of templateIncludedPaths and templateExcludedPaths.
+const papelizTemplateMostPathPatternCount = 30
 // What jsDelivr serves from GitHub at most.
 const papelizJsdelivrMostRepositoryByteCount = 150 * 1024 * 1024
 const papelizJsdelivrMostFileByteCount = 20 * 1024 * 1024
@@ -49,8 +51,13 @@ const papelizTemplateManifestFieldNames: ReadonlySet<string> = new Set([
   'templateThumbnailPicturePath',
 ])
 
-// Never copied into a vault: Git's own folder, the manifest, and the files Papeliz writes itself.
-const papelizTemplateAlwaysLeftOutRelativePaths: ReadonlySet<string> = new Set([papelizTemplateManifestFileName, `.papeliz/${papelizTemplateSourceFileName}`, '.papeliz/browser-vault.json'])
+// Never copied into a vault, whatever their case: Git's own folder at any depth, the manifest, and the
+// folders at the vault's top that only Papeliz writes (papeliz-vault-relative-paths.ts): its settings,
+// its saved chats (and the earlier `.chatsession/`) and its trash. From its settings, a template may
+// bring its file list's order and looks, by these exact names; Papeliz writes
+// `.papeliz/template-source.json` itself.
+const papelizTemplatePapelizOwnTopFolderNames: ReadonlySet<string> = new Set(['.papeliz', '.csessions', '.chatsession', '.trash'])
+const papelizTemplateBroughtPapelizSettingsRelativePaths: ReadonlySet<string> = new Set(['.papeliz/file-list-order.json', '.papeliz/file-list-looks.json'])
 // The license file the license check reads, at the repository's root: LICENSE, LICENSE.md or
 // LICENSE.txt. It comes along whatever the manifest says, as MIT and CC BY ask.
 const papelizTemplateLicenseFileNamePattern = /^license(?:\.(?:md|txt))?$/i
@@ -60,6 +67,16 @@ const papelizWindowsReservedFileBaseNamePattern = /^(?:con|prn|aux|nul|com[1-9]|
 // Characters Windows, macOS or Linux refuse in a name, and control characters.
 // eslint-disable-next-line no-control-regex
 const papelizTemplateBlockedNameCharacterPattern = /[<>:"\\|?*\u0000-\u001f]/
+// Bidirectional embeddings, overrides and isolates, which make a name read as another
+// ("evil\u202Egpj.sh" shows as "evilhs.jpg").
+const papelizTemplateTextReorderingCharacterPattern = /[\u202a-\u202e\u2066-\u2069]/
+
+// Characters that show nothing or turn text around: control characters other than tab and line feed,
+// format characters (bidirectional marks and controls, zero-width characters, the byte order mark,
+// the soft hyphen), the line and paragraph separators, and letters drawn blank (the Hangul fillers and
+// the braille blank).
+const papelizTemplateHiddenCharacterPattern = /[\p{Cc}\p{Cf}\u2028\u2029\u115f\u1160\u3164\uffa0\u2800]/u
+const papelizTemplateHiddenCharacterGlobalPattern = /[\p{Cc}\p{Cf}\u2028\u2029\u115f\u1160\u3164\uffa0\u2800]/gu
 
 // Programs, archives, documents and other files that are never text; a picture's name must hold
 // a picture's bytes.
@@ -73,18 +90,25 @@ const papelizTemplateBinaryFileExtensions: ReadonlySet<string> = new Set([
 ])
 
 // Script files, listed under "Runs commands".
-const papelizTemplateScriptFileExtensions: ReadonlySet<string> = new Set(['sh', 'bash', 'zsh', 'fish', 'ps1', 'psm1', 'bat', 'cmd', 'js', 'mjs', 'cjs', 'ts', 'mts', 'cts', 'py'])
-
-// Agent settings files that can name commands, and the fields in them that hold one.
-const papelizTemplateAgentSettingsRelativePaths: ReadonlySet<string> = new Set([
-  '.claude/settings.json',
-  '.claude/settings.local.json',
-  '.mcp.json',
-  '.gemini/settings.json',
-  '.cursor/mcp.json',
-  '.vscode/mcp.json',
+const papelizTemplateScriptFileExtensions: ReadonlySet<string> = new Set([
+  'sh', 'bash', 'zsh', 'fish', 'command', 'ps1', 'psm1', 'bat', 'cmd', 'vbs', 'wsf',
+  'js', 'mjs', 'cjs', 'ts', 'mts', 'cts', 'py', 'rb', 'pl',
 ])
-const papelizTemplateAgentSettingsCommandFieldNames: ReadonlySet<string> = new Set(['command', 'apiKeyHelper', 'awsAuthRefresh', 'awsCredentialExport', 'otelHeadersHelper'])
+
+// Settings an agent or editor reads, in any folder, compared in lower case: Claude Code's, Gemini
+// CLI's, Cursor's (with its hooks) and VS Code's, MCP servers, VS Code's tasks (some run when the folder
+// opens), and dev containers (`initializeCommand` runs on the computer itself).
+const papelizTemplateAgentSettingsFilePathPattern =
+  /(?:^|\/)(?:\.claude\/settings(?:\.local)?\.json|\.mcp\.json|\.gemini\/settings\.json|\.cursor\/(?:mcp|hooks)\.json|\.vscode\/(?:mcp|tasks)\.json|\.devcontainer\/(?:[^/]+\/)?devcontainer\.json|\.devcontainer\.json)$/
+// Files of an agent's own commands, each able to run shell lines when it's used, and settings that
+// aren't JSON; listed whole.
+const papelizTemplateAgentCommandFilePathPattern = /(?:^|\/)(?:(?:\.claude|\.gemini)\/commands\/|\.codex\/config\.toml$)/
+// Fields that hold a command: `command`, and any name ending in "Command" (`postCreateCommand`,
+// `initializeCommand`, `discoveryCommand`), and the helpers Claude Code runs.
+const papelizTemplateAgentSettingsCommandFieldNamePattern = /command$/i
+const papelizTemplateAgentSettingsHelperFieldNames: ReadonlySet<string> = new Set(['apiKeyHelper', 'awsAuthRefresh', 'awsCredentialExport', 'otelHeadersHelper'])
+// Permission modes that ask before a command runs, as they always do.
+const papelizTemplateAgentAskingPermissionModes: ReadonlySet<string> = new Set(['default', 'plan'])
 
 const papelizGitLfsPointerStart = 'version https://git-lfs.github.com/spec/'
 
@@ -145,6 +169,51 @@ function formatTemplateByteCount(templateByteCount: number): string {
 
 function countTemplateItems(itemCount: number, singularItemName: string, pluralItemName = `${singularItemName}s`): string {
   return `${itemCount} ${itemCount === 1 ? singularItemName : pluralItemName}`
+}
+
+export function hasPapelizTemplateHiddenCharacter(templateText: string): boolean {
+  for (const templateTextCharacter of templateText) {
+    if (isPapelizTemplateHiddenCharacter(templateTextCharacter)) return true
+  }
+  return false
+}
+
+export function isPapelizTemplateHiddenCharacter(templateTextCharacter: string): boolean {
+  return templateTextCharacter !== '\t' && templateTextCharacter !== '\n' && papelizTemplateHiddenCharacterPattern.test(templateTextCharacter)
+}
+
+// A piece of a command's text, for showing it: plain text, or one hidden character to mark.
+export interface PapelizTemplateTextPiece {
+  templateTextPieceText: string
+  isTemplateTextPieceHiddenCharacter: boolean
+}
+
+// "npm test‮x" -> "npm test", "‮" (hidden), "x".
+export function splitPapelizTemplateTextAtHiddenCharacters(templateText: string): PapelizTemplateTextPiece[] {
+  const templateTextPieces: PapelizTemplateTextPiece[] = []
+  let plainTemplateText = ''
+  for (const templateTextCharacter of templateText) {
+    if (!isPapelizTemplateHiddenCharacter(templateTextCharacter)) {
+      plainTemplateText += templateTextCharacter
+      continue
+    }
+    if (plainTemplateText.length > 0) templateTextPieces.push({ templateTextPieceText: plainTemplateText, isTemplateTextPieceHiddenCharacter: false })
+    plainTemplateText = ''
+    templateTextPieces.push({ templateTextPieceText: templateTextCharacter, isTemplateTextPieceHiddenCharacter: true })
+  }
+  if (plainTemplateText.length > 0) templateTextPieces.push({ templateTextPieceText: plainTemplateText, isTemplateTextPieceHiddenCharacter: false })
+  return templateTextPieces
+}
+
+// "‮" -> "U+202E".
+export function describePapelizTemplateHiddenCharacter(templateTextCharacter: string): string {
+  return `U+${(templateTextCharacter.codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, '0')}`
+}
+
+// A path as a disk that ignores case may read it: hidden characters dropped (older macOS disks skip
+// some), then one case, with "ſ" as "s" and the Kelvin sign as "k". Used only to keep more out.
+function foldTemplatePathForComparison(templateFileRelativePath: string): string {
+  return templateFileRelativePath.normalize('NFC').replace(papelizTemplateHiddenCharacterGlobalPattern, '').toUpperCase().toLowerCase()
 }
 
 function encodeBytesAsBase64(digestBytes: Uint8Array): string {
@@ -236,8 +305,8 @@ export function parsePapelizTemplateManifest(templateManifestText: string): Pape
     ['templateIncludedPaths', templateIncludedPaths],
     ['templateExcludedPaths', templateExcludedPaths],
   ] as const) {
-    if (!Array.isArray(pathPatterns) || pathPatterns.some(findTemplatePathPatternProblem)) {
-      return manifestProblem(`The manifest’s ${pathPatternFieldName} must be a list of paths from the repository’s root, such as ".github/**".`)
+    if (!Array.isArray(pathPatterns) || pathPatterns.length > papelizTemplateMostPathPatternCount || pathPatterns.some(findTemplatePathPatternProblem)) {
+      return manifestProblem(`The manifest’s ${pathPatternFieldName} must be a list of up to ${papelizTemplateMostPathPatternCount} paths from the repository’s root, such as ".github/**".`)
     }
   }
   const templateThumbnailPicturePath = manifestFields['templateThumbnailPicturePath'] ?? null
@@ -261,46 +330,145 @@ export function parsePapelizTemplateManifest(templateManifestText: string): Pape
 
 // ---------------------------------------------------------------- what's included
 
-// A path pattern as a whole-path match: `**/` is any folders (none too), a `**` elsewhere anything,
-// `*` any characters within a name and `?` one.
-export function convertPapelizTemplatePathPatternToRegExp(templatePathPattern: string): RegExp {
-  let patternRegExpSource = ''
-  for (let patternIndex = 0; patternIndex < templatePathPattern.length; patternIndex += 1) {
-    const patternCharacter = templatePathPattern[patternIndex] ?? ''
-    if (patternCharacter === '*' && templatePathPattern[patternIndex + 1] === '*') {
-      const isFollowedByFolderSlash = templatePathPattern[patternIndex + 2] === '/'
-      patternRegExpSource += isFollowedByFolderSlash ? '(?:[^/]+/)*' : '.*'
-      patternIndex += isFollowedByFolderSlash ? 2 : 1
+// A path pattern's folder names, as the matcher takes them, each split into its characters: null for
+// "**" alone, which is any folders; in any other name a run of "*" is one "*".
+type PapelizTemplateSplitPathPattern = ReadonlyArray<readonly string[] | null>
+
+function splitTemplatePathPattern(templatePathPattern: string): PapelizTemplateSplitPathPattern {
+  return templatePathPattern.split('/').map((patternSegment) => (patternSegment === '**' ? null : Array.from(patternSegment.replace(/\*+/g, '*'))))
+}
+
+function splitTemplatePathIntoNameCharacters(templateFileRelativePath: string): string[][] {
+  return templateFileRelativePath.split('/').map((pathSegment) => Array.from(pathSegment))
+}
+
+// How many steps matching may take for one template, across all its listed files and patterns: many
+// times what any real manifest needs, and well under a second, so no pattern or file list can freeze
+// the tab or use up the Templates Worker's time.
+const papelizTemplatePathMatchingMostStepCount = 50_000_000
+
+class PapelizTemplatePathMatchingTooLongError extends Error {}
+
+interface PapelizTemplatePathMatchingSteps {
+  remainingMatchingStepCount: number
+}
+
+function takeTemplatePathMatchingSteps(templatePathMatchingSteps: PapelizTemplatePathMatchingSteps, takenStepCount: number): void {
+  templatePathMatchingSteps.remainingMatchingStepCount -= takenStepCount
+  if (templatePathMatchingSteps.remainingMatchingStepCount < 0) throw new PapelizTemplatePathMatchingTooLongError()
+}
+
+// One name against one pattern name: `*` any characters, `?` one. Without a regular expression, and
+// going back only to the last `*`, so it takes at most the names' lengths multiplied.
+function matchTemplatePathPatternName(patternNameCharacters: readonly string[], pathNameCharacters: readonly string[], templatePathMatchingSteps: PapelizTemplatePathMatchingSteps): boolean {
+  let patternIndex = 0
+  let pathIndex = 0
+  let lastStarPatternIndex = -1
+  let pathIndexAfterLastStar = 0
+  while (pathIndex < pathNameCharacters.length) {
+    takeTemplatePathMatchingSteps(templatePathMatchingSteps, 1)
+    const patternCharacter = patternNameCharacters[patternIndex]
+    if (patternCharacter !== undefined && patternCharacter !== '*' && (patternCharacter === '?' || patternCharacter === pathNameCharacters[pathIndex])) {
+      patternIndex += 1
+      pathIndex += 1
     } else if (patternCharacter === '*') {
-      patternRegExpSource += '[^/]*'
-    } else if (patternCharacter === '?') {
-      patternRegExpSource += '[^/]'
+      lastStarPatternIndex = patternIndex
+      pathIndexAfterLastStar = pathIndex
+      patternIndex += 1
+    } else if (lastStarPatternIndex >= 0) {
+      patternIndex = lastStarPatternIndex + 1
+      pathIndexAfterLastStar += 1
+      pathIndex = pathIndexAfterLastStar
     } else {
-      patternRegExpSource += patternCharacter.replace(/[.+^${}()|[\]\\]/g, '\\$&')
+      return false
     }
   }
-  return new RegExp(`^${patternRegExpSource}$`)
+  while (patternNameCharacters[patternIndex] === '*') patternIndex += 1
+  return patternIndex === patternNameCharacters.length
 }
 
+// A path against a split pattern, folder by folder: for each pattern name, from the last back, which
+// path positions the rest of the pattern matches from. Each pattern name meets each path name once,
+// so no pattern can make it slow. A "**" at the end needs one name at least: "drafts/**" is what's
+// inside drafts/.
+function matchSplitTemplatePathPattern(
+  patternSegments: PapelizTemplateSplitPathPattern,
+  pathSegmentCharacters: ReadonlyArray<readonly string[]>,
+  templatePathMatchingSteps: PapelizTemplatePathMatchingSteps,
+): boolean {
+  const pathSegmentCount = pathSegmentCharacters.length
+  let isRestMatchedFrom: boolean[] = Array.from({ length: pathSegmentCount + 1 }, (_unused, pathSegmentIndex) => pathSegmentIndex === pathSegmentCount)
+  for (let patternSegmentIndex = patternSegments.length - 1; patternSegmentIndex >= 0; patternSegmentIndex -= 1) {
+    takeTemplatePathMatchingSteps(templatePathMatchingSteps, pathSegmentCount + 1)
+    const patternNameCharacters = patternSegments[patternSegmentIndex] ?? null
+    const isThisMatchedFrom = new Array<boolean>(pathSegmentCount + 1).fill(false)
+    if (patternNameCharacters === null) {
+      const isAtPatternEnd = patternSegmentIndex === patternSegments.length - 1 && patternSegments.length > 1
+      for (let pathSegmentIndex = pathSegmentCount; pathSegmentIndex >= 0; pathSegmentIndex -= 1) {
+        isThisMatchedFrom[pathSegmentIndex] = isAtPatternEnd
+          ? pathSegmentIndex < pathSegmentCount
+          : (isRestMatchedFrom[pathSegmentIndex] ?? false) || (pathSegmentIndex < pathSegmentCount && (isThisMatchedFrom[pathSegmentIndex + 1] ?? false))
+      }
+    } else {
+      for (let pathSegmentIndex = 0; pathSegmentIndex < pathSegmentCount; pathSegmentIndex += 1) {
+        isThisMatchedFrom[pathSegmentIndex] =
+          (isRestMatchedFrom[pathSegmentIndex + 1] ?? false) && matchTemplatePathPatternName(patternNameCharacters, pathSegmentCharacters[pathSegmentIndex] ?? [], templatePathMatchingSteps)
+      }
+    }
+    isRestMatchedFrom = isThisMatchedFrom
+  }
+  return isRestMatchedFrom[0] ?? false
+}
+
+// Whether a path pattern (from the manifest) matches a file's whole path from the repository's root;
+// null when matching would take too long.
+export function matchPapelizTemplatePathPattern(templatePathPattern: string, templateFileRelativePath: string): boolean | null {
+  try {
+    return matchSplitTemplatePathPattern(splitTemplatePathPattern(templatePathPattern), splitTemplatePathIntoNameCharacters(templateFileRelativePath), {
+      remainingMatchingStepCount: papelizTemplatePathMatchingMostStepCount,
+    })
+  } catch (templatePathMatchingError) {
+    if (templatePathMatchingError instanceof PapelizTemplatePathMatchingTooLongError) return null
+    throw templatePathMatchingError
+  }
+}
+
+// A file named like one of these folders is left out too, since it would stand where the folder goes
+// (and a `.git` file can point Git at another repository).
 function isTemplateRelativePathAlwaysLeftOut(templateFileRelativePath: string): boolean {
-  return templateFileRelativePath.split('/')[0] === '.git' || papelizTemplateAlwaysLeftOutRelativePaths.has(templateFileRelativePath)
+  if (templateFileRelativePath === papelizTemplateManifestFileName) return true
+  const foldedPathSegments = foldTemplatePathForComparison(templateFileRelativePath).split('/')
+  if (foldedPathSegments.includes('.git')) return true
+  if (!papelizTemplatePapelizOwnTopFolderNames.has(foldedPathSegments[0] ?? '')) return false
+  return !papelizTemplateBroughtPapelizSettingsRelativePaths.has(templateFileRelativePath)
 }
 
-// The files a vault made from the template gets, in path order.
+export const papelizTemplatePathPatternsTooSlowSentence =
+  'The manifest’s templateIncludedPaths and templateExcludedPaths take too long to match this repository’s files. Use fewer, simpler patterns, such as "drafts/**".'
+
+// The files a vault made from the template gets, in path order; null when its patterns take too long
+// to match the repository's files.
 export function selectPapelizTemplateIncludedFileListEntries(
   templateFileList: PapelizTemplateFileList,
   templateManifest: PapelizTemplateManifest,
-): PapelizTemplateFileListEntry[] {
-  const includedPathRegExps = templateManifest.templateIncludedPaths.map(convertPapelizTemplatePathPatternToRegExp)
-  const excludedPathRegExps = templateManifest.templateExcludedPaths.map(convertPapelizTemplatePathPatternToRegExp)
-  return templateFileList.templateFileListEntries
-    .filter(({ templateFileRelativePath }) => {
-      if (isTemplateRelativePathAlwaysLeftOut(templateFileRelativePath)) return false
-      if (!templateFileRelativePath.includes('/') && papelizTemplateLicenseFileNamePattern.test(templateFileRelativePath)) return true
-      if (!includedPathRegExps.some((includedPathRegExp) => includedPathRegExp.test(templateFileRelativePath))) return false
-      return !excludedPathRegExps.some((excludedPathRegExp) => excludedPathRegExp.test(templateFileRelativePath))
-    })
-    .sort((firstEntry, secondEntry) => (firstEntry.templateFileRelativePath < secondEntry.templateFileRelativePath ? -1 : 1))
+): PapelizTemplateFileListEntry[] | null {
+  const includedPathPatterns = templateManifest.templateIncludedPaths.map(splitTemplatePathPattern)
+  const excludedPathPatterns = templateManifest.templateExcludedPaths.map(splitTemplatePathPattern)
+  const templatePathMatchingSteps: PapelizTemplatePathMatchingSteps = { remainingMatchingStepCount: papelizTemplatePathMatchingMostStepCount }
+  try {
+    return templateFileList.templateFileListEntries
+      .filter(({ templateFileRelativePath }) => {
+        if (isTemplateRelativePathAlwaysLeftOut(templateFileRelativePath)) return false
+        if (!templateFileRelativePath.includes('/') && papelizTemplateLicenseFileNamePattern.test(templateFileRelativePath)) return true
+        const templatePathNameCharacters = splitTemplatePathIntoNameCharacters(templateFileRelativePath)
+        if (!includedPathPatterns.some((includedPathPattern) => matchSplitTemplatePathPattern(includedPathPattern, templatePathNameCharacters, templatePathMatchingSteps))) return false
+        return !excludedPathPatterns.some((excludedPathPattern) => matchSplitTemplatePathPattern(excludedPathPattern, templatePathNameCharacters, templatePathMatchingSteps))
+      })
+      .sort((firstEntry, secondEntry) => (firstEntry.templateFileRelativePath < secondEntry.templateFileRelativePath ? -1 : 1))
+  } catch (templatePathMatchingError) {
+    if (templatePathMatchingError instanceof PapelizTemplatePathMatchingTooLongError) return null
+    throw templatePathMatchingError
+  }
 }
 
 // ---------------------------------------------------------------- the floor
@@ -312,6 +480,7 @@ function findTemplatePathProblem(templateFileRelativePath: string): string | nul
   for (const templatePathSegment of templatePathSegments) {
     if (templatePathSegment.length === 0 || templatePathSegment === '.' || templatePathSegment === '..') return 'leaves its folder'
     if (papelizTemplateBlockedNameCharacterPattern.test(templatePathSegment)) return 'has a character Windows refuses'
+    if (papelizTemplateTextReorderingCharacterPattern.test(templatePathSegment)) return 'has a hidden character that turns its name around'
     if (papelizWindowsReservedFileBaseNamePattern.test(templatePathSegment)) return 'has a name Windows refuses'
     if (/[. ]$/.test(templatePathSegment)) return 'has a name ending in a dot or space'
   }
@@ -373,48 +542,135 @@ function findDangerousNoteMarkup(noteText: string): string | null {
 
 // ---------------------------------------------------------------- "Runs commands"
 
-function collectAgentSettingsCommands(agentSettingsValue: unknown, foundCommandTexts: string[]): void {
-  if (Array.isArray(agentSettingsValue)) {
-    for (const agentSettingsItem of agentSettingsValue) collectAgentSettingsCommands(agentSettingsItem, foundCommandTexts)
-    return
+type PapelizTemplateAgentSettingKind = Exclude<PapelizTemplateRunCommandKind, 'agent-command-file' | 'script-file'>
+
+function isPlainAgentSettingsObject(agentSettingsValue: unknown): agentSettingsValue is Record<string, unknown> {
+  return typeof agentSettingsValue === 'object' && agentSettingsValue !== null && !Array.isArray(agentSettingsValue)
+}
+
+// A command's arguments as VS Code and MCP settings write them: strings, or `{ "value": \u2026 }`.
+function describeAgentSettingsCommandArguments(agentSettingsArgumentsValue: unknown): string[] {
+  if (!Array.isArray(agentSettingsArgumentsValue)) return []
+  return (agentSettingsArgumentsValue as unknown[]).flatMap((commandArgument) => {
+    if (typeof commandArgument === 'string') return [commandArgument]
+    const commandArgumentValue = isPlainAgentSettingsObject(commandArgument) ? commandArgument['value'] : undefined
+    return typeof commandArgumentValue === 'string' ? [commandArgumentValue] : []
+  })
+}
+
+// One command a setting holds, as written: a string, a list of parts as one command line, or VS
+// Code's `{ "value": \u2026, "quoting": \u2026 }`; null for anything else.
+function describeAgentSettingsCommandValue(agentSettingsCommandValue: unknown): string | null {
+  if (typeof agentSettingsCommandValue === 'string') return agentSettingsCommandValue
+  if (Array.isArray(agentSettingsCommandValue)) {
+    const commandParts = describeAgentSettingsCommandArguments(agentSettingsCommandValue)
+    return commandParts.length > 0 ? commandParts.join(' ') : null
   }
-  if (typeof agentSettingsValue !== 'object' || agentSettingsValue === null) return
-  const agentSettingsFields = agentSettingsValue as Record<string, unknown>
-  for (const [agentSettingsFieldName, agentSettingsFieldValue] of Object.entries(agentSettingsFields)) {
-    if (papelizTemplateAgentSettingsCommandFieldNames.has(agentSettingsFieldName) && typeof agentSettingsFieldValue === 'string') {
-      const commandArguments = agentSettingsFieldName === 'command' && Array.isArray(agentSettingsFields['args']) ? agentSettingsFields['args'].filter((commandArgument) => typeof commandArgument === 'string') : []
-      foundCommandTexts.push([agentSettingsFieldValue, ...commandArguments].join(' ').trim())
-    } else {
-      collectAgentSettingsCommands(agentSettingsFieldValue, foundCommandTexts)
+  const commandValueText = isPlainAgentSettingsObject(agentSettingsCommandValue) ? agentSettingsCommandValue['value'] : undefined
+  return typeof commandValueText === 'string' ? commandValueText : null
+}
+
+// Everything in a parsed settings file that runs a command or changes how one runs, in the file's
+// order. It walks with a list, not by calling itself, so a file nested however deep is read to its
+// end: every command, environment variable, permission that skips asking, and plugin.
+function listAgentSettingsRunSettings(parsedAgentSettings: unknown): Array<{ agentSettingKind: PapelizTemplateAgentSettingKind; agentSettingText: string }> {
+  type AgentSettingsWalkStep = { walkedAgentSettingsValue: unknown } | { agentSettingKind: PapelizTemplateAgentSettingKind; agentSettingText: string }
+  const foundAgentSettings: Array<{ agentSettingKind: PapelizTemplateAgentSettingKind; agentSettingText: string }> = []
+  const pendingWalkSteps: AgentSettingsWalkStep[] = [{ walkedAgentSettingsValue: parsedAgentSettings }]
+  while (pendingWalkSteps.length > 0) {
+    const walkStep = pendingWalkSteps.pop()
+    if (walkStep === undefined) break
+    if (!('walkedAgentSettingsValue' in walkStep)) {
+      foundAgentSettings.push(walkStep)
+      continue
     }
+    const { walkedAgentSettingsValue } = walkStep
+    // This value's steps in order; pushed last to first, so the first comes off the list first.
+    const nextWalkSteps: AgentSettingsWalkStep[] = []
+    if (Array.isArray(walkedAgentSettingsValue)) {
+      for (const agentSettingsItem of walkedAgentSettingsValue as unknown[]) nextWalkSteps.push({ walkedAgentSettingsValue: agentSettingsItem })
+    } else if (isPlainAgentSettingsObject(walkedAgentSettingsValue)) {
+      for (const [agentSettingsFieldName, agentSettingsFieldValue] of Object.entries(walkedAgentSettingsValue)) {
+        const isCommandField = papelizTemplateAgentSettingsCommandFieldNamePattern.test(agentSettingsFieldName) || papelizTemplateAgentSettingsHelperFieldNames.has(agentSettingsFieldName)
+        const commandText = describeAgentSettingsCommandValue(agentSettingsFieldValue)
+        if (isCommandField && commandText !== null) {
+          const commandArguments = agentSettingsFieldName === 'command' ? describeAgentSettingsCommandArguments(walkedAgentSettingsValue['args']) : []
+          nextWalkSteps.push({ agentSettingKind: 'agent-setting-command', agentSettingText: [commandText, ...commandArguments].join(' ').trim() })
+        } else if (isCommandField && isPlainAgentSettingsObject(agentSettingsFieldValue)) {
+          // A dev container's step as named commands: { "install": "npm ci", "build": ["make"] }.
+          for (const namedCommandValue of Object.values(agentSettingsFieldValue)) {
+            const namedCommandText = describeAgentSettingsCommandValue(namedCommandValue)
+            nextWalkSteps.push(namedCommandText === null ? { walkedAgentSettingsValue: namedCommandValue } : { agentSettingKind: 'agent-setting-command', agentSettingText: namedCommandText })
+          }
+        } else if (agentSettingsFieldName === 'script' && typeof agentSettingsFieldValue === 'string' && walkedAgentSettingsValue['type'] === 'npm') {
+          // A VS Code npm task runs one of package.json's scripts.
+          nextWalkSteps.push({ agentSettingKind: 'agent-setting-command', agentSettingText: `npm run ${agentSettingsFieldValue}` })
+        } else if (agentSettingsFieldName === 'env' && isPlainAgentSettingsObject(agentSettingsFieldValue)) {
+          for (const [environmentVariableName, environmentVariableValue] of Object.entries(agentSettingsFieldValue)) {
+            nextWalkSteps.push({ agentSettingKind: 'agent-setting-environment', agentSettingText: `${environmentVariableName}=${typeof environmentVariableValue === 'string' ? environmentVariableValue : JSON.stringify(environmentVariableValue)}` })
+          }
+        } else if (agentSettingsFieldName === 'permissions' && isPlainAgentSettingsObject(agentSettingsFieldValue)) {
+          // Rules that deny or ask run nothing; ones that allow, and a mode that asks less, do.
+          const { allow: allowedPermissionRules, defaultMode: permissionMode } = agentSettingsFieldValue
+          for (const allowedPermissionRule of Array.isArray(allowedPermissionRules) ? (allowedPermissionRules as unknown[]) : []) {
+            nextWalkSteps.push({ agentSettingKind: 'agent-setting-permission', agentSettingText: typeof allowedPermissionRule === 'string' ? allowedPermissionRule : JSON.stringify(allowedPermissionRule) })
+          }
+          if (permissionMode !== undefined && !(typeof permissionMode === 'string' && papelizTemplateAgentAskingPermissionModes.has(permissionMode))) {
+            nextWalkSteps.push({ agentSettingKind: 'agent-setting-permission', agentSettingText: `defaultMode: ${typeof permissionMode === 'string' ? permissionMode : JSON.stringify(permissionMode)}` })
+          }
+        } else if (agentSettingsFieldName === 'enabledPlugins' && isPlainAgentSettingsObject(agentSettingsFieldValue)) {
+          for (const [pluginName, isPluginEnabled] of Object.entries(agentSettingsFieldValue)) {
+            if (isPluginEnabled !== false) nextWalkSteps.push({ agentSettingKind: 'agent-setting-plugin', agentSettingText: pluginName })
+          }
+        } else {
+          nextWalkSteps.push({ walkedAgentSettingsValue: agentSettingsFieldValue })
+        }
+      }
+    }
+    for (let nextWalkStepIndex = nextWalkSteps.length - 1; nextWalkStepIndex >= 0; nextWalkStepIndex -= 1) {
+      const nextWalkStep = nextWalkSteps[nextWalkStepIndex]
+      if (nextWalkStep !== undefined) pendingWalkSteps.push(nextWalkStep)
+    }
+  }
+  return foundAgentSettings
+}
+
+function createTemplateRunCommand(templateRunCommandKind: PapelizTemplateRunCommandKind, templateRunCommandSourceRelativePath: string, templateRunCommandText: string): PapelizTemplateRunCommand {
+  return {
+    templateRunCommandKind,
+    templateRunCommandSourceRelativePath,
+    templateRunCommandText,
+    hasTemplateRunCommandHiddenCharacters: hasPapelizTemplateHiddenCharacter(templateRunCommandText) || hasPapelizTemplateHiddenCharacter(templateRunCommandSourceRelativePath),
   }
 }
 
-// The commands a template's agent settings name and its script files, in path order. Agent settings
-// that aren't valid JSON add nothing here; the JSON check refuses them.
+// The commands a template's agent settings name (in any folder, whatever their case), its agents'
+// command files and its script files, in path order. Settings Papeliz can't read through (not text,
+// not JSON) are listed whole, so nothing in them goes unshown; the JSON check refuses them too.
 export function listPapelizTemplateRunCommands(includedTemplateFileBytesByRelativePath: ReadonlyMap<string, Uint8Array>): PapelizTemplateRunCommand[] {
   const templateRunCommands: PapelizTemplateRunCommand[] = []
   for (const [templateFileRelativePath, templateFileBytes] of [...includedTemplateFileBytesByRelativePath].sort(([firstPath], [secondPath]) => (firstPath < secondPath ? -1 : 1))) {
-    const templateFileText = decodeTemplateText(templateFileBytes)
-    if (papelizTemplateAgentSettingsRelativePaths.has(templateFileRelativePath) && templateFileText !== null) {
-      const foundCommandTexts: string[] = []
+    const foldedRelativePath = foldTemplatePathForComparison(templateFileRelativePath)
+    const templateFileName = templateFileRelativePath.slice(templateFileRelativePath.lastIndexOf('/') + 1)
+    const templateFileText = decodeTemplateText(templateFileBytes)?.replace(/^\uFEFF/, '') ?? null
+    if (papelizTemplateAgentSettingsFilePathPattern.test(foldedRelativePath)) {
+      let parsedAgentSettings: unknown
       try {
-        collectAgentSettingsCommands(JSON.parse(templateFileText.replace(/^\uFEFF/, '')), foundCommandTexts)
+        parsedAgentSettings = templateFileText === null ? undefined : JSON.parse(templateFileText)
       } catch {
+        parsedAgentSettings = undefined
+      }
+      if (parsedAgentSettings === undefined) {
+        templateRunCommands.push(createTemplateRunCommand('agent-command-file', templateFileRelativePath, templateFileRelativePath))
         continue
       }
-      for (const foundCommandText of foundCommandTexts) {
-        templateRunCommands.push({ templateRunCommandKind: 'agent-setting-command', templateRunCommandSourceRelativePath: templateFileRelativePath, templateRunCommandText: foundCommandText })
+      for (const { agentSettingKind, agentSettingText } of listAgentSettingsRunSettings(parsedAgentSettings)) {
+        templateRunCommands.push(createTemplateRunCommand(agentSettingKind, templateFileRelativePath, agentSettingText))
       }
-      continue
-    }
-    const isScriptFile = papelizTemplateScriptFileExtensions.has(getTemplateFileExtension(templateFileRelativePath)) || templateFileText?.startsWith('#!') === true
-    if (isScriptFile) {
-      templateRunCommands.push({
-        templateRunCommandKind: 'script-file',
-        templateRunCommandSourceRelativePath: templateFileRelativePath,
-        templateRunCommandText: templateFileRelativePath.slice(templateFileRelativePath.lastIndexOf('/') + 1),
-      })
+    } else if (papelizTemplateAgentCommandFilePathPattern.test(foldedRelativePath)) {
+      templateRunCommands.push(createTemplateRunCommand('agent-command-file', templateFileRelativePath, templateFileRelativePath))
+    } else if (papelizTemplateScriptFileExtensions.has(getTemplateFileExtension(templateFileRelativePath)) || templateFileText?.startsWith('#!') === true) {
+      templateRunCommands.push(createTemplateRunCommand('script-file', templateFileRelativePath, templateFileName))
     }
   }
   return templateRunCommands
@@ -524,8 +780,10 @@ export async function runPapelizTemplateChecks(templateCheckInput: PapelizTempla
     templateManifestParseResult = parsePapelizTemplateManifest(decodeTemplateText(templateManifestBytes) ?? '')
   }
   const { templateManifest } = templateManifestParseResult
-  if (templateManifest === null) {
-    addCheckResult('manifest-valid', 'failed', templateManifestParseResult.templateManifestProblemSentence ?? '')
+  // What's included, by the manifest's patterns; patterns too slow to match fail the manifest.
+  const includedFileListEntries = templateManifest === null ? null : selectPapelizTemplateIncludedFileListEntries(templateFileList, templateManifest)
+  if (templateManifest === null || includedFileListEntries === null) {
+    addCheckResult('manifest-valid', 'failed', templateManifestParseResult.templateManifestProblemSentence ?? papelizTemplatePathPatternsTooSlowSentence)
     for (const notCheckedCheckId of Object.keys(papelizTemplateCheckLabels) as PapelizTemplateCheckId[]) {
       if (!templateCheckResults.some((templateCheckResult) => templateCheckResult.templateCheckId === notCheckedCheckId)) addCheckResult(notCheckedCheckId, 'not-checked', papelizTemplateEarlierCheckFailedSentence)
     }
@@ -542,7 +800,6 @@ export async function runPapelizTemplateChecks(templateCheckInput: PapelizTempla
   }
   addCheckResult('manifest-valid', 'passed', `The manifest names “${templateManifest.templateName}”.`)
 
-  const includedFileListEntries = selectPapelizTemplateIncludedFileListEntries(templateFileList, templateManifest)
   const includedRelativePaths = includedFileListEntries.map((includedFileListEntry) => includedFileListEntry.templateFileRelativePath)
   const templateIncludedByteCount = includedFileListEntries.reduce((includedByteCount, includedFileListEntry) => includedByteCount + includedFileListEntry.templateFileByteCount, 0)
 

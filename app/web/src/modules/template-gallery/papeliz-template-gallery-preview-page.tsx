@@ -2,7 +2,6 @@ import type { EditorState } from '@codemirror/state'
 import { ArrowLeft } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { createPapelizWikilinkTargetResolver } from '../links/papeliz-wikilink-targets'
-import { PapelizMdViewRenderedPage } from '../md-view/papeliz-md-view-rendered-page'
 import { PapelizSyncFailureLine, PapelizSyncLoadingLine } from '../sync/papeliz-sync-page-parts'
 import { PapelizVaultTextFileEditor } from '../text-file-view/papeliz-vault-text-file-editor'
 import { PapelizIconButton } from '../ui/papeliz-buttons'
@@ -12,6 +11,7 @@ import { PapelizSolidCircleCheckIcon, PapelizSolidCircleXIcon } from '../ui/pape
 import { getVaultEntryName, getVaultEntryParentFolderRelativePath } from '../vault/papeliz-vault-relative-paths'
 import { newVaultFormFooterActionButtonColorClassName, newVaultFormFooterButtonClassName, newVaultFormFooterCancelButtonColorClassName } from '../workspace/papeliz-new-vault-form'
 import type { PapelizTemplateFileListEntry, PapelizTemplateGalleryRow } from './papeliz-template-gallery-contract'
+import { PapelizTemplateGalleryNoteView } from './papeliz-template-gallery-note-view'
 import {
   buildTemplateGalleryFileTree,
   classifyTemplateGalleryFile,
@@ -62,7 +62,8 @@ interface PapelizTemplateGalleryPreviewPageProps {
 
 // Preview: the template's files, read-only, at the commit Papeliz checked, before anything is made. The
 // file tree on the left (above, on a phone) and the chosen file beside it, as the vault will open it:
-// a note in MD View, JSON and other text in MD Code, a picture as itself. It opens on the first note.
+// a note in MD View (its pictures only from where a template's may come), JSON and other text in MD
+// Code, a picture as itself. It opens on the first note.
 // "Checked … · commit …" and Recheck sit under the title; Cancel and Use Template in the footer.
 // Nothing is saved until Use Template. Esc goes back.
 export function PapelizTemplateGalleryPreviewPage({
@@ -150,9 +151,12 @@ export function PapelizTemplateGalleryPreviewPage({
     chosenTemplateFileView = <PapelizSyncFailureLine>Couldn’t read this file. Check your connection, then choose it again.</PapelizSyncFailureLine>
   } else if (chosenTemplateFileKind === 'note') {
     chosenTemplateFileView = (
-      <PapelizMdViewRenderedPage
-        vaultNoteText={chosenTemplateFileRead.templatePreviewFileText}
-        vaultNoteRelativePath={chosenTemplateFilePath}
+      <PapelizTemplateGalleryNoteView
+        templateGalleryRow={templateGalleryRow}
+        templateNoteText={chosenTemplateFileRead.templatePreviewFileText}
+        templateNoteRelativePath={chosenTemplateFilePath}
+        templateIncludedFileRelativePaths={readTemplateFileListEntries === null ? null : templateFilePaths}
+        buildTemplatePictureUrl={buildTemplatePictureUrl}
         resolveWikilinkTarget={resolveTemplateWikilinkTarget}
         onWikilinkActivate={(wikilinkTargetNoteName) => chooseLinkedTemplateFile(resolveTemplateWikilinkTarget(wikilinkTargetNoteName, chosenTemplateFilePath))}
         onRelativeNoteLinkActivate={(linkHref) => chooseLinkedTemplateFile(resolveTemplateRelativeLink(linkHref, chosenTemplateFilePath))}

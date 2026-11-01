@@ -29,8 +29,10 @@ export interface PapelizTemplateManifest {
   templateTags: string[]
   // Opens first, in MD View: "START.md", "Guides/Read me first.md".
   templateFirstNotePath: string
-  // Path patterns from the repository's root: `**` is any folders, `*` any characters within a name,
-  // `?` one character. Everything is included unless excluded; missing, they are ["**"] and [].
+  // Up to 30 path patterns each, from the repository's root: `**` as a whole folder name is any
+  // folders (none too, except at the end), `*` any characters within a name (`**` inside a name is
+  // the same as `*`), `?` one character. Everything is included unless excluded; missing, they are
+  // ["**"] and [].
   templateIncludedPaths: string[]
   templateExcludedPaths: string[]
   // A picture in the repository to show instead of the README's first one; null for the README's.
@@ -44,6 +46,24 @@ export const papelizTemplateLicenseDisplayNames: Readonly<Record<PapelizTemplate
   'CC0-1.0': 'CC0 1.0',
   'CC-BY-4.0': 'CC BY 4.0',
   MIT: 'MIT',
+}
+
+// The tags a template can carry, as the chips and a template's page show them, in A to Z order. The
+// manifest's check takes any tag of the right shape for now; the Templates Worker keeps this list.
+export const papelizTemplateGalleryTagDisplayNames: Readonly<Record<string, string>> = {
+  'ai-agents': 'AI Agents',
+  coding: 'Coding',
+  documentation: 'Documentation',
+  journal: 'Journal',
+  'knowledge-base': 'Knowledge Base',
+  personal: 'Personal',
+  planning: 'Planning',
+  'project-workflow': 'Project Workflow',
+  reading: 'Reading',
+  research: 'Research',
+  study: 'Study',
+  work: 'Work',
+  writing: 'Writing',
 }
 
 // ---------------------------------------------------------------- a gallery row
@@ -66,7 +86,9 @@ export interface PapelizTemplateGalleryRow {
   templateTags: string[]
   templateFirstNotePath: string
   templateLicenseId: PapelizTemplateLicenseId
-  // Shown with <img> only, never read with fetch; null shows the name's first letter on a plain tile.
+  // Shown with <img> only, never read with fetch, and only from a host a template's pictures may come
+  // from (`isPapelizTemplatePictureUrlAllowed`); null, or any other host, shows the name's first letter
+  // on a plain tile.
   templateThumbnailPictureUrl: string | null
   templateIncludedFileCount: number
   templateIncludedByteCount: number
@@ -139,17 +161,34 @@ export interface PapelizTemplateCheckResult {
   templateCheckSentence: string
 }
 
-// - `agent-setting-command`: a command named in an agent's settings (a hook, an MCP server, a status
-//   line), as written there.
+// What an agent or editor reads from a template, at any depth and whatever its case: Claude Code's,
+// Gemini CLI's, Cursor's and VS Code's settings and MCP servers, VS Code's tasks and dev containers.
+// - `agent-setting-command`: a command named there (a hook, an MCP server, a status line, a task, a
+//   dev container's step), as written.
+// - `agent-setting-environment`: an environment variable every command there gets, as "NAME=value".
+// - `agent-setting-permission`: a command an agent may run without asking ("Bash(npm test)"), or a
+//   permission mode that asks less ("defaultMode: bypassPermissions").
+// - `agent-setting-plugin`: a plugin an agent turns on, which can bring commands of its own.
+// - `agent-command-file`: a file of an agent's own commands (`.claude/commands/…`), which can run
+//   shell lines when used; or settings Papeliz couldn't read through. The text is its path.
 // - `script-file`: a script among the files (`.sh`, `.ps1`, `.py`, ... or a file starting with `#!`).
-export type PapelizTemplateRunCommandKind = 'agent-setting-command' | 'script-file'
+export type PapelizTemplateRunCommandKind =
+  | 'agent-setting-command'
+  | 'agent-setting-environment'
+  | 'agent-setting-permission'
+  | 'agent-setting-plugin'
+  | 'agent-command-file'
+  | 'script-file'
 
 // One command or script that Use Template lists before the vault is made. Papeliz never runs it.
 export interface PapelizTemplateRunCommand {
   templateRunCommandKind: PapelizTemplateRunCommandKind
   templateRunCommandSourceRelativePath: string
-  // The command line, or the script's file name.
+  // The command line, the setting, or the file's name.
   templateRunCommandText: string
+  // Its text or path holds characters that show nothing or turn text around (zero-width characters,
+  // bidirectional controls, a carriage return); the commands list marks each one where it is.
+  hasTemplateRunCommandHiddenCharacters: boolean
 }
 
 export interface PapelizTemplateCheckReport {
@@ -233,6 +272,7 @@ export type PapelizTemplateRecheckState =
 // - `preparing`: reading the template's files at its commit and checking them again on these bytes.
 // - `ready`: every check passed; the form can make the vault. When `templateRunCommands` isn't empty,
 //   the person ticks "I've read these commands" first (`isTemplateRunCommandsAcknowledged`).
+// - `picking-folder`: a folder vault waits for the browser's folder window, which is open.
 // - `making-vault`: the vault's files are being written.
 // - `made`: the vault is made; `makePapelizTemplateVault`'s result opens it.
 // - `failed`: a file couldn't be read or a check failed, so no vault can be made from it.
@@ -254,6 +294,7 @@ export type PapelizTemplateUseState =
       // Pictures whose metadata couldn't be removed: they are left out of the vault.
       templateLeftOutPictureRelativePaths: string[]
     }
+  | { templateUseStage: 'picking-folder'; templateGalleryRow: PapelizTemplateGalleryRow }
   | { templateUseStage: 'making-vault'; templateGalleryRow: PapelizTemplateGalleryRow; templateWrittenFileCount: number; templateFileCount: number }
   | { templateUseStage: 'made'; templateGalleryRow: PapelizTemplateGalleryRow; papelizVaultDisplayName: string }
   | { templateUseStage: 'failed'; templateGalleryRow: PapelizTemplateGalleryRow; templateUseProblemSentence: string; templateCheckReport: PapelizTemplateCheckReport | null }
@@ -281,6 +322,8 @@ export interface PapelizTemplateGalleryState {
 export interface PapelizTemplateGalleryActions {
   // Templates was pressed: shows Featured, and asks for the snapshot when a Worker exists.
   openTemplateGallery: () => Promise<void>
+  // Refresh: asks for the list again, staying on the tab shown.
+  refreshTemplateGallery: () => Promise<void>
   selectTemplateGalleryTab: (templateGalleryTab: PapelizTemplateGalleryTab) => void
   // Any row the gallery knows, from any tab; null when none has that id.
   findTemplateGalleryRow: (papelizTemplateGalleryId: string) => PapelizTemplateGalleryRow | null
@@ -288,6 +331,19 @@ export interface PapelizTemplateGalleryActions {
   checkTemplateRepositoryLink: (typedTemplateRepositoryLink: string) => Promise<void>
   resetTemplateCheckRun: () => void
   recheckTemplate: (papelizTemplateGalleryId: string) => Promise<void>
+  // A template's page or Preview closed: stops a Recheck under way and forgets what it found.
+  resetTemplateRecheck: () => void
+  // Preview's and a template page's reads, at the row's commit, from jsDelivr (raw files when it
+  // can't), never from GitHub's API, each read once per commit:
+  // - the files a vault would get, in path order; fails when they aren't the ones Papeliz checked;
+  // - one of those files' text, checked against the file list;
+  // - a picture's jsDelivr address, to show with <img> only.
+  listTemplateIncludedFiles: (templateGalleryRow: PapelizTemplateGalleryRow) => Promise<readonly PapelizTemplateFileListEntry[]>
+  readTemplateFileText: (templateGalleryRow: PapelizTemplateGalleryRow, templateFileRelativePath: string) => Promise<string>
+  buildTemplatePictureUrl: (templateGalleryRow: PapelizTemplateGalleryRow, templateFileRelativePath: string) => string
+  // The author's (the repository owner's) GitHub picture, `authorPictureSize` pixels square, to show
+  // with <img> only.
+  buildTemplateAuthorPictureUrl: (templateRepositoryOwner: string, authorPictureSize: number) => string
   // Use Template pressed: reads and checks the template, ending `ready` or `failed`.
   prepareTemplateUse: (templateGalleryRow: PapelizTemplateGalleryRow) => Promise<void>
   acknowledgeTemplateRunCommands: (isTemplateRunCommandsAcknowledged: boolean) => void

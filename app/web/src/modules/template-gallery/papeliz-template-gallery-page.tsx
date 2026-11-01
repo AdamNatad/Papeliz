@@ -8,23 +8,17 @@ import type { PapelizOpenVault } from '../vault/papeliz-open-vault'
 import { usePapelizBrowserStorageStore } from '../workspace/papeliz-browser-storage-store'
 import { PapelizNewVaultForm, type PapelizNewVaultPlace } from '../workspace/papeliz-new-vault-form'
 import { usePapelizWorkspaceStore } from '../workspace/papeliz-workspace-store'
-import { parsePapelizTemplateManifest, selectPapelizTemplateIncludedFileListEntries } from './papeliz-template-gallery-checks'
-import {
-  papelizTemplateManifestFileName,
-  type PapelizTemplateFileListEntry,
-  type PapelizTemplateGalleryRow,
-  type PapelizTemplateGalleryTab,
-} from './papeliz-template-gallery-contract'
-import { formatPapelizJsdelivrFileUrl, readPapelizTemplateFileList, readPapelizTemplateFiles } from './papeliz-template-gallery-jsdelivr-reader'
+import type { PapelizTemplateGalleryRow, PapelizTemplateGalleryTab } from './papeliz-template-gallery-contract'
 import {
   describeTemplateGalleryDay,
   describeTemplateGalleryRowDetail,
   describeTemplateGalleryTag,
   PapelizTemplateGalleryCenteredStep,
+  PapelizTemplateGalleryRowDetail,
   PapelizTemplateGalleryRowTags,
   PapelizTemplateGalleryThumbnail,
   PapelizTemplateGalleryVotePill,
-  type PapelizTemplateGalleryFileReads,
+  type PapelizTemplateAuthorPictureUrlBuilder,
   type PapelizTemplateGalleryScreenModel,
 } from './papeliz-template-gallery-page-parts'
 import { usePapelizTemplateGalleryPagePreviewStore } from './papeliz-template-gallery-page-preview-store'
@@ -58,41 +52,6 @@ const papelizTemplateGalleryTabChoices = [
   { slidingChoiceValue: 'new', slidingChoiceContent: 'New' },
   { slidingChoiceValue: 'top-100', slidingChoiceContent: 'Top 100' },
 ] as const
-
-// The files a vault made from a template would get, read once per commit: jsDelivr's file list at the
-// commit, narrowed by the template's manifest. A failed read is tried again next time.
-const liveTemplateIncludedFilesByCommit = new Map<string, Promise<readonly PapelizTemplateFileListEntry[]>>()
-
-function listLiveTemplateIncludedFiles(templateGalleryRow: PapelizTemplateGalleryRow): Promise<readonly PapelizTemplateFileListEntry[]> {
-  const templateCommitKey = `${templateGalleryRow.papelizTemplateGalleryId}@${templateGalleryRow.templateCommitSha}`
-  const readTemplateIncludedFiles = liveTemplateIncludedFilesByCommit.get(templateCommitKey)
-  if (readTemplateIncludedFiles !== undefined) return readTemplateIncludedFiles
-  const templateIncludedFilesRead = (async () => {
-    const templateFileList = await readPapelizTemplateFileList(templateGalleryRow, templateGalleryRow.templateCommitSha)
-    const manifestListEntry = templateFileList.templateFileListEntries.find((templateFileListEntry) => templateFileListEntry.templateFileRelativePath === papelizTemplateManifestFileName)
-    if (manifestListEntry === undefined) throw new Error(`${papelizTemplateManifestFileName} is missing at this commit.`)
-    const manifestBytes = (await readPapelizTemplateFiles(templateGalleryRow, templateGalleryRow.templateCommitSha, [manifestListEntry])).get(papelizTemplateManifestFileName)
-    const { templateManifest } = parsePapelizTemplateManifest(new TextDecoder().decode(manifestBytes))
-    if (templateManifest === null) throw new Error(`${papelizTemplateManifestFileName} doesn’t read at this commit.`)
-    return selectPapelizTemplateIncludedFileListEntries(templateFileList, templateManifest)
-  })()
-  liveTemplateIncludedFilesByCommit.set(templateCommitKey, templateIncludedFilesRead)
-  void templateIncludedFilesRead.catch(() => liveTemplateIncludedFilesByCommit.delete(templateCommitKey))
-  return templateIncludedFilesRead
-}
-
-const papelizTemplateGalleryLiveFileReads: PapelizTemplateGalleryFileReads = {
-  listTemplateIncludedFiles: listLiveTemplateIncludedFiles,
-  readTemplateFileText: async (templateGalleryRow, templateFileRelativePath) => {
-    const templateFileListEntry = (await listLiveTemplateIncludedFiles(templateGalleryRow)).find(
-      (includedFileListEntry) => includedFileListEntry.templateFileRelativePath === templateFileRelativePath,
-    )
-    if (templateFileListEntry === undefined) throw new Error(`“${templateFileRelativePath}” isn’t in this template.`)
-    const templateFileBytes = (await readPapelizTemplateFiles(templateGalleryRow, templateGalleryRow.templateCommitSha, [templateFileListEntry])).get(templateFileRelativePath)
-    return new TextDecoder().decode(templateFileBytes)
-  },
-  buildTemplatePictureUrl: (templateGalleryRow, templateFileRelativePath) => formatPapelizJsdelivrFileUrl(templateGalleryRow, templateGalleryRow.templateCommitSha, templateFileRelativePath),
-}
 
 const subscribeToNoTemplateGalleryPreview = () => () => undefined
 
@@ -135,10 +94,9 @@ export function PapelizTemplateGalleryPage({
     previewTemplateGalleryModelStore?.subscribe ?? subscribeToNoTemplateGalleryPreview,
     () => previewTemplateGalleryModelStore?.getState() ?? null,
   )
-  const liveTemplateGalleryStoreState = usePapelizTemplateGalleryStore()
-  const liveTemplateGalleryScreenModel = useMemo<PapelizTemplateGalleryScreenModel>(() => ({ ...liveTemplateGalleryStoreState, ...papelizTemplateGalleryLiveFileReads }), [liveTemplateGalleryStoreState])
+  const liveTemplateGalleryScreenModel: PapelizTemplateGalleryScreenModel = usePapelizTemplateGalleryStore()
   const templateGalleryScreenModel = previewTemplateGalleryScreenModel ?? liveTemplateGalleryScreenModel
-  const { openTemplateGallery, cancelTemplateUse, resetTemplateCheckRun } = templateGalleryScreenModel
+  const { openTemplateGallery, cancelTemplateUse, resetTemplateCheckRun, resetTemplateRecheck } = templateGalleryScreenModel
 
   const [templateGalleryScreens, setTemplateGalleryScreens] = useState<readonly PapelizTemplateGalleryScreen[]>(
     () => heldTemplateGalleryPagePreview?.previewTemplateGalleryScreens ?? [{ templateGalleryScreenKind: 'gallery' }],
@@ -156,13 +114,14 @@ export function PapelizTemplateGalleryPage({
   useEffect(() => {
     void openTemplateGallery()
   }, [openTemplateGallery])
-  // Leaving Templates stops a read under way and forgets what Use Template and Check had read. (A held
-  // preview keeps its own, so a page picked again opens the same.)
+  // Leaving Templates stops a read under way and forgets what Use Template, Check and Recheck had
+  // found. (A held preview keeps its own, so a page picked again opens the same.)
   useEffect(
     () => () => {
       const liveTemplateGalleryStoreState = usePapelizTemplateGalleryStore.getState()
       liveTemplateGalleryStoreState.cancelTemplateUse()
       liveTemplateGalleryStoreState.resetTemplateCheckRun()
+      liveTemplateGalleryStoreState.resetTemplateRecheck()
     },
     [],
   )
@@ -176,12 +135,14 @@ export function PapelizTemplateGalleryPage({
     setTemplateGalleryScreenChanged(true)
     setTemplateGalleryScreens((previousTemplateGalleryScreens) => [...previousTemplateGalleryScreens.slice(0, -1), replacingTemplateGalleryScreen])
   }
-  // Back: the page before, or out of Templates from the gallery.
+  // Back: the page before, or out of Templates from the gallery. A template's page or Preview closing
+  // forgets its Recheck, so the next one opened starts fresh.
   const closeShownTemplateGalleryScreen = () => {
     if (templateGalleryScreens.length <= 1) {
       onTemplateGalleryPageClose()
       return
     }
+    if (shownTemplateGalleryScreen.templateGalleryScreenKind === 'template-page' || shownTemplateGalleryScreen.templateGalleryScreenKind === 'preview') resetTemplateRecheck()
     setTemplateGalleryScreenChanged(true)
     setTemplateGalleryScreens((previousTemplateGalleryScreens) => previousTemplateGalleryScreens.slice(0, -1))
   }
@@ -402,12 +363,9 @@ function PapelizTemplateGalleryList({
     if (isTemplateGalleryPageHeadingFocusedFirst) templateGalleryHeadingRef.current?.focus({ preventScroll: true })
   }, [isTemplateGalleryPageHeadingFocusedFirst])
 
-  const { templateGalleryTab, templateGallerySnapshotState, featuredTemplateGalleryRows, newTemplateGalleryRows, topTemplateGalleryRows, selectTemplateGalleryTab, openTemplateGallery } =
-    templateGalleryScreenModel
+  const { templateGalleryTab, templateGallerySnapshotState, featuredTemplateGalleryRows, newTemplateGalleryRows, topTemplateGalleryRows, selectTemplateGalleryTab } = templateGalleryScreenModel
   // Refresh asks for the list again and stays on the tab.
-  const refreshTemplateGallery = () => {
-    void openTemplateGallery().then(() => selectTemplateGalleryTab(templateGalleryTab))
-  }
+  const refreshTemplateGallery = () => void templateGalleryScreenModel.refreshTemplateGallery()
   const chosenTabTemplateGalleryRows =
     templateGalleryTab === 'featured' ? featuredTemplateGalleryRows : templateGalleryTab === 'new' ? newTemplateGalleryRows : topTemplateGalleryRows
   // The chips: every tag the gallery's templates carry, in A to Z order.
@@ -480,6 +438,7 @@ function PapelizTemplateGalleryList({
             isTemplateTopRankShown={templateGalleryTab === 'top-100'}
             isTemplateListedDayShown={templateGalleryTab === 'new'}
             templateGalleryOpenedAt={templateGalleryOpenedAt}
+            buildTemplateAuthorPictureUrl={templateGalleryScreenModel.buildTemplateAuthorPictureUrl}
             onTemplatePageOpen={() => onTemplatePageOpen(templateGalleryRow)}
             onTemplatePreviewOpen={() => onTemplatePreviewOpen(templateGalleryRow)}
           />
@@ -592,18 +551,25 @@ interface PapelizTemplateGalleryRowItemProps {
   // New's rows say when each was listed.
   isTemplateListedDayShown: boolean
   templateGalleryOpenedAt: number
+  buildTemplateAuthorPictureUrl: PapelizTemplateAuthorPictureUrlBuilder
   onTemplatePageOpen: () => void
   onTemplatePreviewOpen: () => void
 }
 
 // One template's row, as a Recent Vaults row: Top 100's rank, the thumbnail, the name with its tags, and
-// the author, license and file count; at the right the vote pill and Preview. Pressing the row opens the
-// template's page. On a phone the votes and Preview take a line of their own.
-function PapelizTemplateGalleryRowItem({ templateGalleryRow, isTemplateTopRankShown, isTemplateListedDayShown, templateGalleryOpenedAt, onTemplatePageOpen, onTemplatePreviewOpen }: PapelizTemplateGalleryRowItemProps) {
-  const templateRowDetail =
-    isTemplateListedDayShown && templateGalleryRow.templateListedAt !== null
-      ? `Listed ${describeTemplateGalleryDay(templateGalleryRow.templateListedAt, templateGalleryOpenedAt)} · ${templateGalleryRow.templateRepositoryOwner}`
-      : describeTemplateGalleryRowDetail(templateGalleryRow)
+// the author's picture and name, license and file count; at the right the vote pill and Preview.
+// Pressing the row opens the template's page. On a phone the votes and Preview take a line of their own.
+function PapelizTemplateGalleryRowItem({
+  templateGalleryRow,
+  isTemplateTopRankShown,
+  isTemplateListedDayShown,
+  templateGalleryOpenedAt,
+  buildTemplateAuthorPictureUrl,
+  onTemplatePageOpen,
+  onTemplatePreviewOpen,
+}: PapelizTemplateGalleryRowItemProps) {
+  const templateListedDay =
+    isTemplateListedDayShown && templateGalleryRow.templateListedAt !== null ? describeTemplateGalleryDay(templateGalleryRow.templateListedAt, templateGalleryOpenedAt) : null
   return (
     <li className="group flex items-center rounded-xl border border-papeliz-line bg-papeliz-surface transition-[border-color,background-color,box-shadow] duration-150 hover:border-papeliz-blue-line hover:bg-papeliz-blue-soft/40 hover:shadow-papeliz-card max-sm:flex-wrap">
       <button type="button" onClick={onTemplatePageOpen} className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl px-2.5 py-[7px] text-left max-sm:pb-1">
@@ -619,7 +585,7 @@ function PapelizTemplateGalleryRowItem({ templateGalleryRow, isTemplateTopRankSh
             <span className="min-w-0 truncate text-[13.5px] font-semibold">{templateGalleryRow.templateName}</span>
             <PapelizTemplateGalleryRowTags templateGalleryRow={templateGalleryRow} currentTime={templateGalleryOpenedAt} />
           </span>
-          <span className="truncate text-[11.5px] text-papeliz-ink-subtle">{templateRowDetail}</span>
+          <PapelizTemplateGalleryRowDetail templateGalleryRow={templateGalleryRow} templateListedDay={templateListedDay} buildTemplateAuthorPictureUrl={buildTemplateAuthorPictureUrl} />
         </span>
       </button>
       <span className="mr-2.5 flex flex-none items-center gap-2 max-sm:mr-0 max-sm:w-full max-sm:justify-end max-sm:px-2.5 max-sm:pb-2">

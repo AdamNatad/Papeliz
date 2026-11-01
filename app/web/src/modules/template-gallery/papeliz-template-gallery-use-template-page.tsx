@@ -6,7 +6,8 @@ import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { usePapelizFooterEqualButtonWidthRef } from '../ui/papeliz-footer-equal-button-width'
 import { PapelizSolidCircleCheckIcon, PapelizSolidCircleXIcon } from '../ui/papeliz-solid-circle-icons'
 import { newVaultFormFooterActionButtonColorClassName, newVaultFormFooterButtonClassName, newVaultFormFooterCancelButtonColorClassName, type PapelizNewVaultPlace } from '../workspace/papeliz-new-vault-form'
-import type { PapelizTemplateGalleryRow, PapelizTemplateUseState } from './papeliz-template-gallery-contract'
+import { describePapelizTemplateHiddenCharacter, splitPapelizTemplateTextAtHiddenCharacters } from './papeliz-template-gallery-checks'
+import type { PapelizTemplateGalleryRow, PapelizTemplateRunCommand, PapelizTemplateUseState } from './papeliz-template-gallery-contract'
 import {
   describeTemplateFileReadProgress,
   describeTemplateGalleryFileCount,
@@ -44,6 +45,7 @@ export function PapelizTemplateGalleryNewVaultTemplateStatus({ templateUseState 
       return <PapelizTemplateUsePreparingLine templateUseState={templateUseState} />
     case 'failed':
       return <PapelizTemplateUseFailedLines templateUseState={templateUseState} />
+    case 'picking-folder':
     case 'making-vault':
     case 'made':
       return null
@@ -69,6 +71,47 @@ export function PapelizTemplateGalleryNewVaultTemplateStatus({ templateUseState 
       )
     }
   }
+}
+
+// Where a command comes from, at the left of its line.
+function describeTemplateRunCommandSource(templateRunCommand: PapelizTemplateRunCommand): string {
+  const { templateRunCommandSourceRelativePath } = templateRunCommand
+  switch (templateRunCommand.templateRunCommandKind) {
+    case 'script-file':
+      return 'Script'
+    case 'agent-command-file':
+      return 'Agent commands file'
+    case 'agent-setting-command':
+      return `${templateRunCommandSourceRelativePath} · command`
+    case 'agent-setting-environment':
+      return `${templateRunCommandSourceRelativePath} · environment`
+    case 'agent-setting-permission':
+      return `${templateRunCommandSourceRelativePath} · allows`
+    case 'agent-setting-plugin':
+      return `${templateRunCommandSourceRelativePath} · plugin`
+  }
+}
+
+// A command's text with every hidden character shown as a small amber mark with its code ("U+202E")
+// in its place, so nothing in it is invisible or turned around.
+function PapelizTemplateRunCommandMarkedText({ templateRunCommandText }: { templateRunCommandText: string }) {
+  return (
+    <>
+      {splitPapelizTemplateTextAtHiddenCharacters(templateRunCommandText).map((templateTextPiece, templateTextPieceIndex) =>
+        templateTextPiece.isTemplateTextPieceHiddenCharacter ? (
+          <mark
+            key={templateTextPieceIndex}
+            title={`A hidden character, ${describePapelizTemplateHiddenCharacter(templateTextPiece.templateTextPieceText)}`}
+            className="mx-px rounded-[3px] bg-papeliz-warning px-[3px] font-sans text-[10px] font-bold text-papeliz-warning-ink"
+          >
+            {describePapelizTemplateHiddenCharacter(templateTextPiece.templateTextPieceText)}
+          </mark>
+        ) : (
+          <span key={templateTextPieceIndex}>{templateTextPiece.templateTextPieceText}</span>
+        ),
+      )}
+    </>
+  )
 }
 
 interface PapelizTemplateGalleryCommandsPageProps {
@@ -125,17 +168,27 @@ export function PapelizTemplateGalleryCommandsPage({ templateGalleryPageHeadingI
               <p className="px-0.5 text-[12.5px] text-papeliz-ink-muted">Its files, checked just now, name no commands.</p>
             ) : (
               <ul aria-label="Commands" className="divide-y divide-papeliz-line rounded-xl border border-papeliz-line bg-papeliz-surface">
-                {readyTemplateUseState.templateRunCommands.map((templateRunCommand) => (
+                {readyTemplateUseState.templateRunCommands.map((templateRunCommand, templateRunCommandIndex) => (
                   <li
-                    key={`${templateRunCommand.templateRunCommandSourceRelativePath}\n${templateRunCommand.templateRunCommandText}`}
+                    key={`${templateRunCommandIndex}\n${templateRunCommand.templateRunCommandSourceRelativePath}\n${templateRunCommand.templateRunCommandText}`}
                     className="grid gap-x-3 gap-y-0.5 px-3 py-2 text-[12px] sm:grid-cols-[minmax(0,190px)_minmax(0,1fr)] sm:items-center"
                   >
-                    <span className="truncate text-papeliz-ink-muted">
-                      {templateRunCommand.templateRunCommandKind === 'script-file' ? 'Script' : `${templateRunCommand.templateRunCommandSourceRelativePath} · command`}
+                    <span className="truncate text-papeliz-ink-muted" dir="ltr" title={describeTemplateRunCommandSource(templateRunCommand)}>
+                      <PapelizTemplateRunCommandMarkedText templateRunCommandText={describeTemplateRunCommandSource(templateRunCommand)} />
                     </span>
-                    <code className="papeliz-selectable-text font-mono text-[11.5px] [overflow-wrap:anywhere] text-papeliz-ink">
-                      {templateRunCommand.templateRunCommandKind === 'script-file' ? templateRunCommand.templateRunCommandSourceRelativePath : templateRunCommand.templateRunCommandText}
+                    <code dir="ltr" className="papeliz-selectable-text font-mono text-[11.5px] whitespace-pre-wrap [overflow-wrap:anywhere] [unicode-bidi:isolate] text-papeliz-ink">
+                      <PapelizTemplateRunCommandMarkedText
+                        templateRunCommandText={
+                          templateRunCommand.templateRunCommandKind === 'script-file' ? templateRunCommand.templateRunCommandSourceRelativePath : templateRunCommand.templateRunCommandText
+                        }
+                      />
                     </code>
+                    {templateRunCommand.hasTemplateRunCommandHiddenCharacters && (
+                      <p className="flex items-start gap-1.5 text-[11.5px] leading-[1.4] font-medium text-papeliz-warning-ink sm:col-start-2">
+                        <TriangleAlert className="mt-px size-3.5 flex-none" aria-hidden="true" />
+                        It holds hidden characters, marked in it, that can make it read as something else.
+                      </p>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -181,12 +234,12 @@ interface PapelizTemplateGalleryVaultMakingPageProps {
   templateUseState: PapelizTemplateUseState
 }
 
-// The vault being made from a template: for a folder, where to look for the folder window until a
-// folder is picked; then its files written, counted on a bar. The vault opens once it's made.
+// The vault being made from a template: for a folder, where to look for the folder window while it's
+// open; then its files written, counted on a bar. The vault opens once it's made.
 export function PapelizTemplateGalleryVaultMakingPage({ templateGalleryPageHeadingId, templateGalleryRow, newVaultName, newVaultPlace, templateUseState }: PapelizTemplateGalleryVaultMakingPageProps) {
   const templateWrittenFileCount = templateUseState.templateUseStage === 'making-vault' ? templateUseState.templateWrittenFileCount : 0
   const templateFileCount = templateUseState.templateUseStage === 'making-vault' ? templateUseState.templateFileCount : 0
-  const isVaultFolderWindowLikelyOpen = newVaultPlace === 'folder-on-disk' && templateUseState.templateUseStage === 'making-vault' && templateWrittenFileCount === 0
+  const isVaultFolderWindowOpen = newVaultPlace === 'folder-on-disk' && templateUseState.templateUseStage === 'picking-folder'
   const templateVaultMakingPercent = templateFileCount === 0 ? 0 : Math.round((templateWrittenFileCount / templateFileCount) * 100)
   return (
     <div className="papeliz-welcome-enter flex min-h-0 flex-1 flex-col">
@@ -196,7 +249,7 @@ export function PapelizTemplateGalleryVaultMakingPage({ templateGalleryPageHeadi
         </h2>
         <p className="mt-0.5 text-[12.5px] text-papeliz-ink-muted">From {templateGalleryRow.templateName}</p>
       </div>
-      {isVaultFolderWindowLikelyOpen ? (
+      {isVaultFolderWindowOpen ? (
         <PapelizTemplateGalleryCenteredStep
           TemplateGalleryStepIcon={FolderOpen}
           templateGalleryStepTitle="Choose a folder in the window that opened"

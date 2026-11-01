@@ -3,6 +3,7 @@ import {
   ClipboardCheck,
   Eye,
   FileSearch,
+  FolderOpen,
   Hourglass,
   LayoutTemplate,
   ListChecks,
@@ -16,6 +17,7 @@ import {
 } from 'lucide-react'
 import { createStore } from 'zustand/vanilla'
 import type { PapelizPopoverMenuItem } from '../ui/papeliz-popover-menu'
+import { hasPapelizTemplateHiddenCharacter } from './papeliz-template-gallery-checks'
 import type {
   PapelizTemplateCheckReport,
   PapelizTemplateCheckResult,
@@ -47,6 +49,24 @@ function drawPreviewTemplateThumbnail(thumbnailGroundColor: string, thumbnailLin
     .map((thumbnailLineTop, thumbnailLineIndex) => `<rect x="14" y="${thumbnailLineTop}" width="${[72, 52, 64, 40][thumbnailLineIndex]}" height="6" rx="3" fill="${thumbnailLineColor}"/>`)
     .join('')
   return `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 80"><rect width="128" height="80" fill="${thumbnailGroundColor}"/>${thumbnailLines}</svg>`)}`
+}
+
+// A made-up author's picture: their first letter on a colored circle, drawn here. Daily Journal's
+// author has one that doesn't read, to show the name alone, as when GitHub's picture fails.
+const papelizPreviewAuthorPictureColors: Readonly<Record<string, string>> = {
+  'example-team': '#1f6feb',
+  'example-reader': '#b3631b',
+  'example-dev': '#1e8e4a',
+  'example-student': '#8a3ffc',
+  'example-planner': '#0f7b8a',
+}
+function drawPreviewAuthorPicture(templateRepositoryOwner: string): string {
+  const authorPictureColor = papelizPreviewAuthorPictureColors[templateRepositoryOwner]
+  if (authorPictureColor === undefined) return 'data:image/png;base64,AAAA'
+  const authorInitial = (templateRepositoryOwner.replace(/^example-/, '').charAt(0) || '?').toUpperCase()
+  return `data:image/svg+xml,${encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><circle cx="16" cy="16" r="16" fill="${authorPictureColor}"/><text x="16" y="21.5" text-anchor="middle" font-family="sans-serif" font-size="16" font-weight="700" fill="#fff">${authorInitial}</text></svg>`,
+  )}`
 }
 
 function buildPreviewTemplateGalleryRow(
@@ -199,6 +219,8 @@ const papelizPreviewTemplateFileTexts: Readonly<Record<string, string>> = {
     '2. **Tasks**: what is open, the most important first.',
     '3. **Decisions**: why things are the way they are.',
     '',
+    '![A planning board on another site](https://example.com/planning-board.png)',
+    '',
     '## Rules',
     '',
     '- Specific names only.',
@@ -226,11 +248,28 @@ const papelizPreviewTemplateFileListEntries: PapelizTemplateFileListEntry[] = [
   { templateFileRelativePath: 'pictures/readme-picture.webp', templateFileByteCount: 41_300, templateFileSha256Base64: null, templateFileGitBlobSha1Hex: null, templateFileGitMode: null },
 ]
 
+const createPreviewTemplateRunCommand = (
+  templateRunCommandKind: PapelizTemplateRunCommand['templateRunCommandKind'],
+  templateRunCommandSourceRelativePath: string,
+  templateRunCommandText: string,
+): PapelizTemplateRunCommand => ({
+  templateRunCommandKind,
+  templateRunCommandSourceRelativePath,
+  templateRunCommandText,
+  hasTemplateRunCommandHiddenCharacters: hasPapelizTemplateHiddenCharacter(templateRunCommandText) || hasPapelizTemplateHiddenCharacter(templateRunCommandSourceRelativePath),
+})
+
+// Every kind of line the commands list shows, one holding hidden characters (a zero-width space and a
+// right-to-left override), which it marks.
 const papelizPreviewTemplateRunCommands: PapelizTemplateRunCommand[] = [
-  { templateRunCommandKind: 'agent-setting-command', templateRunCommandSourceRelativePath: '.claude/settings.json', templateRunCommandText: 'node scripts/check-command.mjs' },
-  { templateRunCommandKind: 'agent-setting-command', templateRunCommandSourceRelativePath: '.claude/settings.json', templateRunCommandText: 'node scripts/status-line.mjs' },
-  { templateRunCommandKind: 'script-file', templateRunCommandSourceRelativePath: 'scripts/check-command.mjs', templateRunCommandText: 'check-command.mjs' },
-  { templateRunCommandKind: 'script-file', templateRunCommandSourceRelativePath: 'scripts/status-line.mjs', templateRunCommandText: 'status-line.mjs' },
+  createPreviewTemplateRunCommand('agent-setting-command', '.claude/settings.json', 'node scripts/check-command.mjs'),
+  createPreviewTemplateRunCommand('agent-setting-command', '.claude/settings.json', 'node scripts/status-line.mjs'),
+  createPreviewTemplateRunCommand('agent-setting-command', '.claude/settings.json', 'npm run lint​ && echo done ‮# checked'),
+  createPreviewTemplateRunCommand('agent-setting-environment', '.claude/settings.json', 'NODE_ENV=development'),
+  createPreviewTemplateRunCommand('agent-setting-permission', '.claude/settings.json', 'Bash(npm test)'),
+  createPreviewTemplateRunCommand('agent-command-file', '.claude/commands/review.md', '.claude/commands/review.md'),
+  createPreviewTemplateRunCommand('script-file', 'scripts/check-command.mjs', 'check-command.mjs'),
+  createPreviewTemplateRunCommand('script-file', 'scripts/status-line.mjs', 'status-line.mjs'),
 ]
 
 // Every check passed, or the notes check failed (and the ones after it weren't run).
@@ -476,6 +515,16 @@ const papelizTemplateGalleryPagePreviewerChoices: readonly PapelizTemplateGaller
     }),
   },
   {
+    templateGalleryPagePreviewChoiceKey: 'use-picking-folder',
+    templateGalleryPagePreviewChoiceLabel: 'Choosing the Folder',
+    TemplateGalleryPagePreviewChoiceIcon: FolderOpen,
+    buildPreviewTemplateGalleryScreens: (previewPapelizTemplateGalleryId) => [
+      ...templatePageScreens(previewPapelizTemplateGalleryId),
+      { templateGalleryScreenKind: 'making-vault', papelizTemplateGalleryId: previewPapelizTemplateGalleryId, newVaultName: 'Project Starter', newVaultPlace: 'folder-on-disk' },
+    ],
+    buildPreviewTemplateUseState: (previewTemplateGalleryRow) => ({ templateUseStage: 'picking-folder', templateGalleryRow: previewTemplateGalleryRow }),
+  },
+  {
     templateGalleryPagePreviewChoiceKey: 'use-making-vault',
     templateGalleryPagePreviewChoiceLabel: 'Making the Vault',
     TemplateGalleryPagePreviewChoiceIcon: LoaderCircle,
@@ -570,6 +619,7 @@ function createPreviewTemplateGalleryModelStore(previewerChoice: PapelizTemplate
   return createStore<PapelizTemplateGalleryScreenModel>()((set, get) => ({
     ...previewTemplateGalleryState,
     openTemplateGallery: async () => undefined,
+    refreshTemplateGallery: async () => undefined,
     selectTemplateGalleryTab: (templateGalleryTab) => set({ templateGalleryTab }),
     findTemplateGalleryRow: (papelizTemplateGalleryId) => previewTemplateGalleryRows.find((templateGalleryRow) => templateGalleryRow.papelizTemplateGalleryId === papelizTemplateGalleryId) ?? null,
     checkTemplateRepositoryLink: async () =>
@@ -593,6 +643,7 @@ function createPreviewTemplateGalleryModelStore(previewerChoice: PapelizTemplate
         },
       })
     },
+    resetTemplateRecheck: () => set({ templateRecheckState: { templateRecheckStage: 'idle' } }),
     prepareTemplateUse: async (templateGalleryRow) =>
       set({
         templateUseState: {
@@ -614,6 +665,7 @@ function createPreviewTemplateGalleryModelStore(previewerChoice: PapelizTemplate
     listTemplateIncludedFiles: async () => papelizPreviewTemplateFileListEntries,
     readTemplateFileText: async (_templateGalleryRow, templateFileRelativePath) => papelizPreviewTemplateFileTexts[templateFileRelativePath] ?? '',
     buildTemplatePictureUrl: () => drawPreviewTemplateThumbnail('#1f6feb', '#ffffffcc'),
+    buildTemplateAuthorPictureUrl: drawPreviewAuthorPicture,
   }))
 }
 

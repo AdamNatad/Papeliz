@@ -34,6 +34,8 @@ export interface PapelizPreparedTemplateVaultFiles {
 
 export interface PapelizTemplateVaultMakeOptions {
   onTemplateVaultWriteProgress?: (templateWrittenFileCount: number, templateFileCount: number) => void
+  // A folder vault's folder was picked and the folder window has closed.
+  onTemplateVaultPlaceFolderPicked?: () => void
   browserVaultEnvironment?: PapelizBrowserVaultEnvironment
   // The browser's folder window, or the tests' stand-in.
   pickTemplateVaultPlaceFolder?: () => Promise<PapelizVaultFolderPickResult>
@@ -124,6 +126,7 @@ export async function makePapelizTemplateFolderVault(
 ): Promise<PapelizOpenVaultResult> {
   const placeFolderPickResult = await (templateVaultMakeOptions.pickTemplateVaultPlaceFolder ?? pickPapelizVaultFolderHandle)()
   if (!('vaultFolderPickOutcome' in placeFolderPickResult)) return placeFolderPickResult
+  templateVaultMakeOptions.onTemplateVaultPlaceFolderPicked?.()
   let newVaultFolderHandle: FileSystemDirectoryHandle
   try {
     const newFolderVaultFolderResult = await makePapelizNewFolderVaultFolder(placeFolderPickResult.papelizVaultFolderHandle, typedNewVaultName)

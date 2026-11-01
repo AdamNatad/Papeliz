@@ -1,7 +1,6 @@
 import { ArrowLeft, ExternalLink, Eye, Flag, SquareTerminal } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPapelizWikilinkTargetResolver } from '../links/papeliz-wikilink-targets'
-import { PapelizMdViewRenderedPage } from '../md-view/papeliz-md-view-rendered-page'
 import { PapelizSyncFailureLine, PapelizSyncLoadingLine } from '../sync/papeliz-sync-page-parts'
 import { PapelizIconButton } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
@@ -10,6 +9,7 @@ import { PapelizSolidCircleCheckIcon, PapelizSolidCircleXIcon } from '../ui/pape
 import { newVaultFormFooterActionButtonColorClassName, newVaultFormFooterButtonClassName, newVaultFormFooterCancelButtonColorClassName } from '../workspace/papeliz-new-vault-form'
 import { usePapelizWorkspaceStore } from '../workspace/papeliz-workspace-store'
 import type { PapelizTemplateFileListEntry, PapelizTemplateGalleryRow } from './papeliz-template-gallery-contract'
+import { PapelizTemplateGalleryNoteView } from './papeliz-template-gallery-note-view'
 import {
   buildTemplateGalleryFileTree,
   buildTemplateGalleryGitHubCommitUrl,
@@ -17,6 +17,7 @@ import {
   describeTemplateGalleryFileCount,
   describeTemplateGalleryTag,
   formatTemplateGalleryByteSize,
+  PapelizTemplateGalleryAuthorPicture,
   PapelizTemplateGalleryFileTree,
   PapelizTemplateGalleryLicenseTag,
   PapelizTemplateGalleryRecheckLine,
@@ -47,8 +48,9 @@ interface PapelizTemplateGalleryTemplatePageProps {
   onTemplateUse: () => void
 }
 
-// A template's page, in place of the gallery: its name and tags, the author, license and tags, the
-// votes; "Checked … · commit …" with Recheck; the thumbnail, larger; its first note rendered read-only;
+// A template's page, in place of the gallery: its name and tags, the author's picture and name, license
+// and tags, the votes; "Checked … · commit …" with Recheck; the thumbnail, larger; its first note
+// rendered read-only, with pictures only from where a template's may come;
 // "What's inside", the file tree with each folder's count and size; View on GitHub, Preview and
 // Report. Cancel at the left edge, Use Template at the right. Esc goes back.
 export function PapelizTemplateGalleryTemplatePage({
@@ -98,6 +100,10 @@ export function PapelizTemplateGalleryTemplatePage({
 
   const templateFileListEntries = templateFilesRead.templatePageReadState === 'read' ? templateFilesRead.templatePageReadValue : null
   const templateFileTree = useMemo(() => (templateFileListEntries === null ? null : buildTemplateGalleryFileTree(templateFileListEntries)), [templateFileListEntries])
+  const templateIncludedFileRelativePaths = useMemo(
+    () => (templateFileListEntries === null ? null : new Set(templateFileListEntries.map((templateFileListEntry) => templateFileListEntry.templateFileRelativePath))),
+    [templateFileListEntries],
+  )
   const resolveTemplateWikilinkTarget = useMemo(
     () =>
       createPapelizWikilinkTargetResolver(
@@ -130,7 +136,14 @@ export function PapelizTemplateGalleryTemplatePage({
             <PapelizTemplateGalleryRowTags templateGalleryRow={templateGalleryRow} currentTime={templateGalleryOpenedAt} />
           </div>
           <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[12.5px] text-papeliz-ink-muted">
-            <span>{templateGalleryRow.templateRepositoryOwner}</span>
+            <span className="inline-flex min-w-0 items-center gap-1.5">
+              <PapelizTemplateGalleryAuthorPicture
+                templateRepositoryOwner={templateGalleryRow.templateRepositoryOwner}
+                authorPictureSize={18}
+                buildTemplateAuthorPictureUrl={templateGalleryScreenModel.buildTemplateAuthorPictureUrl}
+              />
+              <span className="truncate">{templateGalleryRow.templateRepositoryOwner}</span>
+            </span>
             <span aria-hidden="true">·</span>
             <PapelizTemplateGalleryLicenseTag templateLicenseId={templateGalleryRow.templateLicenseId} />
             {templateTagLine.length > 0 && (
@@ -167,9 +180,12 @@ export function PapelizTemplateGalleryTemplatePage({
               {templateFirstNoteRead.templatePageReadState === 'failed' && <PapelizSyncFailureLine>Couldn’t read this note. Check your connection, then try again.</PapelizSyncFailureLine>}
               {templateFirstNoteRead.templatePageReadState === 'read' && (
                 <div className={papelizTemplateGalleryNoteSizeClassName}>
-                  <PapelizMdViewRenderedPage
-                    vaultNoteText={templateFirstNoteRead.templatePageReadValue}
-                    vaultNoteRelativePath={templateGalleryRow.templateFirstNotePath}
+                  <PapelizTemplateGalleryNoteView
+                    templateGalleryRow={templateGalleryRow}
+                    templateNoteText={templateFirstNoteRead.templatePageReadValue}
+                    templateNoteRelativePath={templateGalleryRow.templateFirstNotePath}
+                    templateIncludedFileRelativePaths={templateIncludedFileRelativePaths}
+                    buildTemplatePictureUrl={templateGalleryScreenModel.buildTemplatePictureUrl}
                     resolveWikilinkTarget={resolveTemplateWikilinkTarget}
                     onWikilinkActivate={onTemplatePreviewOpen}
                     onRelativeNoteLinkActivate={onTemplatePreviewOpen}

@@ -2,18 +2,27 @@ import { create } from 'zustand'
 import type { PapelizBrowserVaultEnvironment } from '../vault/papeliz-browser-vaults'
 import type { PapelizVaultFileContentsWriter } from '../vault/papeliz-directory-handle-vault-adapter'
 import type { PapelizVaultFolderPickResult } from '../vault/papeliz-open-vault'
-import { hasNoFailedPapelizTemplateCheck, listPapelizTemplateFirstLookRelativePaths, runPapelizTemplateChecks } from './papeliz-template-gallery-checks'
+import {
+  computePapelizTemplateIncludedFileListDigest,
+  hasNoFailedPapelizTemplateCheck,
+  listPapelizTemplateFirstLookRelativePaths,
+  papelizTemplatePathPatternsTooSlowSentence,
+  parsePapelizTemplateManifest,
+  runPapelizTemplateChecks,
+  selectPapelizTemplateIncludedFileListEntries,
+} from './papeliz-template-gallery-checks'
 import {
   papelizTemplateManifestFileName,
   type PapelizTemplateCheckReport,
   type PapelizTemplateFileList,
+  type PapelizTemplateFileListEntry,
   type PapelizTemplateFileReadProgress,
   type PapelizTemplateGalleryActions,
   type PapelizTemplateGalleryRow,
   type PapelizTemplateGalleryState,
 } from './papeliz-template-gallery-contract'
 import { readPapelizTemplateRepositoryNewestCommit } from './papeliz-template-gallery-github-reader'
-import { readPapelizTemplateFileList, readPapelizTemplateFiles } from './papeliz-template-gallery-jsdelivr-reader'
+import { formatPapelizJsdelivrFileUrl, readPapelizTemplateFileList, readPapelizTemplateFiles } from './papeliz-template-gallery-jsdelivr-reader'
 import {
   formatPapelizTemplateGalleryId,
   PapelizTemplateGalleryReadError,
@@ -21,6 +30,7 @@ import {
   type PapelizTemplateGalleryFetch,
   type PapelizTemplateRepositoryName,
 } from './papeliz-template-gallery-network-reading'
+import { buildPapelizTemplateAuthorPictureUrl } from './papeliz-template-gallery-picture-hosts'
 import {
   createPapelizTemplateSourceVaultFile,
   makePapelizTemplateBrowserVault,
@@ -29,9 +39,9 @@ import {
   type PapelizTemplateVaultFile,
 } from './papeliz-template-gallery-vault-maker'
 
-// Papeliz Templates' data: the gallery's tabs, Submit's Check, Recheck, and Use Template's steps,
-// which New Vault's form drives. The screens read the state and call the actions the contract names
-// (papeliz-template-gallery-contract.ts).
+// Papeliz Templates' data: the gallery's tabs, Submit's Check, Recheck, Preview's and a template page's
+// reads, and Use Template's steps, which New Vault's form drives. The screens read the state and call
+// the actions the contract names (papeliz-template-gallery-contract.ts).
 
 // The Featured templates built into the app, read from jsDelivr at their commits when the Templates
 // Worker can't be reached. P1-Workflow (`AdamNatad/P1-Workflow`) goes first here once its repository
@@ -149,6 +159,50 @@ export async function readAndCheckPapelizTemplateAtCommit(
   return { templateCheckReport, templateFileList, includedTemplateFileBytesByRelativePath }
 }
 
+// The included files Preview and a template's page show, read once per commit (by "<id>@<commit>");
+// a read that fails is tried again next time.
+const templateIncludedFileReadsByCommitKey = new Map<string, Promise<readonly PapelizTemplateFileListEntry[]>>()
+
+// The files a vault made from the row would get: the file list at its commit, narrowed by its
+// manifest. With jsDelivr's hashes they must give back the fingerprint Papeliz checked, so Preview
+// shows the files Use Template would write.
+function listPapelizTemplateIncludedFilesAtCommit(templateGalleryRow: PapelizTemplateGalleryRow): Promise<readonly PapelizTemplateFileListEntry[]> {
+  const templateCommitKey = `${templateGalleryRow.papelizTemplateGalleryId}@${templateGalleryRow.templateCommitSha}`
+  const earlierTemplateIncludedFileRead = templateIncludedFileReadsByCommitKey.get(templateCommitKey)
+  if (earlierTemplateIncludedFileRead !== undefined) return earlierTemplateIncludedFileRead
+  const templateReadOptions = {
+    templateGalleryFetch: papelizTemplateGalleryStoreDependencies.templateGalleryFetch,
+    waitTemplateReadMilliseconds: papelizTemplateGalleryStoreDependencies.waitTemplateReadMilliseconds,
+  }
+  const templateIncludedFileRead = (async () => {
+    const templateFileList = await readPapelizTemplateFileList(templateGalleryRow, templateGalleryRow.templateCommitSha, templateReadOptions)
+    const manifestListEntry = templateFileList.templateFileListEntries.find((templateFileListEntry) => templateFileListEntry.templateFileRelativePath === papelizTemplateManifestFileName)
+    const manifestBytes =
+      manifestListEntry === undefined
+        ? undefined
+        : (await readPapelizTemplateFiles(templateGalleryRow, templateGalleryRow.templateCommitSha, [manifestListEntry], templateReadOptions)).get(papelizTemplateManifestFileName)
+    const { templateManifest } = parsePapelizTemplateManifest(manifestBytes === undefined ? '' : new TextDecoder().decode(manifestBytes))
+    if (templateManifest === null) throw new PapelizTemplateGalleryReadError(`${papelizTemplateManifestFileName} is missing or doesn’t read at this commit.`, 'not-a-template')
+    const includedFileListEntries = selectPapelizTemplateIncludedFileListEntries(templateFileList, templateManifest)
+    if (includedFileListEntries === null) throw new PapelizTemplateGalleryReadError(papelizTemplatePathPatternsTooSlowSentence, 'not-a-template')
+    const includedSha256Base64ByRelativePath = new Map(
+      includedFileListEntries.flatMap((includedFileListEntry) =>
+        includedFileListEntry.templateFileSha256Base64 === null ? [] : [[includedFileListEntry.templateFileRelativePath, includedFileListEntry.templateFileSha256Base64] as const],
+      ),
+    )
+    if (
+      includedSha256Base64ByRelativePath.size === includedFileListEntries.length &&
+      (await computePapelizTemplateIncludedFileListDigest(includedSha256Base64ByRelativePath)) !== templateGalleryRow.templateIncludedFileListDigest
+    ) {
+      throw new PapelizTemplateGalleryReadError('These files aren’t the ones Papeliz checked at this commit. Try again later.', 'not-a-template')
+    }
+    return includedFileListEntries
+  })()
+  templateIncludedFileReadsByCommitKey.set(templateCommitKey, templateIncludedFileRead)
+  void templateIncludedFileRead.catch(() => templateIncludedFileReadsByCommitKey.delete(templateCommitKey))
+  return templateIncludedFileRead
+}
+
 // Files whose contents differ between two lists of the same repository (added, removed or changed).
 function countChangedTemplateFiles(earlierTemplateFileList: PapelizTemplateFileList, laterTemplateFileList: PapelizTemplateFileList): number {
   const readFileFingerprints = (templateFileList: PapelizTemplateFileList) =>
@@ -181,19 +235,26 @@ export const usePapelizTemplateGalleryStore = create<PapelizTemplateGalleryState
     }))
   }
 
+  // The gallery's lists, read again; the tab shown stays. New and Top 100 wait for the Templates
+  // Worker's snapshot, which this build doesn't read yet.
+  const readTemplateGalleryLists = async () => {
+    set({
+      featuredTemplateGalleryRows: papelizTemplateGalleryBuiltInFeaturedRows.map(
+        (builtInTemplateGalleryRow) => recheckedTemplateGalleryRowsById.get(builtInTemplateGalleryRow.papelizTemplateGalleryId) ?? builtInTemplateGalleryRow,
+      ),
+      templateGallerySnapshotState: { templateGallerySnapshotStage: 'not-available-yet' },
+    })
+  }
+
   return {
     ...papelizTemplateGalleryInitialState,
 
     openTemplateGallery: async () => {
-      // New and Top 100 wait for the Templates Worker's snapshot, which this build doesn't read yet.
-      set({
-        templateGalleryTab: 'featured',
-        featuredTemplateGalleryRows: papelizTemplateGalleryBuiltInFeaturedRows.map(
-          (builtInTemplateGalleryRow) => recheckedTemplateGalleryRowsById.get(builtInTemplateGalleryRow.papelizTemplateGalleryId) ?? builtInTemplateGalleryRow,
-        ),
-        templateGallerySnapshotState: { templateGallerySnapshotStage: 'not-available-yet' },
-      })
+      set({ templateGalleryTab: 'featured' })
+      await readTemplateGalleryLists()
     },
+
+    refreshTemplateGallery: readTemplateGalleryLists,
 
     selectTemplateGalleryTab: (templateGalleryTab) => set({ templateGalleryTab }),
 
@@ -347,6 +408,30 @@ export const usePapelizTemplateGalleryStore = create<PapelizTemplateGalleryState
       }
     },
 
+    resetTemplateRecheck: () => {
+      templateRecheckAbortController?.abort()
+      templateRecheckAbortController = null
+      set({ templateRecheckState: { templateRecheckStage: 'idle' } })
+    },
+
+    listTemplateIncludedFiles: listPapelizTemplateIncludedFilesAtCommit,
+
+    readTemplateFileText: async (templateGalleryRow, templateFileRelativePath) => {
+      const templateFileListEntry = (await listPapelizTemplateIncludedFilesAtCommit(templateGalleryRow)).find(
+        (includedFileListEntry) => includedFileListEntry.templateFileRelativePath === templateFileRelativePath,
+      )
+      if (templateFileListEntry === undefined) throw new PapelizTemplateGalleryReadError(`“${templateFileRelativePath}” isn’t in this template.`, 'not-a-template')
+      const templateFileBytes = await readPapelizTemplateFiles(templateGalleryRow, templateGalleryRow.templateCommitSha, [templateFileListEntry], {
+        templateGalleryFetch: papelizTemplateGalleryStoreDependencies.templateGalleryFetch,
+        waitTemplateReadMilliseconds: papelizTemplateGalleryStoreDependencies.waitTemplateReadMilliseconds,
+      })
+      return new TextDecoder().decode(templateFileBytes.get(templateFileRelativePath))
+    },
+
+    buildTemplatePictureUrl: (templateGalleryRow, templateFileRelativePath) => formatPapelizJsdelivrFileUrl(templateGalleryRow, templateGalleryRow.templateCommitSha, templateFileRelativePath),
+
+    buildTemplateAuthorPictureUrl: buildPapelizTemplateAuthorPictureUrl,
+
     prepareTemplateUse: async (templateGalleryRow) => {
       templateUseAbortController?.abort()
       preparedTemplateUse = null
@@ -432,20 +517,27 @@ export const usePapelizTemplateGalleryStore = create<PapelizTemplateGalleryState
           templateSourceVaultMadeAt: new Date(readTemplateGalleryCurrentTime()).toISOString(),
         }),
       ]
+      const showTemplateVaultWriteProgress = (templateWrittenFileCount: number, templateFileCount: number) => {
+        if (preparedTemplateUse === templateUseToMake) set({ templateUseState: { templateUseStage: 'making-vault', templateGalleryRow, templateWrittenFileCount, templateFileCount } })
+      }
       const templateVaultMakeOptions = {
         browserVaultEnvironment: papelizTemplateGalleryStoreDependencies.browserVaultEnvironment,
         pickTemplateVaultPlaceFolder: papelizTemplateGalleryStoreDependencies.pickTemplateVaultPlaceFolder,
         folderVaultFileContentsWriter: papelizTemplateGalleryStoreDependencies.folderVaultFileContentsWriter,
-        onTemplateVaultWriteProgress: (templateWrittenFileCount: number, templateFileCount: number) => {
-          if (preparedTemplateUse === templateUseToMake) set({ templateUseState: { templateUseStage: 'making-vault', templateGalleryRow, templateWrittenFileCount, templateFileCount } })
-        },
+        onTemplateVaultWriteProgress: showTemplateVaultWriteProgress,
+        onTemplateVaultPlaceFolderPicked: () => showTemplateVaultWriteProgress(0, templateVaultFiles.length),
       }
-      // A folder vault's folder window opens first, while the click still counts.
-      const templateVaultMaking =
-        chosenNewVaultPlace === 'folder-on-disk'
-          ? makePapelizTemplateFolderVault(typedNewVaultName, templateVaultFiles, templateVaultMakeOptions)
-          : makePapelizTemplateBrowserVault(typedNewVaultName, templateVaultFiles, templateVaultMakeOptions)
-      set({ templateUseState: { templateUseStage: 'making-vault', templateGalleryRow, templateWrittenFileCount: 0, templateFileCount: templateVaultFiles.length } })
+      // A folder vault's folder window opens first, while the click still counts; `picking-folder`
+      // lasts until it closes.
+      const isFolderVaultMade = chosenNewVaultPlace === 'folder-on-disk'
+      const templateVaultMaking = isFolderVaultMade
+        ? makePapelizTemplateFolderVault(typedNewVaultName, templateVaultFiles, templateVaultMakeOptions)
+        : makePapelizTemplateBrowserVault(typedNewVaultName, templateVaultFiles, templateVaultMakeOptions)
+      set({
+        templateUseState: isFolderVaultMade
+          ? { templateUseStage: 'picking-folder', templateGalleryRow }
+          : { templateUseStage: 'making-vault', templateGalleryRow, templateWrittenFileCount: 0, templateFileCount: templateVaultFiles.length },
+      })
       const openVaultResult = await templateVaultMaking
       if (preparedTemplateUse !== templateUseToMake) return { ...openVaultResult, templateFirstNotePath: null }
       if (openVaultResult.openVaultOutcome !== 'opened') {
@@ -477,6 +569,7 @@ export function resetPapelizTemplateGalleryStoreForTests(): void {
   templateUseAbortController = null
   preparedTemplateUse = null
   recheckedTemplateGalleryRowsById.clear()
+  templateIncludedFileReadsByCommitKey.clear()
   papelizTemplateGalleryStoreDependencies = {}
   usePapelizTemplateGalleryStore.setState(papelizTemplateGalleryInitialState)
 }
