@@ -18,6 +18,8 @@ const papelizSyncLocalAccountPlanPath = '/papeliz-sync-local-workers/account-pla
 // R2's S3 host, with `.eu` before `r2.cloudflarestorage.com` for a bucket in the EU jurisdiction.
 const papelizSyncR2S3OriginPattern = /https:\/\/[0-9a-f]{32}(?:\.eu)?\.r2\.cloudflarestorage\.com\//g
 const papelizSyncLocalPlanNames = ['standard', 'plus', 'pro']
+// The directory's shards, as the Account Worker binds them (its wrangler.jsonc).
+const papelizSyncAccountDirectoryShardBindingPattern = /^PAPELIZ_SYNC_ACCOUNT_DIRECTORY_S\d{4}$/
 
 // The Sync Worker's reply, with every R2 link turned into this origin's local storage path.
 async function rewritePapelizSyncR2LinksInVaultReply(vaultWorkerResponse, papelizSyncLocalOrigin) {
@@ -32,11 +34,18 @@ async function rewritePapelizSyncR2LinksInVaultReply(vaultWorkerResponse, papeli
   })
 }
 
-// The local accounts, from the Account Worker's directory (the same local D1 database).
+// The local accounts, from every shard of the Account Worker's directory (the same local D1 databases,
+// each bound here under the Account Worker's own binding name), oldest first.
 async function listPapelizSyncLocalAccounts(routerBindings) {
-  const { results: localAccountRows } = await routerBindings.PAPELIZ_SYNC_ACCOUNT_DIRECTORY.prepare(
-    'SELECT papeliz_sync_account_id, sync_plan_name, sync_subscription_state FROM papeliz_sync_account_directory_entries ORDER BY sync_account_created_at',
-  ).all()
+  const localAccountRows = []
+  for (const [routerBindingName, accountDirectoryShard] of Object.entries(routerBindings)) {
+    if (!papelizSyncAccountDirectoryShardBindingPattern.test(routerBindingName)) continue
+    const { results: shardAccountRows } = await accountDirectoryShard
+      .prepare('SELECT papeliz_sync_account_id, sync_plan_name, sync_subscription_state, sync_account_created_at FROM papeliz_sync_account_directory_entries')
+      .all()
+    localAccountRows.push(...shardAccountRows)
+  }
+  localAccountRows.sort((olderAccountRow, newerAccountRow) => olderAccountRow.sync_account_created_at - newerAccountRow.sync_account_created_at)
   return localAccountRows.map((localAccountRow) => ({
     papelizSyncAccountId: localAccountRow.papeliz_sync_account_id,
     syncPlanName: localAccountRow.sync_plan_name,

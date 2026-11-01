@@ -606,6 +606,8 @@ const papelizSyncSignInPageDevServerPort = 14203
 // (site/main/app/account/papeliz-account-config.ts): the Account Worker checks its tokens.
 const papelizSyncLocalSignInProviderOrigin = 'https://certain-cub-9360.clerk.accounts.dev'
 const papelizSyncLocalGrantSigningKeyId = 'papeliz-sync-local-workers-grant-key'
+// How the Account Worker binds each shard of its account directory.
+const papelizSyncAccountDirectoryShardBindingPattern = /^PAPELIZ_SYNC_ACCOUNT_DIRECTORY_S\d{4}$/
 // Made-up R2 signing values: the router answers the links they sign, and nothing is sent to R2.
 const papelizSyncLocalR2SigningSettings = {
   PAPELIZ_SYNC_R2_CLOUDFLARE_ACCOUNT_ID: '00000000000000000000000000000000',
@@ -673,8 +675,11 @@ async function preparePapelizSyncLocalWorkers(webappSyncLocalOrigin) {
     migrations_dir: path.resolve(accountWorkerFolder, d1Database.migrations_dir ?? 'migrations'),
   }))
   const vaultWorkerConfig = readWorkerConfigForLocalRun(vaultWorkerFolder)
-  const accountDirectoryDatabase = accountWorkerConfig.d1_databases.find((d1Database) => d1Database.binding === 'PAPELIZ_SYNC_ACCOUNT_DIRECTORY')
-  if (!accountDirectoryDatabase) throw new PapelizLauncherError("The Account Worker's wrangler.jsonc has no PAPELIZ_SYNC_ACCOUNT_DIRECTORY database.")
+  // The account directory's shards, each its own local D1 database (sync/README.md, "Account directory").
+  const accountDirectoryShardDatabases = accountWorkerConfig.d1_databases.filter((d1Database) => papelizSyncAccountDirectoryShardBindingPattern.test(d1Database.binding ?? ''))
+  if (accountDirectoryShardDatabases.length === 0) {
+    throw new PapelizLauncherError("The Account Worker's wrangler.jsonc binds no account directory shard (PAPELIZ_SYNC_ACCOUNT_DIRECTORY_S<4 digits>).")
+  }
 
   mkdirSync(papelizSyncLocalWorkersStateDirectory, { recursive: true })
   const { grantSigningPrivateJwk, grantVerifyingPublicJwk } = await readOrCreatePapelizSyncLocalGrantSigningKey()
@@ -690,7 +695,7 @@ async function preparePapelizSyncLocalWorkers(webappSyncLocalOrigin) {
         { binding: 'PAPELIZ_SYNC_VAULT_WORKER', service: vaultWorkerConfig.name },
       ],
       durable_objects: { bindings: [{ name: 'PAPELIZ_SYNC_ACCOUNT_DURABLE_OBJECT', class_name: 'PapelizSyncAccountDurableObject', script_name: accountWorkerConfig.name }] },
-      d1_databases: [accountDirectoryDatabase],
+      d1_databases: accountDirectoryShardDatabases,
       r2_buckets: vaultWorkerConfig.r2_buckets,
     },
     {},
@@ -712,7 +717,7 @@ async function preparePapelizSyncLocalWorkers(webappSyncLocalOrigin) {
   })
   return {
     wranglerCommandFilePath,
-    accountDirectoryDatabaseName: accountDirectoryDatabase.database_name,
+    accountDirectoryShardDatabases,
     accountWorkerConfigFilePath,
     workerConfigFilePaths: [routerConfigFilePath, accountWorkerConfigFilePath, vaultWorkerConfigFilePath],
   }
@@ -768,7 +773,7 @@ async function runPapelizSyncLocalWorkersTarget(launcherRequest, launcherTarget,
   const stateDirectoryForDisplay = path.relative(papelizRepositoryRoot, papelizSyncLocalWorkersStateDirectory)
   if (launcherRequest.dryRun) {
     console.log(` [plan] Write each Worker's local config and .dev.vars into ${stateDirectoryForDisplay}/ (Git-ignored), with a made-up grant signing key and Standard vault key wrap secret kept there`)
-    console.log(` [plan] wrangler d1 migrations apply <account directory> --local, then wrangler dev with the router, Account and Sync Workers on ${localWorkersRouterOrigin}`)
+    console.log(` [plan] wrangler d1 migrations apply <each account directory shard> --local, then wrangler dev with the router, Account and Sync Workers on ${localWorkersRouterOrigin}`)
     console.log(` [plan] pnpm run site:dev ${nextServerArguments(papelizSyncSignInPageDevServerPort).join(' ')} (unless a server already answers on ${papelizSyncSignInPageDevServerPort})`)
     console.log(` [plan] pnpm ${webappScriptArguments.join(' ')}, with the real Sync engine and its proxy to ${localWorkersRouterOrigin} and ${signInPageDevServerOrigin}`)
     return 0
@@ -779,13 +784,18 @@ async function runPapelizSyncLocalWorkersTarget(launcherRequest, launcherTarget,
   }
   const preparedLocalWorkers = await preparePapelizSyncLocalWorkers(webappSyncLocalOrigin)
   console.log(` [ready] Local Workers' configs and settings in ${stateDirectoryForDisplay}/`)
-  // CI makes wrangler apply the migrations without asking first.
-  const migrationsExitCode = await runForeground(
-    process.execPath,
-    [preparedLocalWorkers.wranglerCommandFilePath, 'd1', 'migrations', 'apply', preparedLocalWorkers.accountDirectoryDatabaseName, '--local', '--persist-to', papelizSyncLocalWranglerStateDirectory, '-c', preparedLocalWorkers.accountWorkerConfigFilePath],
-    { cwd: papelizSyncLocalWorkersStateDirectory, extraEnvironment: { CI: 'true' } },
-  )
-  if (migrationsExitCode !== 0) throw new PapelizLauncherError("Applying the account directory's migrations to the local D1 failed.")
+  // Each shard of the account directory gets the same migrations. CI makes wrangler apply them without
+  // asking first.
+  for (const accountDirectoryShardDatabase of preparedLocalWorkers.accountDirectoryShardDatabases) {
+    const shardDescription = `account directory shard ${accountDirectoryShardDatabase.database_name} (${accountDirectoryShardDatabase.binding})`
+    const migrationsExitCode = await runForeground(
+      process.execPath,
+      [preparedLocalWorkers.wranglerCommandFilePath, 'd1', 'migrations', 'apply', accountDirectoryShardDatabase.database_name, '--local', '--persist-to', papelizSyncLocalWranglerStateDirectory, '-c', preparedLocalWorkers.accountWorkerConfigFilePath],
+      { cwd: papelizSyncLocalWorkersStateDirectory, extraEnvironment: { CI: 'true' } },
+    )
+    if (migrationsExitCode !== 0) throw new PapelizLauncherError(`Applying the migrations to the local ${shardDescription} failed.`)
+    console.log(` [ready] The local ${shardDescription} has every migration`)
+  }
 
   const syncLocalServers = []
   const stopSyncLocalServers = () => stopPapelizSyncLocalServers(syncLocalServers)
