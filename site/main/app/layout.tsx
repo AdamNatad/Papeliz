@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import localFont from 'next/font/local'
 import type { ReactNode } from 'react'
 import './globals.css'
+import { PapelizSiteConsoleWarning } from '@/components/developer-console/papeliz-site-console-warning'
 import { PapelizSiteFooter } from '@/components/footer/papeliz-site-footer'
 import { PapelizSiteHeader } from '@/components/header/papeliz-site-header'
 import {
@@ -83,6 +84,7 @@ export default function PapelizSiteRootLayout({ children }: { children: ReactNod
           {children}
         </main>
         <PapelizSiteFooter />
+        <PapelizSiteConsoleWarning />
         {/* The website, Natad Corporation and Adam Natad, on every page (lib/papeliz-site-jsonld.ts). */}
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializePapelizSiteJsonLd(createPapelizSiteJsonLdGraph()) }} />
       </body>
