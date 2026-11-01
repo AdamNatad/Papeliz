@@ -1,0 +1,295 @@
+import { afterEach, describe, expect, it } from 'vitest'
+import { createPapelizBrowserVault } from '../vault/papeliz-browser-vaults'
+import { createPapelizFakeBrowserVaultEnvironment, getPapelizFakeBrowserVaultFolder } from '../vault/papeliz-fake-browser-vault-environment.test-support'
+import type { PapelizVaultFolderPickResult } from '../vault/papeliz-open-vault'
+import type { PapelizTemplateGalleryRow, PapelizTemplateGalleryState } from './papeliz-template-gallery-contract'
+import { createPapelizFakeTemplateNetwork, type PapelizFakeTemplateNetworkOptions, type PapelizFakeTemplateRepository } from './papeliz-template-gallery-fake-network.test-support'
+import {
+  createGardenJournalTemplateFiles,
+  gardenJournalOtherLicenseText,
+  gardenJournalRepositoryName,
+  gardenJournalTemplateCommitSha,
+  gardenJournalTemplateNewerCommitSha,
+  type PapelizFixtureTemplateFiles,
+} from './papeliz-template-gallery-fixtures.test-support'
+import {
+  papelizTemplateGalleryBuiltInFeaturedRows,
+  resetPapelizTemplateGalleryStoreForTests,
+  setPapelizTemplateGalleryRowsForTests,
+  setPapelizTemplateGalleryStoreDependenciesForTests,
+  usePapelizTemplateGalleryStore,
+} from './papeliz-template-gallery-store'
+
+const gardenJournalMadeAt = Date.parse('2026-11-02T09:30:00.000Z')
+
+function createGardenJournalRepository(repositoryChanges: Partial<PapelizFakeTemplateRepository> = {}): PapelizFakeTemplateRepository {
+  return {
+    ...gardenJournalRepositoryName,
+    templateFilesByCommitSha: { [gardenJournalTemplateCommitSha]: createGardenJournalTemplateFiles() },
+    newestTemplateCommitSha: gardenJournalTemplateCommitSha,
+    ...repositoryChanges,
+  }
+}
+
+// The store against the fake network (and fake browser storage), with every state it passes through.
+function useFakeTemplateNetwork(
+  fakeTemplateRepositories: PapelizFakeTemplateRepository[],
+  fakeNetworkOptions: PapelizFakeTemplateNetworkOptions = {},
+  pickTemplateVaultPlaceFolder?: () => Promise<PapelizVaultFolderPickResult>,
+) {
+  const fakeTemplateNetwork = createPapelizFakeTemplateNetwork(fakeTemplateRepositories, fakeNetworkOptions)
+  const fakeBrowserVaultEnvironment = createPapelizFakeBrowserVaultEnvironment()
+  setPapelizTemplateGalleryStoreDependenciesForTests({
+    templateGalleryFetch: fakeTemplateNetwork.templateGalleryFetch,
+    waitTemplateReadMilliseconds: async () => undefined,
+    browserVaultEnvironment: fakeBrowserVaultEnvironment.browserVaultEnvironment,
+    readCurrentTime: () => gardenJournalMadeAt,
+    pickTemplateVaultPlaceFolder,
+  })
+  const seenGalleryStates: PapelizTemplateGalleryState[] = []
+  const stopWatchingGalleryStates = usePapelizTemplateGalleryStore.subscribe((galleryState) => seenGalleryStates.push(galleryState))
+  stopWatchingGalleryStatesList.push(stopWatchingGalleryStates)
+  return { ...fakeTemplateNetwork, ...fakeBrowserVaultEnvironment, seenGalleryStates }
+}
+const stopWatchingGalleryStatesList: Array<() => void> = []
+
+// The listed row for Garden Journal at its first commit, with the fingerprint a Check records.
+async function listGardenJournalRow(): Promise<PapelizTemplateGalleryRow> {
+  await usePapelizTemplateGalleryStore.getState().checkTemplateRepositoryLink('garden-notes/Garden-Journal')
+  const { templateCheckRunState } = usePapelizTemplateGalleryStore.getState()
+  if (templateCheckRunState.templateCheckRunStage !== 'checked') throw new Error(`The check didn’t finish: ${JSON.stringify(templateCheckRunState)}`)
+  usePapelizTemplateGalleryStore.getState().resetTemplateCheckRun()
+  const { templateCheckReport } = templateCheckRunState
+  const gardenJournalRow: PapelizTemplateGalleryRow = {
+    papelizTemplateGalleryId: 'garden-notes/Garden-Journal',
+    ...gardenJournalRepositoryName,
+    templateCommitSha: gardenJournalTemplateCommitSha,
+    templateIncludedFileListDigest: templateCheckReport.templateIncludedFileListDigest ?? '',
+    templateName: 'Garden Journal',
+    templateDescription: 'A season of planting notes, with a page per crop.',
+    templateTags: ['gardening', 'journal'],
+    templateFirstNotePath: 'Start here.md',
+    templateLicenseId: 'MIT',
+    templateThumbnailPictureUrl: null,
+    templateIncludedFileCount: templateCheckReport.templateIncludedFileRelativePaths.length,
+    templateIncludedByteCount: templateCheckReport.templateIncludedByteCount,
+    isTemplateRunningCommands: templateCheckReport.templateRunCommands.length > 0,
+    isTemplateFeatured: true,
+    templateListedAt: null,
+    templateCheckedAt: null,
+    templateUpVoteCount: 0,
+    templateDownVoteCount: 0,
+    templateTopRank: null,
+  }
+  setPapelizTemplateGalleryRowsForTests([gardenJournalRow])
+  return gardenJournalRow
+}
+
+function withNewerCommit(newerCommitFiles: PapelizFixtureTemplateFiles): Partial<PapelizFakeTemplateRepository> {
+  return {
+    templateFilesByCommitSha: { [gardenJournalTemplateCommitSha]: createGardenJournalTemplateFiles(), [gardenJournalTemplateNewerCommitSha]: newerCommitFiles },
+    newestTemplateCommitSha: gardenJournalTemplateNewerCommitSha,
+  }
+}
+
+afterEach(() => {
+  for (const stopWatchingGalleryStates of stopWatchingGalleryStatesList.splice(0)) stopWatchingGalleryStates()
+  resetPapelizTemplateGalleryStoreForTests()
+})
+
+describe('template gallery store', () => {
+  it('opens on Featured, with the built-in templates, and says New and Top 100 aren’t available yet', async () => {
+    await usePapelizTemplateGalleryStore.getState().openTemplateGallery()
+    expect(usePapelizTemplateGalleryStore.getState()).toMatchObject({
+      templateGalleryTab: 'featured',
+      featuredTemplateGalleryRows: [...papelizTemplateGalleryBuiltInFeaturedRows],
+      templateGallerySnapshotState: { templateGallerySnapshotStage: 'not-available-yet' },
+    })
+    usePapelizTemplateGalleryStore.getState().selectTemplateGalleryTab('top-100')
+    expect(usePapelizTemplateGalleryStore.getState().templateGalleryTab).toBe('top-100')
+  })
+
+  it('checks a pasted link: GitHub first, then the files from jsDelivr with progress, then every check', async () => {
+    const { seenGalleryStates } = useFakeTemplateNetwork([createGardenJournalRepository()])
+    await usePapelizTemplateGalleryStore.getState().checkTemplateRepositoryLink('https://github.com/garden-notes/Garden-Journal')
+    const seenCheckRunStages = seenGalleryStates.map((galleryState) => galleryState.templateCheckRunState.templateCheckRunStage)
+    expect(seenCheckRunStages.at(0)).toBe('reading-github')
+    expect(seenCheckRunStages).toContain('reading-files')
+    const { templateCheckRunState } = usePapelizTemplateGalleryStore.getState()
+    expect(templateCheckRunState).toMatchObject({ templateCheckRunStage: 'checked', papelizTemplateGalleryId: 'garden-notes/Garden-Journal', templateCommitSha: gardenJournalTemplateCommitSha })
+    if (templateCheckRunState.templateCheckRunStage !== 'checked') return
+    expect(templateCheckRunState.templateCheckReport.isEveryTemplateCheckPassed).toBe(true)
+    const lastReadProgress = seenGalleryStates
+      .map((galleryState) => (galleryState.templateCheckRunState.templateCheckRunStage === 'reading-files' ? galleryState.templateCheckRunState.templateFileReadProgress : null))
+      .filter((templateFileReadProgress) => templateFileReadProgress !== null)
+      .at(-1)
+    // The manifest and LICENSE were read on the first look; the other 8 included files after it.
+    expect(lastReadProgress).toEqual({ templateReadFileCount: 8, templateFileCount: 8 })
+  })
+
+  it('says why a link can’t be checked', async () => {
+    useFakeTemplateNetwork([createGardenJournalRepository()], { gitHubLimitResetSeconds: 1_793_600_000 })
+    await usePapelizTemplateGalleryStore.getState().checkTemplateRepositoryLink('not a link')
+    expect(usePapelizTemplateGalleryStore.getState().templateCheckRunState).toEqual({
+      templateCheckRunStage: 'failed-to-read',
+      templateCheckRunProblemSentence: 'That isn’t a link to a GitHub repository. Paste one like https://github.com/owner/repository.',
+    })
+    await usePapelizTemplateGalleryStore.getState().checkTemplateRepositoryLink('garden-notes/Garden-Journal')
+    expect(usePapelizTemplateGalleryStore.getState().templateCheckRunState).toMatchObject({
+      templateCheckRunStage: 'failed-to-read',
+      templateCheckRunProblemSentence: expect.stringMatching(/^GitHub’s limit for your network is used up until .+\. Try again then\.$/),
+    })
+  })
+
+  it('turns down a template on its first look without reading the rest of its files', async () => {
+    const gardenJournalRepository = createGardenJournalRepository()
+    gardenJournalRepository.templateFilesByCommitSha[gardenJournalTemplateCommitSha] = { ...createGardenJournalTemplateFiles(), LICENSE: gardenJournalOtherLicenseText }
+    const { fakeRequestedUrls } = useFakeTemplateNetwork([gardenJournalRepository])
+    await usePapelizTemplateGalleryStore.getState().checkTemplateRepositoryLink('garden-notes/Garden-Journal')
+    const { templateCheckRunState } = usePapelizTemplateGalleryStore.getState()
+    if (templateCheckRunState.templateCheckRunStage !== 'checked') throw new Error('The check didn’t finish')
+    expect(templateCheckRunState.templateCheckReport.isEveryTemplateCheckPassed).toBe(false)
+    expect(fakeRequestedUrls.filter((requestedUrl) => requestedUrl.startsWith('https://cdn.jsdelivr.net/')).sort()).toEqual([
+      `https://cdn.jsdelivr.net/gh/garden-notes/Garden-Journal@${gardenJournalTemplateCommitSha}/LICENSE`,
+      `https://cdn.jsdelivr.net/gh/garden-notes/Garden-Journal@${gardenJournalTemplateCommitSha}/papeliz-template.json`,
+    ])
+  })
+
+  it('rechecks: up to date, then moved to a newer commit that passes', async () => {
+    const gardenJournalRepository = createGardenJournalRepository()
+    useFakeTemplateNetwork([gardenJournalRepository])
+    const gardenJournalRow = await listGardenJournalRow()
+    await usePapelizTemplateGalleryStore.getState().recheckTemplate(gardenJournalRow.papelizTemplateGalleryId)
+    expect(usePapelizTemplateGalleryStore.getState().templateRecheckState).toEqual({
+      templateRecheckStage: 'up-to-date',
+      papelizTemplateGalleryId: 'garden-notes/Garden-Journal',
+      templateRecheckedAt: gardenJournalMadeAt,
+    })
+
+    Object.assign(gardenJournalRepository, withNewerCommit({ ...createGardenJournalTemplateFiles(), 'Crops/Seeds.md': '# Seeds\n\nBeans too.\n', 'Crops/Beans.md': '# Beans\n' }))
+    await usePapelizTemplateGalleryStore.getState().recheckTemplate(gardenJournalRow.papelizTemplateGalleryId)
+    expect(usePapelizTemplateGalleryStore.getState().templateRecheckState).toEqual({
+      templateRecheckStage: 'updated',
+      papelizTemplateGalleryId: 'garden-notes/Garden-Journal',
+      templateRecheckedAt: gardenJournalMadeAt,
+      previousTemplateCommitSha: gardenJournalTemplateCommitSha,
+      templateCommitSha: gardenJournalTemplateNewerCommitSha,
+      templateChangedFileCount: 2,
+    })
+    const movedRow = usePapelizTemplateGalleryStore.getState().findTemplateGalleryRow('garden-notes/Garden-Journal')
+    expect(movedRow).toMatchObject({ templateCommitSha: gardenJournalTemplateNewerCommitSha, templateIncludedFileCount: 10, templateCheckedAt: gardenJournalMadeAt })
+    expect(movedRow?.templateIncludedFileListDigest).not.toBe(gardenJournalRow.templateIncludedFileListDigest)
+  })
+
+  it('keeps the commit it had when the newest one fails a check, and says when the repository is gone', async () => {
+    const gardenJournalRepository = createGardenJournalRepository()
+    useFakeTemplateNetwork([gardenJournalRepository])
+    const gardenJournalRow = await listGardenJournalRow()
+    Object.assign(gardenJournalRepository, withNewerCommit({ ...createGardenJournalTemplateFiles(), 'Crops/Beans.md': '<script>steal()</script>\n' }))
+    await usePapelizTemplateGalleryStore.getState().recheckTemplate(gardenJournalRow.papelizTemplateGalleryId)
+    expect(usePapelizTemplateGalleryStore.getState().templateRecheckState).toMatchObject({ templateRecheckStage: 'newest-fails', newestTemplateCommitSha: gardenJournalTemplateNewerCommitSha })
+    expect(usePapelizTemplateGalleryStore.getState().findTemplateGalleryRow('garden-notes/Garden-Journal')?.templateCommitSha).toBe(gardenJournalTemplateCommitSha)
+
+    const { 'papeliz-template.json': _manifest, ...filesWithoutManifest } = createGardenJournalTemplateFiles()
+    Object.assign(gardenJournalRepository, withNewerCommit(filesWithoutManifest))
+    await usePapelizTemplateGalleryStore.getState().recheckTemplate(gardenJournalRow.papelizTemplateGalleryId)
+    expect(usePapelizTemplateGalleryStore.getState().templateRecheckState).toEqual({
+      templateRecheckStage: 'repository-gone',
+      papelizTemplateGalleryId: 'garden-notes/Garden-Journal',
+      templateRecheckProblemSentence: 'The repository no longer has papeliz-template.json, so it isn’t a template any more.',
+    })
+
+    gardenJournalRepository.isTemplateRepositoryPrivate = true
+    await usePapelizTemplateGalleryStore.getState().recheckTemplate(gardenJournalRow.papelizTemplateGalleryId)
+    expect(usePapelizTemplateGalleryStore.getState().templateRecheckState).toMatchObject({ templateRecheckStage: 'repository-gone' })
+  })
+
+  it('prepares Use Template, waits for the commands to be read, then makes a browser vault from the commit it knows', async () => {
+    const gardenJournalRepository = createGardenJournalRepository()
+    gardenJournalRepository.templateFilesByCommitSha[gardenJournalTemplateCommitSha] = {
+      ...createGardenJournalTemplateFiles(),
+      '.claude/settings.json': JSON.stringify({ hooks: { Stop: [{ hooks: [{ type: 'command', command: 'npm test' }] }] } }),
+    }
+    const { fakeOriginPrivateFileSystemRoot, fakeRequestedUrls } = useFakeTemplateNetwork([gardenJournalRepository])
+    const gardenJournalRow = await listGardenJournalRow()
+    fakeRequestedUrls.length = 0
+    await usePapelizTemplateGalleryStore.getState().prepareTemplateUse(gardenJournalRow)
+    // Use Template asks GitHub nothing.
+    expect(fakeRequestedUrls.some((requestedUrl) => requestedUrl.startsWith('https://api.github.com/'))).toBe(false)
+    const { templateUseState } = usePapelizTemplateGalleryStore.getState()
+    expect(templateUseState).toMatchObject({
+      templateUseStage: 'ready',
+      templateRunCommands: [{ templateRunCommandKind: 'agent-setting-command', templateRunCommandSourceRelativePath: '.claude/settings.json', templateRunCommandText: 'npm test' }],
+      isTemplateRunCommandsAcknowledged: false,
+      templateHiddenFileRelativePaths: ['.claude/settings.json', '.gitignore'],
+      templateLeftOutPictureRelativePaths: [],
+    })
+
+    const notAcknowledgedResult = await usePapelizTemplateGalleryStore.getState().makePapelizTemplateVault('My Garden', 'browser-vault-in-opfs')
+    expect(notAcknowledgedResult).toEqual({
+      openVaultOutcome: 'failed',
+      openVaultFailureMessage: 'Read the commands this template brings, and tick that you have, before the vault is made.',
+      templateFirstNotePath: null,
+    })
+    usePapelizTemplateGalleryStore.getState().acknowledgeTemplateRunCommands(true)
+    const madeResult = await usePapelizTemplateGalleryStore.getState().makePapelizTemplateVault('My Garden', 'browser-vault-in-opfs')
+    if (madeResult.openVaultOutcome !== 'opened') throw new Error(`The vault wasn’t made: ${JSON.stringify(madeResult)}`)
+    expect(madeResult.templateFirstNotePath).toBe('Start here.md')
+    expect(usePapelizTemplateGalleryStore.getState().templateUseState).toMatchObject({ templateUseStage: 'made', papelizVaultDisplayName: 'My Garden' })
+    const madeVaultFolder = await getPapelizFakeBrowserVaultFolder(fakeOriginPrivateFileSystemRoot, madeResult.papelizOpenVault.papelizVaultId)
+    const templateSourceFile = await (await (await madeVaultFolder.getDirectoryHandle('.papeliz')).getFileHandle('template-source.json')).getFile()
+    expect(JSON.parse(await templateSourceFile.text())).toEqual({
+      papelizTemplateSourceFileVersion: 1,
+      papelizTemplateGalleryId: 'garden-notes/Garden-Journal',
+      templateSourceCommitSha: gardenJournalTemplateCommitSha,
+      templateSourceName: 'Garden Journal',
+      templateSourceAuthor: 'garden-notes',
+      templateSourceLicenseId: 'MIT',
+      templateSourceVaultMadeAt: '2026-11-02T09:30:00.000Z',
+    })
+    madeResult.papelizOpenVault.papelizVaultAdapter.closeVaultAdapter?.()
+  })
+
+  it('refuses files that aren’t the ones checked, and makes nothing', async () => {
+    const gardenJournalRepository = createGardenJournalRepository()
+    useFakeTemplateNetwork([gardenJournalRepository])
+    const gardenJournalRow = await listGardenJournalRow()
+    // The same commit now serving different files (as a fork's commit under the template's name would).
+    gardenJournalRepository.templateFilesByCommitSha[gardenJournalTemplateCommitSha] = { ...createGardenJournalTemplateFiles(), 'Crops/Seeds.md': '# Not what was checked\n' }
+    await usePapelizTemplateGalleryStore.getState().prepareTemplateUse(gardenJournalRow)
+    const { templateUseState } = usePapelizTemplateGalleryStore.getState()
+    expect(templateUseState).toMatchObject({
+      templateUseStage: 'failed',
+      templateUseProblemSentence: '“Garden Journal” fails a check at this commit, so Papeliz can’t make a vault from it.',
+    })
+    if (templateUseState.templateUseStage !== 'failed') return
+    expect(templateUseState.templateCheckReport?.templateCheckResults.find((templateCheckResult) => templateCheckResult.templateCheckOutcome === 'failed')?.templateCheckId).toBe('included-file-list-digest')
+    expect((await usePapelizTemplateGalleryStore.getState().makePapelizTemplateVault('My Garden', 'browser-vault-in-opfs')).openVaultOutcome).toBe('failed')
+  })
+
+  it('goes back to ready when the folder window is closed or the name is taken, and Cancel forgets it all', async () => {
+    const { browserVaultEnvironment } = useFakeTemplateNetwork([createGardenJournalRepository()], {}, async () => ({ openVaultOutcome: 'cancelled' }))
+    const gardenJournalRow = await listGardenJournalRow()
+    await usePapelizTemplateGalleryStore.getState().prepareTemplateUse(gardenJournalRow)
+    expect(await usePapelizTemplateGalleryStore.getState().makePapelizTemplateVault('My Garden', 'folder-on-disk')).toEqual({ openVaultOutcome: 'cancelled', templateFirstNotePath: null })
+    expect(usePapelizTemplateGalleryStore.getState().templateUseState.templateUseStage).toBe('ready')
+
+    await createPapelizBrowserVault('My Garden', browserVaultEnvironment)
+    const takenNameResult = await usePapelizTemplateGalleryStore.getState().makePapelizTemplateVault('My Garden', 'browser-vault-in-opfs')
+    expect(takenNameResult).toMatchObject({ openVaultOutcome: 'failed', openVaultFailureMessage: 'Couldn’t make “My Garden”. A vault named “My Garden” already exists. Pick another name.' })
+    expect(usePapelizTemplateGalleryStore.getState().templateUseState.templateUseStage).toBe('ready')
+
+    usePapelizTemplateGalleryStore.getState().cancelTemplateUse()
+    expect(usePapelizTemplateGalleryStore.getState().templateUseState).toEqual({ templateUseStage: 'idle' })
+    expect((await usePapelizTemplateGalleryStore.getState().makePapelizTemplateVault('My Garden 2', 'browser-vault-in-opfs')).openVaultOutcome).toBe('failed')
+  })
+
+  it('drops a read that Cancel stopped', async () => {
+    useFakeTemplateNetwork([createGardenJournalRepository()])
+    const gardenJournalRow = await listGardenJournalRow()
+    const preparing = usePapelizTemplateGalleryStore.getState().prepareTemplateUse(gardenJournalRow)
+    usePapelizTemplateGalleryStore.getState().cancelTemplateUse()
+    await preparing
+    expect(usePapelizTemplateGalleryStore.getState().templateUseState).toEqual({ templateUseStage: 'idle' })
+  })
+})

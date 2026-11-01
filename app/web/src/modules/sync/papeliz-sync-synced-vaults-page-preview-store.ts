@@ -15,7 +15,7 @@ export type PapelizSyncSyncedVaultsPageStep =
   | 'synced-vault-list'
 
 // What the Synced Vaults page shows while its previewer (development builds only,
-// papeliz-sync-synced-vaults-page-previewer-button.tsx) holds one of its states: the step, and the
+// papeliz-sync-synced-vaults-page-previewer-menu-items.ts) holds one of its states: the step, and the
 // made-up account and vaults it needs. Nothing else sets it, so outside development builds it stays
 // null and the page is always live.
 export interface PapelizSyncSyncedVaultsPagePreview {

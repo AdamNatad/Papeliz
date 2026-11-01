@@ -102,6 +102,21 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
           'Only Chrome and Edge on a computer open folders on your disk. Firefox, Safari and phone browsers show **New Vault** and **Try Sample**, without **Open Vault**. See [[browser-support]].',
         ),
       ]),
+      helpSection('Start from a template', [
+        helpParagraph(
+          'A template is a whole starter vault that someone shares from a public GitHub repository. On the start page, choose **Templates**, just above **Synced Vaults**.',
+        ),
+        helpNumberedSteps([
+          'Pick a template in **Featured**. Its row shows the author, the license and how many files it has, and **Preview** shows every file, read-only.',
+          'Choose the template to open its page, with its first note and **What’s inside**, then choose **Use Template**.',
+          'If the template’s agent settings or scripts name commands, Papeliz lists each one. Papeliz never runs them. Tick **I’ve read these commands**, then choose **Continue**.',
+          'New Vault opens with the template at its top. Name the vault, choose **Folder Storage** or **Browser Storage**, then **Pick Folder** or **Create Vault**. The vault opens on the template’s first note.',
+        ]),
+        helpParagraph('**Recheck**, on a template’s page or in Preview, asks GitHub for a newer version and checks it before Papeliz uses it.'),
+        helpNote(
+          '**New**, **Top 100**, votes and **Report** open with the Templates server. Until then, **Submit Template** checks your own repository: paste its link and choose **Check**.',
+        ),
+      ]),
       helpSection('Come back with Recent Vaults', [
         helpParagraph(
           'Vaults you make or open appear under **Recent Vaults** on the start page, most recent first, so you can reopen one in a click. Under each name, **Folder Storage** or **Browser Storage** says where it’s kept, and where Papeliz Sync is in use, **Sync** and its encryption or **Local** say whether it syncs. Hover over any of them to see what it means. Type in **Search vaults** to find one in a long list.',

@@ -1,5 +1,5 @@
 import { AppWindow, ArrowLeft, FolderOpen, type LucideIcon } from 'lucide-react'
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { PapelizIconButton, papelizMainActionButtonColorClassName, papelizOutlineButtonColorClassName } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { usePapelizFooterEqualButtonWidthRef } from '../ui/papeliz-footer-equal-button-width'
@@ -161,6 +161,11 @@ interface PapelizNewVaultFormProps {
   // on the place it had when making a folder vault didn't go through.
   initialNewVaultPlace?: PapelizNewVaultPlace
   existingBrowserVaultRecords: readonly PapelizBrowserVaultRecord[]
+  // Use Template opens the form on a template: it is named at the top with how reading its files is
+  // going, the back arrow goes back to it, and the action waits until its files are read and checked.
+  newVaultFromTemplate?: { newVaultTemplateName: string; newVaultTemplateDetailLine: string; newVaultTemplateThumbnail: ReactNode; newVaultTemplateStatus: ReactNode }
+  newVaultBackButtonLabel?: string
+  isNewVaultConfirmHeld?: boolean
   onNewVaultConfirm: (typedNewVaultName: string, chosenNewVaultPlace: PapelizNewVaultPlace) => void
   onNewVaultCancel: () => void
 }
@@ -169,7 +174,8 @@ interface PapelizNewVaultFormProps {
 // then the two places as cards (an icon tile, a badge, one line and a radio at the right edge) and a
 // comparison under them, with Cancel at the left edge and the action at the right. A browser vault is
 // made under the name; a folder vault is a new folder of that name, made in the place picked next. The
-// action stays off until the name can be used, and says why under the field. Esc cancels.
+// action stays off until the name can be used, and says why under the field. Esc cancels. From Use
+// Template, the template it starts from sits above the name.
 export function PapelizNewVaultForm({
   newVaultFormHeadingId,
   folderAccessOffReasonText,
@@ -177,6 +183,9 @@ export function PapelizNewVaultForm({
   suggestedNewVaultName,
   initialNewVaultPlace,
   existingBrowserVaultRecords,
+  newVaultFromTemplate,
+  newVaultBackButtonLabel = 'Back to Recent Vaults',
+  isNewVaultConfirmHeld = false,
   onNewVaultConfirm,
   onNewVaultCancel,
 }: PapelizNewVaultFormProps) {
@@ -209,7 +218,7 @@ export function PapelizNewVaultForm({
   }, [])
 
   const confirmNewVault = () => {
-    if (newVaultNameProblem !== null) return
+    if (newVaultNameProblem !== null || isNewVaultConfirmHeld) return
     onNewVaultConfirm(typedNewVaultName.trim(), chosenNewVaultPlace)
   }
 
@@ -224,7 +233,7 @@ export function PapelizNewVaultForm({
     >
       <div className="px-3 pt-[11px] pb-1">
         <div className="flex items-center gap-2">
-          <PapelizIconButton iconButtonLabel="Back to Recent Vaults" iconButtonSize="small" className="-my-0.5 -ml-1.5" onClick={onNewVaultCancel}>
+          <PapelizIconButton iconButtonLabel={newVaultBackButtonLabel} iconButtonSize="small" className="-my-0.5 -ml-1.5" onClick={onNewVaultCancel}>
             <ArrowLeft className="size-[15px]" aria-hidden="true" />
           </PapelizIconButton>
           <h2 id={newVaultFormHeadingId} className="text-[18px] font-semibold tracking-[-0.01em]">
@@ -244,6 +253,18 @@ export function PapelizNewVaultForm({
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-3 pt-2 pb-3">
+        {newVaultFromTemplate !== undefined && (
+          <div className="flex flex-none flex-col gap-2 rounded-xl border border-papeliz-line bg-papeliz-surface-soft px-2.5 py-2">
+            <div className="flex items-center gap-3">
+              {newVaultFromTemplate.newVaultTemplateThumbnail}
+              <span className="flex min-w-0 flex-col gap-0.5">
+                <span className="truncate text-[13.5px] font-semibold">From {newVaultFromTemplate.newVaultTemplateName}</span>
+                <span className="truncate text-[11.5px] text-papeliz-ink-subtle">{newVaultFromTemplate.newVaultTemplateDetailLine}</span>
+              </span>
+            </div>
+            {newVaultFromTemplate.newVaultTemplateStatus}
+          </div>
+        )}
         <div>
           <PapelizBrowserVaultNameField
             browserVaultNameInputRef={newVaultNameInputRef}
@@ -437,7 +458,7 @@ export function PapelizNewVaultForm({
         </button>
         <button
           type="button"
-          disabled={newVaultNameProblem !== null}
+          disabled={newVaultNameProblem !== null || isNewVaultConfirmHeld}
           onClick={confirmNewVault}
           className={joinPapelizClassNames(newVaultFormFooterButtonClassName, newVaultFormFooterActionButtonColorClassName)}
         >

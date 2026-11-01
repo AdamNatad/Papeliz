@@ -9,6 +9,7 @@ import {
   type PapelizBrowserVaultEnvironment,
   type PapelizBrowserVaultRecord,
 } from './papeliz-browser-vaults'
+import type { PapelizVaultFileContentsWriter } from './papeliz-directory-handle-vault-adapter'
 import { PapelizVaultOperationError } from './papeliz-vault-adapter'
 import { papelizBrowserVaultSettingsFileName, papelizVaultSettingsFolderName, pickFreeVaultEntryName } from './papeliz-vault-relative-paths'
 
@@ -160,7 +161,7 @@ export async function importPapelizBrowserVault(
     const browserVaultFolderHandle = await getPapelizBrowserVaultFolderHandle(importedBrowserVaultRecord.papelizVaultId, browserVaultEnvironment)
     if (browserVaultFolderHandle === null) throw new PapelizVaultOperationError('Vault Not Found')
     await runPapelizBrowserVaultChangeExclusively(browserVaultEnvironment.browserVaultLockManager, importedBrowserVaultRecord.papelizVaultId, () =>
-      writeBrowserVaultImportFiles(browserVaultFolderHandle, browserVaultImportPlan.browserVaultImportFiles, browserVaultImportOptions, browserVaultEnvironment),
+      writePapelizVaultImportFiles(browserVaultFolderHandle, browserVaultImportPlan.browserVaultImportFiles, browserVaultImportOptions, browserVaultEnvironment.vaultFileContentsWriter),
     )
     return importedBrowserVaultRecord
   } catch (browserVaultImportError) {
@@ -169,17 +170,19 @@ export async function importPapelizBrowserVault(
   }
 }
 
-async function writeBrowserVaultImportFiles(
-  browserVaultFolderHandle: FileSystemDirectoryHandle,
+// Writes the files into a vault's folder: a browser vault's here, or a new folder vault's from a
+// template (papeliz-template-gallery-vault-maker.ts).
+export async function writePapelizVaultImportFiles(
+  importVaultFolderHandle: FileSystemDirectoryHandle,
   browserVaultImportFiles: readonly PapelizBrowserVaultImportFile[],
   browserVaultImportOptions: PapelizBrowserVaultImportOptions,
-  browserVaultEnvironment: PapelizBrowserVaultEnvironment,
+  vaultFileContentsWriter: PapelizVaultFileContentsWriter,
 ): Promise<void> {
   // Names compare without case, as everywhere in a vault: "a.md" beside "A.md" comes in as "a 2.md".
-  const folderHandlesByLowerCasePath = new Map<string, FileSystemDirectoryHandle>([['', browserVaultFolderHandle]])
+  const folderHandlesByLowerCasePath = new Map<string, FileSystemDirectoryHandle>([['', importVaultFolderHandle]])
   const takenLowerCaseNamesByFolderPath = new Map<string, Set<string>>()
   const getImportFolderHandle = async (importFolderPathSegments: readonly string[]): Promise<FileSystemDirectoryHandle> => {
-    let importFolderHandle = browserVaultFolderHandle
+    let importFolderHandle = importVaultFolderHandle
     for (let segmentIndex = 0; segmentIndex < importFolderPathSegments.length; segmentIndex += 1) {
       const lowerCaseFolderPath = importFolderPathSegments.slice(0, segmentIndex + 1).join('/').toLowerCase()
       const knownFolderHandle = folderHandlesByLowerCasePath.get(lowerCaseFolderPath)
@@ -214,7 +217,7 @@ async function writeBrowserVaultImportFiles(
       )
       takenLowerCaseNames.add(freeImportFileName.toLowerCase())
       const importedFileHandle = await importFolderHandle.getFileHandle(freeImportFileName, { create: true })
-      await browserVaultEnvironment.vaultFileContentsWriter(importedFileHandle, new Blob([(await browserVaultImportFile.readImportFileBytes()) as Uint8Array<ArrayBuffer>]))
+      await vaultFileContentsWriter(importedFileHandle, new Blob([(await browserVaultImportFile.readImportFileBytes()) as Uint8Array<ArrayBuffer>]))
     }
     importedFileCount += 1
     browserVaultImportOptions.onBrowserVaultImportProgress?.(importedFileCount, browserVaultImportFiles.length)

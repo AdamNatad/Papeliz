@@ -4,7 +4,6 @@ import {
   CloudCheck,
   CloudDownload,
   CloudOff,
-  Eye,
   FolderCheck,
   FolderX,
   Hourglass,
@@ -17,12 +16,10 @@ import {
   TimerOff,
   type LucideIcon,
 } from 'lucide-react'
-import { useState } from 'react'
-import { PapelizPopoverMenu, type PapelizPopoverMenuItem, type PapelizPopoverMenuPosition } from '../ui/papeliz-popover-menu'
+import type { PapelizPopoverMenuItem } from '../ui/papeliz-popover-menu'
 import type { PapelizSyncAccountReading, PapelizSyncSubscriptionState } from './papeliz-sync-engine-contract'
 import { listPapelizSyncFakeNewDeviceAccountVaultReadings } from './papeliz-sync-fake-engine'
 import {
-  returnPapelizSyncSyncedVaultsPageToLive,
   usePapelizSyncSyncedVaultsPagePreviewStore,
   type PapelizSyncSyncedVaultsPagePreview,
   type PapelizSyncSyncedVaultsPageStep,
@@ -182,82 +179,37 @@ function readPreviewEndToEndVaultId(previewAccountVaultsOutcome: PapelizSyncSync
 }
 
 let syncedVaultsPagePreviewCount = 0
-const papelizSyncSyncedVaultsPagePreviewerMenuWidth = 252
 
-// The Synced Vaults page's previewer: a small dark button floating at the start screen's bottom
-// right, development builds only. Its menu holds Live and each of the page's states; a pick opens the
-// page in that state with made-up account and vaults, and a dot on the button says one is held.
-export function PapelizSyncSyncedVaultsPagePreviewerButton() {
+// The Synced Vaults page's rows in the start screen's previewer (development builds only,
+// papeliz-start-screen-previewer-button.tsx): each of the page's states, under its group headings. A
+// pick opens the page in that state with made-up account and vaults, after `onSyncedVaultsPagePreviewHold`
+// lets the previewer put any other page it holds back to live.
+export function usePapelizSyncSyncedVaultsPagePreviewerMenuItems(onSyncedVaultsPagePreviewHold: () => void): PapelizPopoverMenuItem[] {
   const heldSyncedVaultsPagePreview = usePapelizSyncSyncedVaultsPagePreviewStore((syncedVaultsPagePreviewState) => syncedVaultsPagePreviewState.heldSyncedVaultsPagePreview)
-  const [syncedVaultsPagePreviewerMenuPosition, setSyncedVaultsPagePreviewerMenuPosition] = useState<PapelizPopoverMenuPosition | null>(null)
-
-  const syncedVaultsPagePreviewerMenuItems: PapelizPopoverMenuItem[] = [
-    {
-      menuItemKey: 'live',
-      menuItemLabel: 'Live',
-      MenuItemIcon: Eye,
-      isMenuItemChecked: heldSyncedVaultsPagePreview === null,
-      onMenuItemSelect: returnPapelizSyncSyncedVaultsPageToLive,
-    },
-    ...papelizSyncSyncedVaultsPagePreviewerChoices.map(
-      (previewerChoice): PapelizPopoverMenuItem => ({
-        menuItemKey: previewerChoice.syncedVaultsPagePreviewChoiceKey,
-        menuItemLabel: previewerChoice.syncedVaultsPagePreviewChoiceLabel,
-        MenuItemIcon: previewerChoice.SyncedVaultsPagePreviewChoiceIcon,
-        menuItemGroupHeading: previewerChoice.syncedVaultsPagePreviewGroupHeading,
-        isMenuItemChecked: heldSyncedVaultsPagePreview?.syncedVaultsPagePreviewChoiceKey === previewerChoice.syncedVaultsPagePreviewChoiceKey,
-        onMenuItemSelect: () => {
-          const currentTime = Date.now()
-          syncedVaultsPagePreviewCount += 1
-          const previewAccountVaultsOutcome = buildPreviewAccountVaultsOutcome(previewerChoice.previewVaultList, currentTime)
-          usePapelizSyncSyncedVaultsPagePreviewStore.setState({
-            heldSyncedVaultsPagePreview: {
-              syncedVaultsPagePreviewNumber: syncedVaultsPagePreviewCount,
-              syncedVaultsPagePreviewChoiceKey: previewerChoice.syncedVaultsPagePreviewChoiceKey,
-              previewSyncedVaultsPageStep: previewerChoice.previewSyncedVaultsPageStep,
-              previewSyncAccount:
-                previewerChoice.previewSyncSubscriptionState === undefined ? null : buildPreviewSyncAccountReading(previewerChoice.previewSyncSubscriptionState, currentTime),
-              previewAccountVaultsOutcome,
-              previewChosenPapelizSyncVaultId: previewerChoice.isPreviewEndToEndVaultChosen === true ? readPreviewEndToEndVaultId(previewAccountVaultsOutcome) : null,
-            },
-          })
-        },
-      }),
-    ),
-  ]
-
-  return (
-    <>
-      <button
-        type="button"
-        aria-label="Preview Synced Vaults states"
-        title="Preview Synced Vaults states (development builds only)"
-        aria-haspopup="menu"
-        aria-expanded={syncedVaultsPagePreviewerMenuPosition !== null}
-        data-papeliz-sync-synced-vaults-page-preview={heldSyncedVaultsPagePreview?.syncedVaultsPagePreviewChoiceKey ?? 'live'}
-        onClick={(clickEvent) => {
-          // The menu opens to the button's left, as low as it fits.
-          const previewerButtonRect = clickEvent.currentTarget.getBoundingClientRect()
-          setSyncedVaultsPagePreviewerMenuPosition({
-            menuAnchorLeft: previewerButtonRect.left - papelizSyncSyncedVaultsPagePreviewerMenuWidth - 8,
-            menuAnchorTop: previewerButtonRect.bottom,
-          })
-        }}
-        className="fixed right-4 bottom-4 z-40 grid size-9 place-items-center rounded-lg border border-[#0A2552] bg-[#0E3270] text-white shadow-papeliz-pop transition-[background-color,transform] duration-150 hover:bg-[#123C85] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-papeliz-blue active:scale-[0.94]"
-      >
-        <CloudDownload className="size-[17px]" aria-hidden="true" />
-        {heldSyncedVaultsPagePreview !== null && (
-          <span aria-hidden="true" className="absolute -top-1 -right-1 size-2.5 rounded-full border-2 border-papeliz-surface bg-[#F2B53A]" />
-        )}
-      </button>
-      {syncedVaultsPagePreviewerMenuPosition !== null && (
-        <PapelizPopoverMenu
-          menuLabel="Preview Synced Vaults states"
-          menuPosition={syncedVaultsPagePreviewerMenuPosition}
-          menuItems={syncedVaultsPagePreviewerMenuItems}
-          onMenuClose={() => setSyncedVaultsPagePreviewerMenuPosition(null)}
-        />
-      )}
-    </>
+  return papelizSyncSyncedVaultsPagePreviewerChoices.map(
+    (previewerChoice): PapelizPopoverMenuItem => ({
+      menuItemKey: previewerChoice.syncedVaultsPagePreviewChoiceKey,
+      menuItemLabel: previewerChoice.syncedVaultsPagePreviewChoiceLabel,
+      MenuItemIcon: previewerChoice.SyncedVaultsPagePreviewChoiceIcon,
+      menuItemGroupHeading: previewerChoice.syncedVaultsPagePreviewGroupHeading,
+      isMenuItemChecked: heldSyncedVaultsPagePreview?.syncedVaultsPagePreviewChoiceKey === previewerChoice.syncedVaultsPagePreviewChoiceKey,
+      onMenuItemSelect: () => {
+        onSyncedVaultsPagePreviewHold()
+        const currentTime = Date.now()
+        syncedVaultsPagePreviewCount += 1
+        const previewAccountVaultsOutcome = buildPreviewAccountVaultsOutcome(previewerChoice.previewVaultList, currentTime)
+        usePapelizSyncSyncedVaultsPagePreviewStore.setState({
+          heldSyncedVaultsPagePreview: {
+            syncedVaultsPagePreviewNumber: syncedVaultsPagePreviewCount,
+            syncedVaultsPagePreviewChoiceKey: previewerChoice.syncedVaultsPagePreviewChoiceKey,
+            previewSyncedVaultsPageStep: previewerChoice.previewSyncedVaultsPageStep,
+            previewSyncAccount:
+              previewerChoice.previewSyncSubscriptionState === undefined ? null : buildPreviewSyncAccountReading(previewerChoice.previewSyncSubscriptionState, currentTime),
+            previewAccountVaultsOutcome,
+            previewChosenPapelizSyncVaultId: previewerChoice.isPreviewEndToEndVaultChosen === true ? readPreviewEndToEndVaultId(previewAccountVaultsOutcome) : null,
+          },
+        })
+      },
+    }),
   )
 }

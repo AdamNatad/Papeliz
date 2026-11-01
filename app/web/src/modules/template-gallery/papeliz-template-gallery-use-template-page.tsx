@@ -1,0 +1,228 @@
+import { ArrowLeft, FolderOpen, TriangleAlert } from 'lucide-react'
+import { useId, useState } from 'react'
+import { PapelizSyncFailureLine, PapelizSyncLoadingLine } from '../sync/papeliz-sync-page-parts'
+import { PapelizIconButton } from '../ui/papeliz-buttons'
+import { joinPapelizClassNames } from '../ui/papeliz-class-names'
+import { usePapelizFooterEqualButtonWidthRef } from '../ui/papeliz-footer-equal-button-width'
+import { PapelizSolidCircleCheckIcon, PapelizSolidCircleXIcon } from '../ui/papeliz-solid-circle-icons'
+import { newVaultFormFooterActionButtonColorClassName, newVaultFormFooterButtonClassName, newVaultFormFooterCancelButtonColorClassName, type PapelizNewVaultPlace } from '../workspace/papeliz-new-vault-form'
+import type { PapelizTemplateGalleryRow, PapelizTemplateUseState } from './papeliz-template-gallery-contract'
+import {
+  describeTemplateFileReadProgress,
+  describeTemplateGalleryFileCount,
+  PapelizTemplateGalleryCenteredStep,
+  PapelizTemplateGalleryCheckResultList,
+  PapelizTemplateGalleryThumbnail,
+} from './papeliz-template-gallery-page-parts'
+
+// Use Template's own pages and lines: the commands a template names, to read before going on; how
+// reading and checking its files is going, at the top of New Vault's form; and the vault being made.
+
+// "Reading and checking the files… 12 of 40 files", while Use Template prepares.
+function PapelizTemplateUsePreparingLine({ templateUseState }: { templateUseState: Extract<PapelizTemplateUseState, { templateUseStage: 'preparing' }> }) {
+  const templateFileReadProgressText = describeTemplateFileReadProgress(templateUseState.templateFileReadProgress)
+  return <PapelizSyncLoadingLine>Reading and checking the files…{templateFileReadProgressText.length > 0 && ` ${templateFileReadProgressText}`}</PapelizSyncLoadingLine>
+}
+
+// Why no vault can be made from the template, with the checks that failed.
+function PapelizTemplateUseFailedLines({ templateUseState }: { templateUseState: Extract<PapelizTemplateUseState, { templateUseStage: 'failed' }> }) {
+  return (
+    <div className="flex flex-col gap-2">
+      <PapelizSyncFailureLine>{templateUseState.templateUseProblemSentence}</PapelizSyncFailureLine>
+      {templateUseState.templateCheckReport !== null && <PapelizTemplateGalleryCheckResultList templateCheckResults={templateUseState.templateCheckReport.templateCheckResults} isOnlyFailedCheckShown />}
+    </div>
+  )
+}
+
+// Under "From …" in New Vault's form: reading and checking, then what goes in (with the hidden files
+// Sync won't carry and any picture left out), or why it can't.
+export function PapelizTemplateGalleryNewVaultTemplateStatus({ templateUseState }: { templateUseState: PapelizTemplateUseState }) {
+  switch (templateUseState.templateUseStage) {
+    case 'idle':
+      return null
+    case 'preparing':
+      return <PapelizTemplateUsePreparingLine templateUseState={templateUseState} />
+    case 'failed':
+      return <PapelizTemplateUseFailedLines templateUseState={templateUseState} />
+    case 'making-vault':
+    case 'made':
+      return null
+    case 'ready': {
+      const { templateHiddenFileRelativePaths, templateLeftOutPictureRelativePaths } = templateUseState
+      return (
+        <div className="flex flex-col gap-1 text-[12px] leading-[1.45] text-papeliz-ink-muted">
+          <p className="flex items-center gap-1.5">
+            <PapelizSolidCircleCheckIcon className="size-3.5 flex-none text-papeliz-ok" />
+            Checked: {describeTemplateGalleryFileCount(templateUseState.templateCheckReport.templateIncludedFileRelativePaths.length)} go into the vault.
+          </p>
+          {templateHiddenFileRelativePaths.length > 0 && (
+            <p>
+              {templateHiddenFileRelativePaths.join(', ')} {templateHiddenFileRelativePaths.length === 1 ? 'stays' : 'stay'} on this device. Sync doesn’t carry hidden files.
+            </p>
+          )}
+          {templateLeftOutPictureRelativePaths.length > 0 && (
+            <p>
+              Left out, since its information couldn’t be removed: {templateLeftOutPictureRelativePaths.join(', ')}.
+            </p>
+          )}
+        </div>
+      )
+    }
+  }
+}
+
+interface PapelizTemplateGalleryCommandsPageProps {
+  templateGalleryPageHeadingId: string
+  templateGalleryRow: PapelizTemplateGalleryRow
+  templateUseState: PapelizTemplateUseState
+  onTemplateCommandsCancel: () => void
+  // Read and ticked: New Vault's form comes next.
+  onTemplateCommandsAccept: () => void
+}
+
+// "This template runs commands": every command its agent settings name and every script it brings,
+// with where each is, once its files are read and checked. Papeliz runs none of them. Continue stays
+// off until "I've read these commands" is ticked. Esc goes back.
+export function PapelizTemplateGalleryCommandsPage({ templateGalleryPageHeadingId, templateGalleryRow, templateUseState, onTemplateCommandsCancel, onTemplateCommandsAccept }: PapelizTemplateGalleryCommandsPageProps) {
+  const templateCommandsFooterRef = usePapelizFooterEqualButtonWidthRef(128)
+  const templateCommandsTickId = useId()
+  const [isTemplateCommandsReadTicked, setTemplateCommandsReadTicked] = useState(false)
+  const readyTemplateUseState = templateUseState.templateUseStage === 'ready' ? templateUseState : null
+
+  return (
+    <div
+      onKeyDown={(keyDownEvent) => {
+        if (keyDownEvent.key !== 'Escape' || keyDownEvent.defaultPrevented) return
+        keyDownEvent.preventDefault()
+        onTemplateCommandsCancel()
+      }}
+      className="papeliz-welcome-enter flex min-h-0 flex-1 flex-col"
+    >
+      <div className="px-3 pt-[11px] pb-1">
+        <div className="flex items-center gap-2">
+          <PapelizIconButton iconButtonLabel={`Back to ${templateGalleryRow.templateName}`} iconButtonSize="small" className="-my-0.5 -ml-1.5" onClick={onTemplateCommandsCancel}>
+            <ArrowLeft className="size-[15px]" aria-hidden="true" />
+          </PapelizIconButton>
+          <h2 id={templateGalleryPageHeadingId} className="text-[18px] font-semibold tracking-[-0.01em]">
+            This template runs commands
+          </h2>
+        </div>
+        <p className="mt-0.5 text-[12.5px] text-papeliz-ink-muted">
+          {templateGalleryRow.templateName} · {templateGalleryRow.templateRepositoryOwner}
+        </p>
+      </div>
+
+      <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto px-3 pt-2.5 pb-3">
+        <p className="flex items-start gap-2 rounded-xl bg-papeliz-warning px-3 py-2.5 text-[12.5px] leading-[1.45] text-papeliz-warning-ink">
+          <TriangleAlert className="mt-px size-4 flex-none" aria-hidden="true" />
+          Papeliz never runs these. A coding agent you open this vault with may run them on your computer. Read each one before you go on.
+        </p>
+        {templateUseState.templateUseStage === 'preparing' && <PapelizTemplateUsePreparingLine templateUseState={templateUseState} />}
+        {templateUseState.templateUseStage === 'failed' && <PapelizTemplateUseFailedLines templateUseState={templateUseState} />}
+        {readyTemplateUseState !== null && (
+          <>
+            {readyTemplateUseState.templateRunCommands.length === 0 ? (
+              <p className="px-0.5 text-[12.5px] text-papeliz-ink-muted">Its files, checked just now, name no commands.</p>
+            ) : (
+              <ul aria-label="Commands" className="divide-y divide-papeliz-line rounded-xl border border-papeliz-line bg-papeliz-surface">
+                {readyTemplateUseState.templateRunCommands.map((templateRunCommand) => (
+                  <li
+                    key={`${templateRunCommand.templateRunCommandSourceRelativePath}\n${templateRunCommand.templateRunCommandText}`}
+                    className="grid gap-x-3 gap-y-0.5 px-3 py-2 text-[12px] sm:grid-cols-[minmax(0,190px)_minmax(0,1fr)] sm:items-center"
+                  >
+                    <span className="truncate text-papeliz-ink-muted">
+                      {templateRunCommand.templateRunCommandKind === 'script-file' ? 'Script' : `${templateRunCommand.templateRunCommandSourceRelativePath} · command`}
+                    </span>
+                    <code className="papeliz-selectable-text font-mono text-[11.5px] [overflow-wrap:anywhere] text-papeliz-ink">
+                      {templateRunCommand.templateRunCommandKind === 'script-file' ? templateRunCommand.templateRunCommandSourceRelativePath : templateRunCommand.templateRunCommandText}
+                    </code>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <label htmlFor={templateCommandsTickId} className="flex cursor-pointer items-center gap-2 px-0.5 text-[12.5px] font-medium pointer-coarse:py-1.5">
+              <input
+                id={templateCommandsTickId}
+                type="checkbox"
+                checked={isTemplateCommandsReadTicked}
+                onChange={(changeEvent) => setTemplateCommandsReadTicked(changeEvent.target.checked)}
+                className="size-4 flex-none cursor-pointer accent-papeliz-blue"
+              />
+              I’ve read these commands.
+            </label>
+          </>
+        )}
+      </div>
+
+      <div ref={templateCommandsFooterRef} className="flex items-center justify-between gap-2 border-t border-papeliz-line p-3">
+        <button type="button" onClick={onTemplateCommandsCancel} className={joinPapelizClassNames(newVaultFormFooterButtonClassName, newVaultFormFooterCancelButtonColorClassName)}>
+          <PapelizSolidCircleXIcon className="size-[15px] flex-none" />
+          Cancel
+        </button>
+        <button
+          type="button"
+          disabled={readyTemplateUseState === null || !isTemplateCommandsReadTicked}
+          onClick={onTemplateCommandsAccept}
+          className={joinPapelizClassNames(newVaultFormFooterButtonClassName, newVaultFormFooterActionButtonColorClassName)}
+        >
+          <PapelizSolidCircleCheckIcon className="size-[15px] flex-none" />
+          Continue
+        </button>
+      </div>
+    </div>
+  )
+}
+
+interface PapelizTemplateGalleryVaultMakingPageProps {
+  templateGalleryPageHeadingId: string
+  templateGalleryRow: PapelizTemplateGalleryRow
+  newVaultName: string
+  newVaultPlace: PapelizNewVaultPlace
+  templateUseState: PapelizTemplateUseState
+}
+
+// The vault being made from a template: for a folder, where to look for the folder window until a
+// folder is picked; then its files written, counted on a bar. The vault opens once it's made.
+export function PapelizTemplateGalleryVaultMakingPage({ templateGalleryPageHeadingId, templateGalleryRow, newVaultName, newVaultPlace, templateUseState }: PapelizTemplateGalleryVaultMakingPageProps) {
+  const templateWrittenFileCount = templateUseState.templateUseStage === 'making-vault' ? templateUseState.templateWrittenFileCount : 0
+  const templateFileCount = templateUseState.templateUseStage === 'making-vault' ? templateUseState.templateFileCount : 0
+  const isVaultFolderWindowLikelyOpen = newVaultPlace === 'folder-on-disk' && templateUseState.templateUseStage === 'making-vault' && templateWrittenFileCount === 0
+  const templateVaultMakingPercent = templateFileCount === 0 ? 0 : Math.round((templateWrittenFileCount / templateFileCount) * 100)
+  return (
+    <div className="papeliz-welcome-enter flex min-h-0 flex-1 flex-col">
+      <div className="px-3 pt-[11px] pb-1">
+        <h2 id={templateGalleryPageHeadingId} className="truncate text-[18px] font-semibold tracking-[-0.01em]">
+          Making “{newVaultName}”
+        </h2>
+        <p className="mt-0.5 text-[12.5px] text-papeliz-ink-muted">From {templateGalleryRow.templateName}</p>
+      </div>
+      {isVaultFolderWindowLikelyOpen ? (
+        <PapelizTemplateGalleryCenteredStep
+          TemplateGalleryStepIcon={FolderOpen}
+          templateGalleryStepTitle="Choose a folder in the window that opened"
+          templateGalleryStepText={`Papeliz makes a folder named “${newVaultName}” in it. If you can’t see the window, it may be behind this one.`}
+        />
+      ) : (
+        <div role="status" className="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-8 text-center">
+          <PapelizTemplateGalleryThumbnail templateGalleryRow={templateGalleryRow} templateThumbnailSize="row" />
+          <p className="text-[14px] font-semibold">{templateUseState.templateUseStage === 'made' ? 'Opening the vault…' : 'Writing the files…'}</p>
+          <div
+            role="progressbar"
+            aria-label={`Making “${newVaultName}”`}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={templateVaultMakingPercent}
+            className="h-1.5 w-full max-w-[300px] overflow-hidden rounded-full bg-papeliz-surface-gray"
+          >
+            <div className="h-full rounded-full bg-papeliz-blue transition-[width] duration-300" style={{ width: `${templateVaultMakingPercent}%` }} />
+          </div>
+          {templateFileCount > 0 && (
+            <p className="-mt-1 text-[12px] text-papeliz-ink-subtle tabular-nums">
+              {templateWrittenFileCount.toLocaleString('en-US')} of {describeTemplateGalleryFileCount(templateFileCount)}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}

@@ -1,10 +1,11 @@
-import { AppWindow, BookOpen, CloudCheck, CloudDownload, Code, Download, Ellipsis, Eye, EyeOff, FolderOpen, FolderPlus, HardDrive, History, Lock, Pencil, RefreshCw, RotateCcw, Search, Trash2, type LucideIcon } from 'lucide-react'
+import { AppWindow, BookOpen, CloudCheck, CloudDownload, Code, Download, Ellipsis, Eye, EyeOff, FolderOpen, FolderPlus, HardDrive, History, LayoutTemplate, Lock, Pencil, RefreshCw, RotateCcw, Search, Trash2, type LucideIcon } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type Ref } from 'react'
 import { isPapelizSyncEngineInThisBuild } from 'virtual:papeliz-sync-engine-availability'
 import type { PapelizSyncVaultEncryptionKind } from '../sync/papeliz-sync-engine-contract'
 import { isPapelizSyncUsedOnThisDevice, readPapelizSyncDevFakeEngineScenarioText, usePapelizSyncEngineSnapshot, usePapelizSyncEngineStore } from '../sync/papeliz-sync-engine-store'
 import { PapelizSyncStartScreenDownloadProgressLines, readPapelizSyncStartScreenDownloadPercent } from '../sync/papeliz-sync-start-screen-download-progress'
 import { returnPapelizSyncSyncedVaultsPageToLive, usePapelizSyncSyncedVaultsPagePreviewStore } from '../sync/papeliz-sync-synced-vaults-page-preview-store'
+import { returnPapelizTemplateGalleryPageToLive, usePapelizTemplateGalleryPagePreviewStore } from '../template-gallery/papeliz-template-gallery-page-preview-store'
 import {
   forgetPapelizSyncLinksOfDeletedVault,
   resumePapelizSyncStartScreenDownloads,
@@ -40,6 +41,7 @@ import {
   openPapelizSampleVault,
   pickAndOpenPapelizVaultFolder,
   pickPlaceAndOpenNewPapelizFolderVault,
+  type PapelizOpenVault,
   type PapelizOpenVaultResult,
 } from '../vault/papeliz-open-vault'
 import {
@@ -67,12 +69,17 @@ import { usePapelizWorkspaceStore } from './papeliz-workspace-store'
 const PapelizSyncSyncedVaultsPage = lazy(() =>
   import('../sync/papeliz-sync-synced-vaults-page').then((syncedVaultsPageModule) => ({ default: syncedVaultsPageModule.PapelizSyncSyncedVaultsPage })),
 )
-// Its previewer, floating at the bottom right, only in development builds: in a production build
-// `import.meta.env.DEV` is false, so the button and its made-up account and vaults are left out.
-const PapelizSyncSyncedVaultsPagePreviewerButton = import.meta.env.DEV
+// Templates' pages load the same way, once Templates is pressed.
+const PapelizTemplateGalleryPage = lazy(() =>
+  import('../template-gallery/papeliz-template-gallery-page').then((templateGalleryPageModule) => ({ default: templateGalleryPageModule.PapelizTemplateGalleryPage })),
+)
+// The previewer of both pages, floating at the bottom right, only in development builds: in a
+// production build `import.meta.env.DEV` is false, so the button and its made-up account, vaults and
+// templates are left out.
+const PapelizStartScreenPreviewerButton = import.meta.env.DEV
   ? lazy(() =>
-      import('../sync/papeliz-sync-synced-vaults-page-previewer-button').then((previewerButtonModule) => ({
-        default: previewerButtonModule.PapelizSyncSyncedVaultsPagePreviewerButton,
+      import('./papeliz-start-screen-previewer-button').then((previewerButtonModule) => ({
+        default: previewerButtonModule.PapelizStartScreenPreviewerButton,
       })),
     )
   : null
@@ -310,8 +317,8 @@ function describeRecentVaultDeleteRequest(recentVaultDeleteRequest: PapelizRecen
 }
 
 // The start screen, shown when no vault is open: on the blue panel, Papeliz, the ways in (Recent
-// Vaults; a new vault, an import into this browser, a folder already in use, the sample vault; Synced
-// Vaults at the foot, where the build has Sync) and who made it; beside it, the vaults opened
+// Vaults; a new vault, an import into this browser, a folder already in use; Templates and, where the
+// build has Sync, Synced Vaults at the foot) and who made it; beside it, the vaults opened
 // before, to come back to in one click, each saying whether it syncs, and the Hidden list. Recent
 // Vaults' button and the logo in the top bar bring that list back from any other panel. A new vault
 // is a folder on the disk or a browser vault: Chrome and Edge ask which, other browsers keep it in
@@ -360,6 +367,10 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
   // A pick in the page's previewer (development builds only) shows the page in that state.
   const heldSyncedVaultsPagePreview = usePapelizSyncSyncedVaultsPagePreviewStore((syncedVaultsPagePreviewState) => syncedVaultsPagePreviewState.heldSyncedVaultsPagePreview)
   const isSyncedVaultsPageOnScreen = isSyncedVaultsPageShown || heldSyncedVaultsPagePreview !== null
+  // Templates' pages, shown there instead, as Synced Vaults' is; its previewer can hold them too.
+  const [isTemplateGalleryPageShown, setTemplateGalleryPageShown] = useState(false)
+  const heldTemplateGalleryPagePreview = usePapelizTemplateGalleryPagePreviewStore((templateGalleryPagePreviewState) => templateGalleryPagePreviewState.heldTemplateGalleryPagePreview)
+  const isTemplateGalleryPageOnScreen = !isSyncedVaultsPageOnScreen && (isTemplateGalleryPageShown || heldTemplateGalleryPagePreview !== null)
   const syncStartScreenDownloadsByVaultId = usePapelizSyncStartScreenDownloadStore((syncStartScreenDownloadState) => syncStartScreenDownloadState.syncStartScreenDownloadsByVaultId)
   // New Vault's button, where focus goes back when its form is cancelled.
   const newVaultActionButtonRef = useRef<HTMLButtonElement>(null)
@@ -593,6 +604,7 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
       return
     }
     setNewVaultFormRequest(null)
+    closeTemplateGalleryPage()
     setSyncedVaultsPageShown(true)
     scrollStartPagePanelIntoViewOnPhone()
   }
@@ -602,11 +614,39 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
     returnPapelizSyncSyncedVaultsPageToLive()
   }
 
-  // Recent Vaults in the start card, from its button or the logo: Synced Vaults, New Vault's form and
-  // the Hidden list give way to it. Its button stays lit in the Hidden list too, which its eye opens.
-  const isRecentVaultsPanelOnScreen = !isSyncedVaultsPageOnScreen && newVaultFormRequest === null
+  // Templates: its pages in the start card. The gallery's list is read only once it's pressed.
+  const openTemplateGalleryPage = () => {
+    if (startScreenEyePreview !== null) {
+      showStartScreenPreviewOnlyNotice()
+      return
+    }
+    closeSyncedVaultsPage()
+    setNewVaultFormRequest(null)
+    setTemplateGalleryPageShown(true)
+    scrollStartPagePanelIntoViewOnPhone()
+  }
+
+  const closeTemplateGalleryPage = () => {
+    setTemplateGalleryPageShown(false)
+    returnPapelizTemplateGalleryPageToLive()
+  }
+
+  // A vault made from a template opens on the template's first note, in MD View.
+  const openTemplateVault = async (templateVault: PapelizOpenVault, templateFirstNotePath: string) => {
+    await openVaultInWorkspace(templateVault, {
+      firstVaultNoteRelativePathToOpen: templateFirstNotePath,
+      firstNoteViewMode: 'md-view',
+      expandAllTopLevelFolders: false,
+    })
+  }
+
+  // Recent Vaults in the start card, from its button or the logo: Synced Vaults, Templates, New Vault's
+  // form and the Hidden list give way to it. Its button stays lit in the Hidden list too, which its eye
+  // opens.
+  const isRecentVaultsPanelOnScreen = !isSyncedVaultsPageOnScreen && !isTemplateGalleryPageOnScreen && newVaultFormRequest === null
   const showRecentVaults = () => {
     closeSyncedVaultsPage()
+    closeTemplateGalleryPage()
     setNewVaultFormRequest(null)
     if (isHiddenVaultListShown) {
       setHiddenVaultListShown(false)
@@ -628,6 +668,7 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
   // New Vault: its form in the start card (the vault's name, and where to keep it).
   const startNewVault = () => {
     closeSyncedVaultsPage()
+    closeTemplateGalleryPage()
     if (!isBrowserVaultOn && folderAccessOffReason === 'unsupported') {
       // Neither kind works here: the browser vault's reason says what to do.
       if (browserVaultOffReasonText !== null) showWorkspaceNotice('error', browserVaultOffReasonText)
@@ -936,11 +977,21 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
               )}
             </div>
 
-            {/* The panel's foot, pinned to its bottom on wide screens: Synced Vaults above the line, then
-                the licence. Free space falls between Open Vault and it. */}
+            {/* The panel's foot, pinned to its bottom on wide screens: Templates and Synced Vaults above
+                the line, then the licence. Free space falls between Open Vault and it. */}
             <div className="md:mt-auto">
+              <div className="mt-[11px]">
+                <PapelizWelcomeAction
+                  WelcomeActionIcon={LayoutTemplate}
+                  welcomeActionTitle="Templates"
+                  welcomeActionDescription="Start from a template."
+                  isWelcomeActionDisabled={isOpeningVault}
+                  isWelcomeActionCurrent={isTemplateGalleryPageOnScreen}
+                  onWelcomeActionSelect={openTemplateGalleryPage}
+                />
+              </div>
               {isSyncedVaultsActionShown && (
-                <div className="mt-[11px]">
+                <div className="mt-[7px]">
                   <PapelizWelcomeAction
                     WelcomeActionIcon={CloudDownload}
                     welcomeActionTitle="Synced Vaults"
@@ -970,11 +1021,17 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
           <section
             ref={startPagePanelRef}
             aria-labelledby={
-              isSyncedVaultsPageOnScreen ? 'papeliz-synced-vaults-page-heading' : newVaultFormRequest === null ? 'papeliz-welcome-recent-heading' : 'papeliz-new-vault-form-heading'
+              isSyncedVaultsPageOnScreen
+                ? 'papeliz-synced-vaults-page-heading'
+                : isTemplateGalleryPageOnScreen
+                  ? 'papeliz-template-gallery-page-heading'
+                  : newVaultFormRequest === null
+                    ? 'papeliz-welcome-recent-heading'
+                    : 'papeliz-new-vault-form-heading'
             }
             className="flex min-h-[280px] min-w-0 flex-1 flex-col p-2.5"
           >
-            {/* New Vault, or Synced Vaults, takes Recent Vaults' place while its page shows. */}
+            {/* New Vault, Synced Vaults or Templates takes Recent Vaults' place while its page shows. */}
             {isSyncedVaultsPageOnScreen ? (
               <Suspense fallback={null}>
                 <PapelizSyncSyncedVaultsPage
@@ -989,6 +1046,22 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                   onSyncDownloadStarted={() => {
                     closeSyncedVaultsPage()
                     reloadRecentVaults()
+                  }}
+                />
+              </Suspense>
+            ) : isTemplateGalleryPageOnScreen ? (
+              <Suspense fallback={null}>
+                <PapelizTemplateGalleryPage
+                  key={heldTemplateGalleryPagePreview?.templateGalleryPagePreviewNumber ?? 'live'}
+                  templateGalleryPageHeadingId="papeliz-template-gallery-page-heading"
+                  folderAccessOffReasonText={folderAccessOffReasonText}
+                  browserVaultOffReasonText={browserVaultOffReasonText}
+                  existingBrowserVaultRecords={browserVaultRecords}
+                  onTemplateGalleryPageClose={closeTemplateGalleryPage}
+                  onTemplateVaultOpen={openTemplateVault}
+                  onVaultFolderChooserUnavailable={() => {
+                    setFolderChooserUnavailable(true)
+                    showFolderAccessOffNotice('chooser-unavailable', true)
                   }}
                 />
               </Suspense>
@@ -1515,9 +1588,9 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
       </main>
 
       <PapelizWorkspaceNotice />
-      {PapelizSyncSyncedVaultsPagePreviewerButton !== null && (
+      {PapelizStartScreenPreviewerButton !== null && (
         <Suspense fallback={null}>
-          <PapelizSyncSyncedVaultsPagePreviewerButton />
+          <PapelizStartScreenPreviewerButton />
         </Suspense>
       )}
     </div>
