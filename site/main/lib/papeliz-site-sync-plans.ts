@@ -111,13 +111,14 @@ export function formatPapelizSiteSyncUsd(papelizSiteSyncAmountUsd: number): stri
   }).format(papelizSiteSyncAmountUsd)
 }
 
-// A plan card's lines, the limits people see.
+// A plan card's lines, the limits people see. The largest file reads "50 MB per file", number first
+// like the lines around it (Adam, 2026-11-01: "we need to clairfy on Files up to 50mb").
 export function describePapelizSiteSyncPlanLimits(papelizSiteSyncPlan: PapelizSiteSyncPlan): string[] {
   return [
     `${papelizSiteSyncPlan.papelizSiteSyncPlanStorageLabel} storage`,
     `${papelizSiteSyncPlan.papelizSiteSyncPlanVaultLimit} synced vaults`,
     `${papelizSiteSyncPlan.papelizSiteSyncPlanFilesPerVaultLimit.toLocaleString('en-US')} files in each vault`,
-    `Files up to ${papelizSiteSyncPlan.papelizSiteSyncPlanLargestFileLabel}`,
+    `${papelizSiteSyncPlan.papelizSiteSyncPlanLargestFileLabel} per file`,
     `${papelizSiteSyncPlan.papelizSiteSyncPlanNoteHistoryMonthCount} months of note history`,
   ]
 }

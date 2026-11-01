@@ -21,9 +21,10 @@ export const papelizAccountRowActionWidthClassName = 'min-w-[84px] md:min-w-[112
 
 // The white button, such as Cancel and Close, with an outline strong enough to read as a button
 // (Adam, 2026-11-01: "make cancel button clear like all white button like cancel add some proper
-// outline").
+// outline"). Hovered, it turns soft blue with a blue outline and blue text, not gray (Adam,
+// 2026-11-01: "making it gray is a weird hover color"; his pick, "A · Soft blue, blue text").
 export const papelizAccountSecondaryButtonClassName =
-  'inline-flex min-h-[38px] shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-papeliz-line-strong bg-papeliz-surface px-3.5 text-[13px] font-semibold whitespace-nowrap text-papeliz-ink shadow-[0_1px_2px_rgb(16_24_40/0.08)] transition-colors hover:bg-papeliz-surface-soft disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-papeliz-blue'
+  'inline-flex min-h-[38px] shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-papeliz-line-strong bg-papeliz-surface px-3.5 text-[13px] font-semibold whitespace-nowrap text-papeliz-ink shadow-[0_1px_2px_rgb(16_24_40/0.08)] transition-colors enabled:hover:border-papeliz-blue-line enabled:hover:bg-papeliz-blue-soft enabled:hover:text-papeliz-blue disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-papeliz-blue'
 export const papelizAccountTextFieldClassName =
   'block min-h-[42px] w-full rounded-[9px] border border-papeliz-line-strong bg-papeliz-surface px-3 text-sm text-papeliz-ink outline-none transition-[border-color,box-shadow] duration-150 ease-out placeholder:text-papeliz-ink-subtle focus:border-papeliz-blue focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--color-papeliz-blue)_25%,transparent)]'
 

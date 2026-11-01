@@ -1,6 +1,6 @@
 'use client'
 
-import { useClerk, useUser } from '@clerk/react'
+import { useClerk, useSession, useUser } from '@clerk/react'
 import { ChevronRight } from 'lucide-react'
 import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import {
@@ -13,15 +13,23 @@ import {
 } from './papeliz-account-card-frame'
 import { PapelizAccountCodeBoxes, papelizAccountEmailCodeLength } from './papeliz-account-code-boxes'
 import { papelizAccountClerkErrorCodes, readPapelizAccountClerkError } from './papeliz-account-clerk-errors'
-import { papelizAccountChangeProfileDetailAfterSignInParameterName, papelizAccountPagePath, type PapelizAccountProfileDetailKind } from './papeliz-account-config'
+import {
+  isPapelizAccountSignInFresh,
+  papelizAccountChangeProfileDetailAfterSignInParameterName,
+  papelizAccountFreshSignInMinutes,
+  papelizAccountPagePath,
+  type PapelizAccountProfileDetailKind,
+} from './papeliz-account-config'
 import { PapelizAccountDialog } from './papeliz-account-dialog'
 import { PapelizAccountRow, papelizAccountPhoneChevronRowActionClassName } from './papeliz-account-rows'
 
 // Profile's Email and Username rows, each with Change (Adam, 2026-11-01: "can we make changing email
 // and Username available? … does clerk has some kind of option to send an otp to the new mail?"). A
 // new email gets a 6-digit code from Clerk and replaces the old one only once the code is entered; a
-// username follows the same rules as at sign-up. When Clerk asks for a recent sign-in first, the
-// dialog says so, and it opens again after signing in.
+// username follows the same rules as at sign-up. Both need a sign-in from the last 10 minutes, as
+// Delete Account does (Adam, 2026-11-01: "changing email and username must require a recent signin or
+// signin confirmation like delete account"): checked when the dialog opens and before each change, and
+// answered too when Clerk itself asks. Signing in again opens the dialog again.
 
 type PapelizAccountUser = NonNullable<ReturnType<typeof useUser>['user']>
 type PapelizAccountUserEmailAddress = PapelizAccountUser['emailAddresses'][number]
@@ -56,7 +64,8 @@ function PapelizAccountProfileDetailChangeButton({
   )
 }
 
-// Clerk asked for a recent sign-in: sign out and back in, then this change opens again.
+// The sign-in is older than 10 minutes, or Clerk asked for a recent one: sign out and back in, then
+// this change opens again.
 function PapelizAccountProfileDetailFreshSignInDialog({
   profileDetailKind,
   closeProfileDetailDialog,
@@ -88,7 +97,8 @@ function PapelizAccountProfileDetailFreshSignInDialog({
       }
     >
       <p>
-        Changing your {profileDetailKind === 'email' ? 'email' : 'username'} needs a recent sign-in. Sign in again, and this opens again so you can finish.
+        Changing your {profileDetailKind === 'email' ? 'email' : 'username'} needs a sign-in from the last {papelizAccountFreshSignInMinutes} minutes. Sign in again,
+        and this opens again so you can finish.
       </p>
     </PapelizAccountDialog>
   )
@@ -111,7 +121,10 @@ type PapelizAccountEmailChangeStage =
 // Change Email: the new address, then the code Clerk sends it, then it becomes the account's email and
 // the old address goes. An old address a connected Google or Apple account uses stays as a second one.
 function PapelizAccountEmailChangeDialog({ user, closeEmailChangeDialog }: { user: PapelizAccountUser; closeEmailChangeDialog: () => void }) {
-  const [emailChangeStage, setEmailChangeStage] = useState<PapelizAccountEmailChangeStage>({ emailChangeStageKind: 'entering' })
+  const { session } = useSession()
+  const [emailChangeStage, setEmailChangeStage] = useState<PapelizAccountEmailChangeStage>(() =>
+    isPapelizAccountSignInFresh(session?.factorVerificationAge) ? { emailChangeStageKind: 'entering' } : { emailChangeStageKind: 'fresh-sign-in-needed' },
+  )
   const [typedNewEmailAddress, setTypedNewEmailAddress] = useState('')
   const [typedEmailChangeCode, setTypedEmailChangeCode] = useState('')
   const [emailChangeFailureMessage, setEmailChangeFailureMessage] = useState<string | null>(null)
@@ -134,6 +147,10 @@ function PapelizAccountEmailChangeDialog({ user, closeEmailChangeDialog }: { use
   // One step at a time; Clerk's answers become this dialog's words.
   async function runPapelizAccountEmailChangeStep(emailChangeStep: () => Promise<void>) {
     if (emailChangeIsWorkingRef.current) return
+    if (!isPapelizAccountSignInFresh(session?.factorVerificationAge)) {
+      setEmailChangeStage({ emailChangeStageKind: 'fresh-sign-in-needed' })
+      return
+    }
     emailChangeIsWorkingRef.current = true
     setEmailChangeIsWorking(true)
     setEmailChangeFailureMessage(null)
@@ -369,10 +386,11 @@ function PapelizAccountEmailChangeDialog({ user, closeEmailChangeDialog }: { use
 
 // Change Username: Clerk checks it as at sign-up, and a taken one is refused.
 function PapelizAccountUsernameChangeDialog({ user, closeUsernameChangeDialog }: { user: PapelizAccountUser; closeUsernameChangeDialog: () => void }) {
+  const { session } = useSession()
   const [typedNewUsername, setTypedNewUsername] = useState(() => user.username ?? '')
   const [usernameChangeFailureMessage, setUsernameChangeFailureMessage] = useState<string | null>(null)
   const [usernameChangeIsWorking, setUsernameChangeIsWorking] = useState(false)
-  const [usernameChangeNeedsFreshSignIn, setUsernameChangeNeedsFreshSignIn] = useState(false)
+  const [usernameChangeNeedsFreshSignIn, setUsernameChangeNeedsFreshSignIn] = useState(() => !isPapelizAccountSignInFresh(session?.factorVerificationAge))
   const newUsernameFieldId = useId()
   const usernameChangeFormId = useId()
   const newUsername = typedNewUsername.trim()
@@ -381,6 +399,10 @@ function PapelizAccountUsernameChangeDialog({ user, closeUsernameChangeDialog }:
   async function savePapelizAccountUsername(submitEvent: FormEvent) {
     submitEvent.preventDefault()
     if (usernameChangeIsWorking || !newUsername || newUsernameIsUnchanged) return
+    if (!isPapelizAccountSignInFresh(session?.factorVerificationAge)) {
+      setUsernameChangeNeedsFreshSignIn(true)
+      return
+    }
     setUsernameChangeIsWorking(true)
     setUsernameChangeFailureMessage(null)
     try {
