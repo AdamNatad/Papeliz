@@ -285,6 +285,131 @@ async function ensurePnpm({ dryRun }) {
   }
 }
 
+// The root workspace, and Papeliz Sync's own workspace (sync/) in a checkout that has it.
+function papelizDependencyWorkspaces() {
+  const dependencyWorkspaces = [{ dependencyWorkspaceLabel: 'Workspace dependencies', dependencyWorkspaceMidSentenceLabel: 'workspace dependencies', dependencyWorkspaceDirectory: papelizRepositoryRoot, pnpmDirectoryArguments: [] }]
+  const syncWorkspaceRoot = path.join(papelizRepositoryRoot, 'sync')
+  if (existsSync(path.join(syncWorkspaceRoot, 'package.json'))) {
+    dependencyWorkspaces.push({ dependencyWorkspaceLabel: "Papeliz Sync's dependencies", dependencyWorkspaceMidSentenceLabel: "Papeliz Sync's dependencies", dependencyWorkspaceDirectory: syncWorkspaceRoot, pnpmDirectoryArguments: ['--dir', 'sync'] })
+  }
+  return dependencyWorkspaces
+}
+
+function dependencyWorkspaceNeedsInstall({ dependencyWorkspaceDirectory }) {
+  const lockfilePath = path.join(dependencyWorkspaceDirectory, 'pnpm-lock.yaml')
+  const installStatePath = path.join(dependencyWorkspaceDirectory, 'node_modules', '.modules.yaml')
+  return !existsSync(installStatePath)
+    || (existsSync(lockfilePath) && statSync(lockfilePath).mtimeMs > statSync(installStatePath).mtimeMs)
+}
+
+function dependencyWorkspaceInstallArguments({ dependencyWorkspaceDirectory, pnpmDirectoryArguments }) {
+  const lockfileArguments = existsSync(path.join(dependencyWorkspaceDirectory, 'pnpm-lock.yaml')) ? ['--frozen-lockfile'] : []
+  return [...pnpmDirectoryArguments, 'install', ...lockfileArguments]
+}
+
+// Two launchers never install at once: the one installing writes its process ID here, and writes null
+// when it is done. A lock whose launcher has stopped, or that is older than any install, is taken over.
+// The file stays between runs, so taking or giving up the lock never deletes anything.
+const papelizDependencyInstallLockFilePath = path.join(papelizRepositoryRoot, 'test_trash', 'papeliz-launcher-dependency-install-lock.json')
+const papelizDependencyInstallLockLongestHoldMs = 30 * 60_000
+// pnpm writes pnpm-lock.yaml before node_modules/.modules.yaml, so a `pnpm add` still running elsewhere
+// looks like an install the launcher should run. The launcher installs only once the workspace's
+// dependency files have been still this long, and checks again first.
+const papelizDependencyWorkspaceSettleMs = 10_000
+const papelizDependencyWorkspaceLongestSettleWaitMs = 10 * 60_000
+
+const waitMilliseconds = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds))
+
+function isLauncherProcessRunning(launcherProcessId) {
+  try {
+    process.kill(launcherProcessId, 0)
+    return true
+  } catch (error) {
+    return error.code === 'EPERM'
+  }
+}
+
+function readPapelizDependencyInstallLock() {
+  try {
+    return JSON.parse(readFileSync(papelizDependencyInstallLockFilePath, 'utf8'))
+  } catch {
+    return { launcherProcessId: null }
+  }
+}
+
+function papelizDependencyInstallLockIsHeldByAnotherLauncher() {
+  const { launcherProcessId, lockedAtMs } = readPapelizDependencyInstallLock()
+  return Number.isInteger(launcherProcessId)
+    && launcherProcessId !== process.pid
+    && Date.now() - (lockedAtMs ?? 0) < papelizDependencyInstallLockLongestHoldMs
+    && isLauncherProcessRunning(launcherProcessId)
+}
+
+async function takePapelizDependencyInstallLock() {
+  mkdirSync(path.dirname(papelizDependencyInstallLockFilePath), { recursive: true })
+  let waitAnnounced = false
+  for (;;) {
+    if (papelizDependencyInstallLockIsHeldByAnotherLauncher()) {
+      if (!waitAnnounced) console.log(' [wait] Another Papeliz launcher is installing dependencies; waiting for it to finish...')
+      waitAnnounced = true
+      await waitMilliseconds(1_000)
+      continue
+    }
+    writeFileSync(papelizDependencyInstallLockFilePath, `${JSON.stringify({ launcherProcessId: process.pid, lockedAtMs: Date.now() })}\n`)
+    // Two launchers that write at the same moment both read back the one written last.
+    await waitMilliseconds(250)
+    if (readPapelizDependencyInstallLock().launcherProcessId === process.pid) return
+  }
+}
+
+function releasePapelizDependencyInstallLock() {
+  if (readPapelizDependencyInstallLock().launcherProcessId !== process.pid) return
+  writeFileSync(papelizDependencyInstallLockFilePath, `${JSON.stringify({ launcherProcessId: null, lockedAtMs: null })}\n`)
+}
+
+function newestDependencyFileChangeMs({ dependencyWorkspaceDirectory }) {
+  const dependencyFilePaths = [
+    path.join(dependencyWorkspaceDirectory, 'package.json'),
+    path.join(dependencyWorkspaceDirectory, 'pnpm-lock.yaml'),
+    path.join(dependencyWorkspaceDirectory, 'node_modules', '.modules.yaml'),
+    // pnpm adds a folder here for every package it links.
+    path.join(dependencyWorkspaceDirectory, 'node_modules', '.pnpm'),
+  ]
+  return Math.max(0, ...dependencyFilePaths.filter((dependencyFilePath) => existsSync(dependencyFilePath)).map((dependencyFilePath) => statSync(dependencyFilePath).mtimeMs))
+}
+
+async function waitForDependencyWorkspaceToSettle(dependencyWorkspace) {
+  const giveUpAt = Date.now() + papelizDependencyWorkspaceLongestSettleWaitMs
+  let waitAnnounced = false
+  for (;;) {
+    const stillForMs = Date.now() - newestDependencyFileChangeMs(dependencyWorkspace)
+    if (stillForMs >= papelizDependencyWorkspaceSettleMs) return
+    if (Date.now() > giveUpAt) {
+      throw new PapelizLauncherError(`${dependencyWorkspace.dependencyWorkspaceLabel} keep changing. Run the launcher again once pnpm has finished.`)
+    }
+    if (!waitAnnounced) console.log(` [wait] ${dependencyWorkspace.dependencyWorkspaceLabel} changed moments ago; pnpm may be running elsewhere. Waiting for them to settle...`)
+    waitAnnounced = true
+    await waitMilliseconds(papelizDependencyWorkspaceSettleMs - stillForMs + 250)
+  }
+}
+
+async function installDependencyWorkspace(dependencyWorkspace) {
+  await takePapelizDependencyInstallLock()
+  try {
+    await waitForDependencyWorkspaceToSettle(dependencyWorkspace)
+    if (!dependencyWorkspaceNeedsInstall(dependencyWorkspace)) {
+      console.log(` [ready] ${dependencyWorkspace.dependencyWorkspaceLabel} (installed by another pnpm run)`)
+      return
+    }
+    console.log(` [deps] Installing ${dependencyWorkspace.dependencyWorkspaceMidSentenceLabel}...`)
+    if (await runForeground(pnpmExecutable, dependencyWorkspaceInstallArguments(dependencyWorkspace)) !== 0) {
+      throw new PapelizLauncherError(`Installing ${dependencyWorkspace.dependencyWorkspaceMidSentenceLabel} failed.`)
+    }
+  } finally {
+    releasePapelizDependencyInstallLock()
+  }
+}
+
 async function ensureWorkspaceDependencies({ dryRun }) {
   const rootPackageJsonPath = path.join(papelizRepositoryRoot, 'package.json')
   if (!existsSync(rootPackageJsonPath)) {
@@ -292,23 +417,14 @@ async function ensureWorkspaceDependencies({ dryRun }) {
     return null
   }
   const rootPackageJson = JSON.parse(readFileSync(rootPackageJsonPath, 'utf8'))
-  const lockfilePath = path.join(papelizRepositoryRoot, 'pnpm-lock.yaml')
-  const installStatePath = path.join(papelizRepositoryRoot, 'node_modules', '.modules.yaml')
-  const dependenciesNeedInstall = !existsSync(installStatePath)
-    || (existsSync(lockfilePath) && statSync(lockfilePath).mtimeMs > statSync(installStatePath).mtimeMs)
-  if (!dependenciesNeedInstall) {
-    console.log(' [ready] Workspace dependencies')
-    return rootPackageJson
-  }
-
-  const installArguments = existsSync(lockfilePath) ? ['install', '--frozen-lockfile'] : ['install']
-  if (dryRun) {
-    console.log(` [plan] pnpm ${installArguments.join(' ')}`)
-    return rootPackageJson
-  }
-  console.log(' [deps] Installing workspace dependencies...')
-  if (await runForeground(pnpmExecutable, installArguments) !== 0) {
-    throw new PapelizLauncherError('Installing workspace dependencies failed.')
+  for (const dependencyWorkspace of papelizDependencyWorkspaces()) {
+    if (!dependencyWorkspaceNeedsInstall(dependencyWorkspace)) {
+      console.log(` [ready] ${dependencyWorkspace.dependencyWorkspaceLabel}`)
+    } else if (dryRun) {
+      console.log(` [plan] pnpm ${dependencyWorkspaceInstallArguments(dependencyWorkspace).join(' ')}`)
+    } else {
+      await installDependencyWorkspace(dependencyWorkspace)
+    }
   }
   return rootPackageJson
 }
