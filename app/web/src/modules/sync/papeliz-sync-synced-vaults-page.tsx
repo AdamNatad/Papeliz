@@ -1,5 +1,6 @@
-import { AppWindow, Check, Cloud, CloudCheck, CloudDownload, CloudOff, Ellipsis, FolderOpen, LoaderCircle, Lock, LockOpen, RefreshCw, TriangleAlert, type LucideIcon } from 'lucide-react'
+import { AppWindow, ArrowLeft, Check, ChevronRight, Cloud, CloudCheck, CloudDownload, CloudOff, Ellipsis, FolderOpen, LoaderCircle, Lock, LockOpen, RefreshCw, RotateCcw, TriangleAlert, type LucideIcon } from 'lucide-react'
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
+import { PapelizIconButton } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { PapelizConfirmDialog } from '../ui/papeliz-confirm-dialog'
 import { usePapelizFooterEqualButtonWidthRef } from '../ui/papeliz-footer-equal-button-width'
@@ -9,7 +10,11 @@ import { createPapelizBrowserVault, openPapelizBrowserVault, pickFreePapelizBrow
 import type { PapelizOpenVault } from '../vault/papeliz-open-vault'
 import { describePapelizVaultError } from '../vault/papeliz-vault-adapter'
 import { usePapelizBrowserStorageStore } from '../workspace/papeliz-browser-storage-store'
-import { newVaultFormFooterButtonClassName } from '../workspace/papeliz-new-vault-form'
+import {
+  newVaultFormFooterActionButtonColorClassName,
+  newVaultFormFooterButtonClassName,
+  newVaultFormFooterCancelButtonColorClassName,
+} from '../workspace/papeliz-new-vault-form'
 import type { PapelizSyncAccountVaultReading, PapelizSyncActionOutcome, PapelizSyncEngine, PapelizSyncEngineSnapshot } from './papeliz-sync-engine-contract'
 import {
   isPapelizSyncUsedOnThisDevice,
@@ -37,15 +42,23 @@ import {
   formatPapelizSyncByteSize,
   papelizSyncVaultEncryptionKindDisplayNames,
 } from './papeliz-sync-screen-words'
-import { listPapelizSyncVaultIdsCopiedHere } from './papeliz-sync-fetched-copies'
+import { mapPapelizSyncVaultIdsToCopiesHere } from './papeliz-sync-fetched-copies'
 import { requestPapelizSettingsGearSyncPage } from './papeliz-sync-settings-gear-request-store'
-import { pickEmptyPapelizVaultFolderForSyncDownload, startPapelizSyncStartScreenDownload } from './papeliz-sync-start-screen-download-store'
+import { PapelizSyncStartScreenDownloadProgressLines, readPapelizSyncStartScreenDownloadPercent } from './papeliz-sync-start-screen-download-progress'
+import {
+  pickEmptyPapelizVaultFolderForSyncDownload,
+  retryPapelizSyncStartScreenDownload,
+  startPapelizSyncStartScreenDownload,
+  usePapelizSyncStartScreenDownloadStore,
+  type PapelizSyncStartScreenDownload,
+} from './papeliz-sync-start-screen-download-store'
 
 // Synced Vaults, in the start card in place of Recent Vaults (as New Vault's form is). On a device
 // not signed in to Sync it opens on a Fetch button and reads nothing before it's pressed; signed in,
 // it reads the account's vaults at once. Signed out it waits for the sign-in tab Fetch opened; signed
 // in it lists the account's vaults, each with its kind (a lock for End-to-end), to download one into
-// a new folder or browser vault. An End-to-end vault asks its passphrase first, once on this device. A
+// a new folder or browser vault. One already on this device opens on click; one downloading shows how
+// far it is. An End-to-end vault asks its passphrase first, once on this device. A
 // downloaded vault keeps syncing; the "…" menu at the top right can make it a copy that won't sync,
 // after a warning. Refresh beside it reads the account and its vaults again. In development builds
 // its previewer can hold any step with a made-up account and vaults.
@@ -157,6 +170,8 @@ interface PapelizSyncSyncedVaultsPageProps {
   // Every vault on this device, hidden ones too: a synced vault downloaded into one of them as a copy
   // shows as on this device.
   papelizVaultIdsOnThisDevice: ReadonlySet<string>
+  // A synced vault already on this device was pressed: it opens, by its vault on this device.
+  onVaultOnThisDeviceOpen: (papelizVaultId: string) => void
   onSyncedVaultsPageClose: () => void
   // A download started: back to Recent Vaults, where its row shows how far it is.
   onSyncDownloadStarted: () => void
@@ -168,6 +183,7 @@ export function PapelizSyncSyncedVaultsPage({
   isBrowserStorageOn,
   existingBrowserVaultRecords,
   papelizVaultIdsOnThisDevice,
+  onVaultOnThisDeviceOpen,
   onSyncedVaultsPageClose,
   onSyncDownloadStarted,
 }: PapelizSyncSyncedVaultsPageProps) {
@@ -231,12 +247,25 @@ export function PapelizSyncSyncedVaultsPage({
   const liveAccountVaultsOutcome = accountVaultsReading?.accountVaultsReadCount === accountVaultsReadCount ? accountVaultsReading.accountVaultsOutcome : null
   const accountVaultsOutcome = heldSyncedVaultsPagePreview === null ? liveAccountVaultsOutcome : heldSyncedVaultsPagePreview.previewAccountVaultsOutcome
   const accountVaults = accountVaultsOutcome?.syncActionOutcome === 'done' ? accountVaultsOutcome.syncActionDoneValue : null
-  // A synced vault is never offered again once it's here: syncing, or downloaded as a copy (which
-  // isn't linked to Sync, so only this device's own record knows it).
-  const syncVaultIdsCopiedHere = useMemo(() => listPapelizSyncVaultIdsCopiedHere(papelizVaultIdsOnThisDevice), [papelizVaultIdsOnThisDevice])
+  // A synced vault is never offered again once it's here: syncing, downloaded as a copy (which isn't
+  // linked to Sync, so only this device's own record knows it), or downloading now.
+  const syncVaultCopiesHere = useMemo(() => mapPapelizSyncVaultIdsToCopiesHere(papelizVaultIdsOnThisDevice), [papelizVaultIdsOnThisDevice])
   const isAccountVaultCopiedHere = (accountVault: PapelizSyncAccountVaultReading) =>
-    accountVault.papelizVaultIdOnThisDevice === null && syncVaultIdsCopiedHere.has(accountVault.papelizSyncVaultId)
-  const accountVaultsToDownload = accountVaults?.filter((accountVault) => accountVault.papelizVaultIdOnThisDevice === null && !isAccountVaultCopiedHere(accountVault)) ?? []
+    accountVault.papelizVaultIdOnThisDevice === null && syncVaultCopiesHere.has(accountVault.papelizSyncVaultId)
+  // The downloads from the start screen, as their Recent Vaults rows show them, by the synced vault.
+  const syncStartScreenDownloadsByVaultId = usePapelizSyncStartScreenDownloadStore((syncStartScreenDownloadState) => syncStartScreenDownloadState.syncStartScreenDownloadsByVaultId)
+  const syncStartScreenDownloadsBySyncVaultId = useMemo(
+    () =>
+      new Map<string, PapelizSyncStartScreenDownload>(
+        Object.values(syncStartScreenDownloadsByVaultId).map((syncStartScreenDownload) => [syncStartScreenDownload.papelizSyncVaultId, syncStartScreenDownload]),
+      ),
+    [syncStartScreenDownloadsByVaultId],
+  )
+  const accountVaultsToDownload =
+    accountVaults?.filter(
+      (accountVault) =>
+        accountVault.papelizVaultIdOnThisDevice === null && !isAccountVaultCopiedHere(accountVault) && !syncStartScreenDownloadsBySyncVaultId.has(accountVault.papelizSyncVaultId),
+    ) ?? []
   const isAccountVaultLockedHere = (accountVault: PapelizSyncAccountVaultReading) => accountVault.syncVaultLockState === 'locked' && !syncVaultIdsUnlockedHere.has(accountVault.papelizSyncVaultId)
   // The first one to download is picked until another is, one that needs no passphrase if any.
   const chosenAccountVault =
@@ -362,7 +391,7 @@ export function PapelizSyncSyncedVaultsPage({
           <button
             type="button"
             onClick={fetchSyncedVaultsFromClick}
-            className={joinPapelizClassNames(newVaultFormFooterButtonClassName, 'mt-2.5 min-w-[128px] bg-papeliz-chosen-tab-ground')}
+            className={joinPapelizClassNames(newVaultFormFooterButtonClassName, newVaultFormFooterActionButtonColorClassName, 'mt-2.5 min-w-[128px]')}
           >
             <CloudDownload className="size-[15px] flex-none" aria-hidden="true" />
             Fetch
@@ -471,23 +500,27 @@ export function PapelizSyncSyncedVaultsPage({
           <p id={`${syncedVaultsPageIdPrefix}-vault-label`} className="px-0.5 text-[12px] font-semibold text-papeliz-ink-muted">
             Vault
           </p>
-          <div role="radiogroup" aria-labelledby={`${syncedVaultsPageIdPrefix}-vault-label`} className="flex flex-col gap-1.5">
+          {/* One group for every vault: the radios pick one to download; a vault already here is a button
+              that opens it; one downloading shows how far it is. */}
+          <div role="group" aria-labelledby={`${syncedVaultsPageIdPrefix}-vault-label`} className="flex flex-col gap-1.5">
             {accountVaultsOutcome.syncActionDoneValue.map((accountVault) => {
+              const syncStartScreenDownload = syncStartScreenDownloadsBySyncVaultId.get(accountVault.papelizSyncVaultId)
               const isAccountVaultCopy = isAccountVaultCopiedHere(accountVault)
-              const isAccountVaultHere = accountVault.papelizVaultIdOnThisDevice !== null || isAccountVaultCopy
+              // The vault on this device it syncs with, or the copy it came down as.
+              const papelizVaultIdOfAccountVaultHere = accountVault.papelizVaultIdOnThisDevice ?? syncVaultCopiesHere.get(accountVault.papelizSyncVaultId) ?? null
+              const isAccountVaultHere = papelizVaultIdOfAccountVaultHere !== null || syncStartScreenDownload !== undefined
+              // A held preview's made-up vaults open too, to its Preview Only notice.
+              const isAccountVaultOpenable =
+                syncStartScreenDownload === undefined &&
+                papelizVaultIdOfAccountVaultHere !== null &&
+                (heldSyncedVaultsPagePreview !== null || papelizVaultIdsOnThisDevice.has(papelizVaultIdOfAccountVaultHere))
               const isAccountVaultChosen = !isAccountVaultHere && accountVault.papelizSyncVaultId === chosenAccountVault?.papelizSyncVaultId
               const accountVaultName = accountVault.syncVaultName
               const isAccountVaultEndToEnd = accountVault.syncVaultEncryptionKind === 'end-to-end'
               const AccountVaultLockIcon = isAccountVaultLockedHere(accountVault) ? Lock : LockOpen
-              return (
-                <label
-                  key={accountVault.papelizSyncVaultId}
-                  className={joinPapelizClassNames(
-                    'flex items-center gap-2.5 rounded-xl border px-2.5 py-[7px] transition-colors',
-                    isAccountVaultChosen ? 'border-papeliz-blue-line bg-papeliz-blue-soft' : 'border-papeliz-line bg-papeliz-surface',
-                    isAccountVaultHere ? 'cursor-default' : 'cursor-pointer hover:bg-papeliz-hover',
-                  )}
-                >
+              const accountVaultRowClassName = 'flex items-center gap-2.5 rounded-xl border px-2.5 py-[7px] transition-colors'
+              const accountVaultNameAndLine = (
+                <>
                   <span
                     aria-hidden="true"
                     className={joinPapelizClassNames(
@@ -497,39 +530,110 @@ export function PapelizSyncSyncedVaultsPage({
                   >
                     {accountVaultName.trim().charAt(0).toUpperCase() || '·'}
                   </span>
-                  <span className={joinPapelizClassNames('flex min-w-0 flex-1 flex-col gap-0.5', isAccountVaultHere && 'opacity-60')}>
+                  {/* Dimmed only when it's here but can't open from this page (its vault isn't in Recent Vaults). */}
+                  <span
+                    className={joinPapelizClassNames(
+                      'flex min-w-0 flex-1 flex-col gap-0.5',
+                      isAccountVaultHere && !isAccountVaultOpenable && syncStartScreenDownload === undefined && 'opacity-60',
+                    )}
+                  >
                     <span className="truncate text-[13.5px] font-semibold">{accountVaultName}</span>
-                    <span className="flex flex-wrap items-center gap-x-1 text-[11.5px] text-papeliz-ink-subtle tabular-nums">
-                      <span
-                        className={joinPapelizClassNames('inline-flex items-center gap-1 whitespace-nowrap', isAccountVaultEndToEnd && 'font-medium text-papeliz-ink-muted')}
-                        title={isAccountVaultEndToEnd ? (isAccountVaultLockedHere(accountVault) ? 'End-to-end: its passphrase is asked once on this device' : 'End-to-end, unlocked on this device') : undefined}
-                      >
-                        {isAccountVaultEndToEnd && <AccountVaultLockIcon className="size-3 flex-none" aria-hidden="true" />}
-                        {papelizSyncVaultEncryptionKindDisplayNames[accountVault.syncVaultEncryptionKind]}
+                    {syncStartScreenDownload !== undefined ? (
+                      <PapelizSyncStartScreenDownloadProgressLines syncStartScreenDownload={syncStartScreenDownload} />
+                    ) : (
+                      <span className="flex flex-wrap items-center gap-x-1 text-[11.5px] text-papeliz-ink-subtle tabular-nums">
+                        <span
+                          className={joinPapelizClassNames('inline-flex items-center gap-1 whitespace-nowrap', isAccountVaultEndToEnd && 'font-medium text-papeliz-ink-muted')}
+                          title={isAccountVaultEndToEnd ? (isAccountVaultLockedHere(accountVault) ? 'End-to-end: its passphrase is asked once on this device' : 'End-to-end, unlocked on this device') : undefined}
+                        >
+                          {isAccountVaultEndToEnd && <AccountVaultLockIcon className="size-3 flex-none" aria-hidden="true" />}
+                          {papelizSyncVaultEncryptionKindDisplayNames[accountVault.syncVaultEncryptionKind]}
+                        </span>
+                        <span className="whitespace-nowrap">
+                          · {describePapelizSyncFileCount(accountVault.syncVaultFileCount)} · {formatPapelizSyncByteSize(accountVault.syncVaultStoredByteLength)}
+                        </span>
                       </span>
-                      <span className="whitespace-nowrap">
-                        · {describePapelizSyncFileCount(accountVault.syncVaultFileCount)} · {formatPapelizSyncByteSize(accountVault.syncVaultStoredByteLength)}
-                      </span>
-                    </span>
+                    )}
                   </span>
-                  {isAccountVaultHere ? (
-                    <span className="inline-flex h-5 flex-none items-center gap-1 rounded-full bg-papeliz-surface-gray px-2 text-[11px] font-semibold text-papeliz-ink-muted">
-                      {isAccountVaultCopy ? <CloudOff className="size-3" aria-hidden="true" /> : <Check className="size-3" aria-hidden="true" />}
-                      {isAccountVaultCopy ? 'Copy on this device' : 'On this device'}
-                    </span>
-                  ) : (
-                    <input
-                      type="radio"
-                      name={`${syncedVaultsPageIdPrefix}-synced-vault`}
-                      checked={isAccountVaultChosen}
-                      onChange={() => {
-                        setChosenPapelizSyncVaultId(accountVault.papelizSyncVaultId)
-                        setTypedSyncVaultPassphrase('')
-                        setSyncedVaultsPageActionWords(null)
-                      }}
-                      className="size-4 flex-none cursor-pointer accent-papeliz-blue"
-                    />
+                </>
+              )
+              const accountVaultHereBadge = (
+                <span className="inline-flex h-5 flex-none items-center gap-1 rounded-full bg-papeliz-surface-gray px-2 text-[11px] font-semibold text-papeliz-ink-muted">
+                  {isAccountVaultCopy ? <CloudOff className="size-3" aria-hidden="true" /> : <Check className="size-3" aria-hidden="true" />}
+                  {isAccountVaultCopy ? 'Copy on this device' : 'On this device'}
+                </span>
+              )
+              if (syncStartScreenDownload !== undefined) {
+                const syncDownloadPercent = readPapelizSyncStartScreenDownloadPercent(syncStartScreenDownload)
+                const isSyncDownloadStopped = syncStartScreenDownload.syncStartScreenDownloadStage === 'stopped'
+                return (
+                  <div
+                    key={accountVault.papelizSyncVaultId}
+                    className={joinPapelizClassNames(accountVaultRowClassName, 'bg-papeliz-surface', isSyncDownloadStopped ? 'border-papeliz-diff-removed-ink/35' : 'border-papeliz-blue-line')}
+                  >
+                    {accountVaultNameAndLine}
+                    {isSyncDownloadStopped ? (
+                      <button
+                        type="button"
+                        onClick={() => void retryPapelizSyncStartScreenDownload(syncStartScreenDownload.papelizVaultId)}
+                        className="inline-flex h-7 flex-none items-center gap-1.5 rounded-full border border-papeliz-line-strong px-3 text-[12.5px] font-semibold text-papeliz-ink hover:bg-papeliz-hover"
+                      >
+                        <RotateCcw className="size-3.5" aria-hidden="true" />
+                        Try again
+                      </button>
+                    ) : (
+                      syncDownloadPercent !== null && <span className="flex-none text-[11.5px] text-papeliz-ink-subtle tabular-nums">{syncDownloadPercent}%</span>
+                    )}
+                  </div>
+                )
+              }
+              if (isAccountVaultOpenable && papelizVaultIdOfAccountVaultHere !== null) {
+                return (
+                  <button
+                    key={accountVault.papelizSyncVaultId}
+                    type="button"
+                    title={`Open “${accountVaultName}”`}
+                    onClick={() => onVaultOnThisDeviceOpen(papelizVaultIdOfAccountVaultHere)}
+                    className={joinPapelizClassNames(
+                      accountVaultRowClassName,
+                      'group w-full border-papeliz-line bg-papeliz-surface text-left hover:border-papeliz-blue-line hover:bg-papeliz-blue-soft/40',
+                    )}
+                  >
+                    {accountVaultNameAndLine}
+                    {accountVaultHereBadge}
+                    <ChevronRight className="-ml-1 size-4 flex-none text-papeliz-ink-subtle transition-colors group-hover:text-papeliz-blue" aria-hidden="true" />
+                  </button>
+                )
+              }
+              if (isAccountVaultHere) {
+                return (
+                  <div key={accountVault.papelizSyncVaultId} className={joinPapelizClassNames(accountVaultRowClassName, 'border-papeliz-line bg-papeliz-surface')}>
+                    {accountVaultNameAndLine}
+                    {accountVaultHereBadge}
+                  </div>
+                )
+              }
+              return (
+                <label
+                  key={accountVault.papelizSyncVaultId}
+                  className={joinPapelizClassNames(
+                    accountVaultRowClassName,
+                    'cursor-pointer',
+                    isAccountVaultChosen ? 'border-papeliz-blue-line bg-papeliz-blue-soft' : 'border-papeliz-line bg-papeliz-surface hover:bg-papeliz-hover',
                   )}
+                >
+                  {accountVaultNameAndLine}
+                  <input
+                    type="radio"
+                    name={`${syncedVaultsPageIdPrefix}-synced-vault`}
+                    checked={isAccountVaultChosen}
+                    onChange={() => {
+                      setChosenPapelizSyncVaultId(accountVault.papelizSyncVaultId)
+                      setTypedSyncVaultPassphrase('')
+                      setSyncedVaultsPageActionWords(null)
+                    }}
+                    className="size-4 flex-none cursor-pointer accent-papeliz-blue"
+                  />
                 </label>
               )
             })}
@@ -661,6 +765,9 @@ export function PapelizSyncSyncedVaultsPage({
       <div className="flex items-start justify-between gap-2 px-3 pt-[11px] pb-1">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
+            <PapelizIconButton iconButtonLabel="Back to Recent Vaults" iconButtonSize="small" className="-my-0.5 -ml-1.5" onClick={closeSyncedVaultsPage}>
+              <ArrowLeft className="size-[15px]" aria-hidden="true" />
+            </PapelizIconButton>
             <h2 id={syncedVaultsPageHeadingId} className="text-[18px] font-semibold tracking-[-0.01em]">
               Synced Vaults
             </h2>
@@ -705,7 +812,7 @@ export function PapelizSyncSyncedVaultsPage({
 
       {/* Cancel at the left edge, the action at the right, as in New Vault's form. */}
       <div ref={syncedVaultsPageFooterRef} className="flex items-center justify-between gap-2 border-t border-papeliz-line p-3">
-        <button type="button" onClick={closeSyncedVaultsPage} className={joinPapelizClassNames(newVaultFormFooterButtonClassName, 'bg-papeliz-red-gradient-start')}>
+        <button type="button" onClick={closeSyncedVaultsPage} className={joinPapelizClassNames(newVaultFormFooterButtonClassName, newVaultFormFooterCancelButtonColorClassName)}>
           <PapelizSolidCircleXIcon className="size-[15px] flex-none" />
           {syncedVaultsPageCancelLabel}
         </button>
@@ -714,7 +821,7 @@ export function PapelizSyncSyncedVaultsPage({
             type="button"
             disabled={syncedVaultsPagePrimaryAction.isPrimaryActionDisabled}
             onClick={syncedVaultsPagePrimaryAction.onPrimaryActionSelect}
-            className={joinPapelizClassNames(newVaultFormFooterButtonClassName, 'bg-papeliz-chosen-tab-ground')}
+            className={joinPapelizClassNames(newVaultFormFooterButtonClassName, newVaultFormFooterActionButtonColorClassName)}
           >
             {isSyncedVaultsPageActionRunning ? <LoaderCircle className="size-[15px] flex-none animate-spin" aria-hidden="true" /> : <PapelizSolidCircleCheckIcon className="size-[15px] flex-none" />}
             {syncedVaultsPagePrimaryAction.primaryActionLabel}

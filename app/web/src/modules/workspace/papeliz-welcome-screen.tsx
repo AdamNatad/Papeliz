@@ -1,8 +1,10 @@
-import { AppWindow, BookOpen, CloudCheck, CloudDownload, Code, Download, Eye, EyeOff, FolderOpen, FolderPlus, HardDrive, Pencil, RefreshCw, RotateCcw, Search, Trash2, TriangleAlert, type LucideIcon } from 'lucide-react'
+import { AppWindow, BookOpen, CloudCheck, CloudDownload, Code, Download, Eye, EyeOff, FolderOpen, FolderPlus, HardDrive, History, Lock, Pencil, RefreshCw, RotateCcw, Search, Trash2, type LucideIcon } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type Ref } from 'react'
 import { isPapelizSyncEngineInThisBuild } from 'virtual:papeliz-sync-engine-availability'
+import type { PapelizSyncVaultEncryptionKind } from '../sync/papeliz-sync-engine-contract'
 import { isPapelizSyncUsedOnThisDevice, readPapelizSyncDevFakeEngineScenarioText, usePapelizSyncEngineSnapshot, usePapelizSyncEngineStore } from '../sync/papeliz-sync-engine-store'
-import { describePapelizSyncFileCount } from '../sync/papeliz-sync-screen-words'
+import { papelizSyncVaultEncryptionKindDisplayNames } from '../sync/papeliz-sync-screen-words'
+import { PapelizSyncStartScreenDownloadProgressLines, readPapelizSyncStartScreenDownloadPercent } from '../sync/papeliz-sync-start-screen-download-progress'
 import { returnPapelizSyncSyncedVaultsPageToLive, usePapelizSyncSyncedVaultsPagePreviewStore } from '../sync/papeliz-sync-synced-vaults-page-preview-store'
 import {
   forgetPapelizSyncLinksOfDeletedVault,
@@ -50,6 +52,7 @@ import { usePapelizBrowserStorageStore } from './papeliz-browser-storage-store'
 import { downloadPapelizBrowserVaultBackupFromClick } from './papeliz-browser-vault-backup-reminder-store'
 import { PapelizBrowserVaultNameDialog } from './papeliz-browser-vault-name-dialog'
 import { PapelizNewVaultForm, type PapelizNewVaultPlace } from './papeliz-new-vault-form'
+import { readPapelizRecentVaultSyncEncryptionKinds } from './papeliz-recent-vault-sync-badges'
 import { PapelizSettingsGearButton } from './papeliz-settings-gear-button'
 import { usePapelizStartScreenEyePreviewStore, type PapelizStartScreenEyePreview } from './papeliz-start-screen-eye-preview-store'
 import { PapelizWorkspaceEyePreviewerSlot } from './papeliz-workspace-eye-previewer-slot'
@@ -100,7 +103,7 @@ interface PapelizWelcomeActionProps {
   // Why the action is off in this browser. It then shows an "Off in this browser" badge, says why
   // on hover, and pressing it shows the reason as a toast instead of running.
   welcomeActionOffReasonText?: string | null
-  // Lit while its form shows in the start card (New Vault).
+  // Lit while its panel shows in the start card (Recent Vaults, New Vault, Synced Vaults).
   isWelcomeActionCurrent?: boolean
   // `white-highlight`: a white card that stands out on the blue panel (Synced Vaults). Pale blue
   // in the dark theme.
@@ -182,6 +185,29 @@ function PapelizWelcomeAction({
   )
 }
 
+const papelizRecentVaultSyncBadgeClassName = 'inline-flex h-[18px] flex-none items-center gap-1 rounded-full px-[7px] text-[10.5px] font-semibold whitespace-nowrap'
+
+// A recent vault's badges after where it's kept: "Synced" (blue) and its kind, Standard or End-to-end
+// with a lock; or "Local only", for a vault that doesn't sync (a copy that won't sync among them).
+function PapelizRecentVaultSyncBadges({ recentVaultSyncEncryptionKind }: { recentVaultSyncEncryptionKind: PapelizSyncVaultEncryptionKind | null }) {
+  if (recentVaultSyncEncryptionKind === null) {
+    return <span className={joinPapelizClassNames(papelizRecentVaultSyncBadgeClassName, 'bg-papeliz-surface-gray text-papeliz-ink-muted')}>Local only</span>
+  }
+  const recentVaultSyncEncryptionKindName = papelizSyncVaultEncryptionKindDisplayNames[recentVaultSyncEncryptionKind]
+  return (
+    <>
+      <span className={joinPapelizClassNames(papelizRecentVaultSyncBadgeClassName, 'bg-papeliz-blue-soft text-papeliz-blue')}>
+        <CloudCheck className="size-3" aria-hidden="true" />
+        Synced
+      </span>
+      <span title={`${recentVaultSyncEncryptionKindName} encryption`} className={joinPapelizClassNames(papelizRecentVaultSyncBadgeClassName, 'bg-papeliz-surface-gray text-papeliz-ink-muted')}>
+        {recentVaultSyncEncryptionKind === 'end-to-end' && <Lock className="size-3" aria-hidden="true" />}
+        {recentVaultSyncEncryptionKindName}
+      </span>
+    </>
+  )
+}
+
 // What the delete dialog is about to delete: one hidden vault, or every hidden vault (Delete All).
 type PapelizRecentVaultDeleteRequest =
   | { recentVaultDeleteScope: 'one-vault'; recentVault: PapelizRecentVault }
@@ -201,14 +227,15 @@ function describeRecentVaultDeleteRequest(recentVaultDeleteRequest: PapelizRecen
     : 'This deletes every vault in the Hidden list: each folder and every note and file in it, from your disk. It doesn’t go to the Recycle Bin, and it can’t be undone.'
 }
 
-// The start screen, shown when no vault is open: on the blue panel, Papeliz, the ways in (Fetch from
-// Sync first, in white, where the build has Sync; a new vault, an import into this browser, a folder
-// already in use, the sample vault) and who made it; beside it, the vaults opened
-// before, to come back to in one click, and the Hidden list. A new vault is a folder on the disk or a
-// browser vault: Chrome and Edge ask which, other browsers keep it in the browser. Hide only takes a
-// vault off Recent vaults; Delete in the Hidden list erases it, from the disk or from this browser,
-// once its name is typed. In a browser that can keep neither kind, the actions say so on a badge, on
-// hover and in a toast; where only folders are missing, Open Vault goes.
+// The start screen, shown when no vault is open: on the blue panel, Papeliz, the ways in (Recent
+// Vaults; a new vault, an import into this browser, a folder already in use, the sample vault; Synced
+// Vaults at the foot, in white, where the build has Sync) and who made it; beside it, the vaults opened
+// before, to come back to in one click, each saying whether it syncs, and the Hidden list. Recent
+// Vaults' button and the logo in the top bar bring that list back from any other panel. A new vault
+// is a folder on the disk or a browser vault: Chrome and Edge ask which, other browsers keep it in
+// the browser. Hide only takes a vault off Recent vaults; Delete in the Hidden list erases it, from
+// the disk or from this browser, once its name is typed. In a browser that can keep neither kind, the
+// actions say so on a badge, on hover and in a toast; where only folders are missing, Open Vault goes.
 // In development builds the eye previewer in the Recent Vaults heading can hold it in any of its
 // states, with made-up vaults; nothing on the disk or in the browser's storage changes then.
 export function PapelizWelcomeScreen() {
@@ -425,22 +452,21 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
   // A device signed in to Sync before (or the dev fake engine) loads the engine now, for the recent
   // vaults' "Synced" and the downloads left unfinished below.
   const loadPapelizSyncEngine = usePapelizSyncEngineStore((syncEngineState) => syncEngineState.loadPapelizSyncEngine)
+  const isPapelizSyncExpectedOnThisDevice = useMemo(() => isPapelizSyncUsedOnThisDevice() || readPapelizSyncDevFakeEngineScenarioText() !== null, [])
   useEffect(() => {
     if (!isSyncedVaultsActionShown || startScreenEyePreview !== null) return
-    if (isPapelizSyncUsedOnThisDevice() || readPapelizSyncDevFakeEngineScenarioText() !== null) void loadPapelizSyncEngine()
-  }, [isSyncedVaultsActionShown, startScreenEyePreview, loadPapelizSyncEngine])
+    if (isPapelizSyncExpectedOnThisDevice) void loadPapelizSyncEngine()
+  }, [isSyncedVaultsActionShown, startScreenEyePreview, isPapelizSyncExpectedOnThisDevice, loadPapelizSyncEngine])
 
-  // Once the engine has loaded: which recent vaults sync ("Synced" in their line, while signed in),
-  // and the first downloads closing the tab left unfinished, picked up once the list is read.
+  // Once the engine has loaded: which recent vaults sync ("Synced" and its kind on their row, while
+  // signed in; "Local only" otherwise), and the first downloads closing the tab left unfinished,
+  // picked up once the list is read. A build without Sync shows neither badge.
   const syncEngineReading = usePapelizSyncEngineSnapshot()
   const loadedSyncEngine = syncEngineReading?.papelizSyncEngine ?? null
   const syncEngineSnapshot = syncEngineReading?.syncEngineSnapshot ?? null
-  const syncedRecentVaultIds = useMemo(
-    () =>
-      new Set(
-        syncEngineSnapshot?.syncSignIn.syncSignInKind === 'signed-in' ? syncEngineSnapshot.syncLinkedLocalVaults.map((syncLinkedLocalVault) => syncLinkedLocalVault.papelizVaultId) : [],
-      ),
-    [syncEngineSnapshot],
+  const recentVaultSyncEncryptionKinds = useMemo(
+    () => (isSyncedVaultsActionShown ? readPapelizRecentVaultSyncEncryptionKinds({ isPapelizSyncExpectedOnThisDevice, syncEngineSnapshot }) : null),
+    [isSyncedVaultsActionShown, isPapelizSyncExpectedOnThisDevice, syncEngineSnapshot],
   )
   const unfinishedSyncDownloadVaultIdsText =
     syncEngineSnapshot?.syncLinkedLocalVaults
@@ -469,6 +495,29 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
   const closeSyncedVaultsPage = () => {
     setSyncedVaultsPageShown(false)
     returnPapelizSyncSyncedVaultsPageToLive()
+  }
+
+  // Recent Vaults in the start card, from its button or the logo: Synced Vaults, New Vault's form and
+  // the Hidden list give way to it.
+  const isRecentVaultListOnScreen = !isSyncedVaultsPageOnScreen && newVaultFormRequest === null && !isHiddenVaultListShown
+  const showRecentVaults = () => {
+    closeSyncedVaultsPage()
+    setNewVaultFormRequest(null)
+    if (isHiddenVaultListShown) {
+      setHiddenVaultListShown(false)
+      setRecentVaultSearchText('')
+    }
+  }
+
+  // A synced vault already on this device, pressed on the Synced Vaults page, opens as its Recent
+  // Vaults row does.
+  const openVaultOnThisDeviceFromSyncedVaults = (papelizVaultId: string) => {
+    if (heldSyncedVaultsPagePreview !== null) {
+      showStartScreenPreviewOnlyNotice()
+      return
+    }
+    const recentVaultToOpen = recentVaults.find((recentVault) => recentVault.papelizVaultId === papelizVaultId)
+    if (recentVaultToOpen !== undefined && !isOpeningVault) void reopenRecentVault(recentVaultToOpen)
   }
 
   // New Vault: its form in the start card (where to keep it, and a browser vault's name); a folder
@@ -676,8 +725,17 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
   return (
     <div className="flex min-h-full flex-col bg-papeliz-surface-soft">
       <header className="flex h-12 flex-none items-center gap-2.5 bg-papeliz-topbar px-3 text-white sm:px-5">
-        <PapelizMark papelizMarkSize={26} papelizMarkTone="on-blue" />
-        <span className="text-[15px] font-semibold tracking-[-0.01em]">Papeliz</span>
+        {/* The logo goes back to Recent Vaults from any panel. */}
+        <button
+          type="button"
+          aria-label="Papeliz, back to Recent Vaults"
+          title="Recent Vaults"
+          onClick={showRecentVaults}
+          className="-mx-1.5 flex items-center gap-2.5 rounded-lg px-1.5 py-1 transition-colors hover:bg-white/10 focus-visible:outline-white"
+        >
+          <PapelizMark papelizMarkSize={26} papelizMarkTone="on-blue" />
+          <span className="text-[15px] font-semibold tracking-[-0.01em]">Papeliz</span>
+        </button>
         <div className="ml-auto flex items-center gap-1.5">
           <PapelizSettingsGearButton settingsGearPlace="start-page" />
         </div>
@@ -701,6 +759,14 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
             </p>
 
             <div className="mt-4 grid grid-cols-1 gap-[7px]">
+              <PapelizWelcomeAction
+                WelcomeActionIcon={History}
+                welcomeActionTitle="Recent Vaults"
+                welcomeActionDescription="Vaults opened before."
+                isWelcomeActionDisabled={false}
+                isWelcomeActionCurrent={isRecentVaultListOnScreen}
+                onWelcomeActionSelect={showRecentVaults}
+              />
               <PapelizWelcomeAction
                 WelcomeActionIcon={FolderPlus}
                 welcomeActionTitle="New Vault"
@@ -772,6 +838,7 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                   isBrowserStorageOn={isBrowserVaultOn}
                   existingBrowserVaultRecords={browserVaultRecords}
                   papelizVaultIdsOnThisDevice={recentVaultIds}
+                  onVaultOnThisDeviceOpen={openVaultOnThisDeviceFromSyncedVaults}
                   onSyncedVaultsPageClose={closeSyncedVaultsPage}
                   onSyncDownloadStarted={() => {
                     closeSyncedVaultsPage()
@@ -962,14 +1029,7 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                             // A vault the Synced Vaults page is filling: how far it is, or where it stopped. It opens once it's all here.
                             const syncStartScreenDownload = syncStartScreenDownloadsByVaultId[recentVault.papelizVaultId]
                             const isSyncDownloadStopped = syncStartScreenDownload?.syncStartScreenDownloadStage === 'stopped'
-                            const syncDownloadFileCountWords =
-                              syncStartScreenDownload?.syncTransferredFileCount == null || syncStartScreenDownload.syncTransferFileCount === null
-                                ? null
-                                : `${syncStartScreenDownload.syncTransferredFileCount.toLocaleString('en-US')} of ${describePapelizSyncFileCount(syncStartScreenDownload.syncTransferFileCount)}`
-                            const syncDownloadPercent =
-                              syncStartScreenDownload?.syncTransferredFileCount == null || !syncStartScreenDownload.syncTransferFileCount
-                                ? null
-                                : Math.floor((100 * syncStartScreenDownload.syncTransferredFileCount) / syncStartScreenDownload.syncTransferFileCount)
+                            const syncDownloadPercent = syncStartScreenDownload === undefined ? null : readPapelizSyncStartScreenDownloadPercent(syncStartScreenDownload)
                             return (
                               <li
                                 key={recentVault.papelizVaultId}
@@ -1005,45 +1065,26 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                                   <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                                     <span className="truncate text-[13.5px] font-semibold">{recentVault.papelizVaultDisplayName}</span>
                                     {syncStartScreenDownload === undefined ? (
-                                      <span className="flex flex-wrap items-center gap-x-1 text-[11.5px] text-papeliz-ink-subtle">
-                                        {recentVault.papelizRecentVaultKind === 'browser-vault-in-opfs' ? (
-                                          <>
-                                            <AppWindow className="size-3 flex-none" aria-hidden="true" />
-                                            In this browser
-                                          </>
-                                        ) : (
-                                          <>
-                                            <HardDrive className="size-3 flex-none" aria-hidden="true" />
-                                            Folder on this device
-                                          </>
-                                        )}
-                                        {/* At phone width "Synced" goes to its own line rather than breaking the words before it. */}
-                                        {syncedRecentVaultIds.has(recentVault.papelizVaultId) && (
-                                          <span className="inline-flex items-center gap-1 whitespace-nowrap">
-                                            <span aria-hidden="true">·</span>
-                                            <CloudCheck className="size-3 flex-none" aria-hidden="true" />
-                                            Synced
-                                          </span>
-                                        )}
-                                      </span>
-                                    ) : isSyncDownloadStopped ? (
-                                      <span role="status" className="flex min-w-0 items-center gap-1 text-[11.5px] text-papeliz-diff-removed-ink">
-                                        <TriangleAlert className="size-3 flex-none" aria-hidden="true" />
-                                        <span className="truncate">
-                                          {syncDownloadFileCountWords === null ? '' : `Stopped at ${syncDownloadFileCountWords}. `}
-                                          {syncStartScreenDownload.syncStartScreenDownloadStopWords}
+                                      <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11.5px] text-papeliz-ink-subtle">
+                                        <span className="inline-flex items-center gap-1">
+                                          {recentVault.papelizRecentVaultKind === 'browser-vault-in-opfs' ? (
+                                            <>
+                                              <AppWindow className="size-3 flex-none" aria-hidden="true" />
+                                              In this browser
+                                            </>
+                                          ) : (
+                                            <>
+                                              <HardDrive className="size-3 flex-none" aria-hidden="true" />
+                                              Folder on this device
+                                            </>
+                                          )}
                                         </span>
+                                        {recentVaultSyncEncryptionKinds !== null && (
+                                          <PapelizRecentVaultSyncBadges recentVaultSyncEncryptionKind={recentVaultSyncEncryptionKinds.get(recentVault.papelizVaultId) ?? null} />
+                                        )}
                                       </span>
                                     ) : (
-                                      <>
-                                        <span role="status" className="flex items-center gap-1 text-[11.5px] text-papeliz-ink-subtle tabular-nums">
-                                          <CloudDownload className="size-3 flex-none" aria-hidden="true" />
-                                          {syncDownloadFileCountWords === null ? 'Getting ready to download…' : `Downloading ${syncDownloadFileCountWords}`}
-                                        </span>
-                                        <span aria-hidden="true" className="mt-0.5 h-1 overflow-hidden rounded-full bg-papeliz-surface-gray">
-                                          <span className="block h-full rounded-full bg-papeliz-blue transition-[width] duration-300" style={{ width: `${syncDownloadPercent ?? 0}%` }} />
-                                        </span>
-                                      </>
+                                      <PapelizSyncStartScreenDownloadProgressLines syncStartScreenDownload={syncStartScreenDownload} />
                                     )}
                                   </span>
                                   {syncStartScreenDownload === undefined ? (

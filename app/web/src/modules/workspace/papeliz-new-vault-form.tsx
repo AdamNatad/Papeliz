@@ -1,5 +1,6 @@
-import { AppWindow, FolderOpen, type LucideIcon } from 'lucide-react'
+import { AppWindow, ArrowLeft, FolderOpen, type LucideIcon } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
+import { PapelizIconButton } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { usePapelizFooterEqualButtonWidthRef } from '../ui/papeliz-footer-equal-button-width'
 import { PapelizInfoTip } from '../ui/papeliz-info-tip'
@@ -141,7 +142,14 @@ const papelizNewVaultPlaceComparisonRows: readonly PapelizNewVaultPlaceCompariso
 // Cancel and the action: flat, square-cornered and one width (the footer's ref sets it). Fetch from
 // Sync's page uses the same.
 export const newVaultFormFooterButtonClassName =
-  'inline-flex h-8 flex-none items-center justify-center gap-1.5 rounded-md border border-black/10 px-3 text-[13px] font-medium whitespace-nowrap text-white transition-[filter,transform] duration-150 ease-out hover:brightness-[.94] active:scale-[.99] disabled:pointer-events-none disabled:opacity-50'
+  'inline-flex h-8 flex-none items-center justify-center gap-1.5 rounded-md px-3 text-[13px] font-medium whitespace-nowrap transition-[background-color,border-color,color,filter,transform] duration-150 ease-out active:scale-[.99] disabled:pointer-events-none disabled:opacity-50'
+// Their colors, the confirm dialog's (PapelizPillButton's `dialog-cancel` and `dialog-confirm`): Cancel
+// is white with an outline and turns soft blue when hovered; the action is solid blue. The Synced
+// Vaults page and the browser vault Rename dialog use them too.
+export const newVaultFormFooterCancelButtonColorClassName =
+  'border border-papeliz-line-strong bg-papeliz-surface text-papeliz-ink shadow-[0_1px_2px_rgb(16_24_40/0.08)] enabled:hover:border-papeliz-blue-line enabled:hover:bg-papeliz-blue-soft enabled:hover:text-papeliz-blue'
+export const newVaultFormFooterActionButtonColorClassName =
+  'bg-papeliz-gradient-start text-white shadow-[inset_0_1px_0_#ffffff1f,0_2px_3px_rgb(0_40_100/0.18)] enabled:hover:brightness-110'
 
 interface PapelizNewVaultFormProps {
   newVaultFormHeadingId: string
@@ -207,6 +215,9 @@ export function PapelizNewVaultForm({
     >
       <div className="px-3 pt-[11px] pb-1">
         <div className="flex items-center gap-2">
+          <PapelizIconButton iconButtonLabel="Back to Recent Vaults" iconButtonSize="small" className="-my-0.5 -ml-1.5" onClick={onNewVaultCancel}>
+            <ArrowLeft className="size-[15px]" aria-hidden="true" />
+          </PapelizIconButton>
           <h2 id={newVaultFormHeadingId} className="text-[18px] font-semibold tracking-[-0.01em]">
             New Vault
           </h2>
@@ -370,7 +381,7 @@ export function PapelizNewVaultForm({
 
       {/* Cancel at the left edge, the action at the right, so the two never sit side by side. */}
       <div ref={newVaultFormFooterRef} className="flex items-center justify-between gap-2 border-t border-papeliz-line p-3">
-        <button type="button" onClick={onNewVaultCancel} className={joinPapelizClassNames(newVaultFormFooterButtonClassName, 'bg-papeliz-red-gradient-start')}>
+        <button type="button" onClick={onNewVaultCancel} className={joinPapelizClassNames(newVaultFormFooterButtonClassName, newVaultFormFooterCancelButtonColorClassName)}>
           <PapelizSolidCircleXIcon className="size-[15px] flex-none" />
           Cancel
         </button>
@@ -378,7 +389,7 @@ export function PapelizNewVaultForm({
           type="button"
           disabled={browserVaultNameProblem !== null}
           onClick={confirmNewVault}
-          className={joinPapelizClassNames(newVaultFormFooterButtonClassName, 'bg-papeliz-chosen-tab-ground')}
+          className={joinPapelizClassNames(newVaultFormFooterButtonClassName, newVaultFormFooterActionButtonColorClassName)}
         >
           <PapelizSolidCircleCheckIcon className="size-[15px] flex-none" />
           {isBrowserVaultNameAsked ? 'Create Vault' : 'Pick Folder'}

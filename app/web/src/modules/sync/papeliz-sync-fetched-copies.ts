@@ -47,11 +47,16 @@ export function forgetPapelizSyncFetchedCopy(papelizVaultId: string): void {
   }
 }
 
-// The synced vaults this device holds a copy of, counting only the copies still here.
-export function listPapelizSyncVaultIdsCopiedHere(papelizVaultIdsOnThisDevice: ReadonlySet<string>): Set<string> {
-  return new Set(
+// The copies still here, each by the synced vault it came from: the vault on this device it went into.
+export function mapPapelizSyncVaultIdsToCopiesHere(papelizVaultIdsOnThisDevice: ReadonlySet<string>): Map<string, string> {
+  return new Map(
     listPapelizSyncFetchedCopies()
       .filter((fetchedCopy) => papelizVaultIdsOnThisDevice.has(fetchedCopy.papelizVaultId))
-      .map((fetchedCopy) => fetchedCopy.papelizSyncVaultId),
+      .map((fetchedCopy) => [fetchedCopy.papelizSyncVaultId, fetchedCopy.papelizVaultId]),
   )
+}
+
+// The synced vaults this device holds a copy of, counting only the copies still here.
+export function listPapelizSyncVaultIdsCopiedHere(papelizVaultIdsOnThisDevice: ReadonlySet<string>): Set<string> {
+  return new Set(mapPapelizSyncVaultIdsToCopiesHere(papelizVaultIdsOnThisDevice).keys())
 }
