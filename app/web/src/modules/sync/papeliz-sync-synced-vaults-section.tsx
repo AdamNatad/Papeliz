@@ -4,7 +4,7 @@ import { PapelizConfirmDialog } from '../ui/papeliz-confirm-dialog'
 import { usePapelizWorkspaceStore } from '../workspace/papeliz-workspace-store'
 import type { PapelizSyncAccountVaultReading, PapelizSyncActionOutcome, PapelizSyncEngine } from './papeliz-sync-engine-contract'
 import { openPapelizSyncSetUpDialog } from './papeliz-sync-flow-store'
-import { PapelizSyncFailureLine, PapelizSyncLoadingLine, PapelizSyncPageBox, PapelizSyncPageLabel, PapelizSyncPageSmallText, PapelizSyncTextButton } from './papeliz-sync-page-parts'
+import { PapelizSyncDetailPieces, PapelizSyncFailureLine, PapelizSyncLoadingLine, PapelizSyncPageBox, PapelizSyncPageLabel, PapelizSyncPageSmallText, PapelizSyncTextButton } from './papeliz-sync-page-parts'
 import { PapelizSyncPassphraseField } from './papeliz-sync-passphrase-fields'
 import { describePapelizSyncActionFailureNow, describePapelizSyncFileCount, formatPapelizSyncByteSize, papelizSyncVaultEncryptionKindDisplayNames } from './papeliz-sync-screen-words'
 
@@ -160,15 +160,25 @@ export function PapelizSyncSyncedVaultsSection({
                     )}
                   </div>
                   <div className="flex flex-wrap items-center gap-x-1 text-[11.5px] leading-[1.35] text-papeliz-ink-subtle tabular-nums">
-                    <span className="inline-flex items-center gap-1 whitespace-nowrap">
-                      {isAccountVaultEndToEnd && <Lock className="size-3 flex-none" aria-hidden="true" />}
-                      {papelizSyncVaultEncryptionKindDisplayNames[accountVault.syncVaultEncryptionKind]}
-                    </span>
-                    {isPapelizSyncVaultLockedHere(accountVault) && <span className="whitespace-nowrap font-medium text-papeliz-warning-ink">· locked here</span>}
-                    <span className="whitespace-nowrap">
-                      · {describePapelizSyncFileCount(accountVault.syncVaultFileCount)} · {formatPapelizSyncByteSize(accountVault.syncVaultStoredByteLength)}
-                    </span>
-                    {accountVaultPlace === 'not-on-this-device' && <span className="whitespace-nowrap">· not on this device</span>}
+                    <PapelizSyncDetailPieces
+                      syncDetailPieces={[
+                        {
+                          syncDetailPieceKey: 'encryption-kind',
+                          syncDetailPieceContent: (
+                            <>
+                              {isAccountVaultEndToEnd && <Lock className="size-3 flex-none" aria-hidden="true" />}
+                              {papelizSyncVaultEncryptionKindDisplayNames[accountVault.syncVaultEncryptionKind]}
+                            </>
+                          ),
+                        },
+                        ...(isPapelizSyncVaultLockedHere(accountVault)
+                          ? [{ syncDetailPieceKey: 'locked-here', syncDetailPieceContent: 'locked here', syncDetailPieceClassName: 'font-medium text-papeliz-warning-ink' }]
+                          : []),
+                        { syncDetailPieceKey: 'file-count', syncDetailPieceContent: describePapelizSyncFileCount(accountVault.syncVaultFileCount) },
+                        { syncDetailPieceKey: 'stored-size', syncDetailPieceContent: formatPapelizSyncByteSize(accountVault.syncVaultStoredByteLength) },
+                        ...(accountVaultPlace === 'not-on-this-device' ? [{ syncDetailPieceKey: 'not-here', syncDetailPieceContent: 'not on this device' }] : []),
+                      ]}
+                    />
                   </div>
                 </div>
               </div>

@@ -1,4 +1,4 @@
-import { AppWindow, ArrowLeft, Check, ChevronRight, Cloud, CloudCheck, CloudDownload, CloudOff, Ellipsis, FolderOpen, LoaderCircle, Lock, LockOpen, RefreshCw, RotateCcw, TriangleAlert, type LucideIcon } from 'lucide-react'
+import { AppWindow, ArrowLeft, Check, ChevronRight, Cloud, CloudCheck, CloudDownload, CloudOff, CreditCard, Ellipsis, FolderOpen, LoaderCircle, Lock, LockOpen, RefreshCw, RotateCcw, TriangleAlert, type LucideIcon } from 'lucide-react'
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { PapelizIconButton } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
@@ -33,7 +33,7 @@ import {
 } from './papeliz-sync-flow-store'
 import { usePapelizSyncClockTime } from './papeliz-sync-clock'
 import { usePapelizSyncSyncedVaultsPagePreviewStore, type PapelizSyncSyncedVaultsPageStep } from './papeliz-sync-synced-vaults-page-preview-store'
-import { PapelizSyncFailureLine, PapelizSyncLoadingLine, PapelizSyncTextButton } from './papeliz-sync-page-parts'
+import { PapelizSyncDetailPieces, PapelizSyncFailureLine, PapelizSyncLoadingLine, PapelizSyncTextButton } from './papeliz-sync-page-parts'
 import { PapelizSyncPassphraseField } from './papeliz-sync-passphrase-fields'
 import {
   describePapelizSyncActionFailureNow,
@@ -395,8 +395,9 @@ export function PapelizSyncSyncedVaultsPage({
   // The page's heading line, body and footer action, for the step it's on.
   let syncedVaultsPageSubtitle = 'Download a vault from your Papeliz Sync account.'
   let syncedVaultsPageBody: ReactNode = null
-  let syncedVaultsPagePrimaryAction: { primaryActionLabel: string; isPrimaryActionDisabled?: boolean; onPrimaryActionSelect: () => void } | null = null
-  let syncedVaultsPageCancelLabel = 'Cancel'
+  // Its icon is the solid check for an action that confirms a choice (Sign in, Pick Folder, Download,
+  // Unlock); Try again and See plans have their own.
+  let syncedVaultsPagePrimaryAction: { primaryActionLabel: string; PrimaryActionIcon?: LucideIcon; isPrimaryActionDisabled?: boolean; onPrimaryActionSelect: () => void } | null = null
 
   switch (syncedVaultsPageStep) {
     case 'waiting-for-fetch':
@@ -425,6 +426,7 @@ export function PapelizSyncSyncedVaultsPage({
       )
       syncedVaultsPagePrimaryAction = {
         primaryActionLabel: 'Try again',
+        PrimaryActionIcon: RotateCcw,
         onPrimaryActionSelect: () => {
           if (heldSyncedVaultsPagePreview === null) void loadPapelizSyncEngine()
         },
@@ -463,7 +465,7 @@ export function PapelizSyncSyncedVaultsPage({
           <PapelizSyncSyncedVaultsPageStepText>Papeliz Sync is a paid add-on. Choose a plan, then turn Sync on for a vault on another device to fetch it here.</PapelizSyncSyncedVaultsPageStepText>
         </PapelizSyncSyncedVaultsPageCenteredStep>
       )
-      syncedVaultsPagePrimaryAction = { primaryActionLabel: 'See plans', onPrimaryActionSelect: requestPapelizSettingsGearSyncPage }
+      syncedVaultsPagePrimaryAction = { primaryActionLabel: 'See plans', PrimaryActionIcon: CreditCard, onPrimaryActionSelect: requestPapelizSettingsGearSyncPage }
       break
     case 'subscription-held':
       syncedVaultsPageBody = (
@@ -476,7 +478,7 @@ export function PapelizSyncSyncedVaultsPage({
           </PapelizSyncSyncedVaultsPageStepText>
         </PapelizSyncSyncedVaultsPageCenteredStep>
       )
-      syncedVaultsPagePrimaryAction = { primaryActionLabel: 'See plans', onPrimaryActionSelect: requestPapelizSettingsGearSyncPage }
+      syncedVaultsPagePrimaryAction = { primaryActionLabel: 'See plans', PrimaryActionIcon: CreditCard, onPrimaryActionSelect: requestPapelizSettingsGearSyncPage }
       break
     case 'synced-vault-list': {
       if (accountVaultsOutcome === null) {
@@ -484,8 +486,12 @@ export function PapelizSyncSyncedVaultsPage({
         break
       }
       if (accountVaultsOutcome.syncActionOutcome === 'failed') {
-        syncedVaultsPageBody = <PapelizSyncFailureLine>{describePapelizSyncActionFailureNow(accountVaultsOutcome)}</PapelizSyncFailureLine>
-        syncedVaultsPagePrimaryAction = { primaryActionLabel: 'Try again', onPrimaryActionSelect: () => setAccountVaultsReadCount((readCount) => readCount + 1) }
+        syncedVaultsPageBody = (
+          <PapelizSyncSyncedVaultsPageCenteredStep SyncedVaultsPageStepIcon={CloudOff} syncedVaultsPageStepTitle="Couldn’t read your synced vaults">
+            <PapelizSyncSyncedVaultsPageStepText>{describePapelizSyncActionFailureNow(accountVaultsOutcome)}</PapelizSyncSyncedVaultsPageStepText>
+          </PapelizSyncSyncedVaultsPageCenteredStep>
+        )
+        syncedVaultsPagePrimaryAction = { primaryActionLabel: 'Try again', PrimaryActionIcon: RotateCcw, onPrimaryActionSelect: () => setAccountVaultsReadCount((readCount) => readCount + 1) }
         break
       }
       const accountVaultCount = accountVaultsOutcome.syncActionDoneValue.length
@@ -496,14 +502,12 @@ export function PapelizSyncSyncedVaultsPage({
             <PapelizSyncSyncedVaultsPageStepText>Turn Sync on for a vault in Settings, on this device or another one.</PapelizSyncSyncedVaultsPageStepText>
           </PapelizSyncSyncedVaultsPageCenteredStep>
         )
-        syncedVaultsPageCancelLabel = 'Close'
         break
       }
       const isEveryAccountVaultHere = accountVaultsToDownload.length === 0
       syncedVaultsPageSubtitle = isEveryAccountVaultHere
         ? 'Every vault on your account is on this device.'
         : `${accountVaultCount} ${accountVaultCount === 1 ? 'vault' : 'vaults'} on your account. ${isSyncDownloadCopyOnly ? 'Pick one to download as a copy that won’t sync.' : 'Pick one to download; it stays in sync.'}`
-      if (isEveryAccountVaultHere) syncedVaultsPageCancelLabel = 'Close'
       syncedVaultsPageBody = (
         <>
           {syncAccount?.syncSubscriptionState === 'ended-read-only' && (
@@ -557,16 +561,25 @@ export function PapelizSyncSyncedVaultsPage({
                       <PapelizSyncStartScreenDownloadProgressLines syncStartScreenDownload={syncStartScreenDownload} />
                     ) : (
                       <span className="flex flex-wrap items-center gap-x-1 text-[11.5px] text-papeliz-ink-subtle tabular-nums">
-                        <span
-                          className={joinPapelizClassNames('inline-flex items-center gap-1 whitespace-nowrap', isAccountVaultEndToEnd && 'font-medium text-papeliz-ink-muted')}
-                          title={isAccountVaultEndToEnd ? (isAccountVaultLockedHere(accountVault) ? 'End-to-end: its passphrase is asked once on this device' : 'End-to-end, unlocked on this device') : undefined}
-                        >
-                          {isAccountVaultEndToEnd && <AccountVaultLockIcon className="size-3 flex-none" aria-hidden="true" />}
-                          {papelizSyncVaultEncryptionKindDisplayNames[accountVault.syncVaultEncryptionKind]}
-                        </span>
-                        <span className="whitespace-nowrap">
-                          · {describePapelizSyncFileCount(accountVault.syncVaultFileCount)} · {formatPapelizSyncByteSize(accountVault.syncVaultStoredByteLength)}
-                        </span>
+                        <PapelizSyncDetailPieces
+                          syncDetailPieces={[
+                            {
+                              syncDetailPieceKey: 'encryption-kind',
+                              syncDetailPieceContent: (
+                                <span
+                                  className="inline-flex items-center gap-1"
+                                  title={isAccountVaultEndToEnd ? (isAccountVaultLockedHere(accountVault) ? 'End-to-end: its passphrase is asked once on this device' : 'End-to-end, unlocked on this device') : undefined}
+                                >
+                                  {isAccountVaultEndToEnd && <AccountVaultLockIcon className="size-3 flex-none" aria-hidden="true" />}
+                                  {papelizSyncVaultEncryptionKindDisplayNames[accountVault.syncVaultEncryptionKind]}
+                                </span>
+                              ),
+                              syncDetailPieceClassName: isAccountVaultEndToEnd ? 'font-medium text-papeliz-ink-muted' : undefined,
+                            },
+                            { syncDetailPieceKey: 'file-count', syncDetailPieceContent: describePapelizSyncFileCount(accountVault.syncVaultFileCount) },
+                            { syncDetailPieceKey: 'stored-size', syncDetailPieceContent: formatPapelizSyncByteSize(accountVault.syncVaultStoredByteLength) },
+                          ]}
+                        />
                       </span>
                     )}
                   </span>
@@ -685,10 +698,10 @@ export function PapelizSyncSyncedVaultsPage({
               <div role="radiogroup" aria-labelledby={`${syncedVaultsPageIdPrefix}-place-label`} className="grid grid-cols-2 gap-2 max-sm:grid-cols-1">
                 {(
                   [
-                    { downloadPlace: 'folder-on-disk', DownloadPlaceIcon: FolderOpen, downloadPlaceTitle: 'Folder Storage', downloadPlaceLine: 'An empty folder on your machine', isDownloadPlaceRecommended: true },
-                    { downloadPlace: 'browser-vault-in-opfs', DownloadPlaceIcon: AppWindow, downloadPlaceTitle: 'Browser Storage', downloadPlaceLine: 'Inside this browser', isDownloadPlaceRecommended: false },
+                    { downloadPlace: 'folder-on-disk', DownloadPlaceIcon: FolderOpen, downloadPlaceTitle: 'Folder Storage', downloadPlaceLine: 'An empty folder on your machine', downloadPlaceBadgeTone: 'recommended' },
+                    { downloadPlace: 'browser-vault-in-opfs', DownloadPlaceIcon: AppWindow, downloadPlaceTitle: 'Browser Storage', downloadPlaceLine: 'Inside this browser', downloadPlaceBadgeTone: 'risky' },
                   ] as const
-                ).map(({ downloadPlace, DownloadPlaceIcon, downloadPlaceTitle, downloadPlaceLine, isDownloadPlaceRecommended }) => {
+                ).map(({ downloadPlace, DownloadPlaceIcon, downloadPlaceTitle, downloadPlaceLine, downloadPlaceBadgeTone }) => {
                   const isDownloadPlaceChosen = downloadPlace === chosenDownloadPlace
                   return (
                     <label
@@ -717,11 +730,17 @@ export function PapelizSyncSyncedVaultsPage({
                       <span className="flex min-w-0 flex-col gap-0.5">
                         <span className="flex items-center gap-1.5 text-[13px] leading-tight font-semibold whitespace-nowrap">
                           {downloadPlaceTitle}
-                          {isDownloadPlaceRecommended && (
-                            <span className="rounded-full border border-papeliz-diff-added-ink/30 bg-papeliz-diff-added px-1.5 py-px text-[10px] leading-snug font-semibold text-papeliz-diff-added-ink">
-                              Recommended
-                            </span>
-                          )}
+                          {/* The same tags as New Vault's form. */}
+                          <span
+                            className={joinPapelizClassNames(
+                              'rounded-full border px-1.5 py-px text-[10px] leading-snug font-semibold',
+                              downloadPlaceBadgeTone === 'recommended'
+                                ? 'border-papeliz-diff-added-ink/30 bg-papeliz-diff-added text-papeliz-diff-added-ink'
+                                : 'border-papeliz-diff-removed-ink/30 bg-papeliz-diff-removed text-papeliz-diff-removed-ink',
+                            )}
+                          >
+                            {downloadPlaceBadgeTone === 'recommended' ? 'Recommended' : 'Risky'}
+                          </span>
                         </span>
                         <span className="truncate text-[11.5px] text-papeliz-ink-subtle">{downloadPlaceLine}</span>
                       </span>
@@ -739,6 +758,8 @@ export function PapelizSyncSyncedVaultsPage({
           )}
         </>
       )
+      // Nothing left to download: no action, only Close.
+      if (isEveryAccountVaultHere) break
       if (isChosenVaultPassphraseAsked) {
         syncedVaultsPagePrimaryAction = {
           primaryActionLabel: 'Unlock',
@@ -760,8 +781,9 @@ export function PapelizSyncSyncedVaultsPage({
   }
 
   const isSyncDownloadOptionsButtonShown = isSyncedVaultListShown && accountVaultsToDownload.length > 0
-  // Refresh shows once signed in; its icon turns while the account or its vaults are read.
-  const isSyncedVaultsRefreshButtonShown = !papelizSyncSyncedVaultsPageStepsBeforeSignIn.has(syncedVaultsPageStep)
+  // Refresh shows once signed in (not beside Try again when the vaults couldn't be read); its icon turns
+  // while the account or its vaults are read.
+  const isSyncedVaultsRefreshButtonShown = !papelizSyncSyncedVaultsPageStepsBeforeSignIn.has(syncedVaultsPageStep) && accountVaultsOutcome?.syncActionOutcome !== 'failed'
   const isSyncedVaultsRefreshTurning = isSyncAccountRefreshRunning || syncedVaultsPageStep === 'reading-account' || (isSyncedVaultListShown && accountVaultsOutcome === null)
   // The sign-in the button started counts only while the page still waits on signing in.
   const isSignInStepShown = syncedVaultsPageStep === 'signed-out' || syncedVaultsPageStep === 'device-removed' || syncedVaultsPageStep === 'waiting-for-sign-in'
@@ -825,11 +847,11 @@ export function PapelizSyncSyncedVaultsPage({
         {shownSyncedVaultsPageFailureWords !== null && <PapelizSyncFailureLine className="mt-1 px-0.5">{shownSyncedVaultsPageFailureWords}</PapelizSyncFailureLine>}
       </div>
 
-      {/* Cancel at the left edge, the action at the right, as in New Vault's form. */}
+      {/* Close at the left edge in every step, the action at the right, as in New Vault's form. */}
       <div ref={syncedVaultsPageFooterRef} className="flex items-center justify-between gap-2 border-t border-papeliz-line p-3">
         <button type="button" onClick={onSyncedVaultsPageClose} className={joinPapelizClassNames(newVaultFormFooterButtonClassName, newVaultFormFooterCancelButtonColorClassName)}>
           <PapelizSolidCircleXIcon className="size-[15px] flex-none" />
-          {syncedVaultsPageCancelLabel}
+          Close
         </button>
         {syncedVaultsPagePrimaryAction !== null && (
           <button
@@ -838,7 +860,13 @@ export function PapelizSyncSyncedVaultsPage({
             onClick={syncedVaultsPagePrimaryAction.onPrimaryActionSelect}
             className={joinPapelizClassNames(newVaultFormFooterButtonClassName, newVaultFormFooterActionButtonColorClassName)}
           >
-            {isSyncedVaultsPageActionRunning ? <LoaderCircle className="size-[15px] flex-none animate-spin" aria-hidden="true" /> : <PapelizSolidCircleCheckIcon className="size-[15px] flex-none" />}
+            {isSyncedVaultsPageActionRunning ? (
+              <LoaderCircle className="size-[15px] flex-none animate-spin" aria-hidden="true" />
+            ) : syncedVaultsPagePrimaryAction.PrimaryActionIcon !== undefined ? (
+              <syncedVaultsPagePrimaryAction.PrimaryActionIcon className="size-[15px] flex-none" aria-hidden="true" />
+            ) : (
+              <PapelizSolidCircleCheckIcon className="size-[15px] flex-none" />
+            )}
             {syncedVaultsPagePrimaryAction.primaryActionLabel}
           </button>
         )}

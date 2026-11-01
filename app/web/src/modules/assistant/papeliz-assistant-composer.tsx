@@ -38,9 +38,10 @@ const papelizAssistantReasoningEffortChoices: ReadonlyArray<{
   { assistantReasoningEffort: 'high', reasoningEffortLabel: 'High', ReasoningEffortIcon: SignalHigh },
 ]
 
-// The quiet text buttons along the bottom of the box.
+// The quiet text buttons along the bottom of the box; on a touch screen at least 40px each way, for a
+// finger, even when a narrow box shows only the icon.
 const papelizComposerQuietButtonClassName =
-  'flex h-7 min-w-0 flex-none items-center gap-1 rounded-lg px-1.5 text-[12.5px] text-papeliz-ink-muted transition-colors hover:bg-papeliz-hover hover:text-papeliz-ink aria-expanded:bg-papeliz-hover'
+  'flex h-7 min-w-0 flex-none items-center gap-1 rounded-lg px-1.5 text-[12.5px] text-papeliz-ink-muted transition-colors hover:bg-papeliz-hover hover:text-papeliz-ink aria-expanded:bg-papeliz-hover pointer-coarse:h-10 pointer-coarse:min-w-10 pointer-coarse:justify-center'
 
 // Which of the composer's chip menus is open, and where.
 type PapelizComposerChipMenu = { composerChipMenuKind: 'effort' | 'permission'; composerChipMenuPosition: PapelizPopoverMenuPosition }
@@ -302,7 +303,7 @@ export function PapelizAssistantComposer({ composerPlacement }: PapelizAssistant
           aria-label="Add files or pictures"
           title="Add files or pictures (or paste or drop them here)"
           onClick={() => attachmentFileInputRef.current?.click()}
-          className="mr-0.5 grid size-7 flex-none place-items-center rounded-full border border-papeliz-line text-papeliz-ink-muted transition-colors hover:bg-papeliz-hover hover:text-papeliz-ink"
+          className="mr-0.5 grid size-7 flex-none place-items-center rounded-full border border-papeliz-line text-papeliz-ink-muted transition-colors hover:bg-papeliz-hover hover:text-papeliz-ink pointer-coarse:size-10"
         >
           <Plus className="size-4" aria-hidden="true" />
         </button>
@@ -376,7 +377,7 @@ export function PapelizAssistantComposer({ composerPlacement }: PapelizAssistant
               aria-label="Stop"
               title="Stop"
               onClick={stopAssistant}
-              className="grid size-8 flex-none place-items-center rounded-full bg-papeliz-ink text-papeliz-surface transition-transform active:scale-90"
+              className="grid size-8 flex-none place-items-center rounded-full bg-papeliz-ink text-papeliz-surface transition-transform active:scale-90 pointer-coarse:size-10"
             >
               <Square className="size-3.5 fill-current" aria-hidden="true" />
             </button>
@@ -388,7 +389,7 @@ export function PapelizAssistantComposer({ composerPlacement }: PapelizAssistant
             title="Send (Enter)"
             disabled={isComposerDraftEmpty}
             onClick={sendComposerDraft}
-            className="ml-1 grid size-8 flex-none place-items-center rounded-full bg-papeliz-gradient-start text-white transition-[transform,opacity,background-color] hover:brightness-95 active:scale-90 disabled:opacity-40"
+            className="ml-1 grid size-8 flex-none place-items-center rounded-full bg-papeliz-gradient-start text-white transition-[transform,opacity,background-color] hover:brightness-95 active:scale-90 disabled:opacity-40 pointer-coarse:size-10"
           >
             <ArrowUp className="size-4" strokeWidth={2.4} aria-hidden="true" />
           </button>

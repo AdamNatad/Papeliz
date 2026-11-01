@@ -68,6 +68,23 @@ export function PapelizSyncPageRow({ SyncPageRowIcon, syncPageRowTitle, syncPage
   )
 }
 
+export interface PapelizSyncDetailPiece {
+  syncDetailPieceKey: string
+  syncDetailPieceContent: ReactNode
+  syncDetailPieceClassName?: string
+}
+
+// A vault's detail line, "End-to-end · 128 files · 4.2 MB": each piece kept whole, with its dot at its
+// end, so a narrow line breaks only between pieces and never starts with a dot. Goes in a flex-wrap line.
+export function PapelizSyncDetailPieces({ syncDetailPieces }: { syncDetailPieces: readonly PapelizSyncDetailPiece[] }) {
+  return syncDetailPieces.map((syncDetailPiece, syncDetailPieceIndex) => (
+    <span key={syncDetailPiece.syncDetailPieceKey} className="inline-flex items-center gap-1 whitespace-nowrap">
+      <span className={joinPapelizClassNames('inline-flex items-center gap-1', syncDetailPiece.syncDetailPieceClassName)}>{syncDetailPiece.syncDetailPieceContent}</span>
+      {syncDetailPieceIndex < syncDetailPieces.length - 1 && <span>·</span>}
+    </span>
+  ))
+}
+
 interface PapelizSyncSwitchProps {
   syncSwitchLabel: string
   isSyncSwitchOn: boolean

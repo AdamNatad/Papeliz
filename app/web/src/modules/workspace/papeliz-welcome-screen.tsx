@@ -1128,13 +1128,15 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                                         {recentVaultSyncEncryptionKinds !== null && (
                                           <PapelizRecentVaultSyncBadges recentVaultSyncEncryptionKind={recentVaultSyncEncryptionKinds.get(recentVault.papelizVaultId) ?? null} />
                                         )}
+                                        {/* On a phone the time sits on its own line here, so the name keeps the width. */}
+                                        <span className="basis-full sm:hidden">{describeTimeSince(recentVault.papelizVaultLastOpenedAt)}</span>
                                       </span>
                                     ) : (
                                       <PapelizSyncStartScreenDownloadProgressLines syncStartScreenDownload={syncStartScreenDownload} />
                                     )}
                                   </span>
                                   {syncStartScreenDownload === undefined ? (
-                                    <span className="flex-none text-[11.5px] text-papeliz-ink-subtle">{describeTimeSince(recentVault.papelizVaultLastOpenedAt)}</span>
+                                    <span className="flex-none text-[11.5px] text-papeliz-ink-subtle max-sm:hidden">{describeTimeSince(recentVault.papelizVaultLastOpenedAt)}</span>
                                   ) : (
                                     !isSyncDownloadStopped &&
                                     syncDownloadPercent !== null && <span className="flex-none text-[11.5px] text-papeliz-ink-subtle tabular-nums">{syncDownloadPercent}%</span>
@@ -1155,17 +1157,18 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                                       <PapelizIconButton
                                         iconButtonLabel={`Hide ${recentVault.papelizVaultDisplayName}`}
                                         iconButtonSize="small"
-                                        className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 max-md:opacity-100"
+                                        className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 max-md:opacity-100 pointer-coarse:size-10 pointer-coarse:opacity-100"
                                         onClick={() => setRecentVaultHidden(recentVault, true)}
                                       >
                                         <EyeOff className="size-[15px]" aria-hidden="true" />
                                       </PapelizIconButton>
-                                      {/* The row's menu (the right-click one), for a mouse, a keyboard or a finger. */}
+                                      {/* The row's menu (the right-click one), for a mouse, a keyboard or a finger. On a touch
+                                          screen it and Hide grow to 40px side by side, so their hit areas never overlap. */}
                                       <PapelizIconButton
                                         iconButtonLabel={`More for ${recentVault.papelizVaultDisplayName}`}
                                         iconButtonSize="small"
                                         aria-haspopup="menu"
-                                        className="mr-2.5 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 max-md:opacity-100"
+                                        className="mr-2.5 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 max-md:opacity-100 pointer-coarse:mr-1 pointer-coarse:size-10 pointer-coarse:opacity-100"
                                         onClick={(clickEvent) => {
                                           const moreButtonRect = clickEvent.currentTarget.getBoundingClientRect()
                                           setRecentVaultMenu({
