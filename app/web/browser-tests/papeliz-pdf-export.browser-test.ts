@@ -22,7 +22,7 @@ async function prepareExportPage(page: Page): Promise<void> {
     }
   })
   await page.goto('/')
-  await page.getByText('Try Sample').first().click()
+  await page.getByRole('button', { name: 'Try Sample' }).first().click()
   await expect(page.locator('.cm-content, .papeliz-md-view-article').first()).toBeVisible()
 }
 
@@ -107,7 +107,7 @@ test('exports the open note as a PDF on the chosen paper, with no print window, 
   const { exportFileBytes: a4FileBytes } = await exportAndDownload(page)
   expect((await readPdfFile(a4FileBytes)).pdfPageSize).toEqual([595.28, 841.89])
   await page.reload()
-  await page.getByText('Try Sample').first().click()
+  await page.getByRole('button', { name: 'Try Sample' }).first().click()
   await openExportPageWithPdf(page)
   await expect(page.getByRole('radiogroup', { name: 'Paper' }).getByRole('radio', { name: 'A4' })).toHaveAttribute('aria-checked', 'true')
 })

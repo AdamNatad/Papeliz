@@ -1,5 +1,5 @@
 import { AppWindow, BookOpen, CloudCheck, CloudDownload, Code, Download, Ellipsis, Eye, EyeOff, FolderOpen, FolderPlus, HardDrive, History, Lock, Pencil, RefreshCw, RotateCcw, Search, Trash2, type LucideIcon } from 'lucide-react'
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type Ref } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type Ref } from 'react'
 import { isPapelizSyncEngineInThisBuild } from 'virtual:papeliz-sync-engine-availability'
 import type { PapelizSyncVaultEncryptionKind } from '../sync/papeliz-sync-engine-contract'
 import { isPapelizSyncUsedOnThisDevice, readPapelizSyncDevFakeEngineScenarioText, usePapelizSyncEngineSnapshot, usePapelizSyncEngineStore } from '../sync/papeliz-sync-engine-store'
@@ -14,6 +14,7 @@ import {
 import { PapelizIconButton, PapelizPillButton, papelizOutlineButtonColorClassName } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { PapelizConfirmDialog } from '../ui/papeliz-confirm-dialog'
+import { PapelizHoverTooltip, PapelizTooltipBubble, PapelizTooltipLine } from '../ui/papeliz-hover-tooltip'
 import { PapelizMark } from '../ui/papeliz-mark'
 import { PapelizPopoverMenu, type PapelizPopoverMenuPosition } from '../ui/papeliz-popover-menu'
 import {
@@ -102,22 +103,59 @@ const papelizVaultRowEndTimeClassName =
 const papelizVaultRowEndButtonsClassName =
   'flex items-center transition-opacity duration-150 md:pointer-fine:col-start-1 md:pointer-fine:row-start-1 md:pointer-fine:opacity-0 md:pointer-fine:group-focus-within:opacity-100 md:pointer-fine:group-hover:opacity-100'
 
-// Where a recent vault is kept, under its name.
-function PapelizRecentVaultPlace({ recentVault }: { recentVault: PapelizRecentVault }) {
+// The words under a vault's name: where it's kept, then whether it syncs and how it's encrypted. Each
+// has a tooltip; a vault row's button says them all to screen readers and shows them on keyboard focus.
+type PapelizVaultRowWordKind = 'browser-storage' | 'folder-storage' | 'sync' | 'standard-encryption' | 'end-to-end-encryption' | 'local'
+
+const papelizVaultRowWordTooltips: Record<PapelizVaultRowWordKind, { vaultRowWordTitle: string; vaultRowWordTooltipText: string }> = {
+  'browser-storage': { vaultRowWordTitle: 'Browser Storage', vaultRowWordTooltipText: 'Kept inside this browser. Download backups, since a browser can clear it.' },
+  'folder-storage': { vaultRowWordTitle: 'Folder Storage', vaultRowWordTooltipText: 'Kept in a folder on this device.' },
+  sync: { vaultRowWordTitle: 'Sync', vaultRowWordTooltipText: 'Kept in sync with your other devices through Papeliz Sync.' },
+  'standard-encryption': {
+    vaultRowWordTitle: 'Standard Encryption',
+    vaultRowWordTooltipText: 'Encrypted on Papeliz Sync with a key Papeliz keeps, so there’s no passphrase to lose. Papeliz could read it.',
+  },
+  'end-to-end-encryption': {
+    vaultRowWordTitle: 'End-to-End Encryption',
+    vaultRowWordTooltipText: 'Encrypted on this device with your passphrase. Only you can read it, and Papeliz can’t recover the passphrase.',
+  },
+  local: { vaultRowWordTitle: 'Local', vaultRowWordTooltipText: 'Only on this device. It doesn’t sync.' },
+}
+
+// A vault row's words, in order: where it's kept, then (where Sync is in the build) its sync badges.
+// `recentVaultSyncEncryptionKind` is undefined where there are no sync badges.
+function listVaultRowWordKinds(recentVault: PapelizRecentVault, recentVaultSyncEncryptionKind: PapelizSyncVaultEncryptionKind | null | undefined): PapelizVaultRowWordKind[] {
+  const vaultRowStorageWordKind: PapelizVaultRowWordKind = recentVault.papelizRecentVaultKind === 'browser-vault-in-opfs' ? 'browser-storage' : 'folder-storage'
+  if (recentVaultSyncEncryptionKind === undefined) return [vaultRowStorageWordKind]
+  if (recentVaultSyncEncryptionKind === null) return [vaultRowStorageWordKind, 'local']
+  return [vaultRowStorageWordKind, 'sync', recentVaultSyncEncryptionKind === 'end-to-end' ? 'end-to-end-encryption' : 'standard-encryption']
+}
+
+// The row's words as one description, for screen readers.
+function describeVaultRowWords(vaultRowWordKinds: readonly PapelizVaultRowWordKind[]): string {
+  return vaultRowWordKinds
+    .map((vaultRowWordKind) => `${papelizVaultRowWordTooltips[vaultRowWordKind].vaultRowWordTitle}: ${papelizVaultRowWordTooltips[vaultRowWordKind].vaultRowWordTooltipText}`)
+    .join(' ')
+}
+
+// A word under a vault's name, with its tooltip on hover.
+function PapelizVaultRowWord({ vaultRowWordKind, className, children }: { vaultRowWordKind: PapelizVaultRowWordKind; className: string; children: ReactNode }) {
+  const { vaultRowWordTitle, vaultRowWordTooltipText } = papelizVaultRowWordTooltips[vaultRowWordKind]
   return (
-    <span className="inline-flex items-center gap-1">
-      {recentVault.papelizRecentVaultKind === 'browser-vault-in-opfs' ? (
-        <>
-          <AppWindow className="size-3 flex-none" aria-hidden="true" />
-          In this browser
-        </>
-      ) : (
-        <>
-          <HardDrive className="size-3 flex-none" aria-hidden="true" />
-          Folder on this device
-        </>
-      )}
-    </span>
+    <PapelizHoverTooltip tooltipLineTitle={vaultRowWordTitle} tooltipLineText={vaultRowWordTooltipText} className={className}>
+      {children}
+    </PapelizHoverTooltip>
+  )
+}
+
+// Where a recent vault is kept, under its name: Browser Storage or Folder Storage, New Vault's names.
+function PapelizRecentVaultPlace({ recentVault }: { recentVault: PapelizRecentVault }) {
+  const isBrowserVault = recentVault.papelizRecentVaultKind === 'browser-vault-in-opfs'
+  return (
+    <PapelizVaultRowWord vaultRowWordKind={isBrowserVault ? 'browser-storage' : 'folder-storage'} className="inline-flex items-center gap-1">
+      {isBrowserVault ? <AppWindow className="size-3 flex-none" aria-hidden="true" /> : <HardDrive className="size-3 flex-none" aria-hidden="true" />}
+      {papelizVaultRowWordTooltips[isBrowserVault ? 'browser-storage' : 'folder-storage'].vaultRowWordTitle}
+    </PapelizVaultRowWord>
   )
 }
 
@@ -227,15 +265,20 @@ const papelizRecentVaultEncryptionBadgeWords: Record<PapelizSyncVaultEncryptionK
 // that doesn't sync (a copy that won't sync among them).
 function PapelizRecentVaultSyncBadges({ recentVaultSyncEncryptionKind }: { recentVaultSyncEncryptionKind: PapelizSyncVaultEncryptionKind | null }) {
   if (recentVaultSyncEncryptionKind === null) {
-    return <span className={joinPapelizClassNames(papelizRecentVaultSyncBadgeClassName, 'bg-papeliz-callout-orange-ground text-papeliz-callout-orange-ink')}>Local</span>
+    return (
+      <PapelizVaultRowWord vaultRowWordKind="local" className={joinPapelizClassNames(papelizRecentVaultSyncBadgeClassName, 'bg-papeliz-callout-orange-ground text-papeliz-callout-orange-ink')}>
+        Local
+      </PapelizVaultRowWord>
+    )
   }
   return (
     <>
-      <span className={joinPapelizClassNames(papelizRecentVaultSyncBadgeClassName, 'bg-papeliz-callout-green-ground text-papeliz-callout-green-ink')}>
+      <PapelizVaultRowWord vaultRowWordKind="sync" className={joinPapelizClassNames(papelizRecentVaultSyncBadgeClassName, 'bg-papeliz-callout-green-ground text-papeliz-callout-green-ink')}>
         <CloudCheck className="size-3" aria-hidden="true" />
         Sync
-      </span>
-      <span
+      </PapelizVaultRowWord>
+      <PapelizVaultRowWord
+        vaultRowWordKind={recentVaultSyncEncryptionKind === 'end-to-end' ? 'end-to-end-encryption' : 'standard-encryption'}
         className={joinPapelizClassNames(
           papelizRecentVaultSyncBadgeClassName,
           recentVaultSyncEncryptionKind === 'end-to-end' ? 'bg-papeliz-callout-purple-ground text-papeliz-callout-purple-ink' : 'bg-papeliz-blue-soft text-papeliz-blue',
@@ -243,7 +286,7 @@ function PapelizRecentVaultSyncBadges({ recentVaultSyncEncryptionKind }: { recen
       >
         {recentVaultSyncEncryptionKind === 'end-to-end' && <Lock className="size-3" aria-hidden="true" />}
         {papelizRecentVaultEncryptionBadgeWords[recentVaultSyncEncryptionKind]}
-      </span>
+      </PapelizVaultRowWord>
     </>
   )
 }
@@ -334,6 +377,13 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
   // The system's folder window is open (Open Vault, or New Vault's Pick Folder): the list says so, in
   // case the window opened behind this one or on another screen.
   const [isVaultFolderWindowOpen, setVaultFolderWindowOpen] = useState(false)
+  // The recent vault row a keyboard user is on: its words' tooltips show under them.
+  const [keyboardFocusedVaultRowWords, setKeyboardFocusedVaultRowWords] = useState<{
+    focusedPapelizVaultId: string
+    vaultRowWordKinds: readonly PapelizVaultRowWordKind[]
+    vaultRowWordsElement: HTMLElement
+  } | null>(null)
+  const hideKeyboardFocusedVaultRowWords = useCallback(() => setKeyboardFocusedVaultRowWords(null), [])
   // The start card's right-hand panel (Recent Vaults, New Vault, Synced Vaults). On a phone it sits under
   // the blue panel's buttons, so pressing one scrolls it to the top of the screen.
   const startPagePanelRef = useRef<HTMLElement>(null)
@@ -885,17 +935,10 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                   onWelcomeActionSelect={() => void openFolderVault(false)}
                 />
               )}
-              <PapelizWelcomeAction
-                WelcomeActionIcon={BookOpen}
-                welcomeActionTitle="Try Sample"
-                welcomeActionDescription={`${papelizSampleVaultNotes.length} notes, nothing saved.`}
-                isWelcomeActionDisabled={isOpeningVault}
-                onWelcomeActionSelect={() => void openSampleVault()}
-              />
             </div>
 
             {/* The panel's foot, pinned to its bottom on wide screens: Synced Vaults above the line, then
-                the licence. Free space falls between Try Sample and it. */}
+                the licence. Free space falls between Open Vault and it. */}
             <div className="md:mt-auto">
               {isSyncedVaultsActionShown && (
                 <div className="mt-[11px]">
@@ -964,10 +1007,11 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
             ) : (
               <>
                 {/* Heading, on one line in both lists so it stays put when they switch: the title (and in the
-                    Hidden list its count) on the left; the eye previewer (development builds only), the Hidden
-                    list's eye, Reload, the search box and, in the Hidden list, Delete All last on the right. The
-                    search box gives way when the line is short. Before there is a vault, only the title and the
-                    previewer show: the eye too while vaults are hidden, Reload and search once the list has one. */}
+                    Hidden list its count) on the left; on the right, Try Sample (Recent Vaults only), the eye
+                    previewer (development builds only), the Hidden list's eye, Reload, the search box and, in the
+                    Hidden list, Delete All last. The search box gives way when the line is short. Before there is
+                    a vault, only the title and the previewer show (the empty list has its own Try Sample): the eye
+                    too while vaults are hidden, Try Sample, Reload and search once the list has one. */}
                 <div className="flex flex-wrap items-center justify-between gap-2.5 px-3 pt-[11px] pb-1.5 sm:flex-nowrap">
                   <div className="flex flex-none items-center gap-2">
                     <h2 id="papeliz-welcome-recent-heading" className="text-[18px] font-semibold tracking-[-0.01em]">
@@ -978,6 +1022,20 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                     )}
                   </div>
                   <div className="flex min-w-0 items-center justify-end gap-1.5 max-sm:w-full sm:flex-1">
+                    {!isHiddenVaultListShown && listedRecentVaults.length > 0 && (
+                      <PapelizPillButton
+                        pillButtonVariant="outline"
+                        pillButtonSize="small"
+                        disabled={isOpeningVault}
+                        title={`Open the sample vault: ${papelizSampleVaultNotes.length} notes, nothing saved`}
+                        onClick={() => void openSampleVault()}
+                        className="h-8 gap-1.5 px-3 text-[12.5px] max-sm:w-8 max-sm:px-0 pointer-coarse:h-10 max-sm:pointer-coarse:w-10"
+                      >
+                        <BookOpen className="size-3.5 flex-none" aria-hidden="true" />
+                        {/* On a phone the book alone, so the search box keeps its room. */}
+                        <span className="max-sm:sr-only">Try Sample</span>
+                      </PapelizPillButton>
+                    )}
                     <PapelizWorkspaceEyePreviewerSlot />
                     {/* The eye follows the view: crossed out on Recent Vaults (the vaults hidden from it, counted on
                         its corner), open in the Hidden list (they are showing). */}
@@ -1184,6 +1242,11 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                             const syncStartScreenDownload = syncStartScreenDownloadsByVaultId[recentVault.papelizVaultId]
                             const isSyncDownloadStopped = syncStartScreenDownload?.syncStartScreenDownloadStage === 'stopped'
                             const syncDownloadPercent = syncStartScreenDownload === undefined ? null : readPapelizSyncStartScreenDownloadPercent(syncStartScreenDownload)
+                            const vaultRowWordKinds = listVaultRowWordKinds(
+                              recentVault,
+                              recentVaultSyncEncryptionKinds === null ? undefined : (recentVaultSyncEncryptionKinds.get(recentVault.papelizVaultId) ?? null),
+                            )
+                            const vaultRowWordsDescriptionId = `papeliz-recent-vault-row-words-${recentVault.papelizVaultId}`
                             return (
                               <li
                                 key={recentVault.papelizVaultId}
@@ -1204,10 +1267,22 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                                       : 'border-papeliz-blue-line',
                                 )}
                               >
+                                {/* The words under the name, with their tooltips' sentences, for screen readers. */}
+                                <span id={vaultRowWordsDescriptionId} className="sr-only">
+                                  {describeVaultRowWords(vaultRowWordKinds)}
+                                </span>
                                 <button
                                   type="button"
                                   disabled={isOpeningVault || syncStartScreenDownload !== undefined}
+                                  aria-describedby={syncStartScreenDownload === undefined ? vaultRowWordsDescriptionId : undefined}
                                   onClick={() => void reopenRecentVault(recentVault)}
+                                  onFocus={(focusEvent) => {
+                                    // A keyboard user sees the words' tooltips, under them, while the row has focus.
+                                    if (syncStartScreenDownload !== undefined || !focusEvent.currentTarget.matches(':focus-visible')) return
+                                    const vaultRowWordsElement = focusEvent.currentTarget.querySelector<HTMLElement>('[data-papeliz-vault-row-words]')
+                                    if (vaultRowWordsElement !== null) setKeyboardFocusedVaultRowWords({ focusedPapelizVaultId: recentVault.papelizVaultId, vaultRowWordKinds, vaultRowWordsElement })
+                                  }}
+                                  onBlur={() => setKeyboardFocusedVaultRowWords(null)}
                                   className="flex min-w-0 flex-1 items-center gap-3 rounded-xl px-2.5 py-2 text-left disabled:cursor-default"
                                 >
                                   <span
@@ -1219,7 +1294,7 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                                   <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                                     <span className="truncate text-[13.5px] font-semibold">{recentVault.papelizVaultDisplayName}</span>
                                     {syncStartScreenDownload === undefined ? (
-                                      <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11.5px] text-papeliz-ink-subtle">
+                                      <span data-papeliz-vault-row-words className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11.5px] text-papeliz-ink-subtle">
                                         <PapelizRecentVaultPlace recentVault={recentVault} />
                                         {recentVaultSyncEncryptionKinds !== null && (
                                           <PapelizRecentVaultSyncBadges recentVaultSyncEncryptionKind={recentVaultSyncEncryptionKinds.get(recentVault.papelizVaultId) ?? null} />
@@ -1302,6 +1377,21 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                   </p>
                 )}
               </>
+            )}
+
+            {keyboardFocusedVaultRowWords !== null && (
+              <PapelizTooltipBubble
+                key={keyboardFocusedVaultRowWords.focusedPapelizVaultId}
+                tooltipAnchorElement={keyboardFocusedVaultRowWords.vaultRowWordsElement}
+                tooltipBubbleContent={keyboardFocusedVaultRowWords.vaultRowWordKinds.map((vaultRowWordKind) => (
+                  <PapelizTooltipLine
+                    key={vaultRowWordKind}
+                    tooltipLineTitle={papelizVaultRowWordTooltips[vaultRowWordKind].vaultRowWordTitle}
+                    tooltipLineText={papelizVaultRowWordTooltips[vaultRowWordKind].vaultRowWordTooltipText}
+                  />
+                ))}
+                onTooltipBubbleLeftBehind={hideKeyboardFocusedVaultRowWords}
+              />
             )}
 
             {recentVaultMenu !== null && (

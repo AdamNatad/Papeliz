@@ -92,7 +92,7 @@ test('a new browser vault keeps its notes across a reload', async ({ page }) => 
   await page.keyboard.type('# Garden\n\nKale and beans.')
   await expect(page.locator('footer')).toContainText('Saved in browser')
   await page.reload()
-  await expect(page.getByRole('button', { name: /Field Notes/ }).first()).toContainText('In this browser')
+  await expect(page.getByRole('button', { name: /Field Notes/ }).first()).toContainText('Browser Storage')
   await openRecentBrowserVaultNote(page, 'Field Notes', 'Garden')
   await expect(page.locator('.cm-content')).toContainText('Kale and beans.')
 })

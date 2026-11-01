@@ -49,7 +49,7 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
     articleSections: [
       helpSection('Open it', [
         helpNumberedSteps([
-          'On the start page, choose **Try Sample**.',
+          'On the start page, choose **Try Sample** at the top of **Recent Vaults**. On a first visit, with no vaults yet, it sits in the middle of the empty list.',
           'The sample notes appear in the file list. Open **Start here** first.',
         ]),
       ]),
@@ -104,7 +104,7 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
       ]),
       helpSection('Come back with Recent Vaults', [
         helpParagraph(
-          'Vaults you make or open appear under **Recent Vaults** on the start page, most recent first, so you can reopen one in a click. Under each name, **Folder on this device** or **In this browser** says where it’s kept. Type in **Search vaults** to find one in a long list.',
+          'Vaults you make or open appear under **Recent Vaults** on the start page, most recent first, so you can reopen one in a click. Under each name, **Folder Storage** or **Browser Storage** says where it’s kept, and where Papeliz Sync is in use, **Sync** and its encryption or **Local** say whether it syncs. Hover over any of them to see what it means. Type in **Search vaults** to find one in a long list.',
         ),
         helpParagraph('Right-click a vault for **Open** and **Hide**. A vault kept in this browser also has **Rename** and **Download Backup**.'),
         helpParagraph('When you reopen a folder, the browser may ask for permission again. See [[troubleshooting]].'),

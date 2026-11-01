@@ -112,7 +112,7 @@ async function setUpTestProvider(page: Page): Promise<void> {
 test('the assistant proposes an edit to a sample note, shows the diff, and changes the note only once it is accepted', async ({ page }) => {
   const { testProviderChatRequests, refusedOutsideRequestUrls } = await playTestProvider(page)
   await page.goto('/')
-  await page.getByText('Try Sample').first().click()
+  await page.getByRole('button', { name: 'Try Sample' }).first().click()
   const noteEditorContent = page.locator('.cm-content').first()
   await expect(noteEditorContent).toContainText(startHereOriginalSentence)
 
