@@ -16,7 +16,12 @@ import {
   pickFreeVaultEntryName,
   splitVaultRelativePath,
 } from './papeliz-vault-relative-paths'
-import { classifyVaultFileByName, isVaultFileSampleBytesPlainText, papelizVaultFileByteCheckLength } from './papeliz-vault-text-files'
+import {
+  assertVaultTextFileOpenableAtByteLength,
+  classifyVaultFileByName,
+  isVaultFileSampleBytesPlainText,
+  papelizVaultFileByteCheckLength,
+} from './papeliz-vault-text-files'
 
 type PapelizVaultEntryHandle = FileSystemFileHandle | FileSystemDirectoryHandle
 
@@ -135,7 +140,11 @@ export abstract class PapelizDirectoryHandleVaultAdapter implements PapelizVault
   async readVaultNoteText(vaultNoteRelativePath: string): Promise<string> {
     const vaultParentFolderHandle = await this.getVaultFolderHandle(getVaultEntryParentFolderRelativePath(vaultNoteRelativePath))
     const vaultNoteFileHandle = await vaultParentFolderHandle.getFileHandle(getVaultEntryName(vaultNoteRelativePath))
-    return readVaultFileWhileAnotherTabSwapsItIn(async () => (await vaultNoteFileHandle.getFile()).text())
+    return readVaultFileWhileAnotherTabSwapsItIn(async () => {
+      const vaultNoteFile = await vaultNoteFileHandle.getFile()
+      assertVaultTextFileOpenableAtByteLength(vaultNoteRelativePath, vaultNoteFile.size)
+      return vaultNoteFile.text()
+    })
   }
 
   // Papeliz Sync's own access (papeliz-sync-local-vault-files.ts): every file it carries, whole, with
@@ -306,6 +315,18 @@ export abstract class PapelizDirectoryHandleVaultAdapter implements PapelizVault
     await assertVaultEntryNameIsFree(toVaultParentFolderHandle, toVaultEntryName)
     await this.moveVaultEntryHandle(vaultTrashParentFolderHandle, getVaultEntryName(vaultTrashEntryRelativePath), toVaultParentFolderHandle, toVaultEntryName)
     this.noteVaultChanged()
+  }
+
+  async takeBackEmptyNewVaultNote(newVaultNoteRelativePath: string): Promise<boolean> {
+    assertVaultPathWritableByPapeliz(newVaultNoteRelativePath)
+    const newVaultNoteName = getVaultEntryName(newVaultNoteRelativePath)
+    if (!isVaultNoteFileName(newVaultNoteName)) return false
+    const vaultParentFolderHandle = await this.getVaultFolderHandle(getVaultEntryParentFolderRelativePath(newVaultNoteRelativePath))
+    const newVaultNoteFileHandle = await vaultParentFolderHandle.getFileHandle(newVaultNoteName)
+    if ((await newVaultNoteFileHandle.getFile()).size > 0) return false
+    await vaultParentFolderHandle.removeEntry(newVaultNoteName)
+    this.noteVaultChanged()
+    return true
   }
 
   private async getVaultFolderHandle(vaultFolderRelativePath: string): Promise<FileSystemDirectoryHandle> {

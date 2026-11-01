@@ -4,7 +4,7 @@ import { PapelizPillButton } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { getVaultNoteTitle } from '../vault/papeliz-vault-relative-paths'
 import { usePapelizKeyBindingShortcutLabel } from '../workspace/papeliz-key-bindings-store'
-import { usePapelizWorkspaceStore } from '../workspace/papeliz-workspace-store'
+import { selectActiveVaultMarkdownNoteRelativePath, usePapelizWorkspaceStore } from '../workspace/papeliz-workspace-store'
 import {
   papelizSuggestLinksRequestText,
   papelizSuggestTagsRequestText,
@@ -206,7 +206,7 @@ export function PapelizAssistantChatView() {
   const acceptAllPendingAssistantProposals = usePapelizAssistantConversationStore((conversationState) => conversationState.acceptAllPendingAssistantProposals)
   const setProviderSettingsDialogOpen = usePapelizAssistantPanelUiStore((panelUiState) => panelUiState.setProviderSettingsDialogOpen)
   usePapelizAssistantProviderSettingsStore((settingsState) => settingsState.providerSettingsByProviderId)
-  const activeVaultNoteRelativePath = usePapelizWorkspaceStore((workspaceState) => workspaceState.activeVaultNoteRelativePath)
+  const activeVaultMarkdownNoteRelativePath = usePapelizWorkspaceStore(selectActiveVaultMarkdownNoteRelativePath)
   const chatScrollAreaRef = useRef<HTMLDivElement>(null)
   const pendingProposalCount = Object.values(assistantProposalsById).filter((assistantProposal) => assistantProposal.proposalStatus === 'pending').length
   const activeProviderConnection = getActivePapelizAssistantProviderConnection()
@@ -241,12 +241,12 @@ export function PapelizAssistantChatView() {
             Ask about your notes, plan a change, or switch to Write: the assistant proposes edits as diffs, and nothing changes until you accept.
           </p>
           <div className="flex flex-wrap gap-1.5">
-            {activeVaultNoteRelativePath !== null && (
+            {activeVaultMarkdownNoteRelativePath !== null && (
               <button type="button" className="papeliz-assistant-suggestion-chip" onClick={() => void sendAssistantMessage('Summarize this note in a few bullet points.')}>
                 <FileSearch className="size-3.5" aria-hidden="true" /> Summarize This Note
               </button>
             )}
-            {activeVaultNoteRelativePath !== null && (
+            {activeVaultMarkdownNoteRelativePath !== null && (
               <button type="button" className="papeliz-assistant-suggestion-chip" onClick={() => void sendAssistantMessage('Which of my notes are related to this one, and how?')}>
                 <Link2 className="size-3.5" aria-hidden="true" /> Related Notes
               </button>

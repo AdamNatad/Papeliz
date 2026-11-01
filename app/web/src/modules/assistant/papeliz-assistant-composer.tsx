@@ -20,7 +20,7 @@ import { PapelizIconButton, PapelizPillButton } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { PapelizPopoverMenu, type PapelizPopoverMenuItem, type PapelizPopoverMenuPosition } from '../ui/papeliz-popover-menu'
 import { getVaultNoteTitle } from '../vault/papeliz-vault-relative-paths'
-import { usePapelizWorkspaceStore } from '../workspace/papeliz-workspace-store'
+import { selectActiveVaultMarkdownNoteRelativePath, usePapelizWorkspaceStore } from '../workspace/papeliz-workspace-store'
 import { PapelizAssistantContextWindowGauge } from './papeliz-assistant-context-window-gauge'
 import { usePapelizAssistantConversationStore } from './papeliz-assistant-conversation-store'
 import { usePapelizAssistantPanelUiStore } from './papeliz-assistant-panel-ui-store'
@@ -69,7 +69,7 @@ export function PapelizAssistantComposer({ composerPlacement }: PapelizAssistant
   const setComposerDraftText = usePapelizAssistantConversationStore((conversationState) => conversationState.setComposerDraftText)
   const setAssistantContextMode = usePapelizAssistantConversationStore((conversationState) => conversationState.setAssistantContextMode)
   const setPendingSelectionContext = usePapelizAssistantConversationStore((conversationState) => conversationState.setPendingSelectionContext)
-  const activeVaultNoteRelativePath = usePapelizWorkspaceStore((workspaceState) => workspaceState.activeVaultNoteRelativePath)
+  const activeVaultMarkdownNoteRelativePath = usePapelizWorkspaceStore(selectActiveVaultMarkdownNoteRelativePath)
   const activeAssistantProviderId = usePapelizAssistantProviderSettingsStore((settingsState) => settingsState.activeAssistantProviderId)
   const activeProviderModelName = usePapelizAssistantProviderSettingsStore(
     (settingsState) => settingsState.providerSettingsByProviderId[settingsState.activeAssistantProviderId]?.providerModelName,
@@ -116,7 +116,7 @@ export function PapelizAssistantComposer({ composerPlacement }: PapelizAssistant
     if (isAssistantRunning) steerAssistant(composerDraftText)
     else void sendAssistantMessage(composerDraftText)
   }
-  const isNoteContextShown = assistantContextMode === 'active-note' && activeVaultNoteRelativePath !== null
+  const isNoteContextShown = assistantContextMode === 'active-note' && activeVaultMarkdownNoteRelativePath !== null
   const providerChipLabel = activeProviderModelName ?? findPapelizAssistantProviderPreset(activeAssistantProviderId).providerPresetDisplayName
   const isComposerDraftEmpty = composerDraftText.trim().length === 0 && pendingAssistantAttachments.length === 0
   const isBypassPermissionOn = assistantChangePermission === 'bypass-permission'
@@ -311,11 +311,11 @@ export function PapelizAssistantComposer({ composerPlacement }: PapelizAssistant
           type="button"
           onClick={() => setAssistantContextMode(assistantContextMode === 'active-note' ? 'whole-vault' : 'active-note')}
           title="What the assistant sees with your message. Click to switch."
-          aria-label={isNoteContextShown ? `Sees ${getVaultNoteTitle(activeVaultNoteRelativePath)}` : 'Sees the Whole Vault'}
+          aria-label={isNoteContextShown ? `Sees ${getVaultNoteTitle(activeVaultMarkdownNoteRelativePath)}` : 'Sees the Whole Vault'}
           className={joinPapelizClassNames(papelizComposerQuietButtonClassName, 'max-w-[30%] flex-shrink')}
         >
           {isNoteContextShown ? <FileText className="size-3.5 flex-none" aria-hidden="true" /> : <Library className="size-3.5 flex-none" aria-hidden="true" />}
-          <span className="hidden truncate @min-[26rem]:inline">{isNoteContextShown ? getVaultNoteTitle(activeVaultNoteRelativePath) : 'Whole Vault'}</span>
+          <span className="hidden truncate @min-[26rem]:inline">{isNoteContextShown ? getVaultNoteTitle(activeVaultMarkdownNoteRelativePath) : 'Whole Vault'}</span>
         </button>
         {assistantMode === 'write' && (
           <button
@@ -350,6 +350,7 @@ export function PapelizAssistantComposer({ composerPlacement }: PapelizAssistant
             aria-haspopup="menu"
             aria-expanded={openComposerChipMenu?.composerChipMenuKind === 'effort'}
             onClick={(clickEvent) => openComposerChipMenuBelow('effort', clickEvent)}
+            aria-label={`Effort: ${chosenReasoningEffortChoice.reasoningEffortLabel}`}
             title="Effort: how long the model thinks before it answers. Click to change."
             className={papelizComposerQuietButtonClassName}
           >

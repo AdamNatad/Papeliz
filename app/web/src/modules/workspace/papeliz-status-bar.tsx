@@ -11,6 +11,7 @@ import { describePapelizNoteSaveFailure } from './papeliz-note-save-failure-word
 import { papelizNoteZoomPercentChoices, papelizNoteZoomPercentLimits, usePapelizNoteTypographyStore } from './papeliz-note-typography-store'
 import type { PapelizVaultNoteEditingLock } from './papeliz-vault-entry-locks'
 import {
+  selectIsVaultTextFileTabInFront,
   selectShownNoteViewMode,
   usePapelizActiveVaultNoteEditingLock,
   usePapelizWorkspaceStore,
@@ -122,6 +123,8 @@ export function PapelizStatusBar() {
   )
   // A text file in front shows MD Code whatever view notes have.
   const noteViewMode = usePapelizWorkspaceStore(selectShownNoteViewMode)
+  // A text file's words aren't counted: JSON and code have no words worth a count.
+  const isVaultTextFileTabInFront = usePapelizWorkspaceStore(selectIsVaultTextFileTabInFront)
   const activeVaultNoteEditingLock = usePapelizActiveVaultNoteEditingLock()
   const saveVaultNoteNow = usePapelizWorkspaceStore((workspaceState) => workspaceState.saveVaultNoteNow)
   const activeVaultNoteSaveConflict = usePapelizWorkspaceStore((workspaceState) =>
@@ -130,7 +133,7 @@ export function PapelizStatusBar() {
   // The clash dialog opens by itself for each new clash; Later hides that one until Settle.
   const [dismissedVaultNoteSaveConflict, setDismissedVaultNoteSaveConflict] = useState<PapelizVaultNoteSaveConflict | null>(null)
 
-  const deferredVaultNoteText = useDeferredValue(activeLoadedVaultNote?.draftVaultNoteText ?? '')
+  const deferredVaultNoteText = useDeferredValue(isVaultTextFileTabInFront ? '' : (activeLoadedVaultNote?.draftVaultNoteText ?? ''))
   const vaultNoteWordCount = useMemo(() => countVaultNoteWords(deferredVaultNoteText), [deferredVaultNoteText])
 
   if (openVault === null) return null
@@ -234,9 +237,11 @@ export function PapelizStatusBar() {
               </>
             )}
             <PapelizSyncStatusBarIndicator papelizVaultId={openVault.papelizVaultId} />
-            <span className="max-sm:hidden">
-              {vaultNoteWordCount.toLocaleString()} {vaultNoteWordCount === 1 ? 'word' : 'words'}
-            </span>
+            {!isVaultTextFileTabInFront && (
+              <span className="max-sm:hidden">
+                {vaultNoteWordCount.toLocaleString()} {vaultNoteWordCount === 1 ? 'word' : 'words'}
+              </span>
+            )}
           </>
         )}
         {!(isNoteReady && activeVaultNoteRelativePath !== null) && <PapelizSyncStatusBarIndicator papelizVaultId={openVault.papelizVaultId} />}

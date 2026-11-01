@@ -15,6 +15,7 @@ import {
   replaceVaultRelativePathPrefix,
   splitVaultRelativePath,
 } from './papeliz-vault-relative-paths'
+import { assertVaultTextFileOpenableAtByteLength, papelizVaultTextFileOpenByteLimit } from './papeliz-vault-text-files'
 
 export interface PapelizInMemoryVaultNote {
   vaultNoteRelativePath: string
@@ -69,6 +70,10 @@ export class PapelizInMemoryVaultAdapter implements PapelizVaultAdapter {
   async readVaultNoteText(vaultNoteRelativePath: string): Promise<string> {
     const vaultNoteText = this.vaultNoteTextsByRelativePath.get(vaultNoteRelativePath)
     if (vaultNoteText === undefined) throw new PapelizVaultOperationError('Not In Vault')
+    // UTF-8 takes at most three bytes for each UTF-16 unit, so only a long text can be over the limit.
+    if (vaultNoteText.length > papelizVaultTextFileOpenByteLimit / 3) {
+      assertVaultTextFileOpenableAtByteLength(vaultNoteRelativePath, new TextEncoder().encode(vaultNoteText).length)
+    }
     return vaultNoteText
   }
 
@@ -181,6 +186,16 @@ export class PapelizInMemoryVaultAdapter implements PapelizVaultAdapter {
     }
     this.assertNameIsFree(toVaultEntryRelativePath)
     this.moveVaultEntry(vaultTrashEntryRelativePath, toVaultEntryRelativePath)
+  }
+
+  async takeBackEmptyNewVaultNote(newVaultNoteRelativePath: string): Promise<boolean> {
+    this.assertWritableByPapeliz(newVaultNoteRelativePath)
+    if (!isVaultNoteFileName(getVaultEntryName(newVaultNoteRelativePath))) return false
+    const newVaultNoteText = this.vaultNoteTextsByRelativePath.get(newVaultNoteRelativePath)
+    if (newVaultNoteText === undefined) throw new PapelizVaultOperationError('Not In Vault')
+    if (newVaultNoteText.length > 0) return false
+    this.vaultNoteTextsByRelativePath.delete(newVaultNoteRelativePath)
+    return true
   }
 
   private moveVaultEntry(fromVaultEntryRelativePath: string, toVaultEntryRelativePath: string): void {

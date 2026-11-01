@@ -170,7 +170,9 @@ export function PapelizAssistantProviderSettingsDialog({ onProviderSettingsDialo
     listboxOptionNote: loadedProviderModelNames === null && pickableModelName === savedProviderModelName ? 'saved' : undefined,
   }))
 
-  const chosenModelName = editedProviderSettings.providerModelName.trim()
+  // The model the price is for. Where models must be loaded, it is one picked from the list: the
+  // preset's suggested model, filled in before anything is loaded, isn't chosen yet.
+  const chosenModelName = isModelListRequired && !isChosenModelPickable ? '' : editedProviderSettings.providerModelName.trim()
   const savedUserModelPrice = userModelPrices[chosenModelName.toLowerCase()]
   const papelizModelPrice = findPapelizAssistantModelPrice(chosenModelName, {})
   const typedModelPrice = typedModelPricesByModelName[chosenModelName] ?? {
@@ -233,7 +235,7 @@ export function PapelizAssistantProviderSettingsDialog({ onProviderSettingsDialo
     `$${formatPapelizAssistantModelPricePerMillionTokens(inputUsdPerMillionTokens)} in · $${formatPapelizAssistantModelPricePerMillionTokens(outputUsdPerMillionTokens)} out`
   const modelPriceSummaryText =
     chosenModelName.length === 0
-      ? ''
+      ? 'Pick a model'
       : isTypedModelPriceComplete
         ? `Yours: ${describeModelPricePair(typedInputPrice, typedOutputPrice)}`
         : papelizModelPrice !== null
@@ -441,9 +443,10 @@ export function PapelizAssistantProviderSettingsDialog({ onProviderSettingsDialo
           <summary className="flex cursor-pointer list-none items-center gap-1.5 text-[13px] font-semibold select-none [&::-webkit-details-marker]:hidden">
             <ChevronRight className="size-3.5 flex-none transition-transform group-open/model-price:rotate-90" aria-hidden="true" />
             <span className="whitespace-nowrap">Model Price</span>
-            {/* On a phone only the prices show; "per 1M tokens" is under the boxes. */}
+            {/* On a phone only the prices, or "Pick a model", show; "per 1M tokens" is under the boxes. */}
             <span className="ml-auto min-w-0 truncate pl-3 text-[12.5px] font-normal text-papeliz-ink-muted tabular-nums">
               {modelPriceSummaryText}
+              {chosenModelName.length === 0 && <span className="max-sm:hidden"> to see its price</span>}
               {isModelPriceSummaryAPrice && <span className="max-sm:hidden"> per 1M tokens</span>}
             </span>
           </summary>

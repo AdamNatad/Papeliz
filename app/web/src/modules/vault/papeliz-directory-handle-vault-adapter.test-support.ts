@@ -165,6 +165,32 @@ export function describePapelizDirectoryHandleVaultAdapterCases(
       expect(Object.keys(vaultFolderContents).some((vaultRelativePath) => vaultRelativePath.startsWith('.trash/Ideas'))).toBe(false)
     })
 
+    it('opens a text file up to 5 MB and refuses a bigger one before reading it; a note has no limit', async () => {
+      const { fakeVaultRootHandle, directoryHandleVaultAdapter } = await createTestDirectoryHandleVault()
+      const fiveMegabytes = 5 * 1024 * 1024
+      await addPapelizFakeVaultFiles(fakeVaultRootHandle, {
+        'edge.log': 'a'.repeat(fiveMegabytes),
+        'over.log': 'a'.repeat(fiveMegabytes + 1),
+        'Big note.md': 'a'.repeat(fiveMegabytes + 1),
+      })
+      expect((await directoryHandleVaultAdapter.readVaultNoteText('edge.log')).length).toBe(fiveMegabytes)
+      await expect(directoryHandleVaultAdapter.readVaultNoteText('over.log')).rejects.toThrow('Text File Over 5 MB')
+      expect((await directoryHandleVaultAdapter.readVaultNoteText('Big note.md')).length).toBe(fiveMegabytes + 1)
+    })
+
+    it('takes back only an empty new note, and keeps any note with text or any other file', async () => {
+      const { fakeVaultRootHandle, directoryHandleVaultAdapter } = await createTestDirectoryHandleVault()
+      await directoryHandleVaultAdapter.createVaultNote('Ideas/Untitled.md', '')
+      expect(await directoryHandleVaultAdapter.takeBackEmptyNewVaultNote('Ideas/Untitled.md')).toBe(true)
+      expect(await directoryHandleVaultAdapter.takeBackEmptyNewVaultNote('Inbox.md')).toBe(false)
+      expect(await directoryHandleVaultAdapter.takeBackEmptyNewVaultNote('Empty folder')).toBe(false)
+      await expect(directoryHandleVaultAdapter.takeBackEmptyNewVaultNote('.other-app/app.json')).rejects.toThrow('Hidden Folder')
+      const vaultFolderContents = await readPapelizFakeVaultFolder(fakeVaultRootHandle)
+      expect(Object.keys(vaultFolderContents)).not.toContain('Ideas/Untitled.md')
+      expect(vaultFolderContents['Inbox.md']).toBe('# Inbox')
+      expect(vaultFolderContents['Ideas/Offline-first apps.md']).toBe('# Offline-first apps')
+    })
+
     it('never writes inside .other-app or any other hidden folder', async () => {
       const { fakeVaultRootHandle, directoryHandleVaultAdapter } = await createTestDirectoryHandleVault()
       await expect(directoryHandleVaultAdapter.writeVaultNoteText('.other-app/app.md', 'x')).rejects.toThrow('Hidden Folder')

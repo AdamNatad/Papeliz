@@ -96,6 +96,8 @@ export function describePapelizFailureCode(failureCode: string, failureCodeConte
       return 'Papeliz doesn’t know that settings file. Reload Papeliz, then try again.'
     case 'Import Stopped':
       return 'The import was stopped before it finished.'
+    case 'Text File Over 5 MB':
+      return 'Papeliz opens text files up to 5 MB, and this one is bigger. Open it in another app.'
 
     // A name typed for a vault, a note or a folder.
     case 'Name Taken':

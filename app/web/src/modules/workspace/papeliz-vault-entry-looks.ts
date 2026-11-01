@@ -98,9 +98,14 @@ export function parsePapelizFileListLooksFile(fileListLooksFileText: string | nu
   } catch {
     return {}
   }
-  if (typeof storedFileListLooks !== 'object' || storedFileListLooks === null) return {}
+  return parsePapelizStoredVaultEntryLooks(storedFileListLooks)
+}
+
+// Looks as a vault file stores them, by path, keeping only the colors and icons Papeliz knows.
+export function parsePapelizStoredVaultEntryLooks(storedVaultEntryLooks: unknown): Record<string, PapelizVaultEntryLook> {
+  if (typeof storedVaultEntryLooks !== 'object' || storedVaultEntryLooks === null) return {}
   const vaultEntryLooks: Record<string, PapelizVaultEntryLook> = {}
-  for (const [vaultEntryRelativePath, storedLook] of Object.entries(storedFileListLooks)) {
+  for (const [vaultEntryRelativePath, storedLook] of Object.entries(storedVaultEntryLooks)) {
     if (typeof storedLook !== 'object' || storedLook === null) continue
     const { lookColor, lookIconName } = storedLook as Record<string, unknown>
     const vaultEntryLook: PapelizVaultEntryLook = {

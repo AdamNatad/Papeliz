@@ -30,7 +30,7 @@ const papelizAssistantPanelHeaderButtonTouchClassName = 'max-md:pointer-coarse:s
 
 // The line under the mode switch: what the mode does.
 function describeAssistantModeHint(assistantMode: PapelizAssistantMode, isBypassPermissionOn: boolean): string {
-  if (assistantMode === 'ask') return 'Ask about your notes. Nothing changes.'
+  if (assistantMode === 'ask') return 'Answers from your notes and never changes them.'
   if (assistantMode === 'plan') return 'Turn an idea into a step-by-step plan. Nothing changes until you press Write It.'
   return isBypassPermissionOn ? 'Edits, adds and deletes notes. Bypass permission is on, so changes apply at once.' : 'Edits, adds and deletes notes. You review each change.'
 }

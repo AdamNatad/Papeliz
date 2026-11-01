@@ -1198,6 +1198,7 @@ interface PapelizFileExplorerRenameFieldProps {
 function PapelizFileExplorerRenameField({ vaultEntryRelativePath, vaultEntryKind, vaultEntryDisplayName, rowIndentStyle }: PapelizFileExplorerRenameFieldProps) {
   const renameVaultEntry = usePapelizWorkspaceStore((workspaceState) => workspaceState.renameVaultEntry)
   const stopRenamingVaultEntry = usePapelizWorkspaceStore((workspaceState) => workspaceState.stopRenamingVaultEntry)
+  const cancelRenamingVaultEntry = usePapelizWorkspaceStore((workspaceState) => workspaceState.cancelRenamingVaultEntry)
   const showWorkspaceNotice = usePapelizWorkspaceStore((workspaceState) => workspaceState.showWorkspaceNotice)
   const [typedVaultEntryName, setTypedVaultEntryName] = useState(vaultEntryDisplayName)
   const [renameProblemMessage, setRenameProblemMessage] = useState<string | null>(null)
@@ -1253,8 +1254,12 @@ function PapelizFileExplorerRenameField({ vaultEntryRelativePath, vaultEntryKind
             keyboardEvent.preventDefault()
             keyboardEvent.stopPropagation()
             isRenameSubmittingRef.current = true
-            stopRenamingVaultEntry()
-            focusFileExplorerRow(vaultEntryRelativePath)
+            // A new note still empty isn't kept; focus goes back to the note open before it.
+            void cancelRenamingVaultEntry().then((isNewVaultNoteTakenBack) => {
+              const activeVaultNoteRelativePath = usePapelizWorkspaceStore.getState().activeVaultNoteRelativePath
+              if (!isNewVaultNoteTakenBack) focusFileExplorerRow(vaultEntryRelativePath)
+              else if (activeVaultNoteRelativePath !== null) focusFileExplorerRow(activeVaultNoteRelativePath)
+            })
           }
         }}
         onBlur={() => void finishRename('blur')}

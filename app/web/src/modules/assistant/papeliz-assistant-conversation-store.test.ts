@@ -123,6 +123,45 @@ describe('the assistant conversation', () => {
     stopVaultKnowledgeSync()
   })
 
+  it('sends an open note as the open note, and never an open text file', async () => {
+    const providerSystemMessages: string[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_requestUrl: string, requestInit: RequestInit) => {
+        const providerRequestBody = JSON.parse(String(requestInit.body)) as { messages: Array<{ role: string; content: string }> }
+        providerSystemMessages.push(providerRequestBody.messages.find((providerMessage) => providerMessage.role === 'system')?.content ?? '')
+        return Response.json({ choices: [{ message: { content: 'Done.' }, finish_reason: 'stop' }], usage: { prompt_tokens: 10, completion_tokens: 2 } })
+      }),
+    )
+    const vaultAdapter = new PapelizInMemoryVaultAdapter([
+      { vaultNoteRelativePath: 'Inbox.md', vaultNoteText: 'Buy seeds.' },
+      { vaultNoteRelativePath: 'settings.json', vaultNoteText: '{"apiToken": "kept here"}' },
+    ])
+    await usePapelizWorkspaceStore.getState().openVaultInWorkspace(
+      { papelizVaultId: 'text-file-context-vault', papelizVaultDisplayName: 'Test vault', papelizVaultAdapter: vaultAdapter },
+      { firstVaultNoteRelativePathToOpen: null, firstNoteViewMode: 'md-code', expandAllTopLevelFolders: false },
+    )
+    usePapelizAssistantProviderSettingsStore.setState({
+      activeAssistantProviderId: 'custom',
+      providerSettingsByProviderId: {
+        custom: { papelizAssistantProviderId: 'custom', providerBaseUrl: 'https://provider.test/v1', providerModelName: 'test-model', providerApiKey: 'test-key' },
+      },
+    })
+    usePapelizAssistantRunOptionsStore.setState({ assistantMode: 'ask' })
+    usePapelizAssistantConversationStore.getState().setAssistantContextMode('active-note')
+
+    await usePapelizWorkspaceStore.getState().openVaultNote('Inbox.md')
+    await usePapelizAssistantConversationStore.getState().sendAssistantMessage('What is this?')
+    expect(providerSystemMessages.at(-1)).toContain('<note path="Inbox.md">\nBuy seeds.')
+
+    await usePapelizWorkspaceStore.getState().openVaultNote('settings.json')
+    await usePapelizAssistantConversationStore.getState().sendAssistantMessage('And this?')
+    expect(providerSystemMessages.at(-1)).not.toContain('settings.json')
+    expect(providerSystemMessages.at(-1)).not.toContain('kept here')
+    const userMessageEntries = usePapelizAssistantConversationStore.getState().chatEntries.filter((chatEntry) => chatEntry.chatEntryKind === 'user-message')
+    expect(userMessageEntries.map((chatEntry) => chatEntry.chatEntryContextLabel)).toEqual(['Inbox', null])
+  })
+
   it('reopens a saved chat with its messages', async () => {
     const stopVaultKnowledgeSync = startPapelizVaultKnowledgeSync()
     const vaultAdapter = new PapelizInMemoryVaultAdapter([

@@ -33,7 +33,8 @@ export interface PapelizVaultAdapter {
   // `.chatsession/`), unless the options ask for every hidden entry. Papeliz's own `.papeliz/` is
   // never listed.
   listVaultTreeEntries(vaultTreeListingOptions?: PapelizVaultTreeListingOptions): Promise<PapelizVaultTreeEntry[]>
-  // A note's or a text file's text; writing it and the rest below take either.
+  // A note's or a text file's text; writing it and the rest below take either. A text file over
+  // 5 MB isn't read and fails with "Text File Over 5 MB" (papeliz-vault-text-files.ts).
   readVaultNoteText(vaultNoteRelativePath: string): Promise<string>
   writeVaultNoteText(vaultNoteRelativePath: string, vaultNoteText: string): Promise<void>
   // Fails when something already has that name.
@@ -58,6 +59,10 @@ export interface PapelizVaultAdapter {
   // Moves a note or folder out of `.trash/` (Restore) to a path outside hidden folders. That path's
   // folder must be there already, and its name free.
   restoreVaultEntryFromTrash(vaultTrashEntryRelativePath: string, toVaultEntryRelativePath: string): Promise<void>
+  // Takes back a note New Note made a moment ago, while it is still empty: Escape on its name.
+  // Anything with even one byte in it stays, and this gives back false. A vault without it keeps
+  // the note.
+  takeBackEmptyNewVaultNote?(newVaultNoteRelativePath: string): Promise<boolean>
   // Papeliz's own files for this vault, in its `.papeliz/` folder (the file list's order, say), by
   // plain file name. Reading gives null when the file is not there yet; writing makes the folder
   // when needed. Nothing else in a hidden folder is read or written.

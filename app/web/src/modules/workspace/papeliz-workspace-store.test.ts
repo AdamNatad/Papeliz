@@ -6,7 +6,13 @@ import { PapelizFolderOnDiskVaultAdapter } from '../vault/papeliz-folder-on-disk
 import { PapelizInMemoryVaultAdapter, type PapelizInMemoryVaultNote } from '../vault/papeliz-in-memory-vault-adapter'
 import type { PapelizRememberedNoteTabs } from '../vault/papeliz-remembered-note-tabs'
 import type { PapelizVaultAdapter } from '../vault/papeliz-vault-adapter'
-import { selectActiveVaultNoteLockingEntry, selectIsVaultTextFileTabInFront, selectShownNoteViewMode, usePapelizWorkspaceStore } from './papeliz-workspace-store'
+import {
+  selectActiveVaultMarkdownNoteRelativePath,
+  selectActiveVaultNoteLockingEntry,
+  selectIsVaultTextFileTabInFront,
+  selectShownNoteViewMode,
+  usePapelizWorkspaceStore,
+} from './papeliz-workspace-store'
 
 // Each vault's remembered tabs, kept in memory for these tests in place of the browser database.
 const rememberedTestNoteTabsByVaultId = vi.hoisted(() => new Map<string, PapelizRememberedNoteTabs>())
@@ -405,6 +411,37 @@ describe('editing locks', () => {
     await usePapelizWorkspaceStore.getState().moveVaultEntryToTrash('Work')
     expect(usePapelizWorkspaceStore.getState().lockedVaultEntryRelativePaths).toEqual([])
   })
+
+  it('brings a trashed entry’s lock, color and icon back with Undo and with Restore', async () => {
+    const vaultAdapter = await openTestVault([
+      { vaultNoteRelativePath: 'Projects/Plan.md', vaultNoteText: '' },
+      { vaultNoteRelativePath: 'Inbox.md', vaultNoteText: '' },
+    ])
+    usePapelizWorkspaceStore.getState().setVaultEntryEditingLocked('Inbox.md', true)
+    usePapelizWorkspaceStore.getState().setVaultEntryLook('Inbox.md', { lookColor: 'green', lookIconName: 'rocket' })
+    usePapelizWorkspaceStore.getState().setVaultEntryEditingLocked('Projects', true)
+    usePapelizWorkspaceStore.getState().setVaultEntryLook('Projects/Plan.md', { lookColor: 'red' })
+
+    await usePapelizWorkspaceStore.getState().moveVaultEntryToTrash('Inbox.md')
+    expect(usePapelizWorkspaceStore.getState().lockedVaultEntryRelativePaths).toEqual(['Projects'])
+    expect(usePapelizWorkspaceStore.getState().vaultEntryLooks['Inbox.md']).toBeUndefined()
+    usePapelizWorkspaceStore.getState().workspaceNotice?.workspaceNoticeAction?.onWorkspaceNoticeAction()
+    await vi.waitFor(() => expect(usePapelizWorkspaceStore.getState().lockedVaultEntryRelativePaths).toContain('Inbox.md'))
+    expect(usePapelizWorkspaceStore.getState().vaultEntryLooks['Inbox.md']).toEqual({ lookColor: 'green', lookIconName: 'rocket' })
+
+    // A folder comes back with its own lock and the looks inside it, and they stay after a reopen.
+    await usePapelizWorkspaceStore.getState().moveVaultEntryToTrash('Projects')
+    expect(usePapelizWorkspaceStore.getState().lockedVaultEntryRelativePaths).toEqual(['Inbox.md'])
+    expect(await usePapelizWorkspaceStore.getState().restoreVaultEntryFromTrash('.trash/Projects', 'folder')).toBe('Projects')
+    expect(usePapelizWorkspaceStore.getState().lockedVaultEntryRelativePaths).toEqual(['Inbox.md', 'Projects'])
+    expect(usePapelizWorkspaceStore.getState().vaultEntryLooks['Projects/Plan.md']).toEqual({ lookColor: 'red' })
+    await waitForQueuedVaultOperations()
+    await vi.waitFor(async () => expect(await vaultAdapter.readPapelizVaultSettingsFile('trash-origins.json')).not.toContain('trashedEntry'))
+    await usePapelizWorkspaceStore.getState().closeVaultInWorkspace()
+    await openTestVault([], vaultAdapter)
+    expect(usePapelizWorkspaceStore.getState().lockedVaultEntryRelativePaths).toEqual(['Inbox.md', 'Projects'])
+    expect(usePapelizWorkspaceStore.getState().vaultEntryLooks['Projects/Plan.md']).toEqual({ lookColor: 'red' })
+  })
 })
 
 describe('creating and moving to the trash', () => {
@@ -414,6 +451,48 @@ describe('creating and moving to the trash', () => {
     const workspaceState = usePapelizWorkspaceStore.getState()
     expect(workspaceState.activeVaultNoteRelativePath).toBe('Untitled 2.md')
     expect(workspaceState.vaultEntryBeingRenamedRelativePath).toBe('Untitled 2.md')
+  })
+
+  it('takes a new note back on Escape while it is empty, and keeps any other', async () => {
+    const vaultAdapter = await openTestVault([{ vaultNoteRelativePath: 'Inbox.md', vaultNoteText: 'hello' }])
+    await usePapelizWorkspaceStore.getState().openVaultNote('Inbox.md')
+    await usePapelizWorkspaceStore.getState().createVaultNoteInFolder('')
+    expect(usePapelizWorkspaceStore.getState().newVaultNoteBeingNamedRelativePath).toBe('Untitled.md')
+    expect(await usePapelizWorkspaceStore.getState().cancelRenamingVaultEntry()).toBe(true)
+    let workspaceState = usePapelizWorkspaceStore.getState()
+    expect(workspaceState.openNoteTabRelativePaths).toEqual(['Inbox.md'])
+    expect(workspaceState.activeVaultNoteRelativePath).toBe('Inbox.md')
+    expect(workspaceState.vaultTreeEntries.map((vaultTreeEntry) => vaultTreeEntry.vaultEntryRelativePath)).toEqual(['Inbox.md'])
+    await expect(vaultAdapter.readVaultNoteText('Untitled.md')).rejects.toThrow()
+
+    // Escape on a rename of a note that already was there only stops renaming.
+    usePapelizWorkspaceStore.getState().startRenamingVaultEntry('Inbox.md')
+    expect(await usePapelizWorkspaceStore.getState().cancelRenamingVaultEntry()).toBe(false)
+    expect(await vaultAdapter.readVaultNoteText('Inbox.md')).toBe('hello')
+
+    // A new note kept by clicking away stays a note on a later rename's Escape.
+    await usePapelizWorkspaceStore.getState().createVaultNoteInFolder('')
+    usePapelizWorkspaceStore.getState().stopRenamingVaultEntry()
+    usePapelizWorkspaceStore.getState().startRenamingVaultEntry('Untitled.md')
+    expect(await usePapelizWorkspaceStore.getState().cancelRenamingVaultEntry()).toBe(false)
+    expect(await vaultAdapter.readVaultNoteText('Untitled.md')).toBe('')
+
+    // A new note written in stays too.
+    await usePapelizWorkspaceStore.getState().createVaultNoteInFolder('')
+    workspaceState = usePapelizWorkspaceStore.getState()
+    const writtenNewVaultNote = workspaceState.loadedVaultNotesByRelativePath['Untitled 2.md']
+    workspaceState.updateVaultNoteDraftText(writtenNewVaultNote?.loadedNoteSessionId ?? -1, 'a start')
+    expect(await usePapelizWorkspaceStore.getState().cancelRenamingVaultEntry()).toBe(false)
+    expect(usePapelizWorkspaceStore.getState().openNoteTabRelativePaths).toContain('Untitled 2.md')
+  })
+
+  it('keeps a new note on Escape when its file has text the tab never saw', async () => {
+    const vaultAdapter = await openTestVault([])
+    await usePapelizWorkspaceStore.getState().createVaultNoteInFolder('')
+    // Another app writes into the file meanwhile.
+    await vaultAdapter.writeVaultNoteText('Untitled.md', 'from elsewhere')
+    expect(await usePapelizWorkspaceStore.getState().cancelRenamingVaultEntry()).toBe(false)
+    expect(await vaultAdapter.readVaultNoteText('Untitled.md')).toBe('from elsewhere')
   })
 
   it('creates the note an unresolved wikilink points to, with its folders', async () => {
@@ -682,6 +761,20 @@ describe('text files', () => {
     expect(await usePapelizWorkspaceStore.getState().restoreVaultEntryFromTrash('.trash/settings.json', 'text-file')).toBe('settings 2.json')
     expect(await vaultAdapter.readVaultNoteText('settings 2.json')).toBe('{"a": 1}')
     expect(usePapelizWorkspaceStore.getState().workspaceNotice?.workspaceNoticeMessage).toBe('Restored “settings 2.json” to the top.')
+  })
+
+  it('says in a sentence why a text file over 5 MB doesn’t open, and never offers it as the open note', async () => {
+    await openTestVault([
+      { vaultNoteRelativePath: 'Inbox.md', vaultNoteText: '# Inbox' },
+      { vaultNoteRelativePath: 'server.log', vaultNoteText: 'a'.repeat(5 * 1024 * 1024 + 1) },
+    ])
+    await usePapelizWorkspaceStore.getState().openVaultNote('Inbox.md')
+    expect(selectActiveVaultMarkdownNoteRelativePath(usePapelizWorkspaceStore.getState())).toBe('Inbox.md')
+    await usePapelizWorkspaceStore.getState().openVaultNote('server.log')
+    const serverLogTab = usePapelizWorkspaceStore.getState().loadedVaultNotesByRelativePath['server.log']
+    expect(serverLogTab?.noteLoadState).toBe('load-failed')
+    expect(serverLogTab?.noteLoadErrorMessage).toBe('Papeliz opens text files up to 5 MB, and this one is bigger. Open it in another app.')
+    expect(selectActiveVaultMarkdownNoteRelativePath(usePapelizWorkspaceStore.getState())).toBeNull()
   })
 
   it('names a text file as a file when its name is taken', async () => {

@@ -9,7 +9,7 @@ import {
   pickFreeVaultEntryName,
 } from '../vault/papeliz-vault-relative-paths'
 import { readLatestPapelizVaultNoteText, usePapelizVaultKnowledgeStore } from '../workspace/papeliz-vault-knowledge-store'
-import { usePapelizWorkspaceStore } from '../workspace/papeliz-workspace-store'
+import { selectActiveVaultMarkdownNoteRelativePath, usePapelizWorkspaceStore } from '../workspace/papeliz-workspace-store'
 import {
   buildPapelizChatSessionNotePath,
   formatPapelizChatSessionFile,
@@ -305,11 +305,12 @@ function buildAssistantSystemMessage(
     `- Notes in the “${papelizChatSessionsFolderName}” folder are saved conversations with you. Read them when asked, but never propose changes to them.`,
     `The vault is “${workspaceState.openVault?.papelizVaultDisplayName ?? 'unnamed'}” with ${noteCount} notes. Today is ${new Date().toDateString()}.`,
   ]
-  if (workspaceState.activeVaultNoteRelativePath !== null) {
-    systemMessageLines.push(`The note open on screen is [[${getVaultNoteTitle(workspaceState.activeVaultNoteRelativePath)}]] (${workspaceState.activeVaultNoteRelativePath}).`)
+  const activeVaultMarkdownNoteRelativePath = selectActiveVaultMarkdownNoteRelativePath(workspaceState)
+  if (activeVaultMarkdownNoteRelativePath !== null) {
+    systemMessageLines.push(`The note open on screen is [[${getVaultNoteTitle(activeVaultMarkdownNoteRelativePath)}]] (${activeVaultMarkdownNoteRelativePath}).`)
   }
-  if (contextNoteText !== null && workspaceState.activeVaultNoteRelativePath !== null) {
-    systemMessageLines.push(`Its text:\n<note path="${workspaceState.activeVaultNoteRelativePath}">\n${contextNoteText.slice(0, papelizAssistantContextNoteCharacterLimit)}\n</note>`)
+  if (contextNoteText !== null && activeVaultMarkdownNoteRelativePath !== null) {
+    systemMessageLines.push(`Its text:\n<note path="${activeVaultMarkdownNoteRelativePath}">\n${contextNoteText.slice(0, papelizAssistantContextNoteCharacterLimit)}\n</note>`)
   }
   if (selectionContext !== null) {
     systemMessageLines.push(`The user selected this passage in ${selectionContext.vaultNoteRelativePath}:\n<selection>\n${selectionContext.selectedText}\n</selection>`)
@@ -520,11 +521,12 @@ export const usePapelizAssistantConversationStore = create<PapelizAssistantConve
       const openVault = workspaceState.openVault
       const conversationState = getConversationState()
       const selectionContext = conversationState.pendingSelectionContext
+      const activeVaultMarkdownNoteRelativePath = selectActiveVaultMarkdownNoteRelativePath(workspaceState)
       const contextLabel =
         selectionContext !== null
           ? `Selection in ${getVaultNoteTitle(selectionContext.vaultNoteRelativePath)}`
-          : conversationState.assistantContextMode === 'active-note' && workspaceState.activeVaultNoteRelativePath !== null
-            ? getVaultNoteTitle(workspaceState.activeVaultNoteRelativePath)
+          : conversationState.assistantContextMode === 'active-note' && activeVaultMarkdownNoteRelativePath !== null
+            ? getVaultNoteTitle(activeVaultMarkdownNoteRelativePath)
             : null
       const userMessageEntryId = createChatEntryId()
       appendChatEntry({
@@ -575,8 +577,8 @@ export const usePapelizAssistantConversationStore = create<PapelizAssistantConve
       }
 
       const contextNoteText =
-        conversationState.assistantContextMode === 'active-note' && workspaceState.activeVaultNoteRelativePath !== null
-          ? await readLatestPapelizVaultNoteText(openVault, workspaceState.activeVaultNoteRelativePath).catch(() => null)
+        conversationState.assistantContextMode === 'active-note' && activeVaultMarkdownNoteRelativePath !== null
+          ? await readLatestPapelizVaultNoteText(openVault, activeVaultMarkdownNoteRelativePath).catch(() => null)
           : null
       const providerChatMessages: PapelizChatMessage[] = [
         ...getConversationState().providerChatMessages,

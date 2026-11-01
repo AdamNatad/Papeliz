@@ -25,6 +25,21 @@ describe('the in-memory vault', () => {
     expect(listedEntries).toEqual(['folder:Agent', 'note:Inbox.md', 'text-file:Agent/settings.json'])
   })
 
+  it('opens a text file up to 5 MB, counted in UTF-8 bytes, and any note', async () => {
+    const fiveMegabytes = 5 * 1024 * 1024
+    const testVault = new PapelizInMemoryVaultAdapter([
+      { vaultNoteRelativePath: 'edge.log', vaultNoteText: 'a'.repeat(fiveMegabytes) },
+      { vaultNoteRelativePath: 'over.log', vaultNoteText: 'a'.repeat(fiveMegabytes + 1) },
+      // Three million characters, but 6,000,000 bytes in UTF-8.
+      { vaultNoteRelativePath: 'accents.txt', vaultNoteText: 'é'.repeat(3_000_000) },
+      { vaultNoteRelativePath: 'Big note.md', vaultNoteText: 'a'.repeat(fiveMegabytes + 1) },
+    ])
+    expect((await testVault.readVaultNoteText('edge.log')).length).toBe(fiveMegabytes)
+    await expect(testVault.readVaultNoteText('over.log')).rejects.toThrow('Text File Over 5 MB')
+    await expect(testVault.readVaultNoteText('accents.txt')).rejects.toThrow('Text File Over 5 MB')
+    expect((await testVault.readVaultNoteText('Big note.md')).length).toBe(fiveMegabytes + 1)
+  })
+
   it('renames a folder with everything inside it', async () => {
     const testVault = createTestVault()
     await testVault.renameVaultEntry('Guides', 'Help')

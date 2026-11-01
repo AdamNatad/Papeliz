@@ -1,4 +1,5 @@
-import { isVaultNoteFileName } from './papeliz-vault-relative-paths'
+import { PapelizVaultOperationError } from './papeliz-vault-adapter'
+import { getVaultEntryName, isVaultNoteFileName } from './papeliz-vault-relative-paths'
 
 // Which files besides `.md` notes the file list shows and opens: plain-text files such as JSON,
 // YAML, `.gitignore`, scripts and `LICENSE`. They open as text, never as notes, and nothing in them
@@ -10,6 +11,18 @@ export type PapelizVaultFileNameKind = 'vault-note' | 'vault-text-file' | 'vault
 
 // How much of the start of a file the byte check reads.
 export const papelizVaultFileByteCheckLength = 4096
+
+// The largest text file Papeliz opens: 5 MB. MD Code holds, colors and checks the whole file in the
+// tab, which slows down well past this size; a log or a data dump that big belongs in another app.
+// Notes have no limit.
+export const papelizVaultTextFileOpenByteLimit = 5 * 1024 * 1024
+
+// Refuses to read a text file over the limit, before its text is read. A note always reads.
+export function assertVaultTextFileOpenableAtByteLength(vaultFileRelativePath: string, vaultFileByteLength: number): void {
+  if (!isVaultNoteFileName(getVaultEntryName(vaultFileRelativePath)) && vaultFileByteLength > papelizVaultTextFileOpenByteLimit) {
+    throw new PapelizVaultOperationError('Text File Over 5 MB')
+  }
+}
 
 const papelizVaultTextFileExtensions: ReadonlySet<string> = new Set([
   'json', 'jsonc', 'json5', 'txt', 'text', 'log', 'csv', 'tsv',
