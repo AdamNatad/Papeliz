@@ -2,6 +2,7 @@ import { useCallback, useSyncExternalStore } from 'react'
 import { create } from 'zustand'
 import type { PapelizSyncEngine, PapelizSyncEngineSnapshot } from './papeliz-sync-engine-contract'
 import { mergePapelizSyncNoteText } from './papeliz-sync-note-merge'
+import { describePapelizSyncWebDeviceName, nameThisPapelizSyncWebDeviceWhenUnnamed } from './papeliz-sync-web-device-name'
 
 // Loads the Papeliz Sync engine the first time the screens need it, and starts it once. Nothing of
 // Sync loads with the app: the engine's chunk (`virtual:papeliz-sync-engine`) loads when someone opens
@@ -15,6 +16,9 @@ export type PapelizSyncEngineLoadState = 'not-loaded' | 'loading' | 'not-in-this
 interface PapelizSyncEngineStoreState {
   syncEngineLoadState: PapelizSyncEngineLoadState
   papelizSyncEngine: PapelizSyncEngine | null
+  // Rises each time this web device is named after a sign-in, so the Account page reads its devices
+  // again.
+  thisWebSyncDeviceNamedCount: number
   // Loads and starts the engine once; later calls wait for the same load. Null when this build has
   // no engine or it didn't load.
   loadPapelizSyncEngine: () => Promise<PapelizSyncEngine | null>
@@ -80,6 +84,7 @@ let papelizSyncEngineLoad: Promise<PapelizSyncEngine | null> | null = null
 export const usePapelizSyncEngineStore = create<PapelizSyncEngineStoreState>()((setSyncEngineState) => ({
   syncEngineLoadState: 'not-loaded',
   papelizSyncEngine: null,
+  thisWebSyncDeviceNamedCount: 0,
   loadPapelizSyncEngine: () => {
     if (papelizSyncEngineLoad !== null) return papelizSyncEngineLoad
     setSyncEngineState({ syncEngineLoadState: 'loading' })
@@ -101,6 +106,14 @@ export const usePapelizSyncEngineStore = create<PapelizSyncEngineStoreState>()((
         }
         rememberSignInOnThisDevice()
         papelizSyncEngine.subscribeToSyncEngineSnapshot(rememberSignInOnThisDevice)
+        // A web device made by the sign-in page has no name; it takes the browser's, such as "Chrome on
+        // Windows", unless it has one already.
+        papelizSyncEngine.subscribeToSyncEngineEvents((syncEngineEvent) => {
+          if (syncEngineEvent.syncEngineEventKind !== 'signed-in') return
+          void nameThisPapelizSyncWebDeviceWhenUnnamed(papelizSyncEngine, describePapelizSyncWebDeviceName(globalThis.navigator)).then((isThisWebSyncDeviceNamed) => {
+            if (isThisWebSyncDeviceNamed) setSyncEngineState((syncEngineState) => ({ thisWebSyncDeviceNamedCount: syncEngineState.thisWebSyncDeviceNamedCount + 1 }))
+          })
+        })
         setSyncEngineState({ syncEngineLoadState: 'in-this-build', papelizSyncEngine })
         return papelizSyncEngine
       } catch (syncEngineLoadError) {

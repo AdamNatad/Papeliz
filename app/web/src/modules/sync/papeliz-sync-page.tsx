@@ -34,6 +34,7 @@ import { PapelizSyncPlanOffersSection } from './papeliz-sync-plan-offers'
 import {
   describePapelizSyncActionFailureNow,
   describePapelizSyncDay,
+  describePapelizSyncFileCount,
   describePapelizSyncStatusForStatusBar,
   describePapelizSyncStoragePlaceLine,
   describePapelizSyncTimeAgo,
@@ -170,18 +171,22 @@ function PapelizSyncOnState({ papelizSyncEngine, syncEngineSnapshot, syncAccount
   const isReadOnly = syncAccount.syncSubscriptionState === 'ended-read-only' || syncAccount.syncSubscriptionState === 'ended-held'
 
   // The account's vaults: the open vault's size for its row, and the Synced vaults list. Read when the
-  // page opens, and again when this device's synced vaults change or after a delete.
+  // page opens, again when this device's synced vaults change, when the open vault's first upload or
+  // download ends, and after a delete. The account is read again with them, so Storage used counts what
+  // was uploaded since it was last read (at sign-in, say, before the first upload).
   const [accountVaultsReadCount, setAccountVaultsReadCount] = useState(0)
   const linkedSyncVaultIdsText = syncEngineSnapshot.syncLinkedLocalVaults.map((syncLinkedLocalVault) => syncLinkedLocalVault.papelizSyncVaultId).join('\n')
+  const isOpenVaultTransferUnderway = openVaultSyncReading?.syncVaultTransferProgress != null
   useEffect(() => {
     let isSyncPageLeft = false
     void papelizSyncEngine.listSyncedVaultsOnAccount().then((listedAccountVaultsOutcome) => {
       if (!isSyncPageLeft) setAccountVaultsOutcome(listedAccountVaultsOutcome)
     })
+    void papelizSyncEngine.refreshSyncAccountReading()
     return () => {
       isSyncPageLeft = true
     }
-  }, [papelizSyncEngine, openVaultSyncedVaultId, linkedSyncVaultIdsText, accountVaultsReadCount])
+  }, [papelizSyncEngine, openVaultSyncedVaultId, linkedSyncVaultIdsText, isOpenVaultTransferUnderway, accountVaultsReadCount])
 
   const openAccountVault =
     accountVaultsOutcome?.syncActionOutcome === 'done' && openVaultSyncedVaultId !== null
@@ -328,7 +333,7 @@ function PapelizSyncOnState({ papelizSyncEngine, syncEngineSnapshot, syncAccount
             syncPageRowDetail={[
               openVault.papelizVaultDisplayName,
               openVaultSyncReading === undefined ? null : papelizSyncVaultEncryptionKindDisplayNames[openVaultSyncReading.syncVaultEncryptionKind],
-              openAccountVault === undefined ? null : `${openAccountVault.syncVaultFileCount.toLocaleString('en-US')} notes and files`,
+              openAccountVault === undefined ? null : describePapelizSyncFileCount(openAccountVault.syncVaultFileCount),
             ]
               .filter((syncPageRowDetailPart) => syncPageRowDetailPart !== null)
               .join(' · ')}
@@ -361,7 +366,7 @@ function PapelizSyncOnState({ papelizSyncEngine, syncEngineSnapshot, syncAccount
             <PapelizSyncPageSmallText className="mt-1 tabular-nums">
               {openVaultSyncReading.syncVaultTransferProgress.syncVaultTransferKind === 'first-upload' ? 'Uploading' : openVaultSyncReading.syncVaultTransferProgress.syncVaultTransferKind === 'first-download' ? 'Downloading' : 'Merging'}{' '}
               {openVaultSyncReading.syncVaultTransferProgress.syncTransferredFileCount.toLocaleString('en-US')} of{' '}
-              {openVaultSyncReading.syncVaultTransferProgress.syncTransferFileCount.toLocaleString('en-US')} files
+              {describePapelizSyncFileCount(openVaultSyncReading.syncVaultTransferProgress.syncTransferFileCount)}
             </PapelizSyncPageSmallText>
           </div>
         )}

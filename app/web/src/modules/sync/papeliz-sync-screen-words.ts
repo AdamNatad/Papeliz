@@ -128,6 +128,11 @@ export function formatPapelizSyncByteSize(syncByteLength: number): string {
   return `${roundedByteSizeValue.toLocaleString('en-US')} ${byteSizeUnits[byteSizeUnitIndex]}`
 }
 
+// "1 file", "1,482 files": one wording for every file count Sync shows.
+export function describePapelizSyncFileCount(syncFileCount: number): string {
+  return `${syncFileCount.toLocaleString('en-US')} ${syncFileCount === 1 ? 'file' : 'files'}`
+}
+
 // A plan's visible limits as the plan list shows them, three lines.
 export function describePapelizSyncPlanLimitLines(syncVisiblePlanLimits: PapelizSyncVisiblePlanLimits): string[] {
   return [

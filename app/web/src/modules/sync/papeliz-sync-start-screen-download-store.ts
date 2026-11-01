@@ -110,8 +110,9 @@ function describeSyncStartScreenDownloadStop(syncLocalVault: PapelizSyncLocalVau
       return 'Can’t reach Sync.'
     case 'signed-out':
       return 'Signed out of Sync.'
+    // Unlock is in the gear's Synced vaults; the start page has the gear.
     case 'locked':
-      return 'Its passphrase is needed on this device.'
+      return 'Locked. Unlock it in Settings › Sync.'
     default:
       return null
   }

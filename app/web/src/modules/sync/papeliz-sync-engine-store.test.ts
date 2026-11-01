@@ -80,4 +80,34 @@ describe('loading the Sync engine', () => {
     rememberPapelizSyncUsedOnThisDevice(false)
     expect(isPapelizSyncUsedOnThisDevice()).toBe(false)
   })
+
+  it('names this web device from the browser after a sign-in, and keeps a name set before', async () => {
+    const papelizSyncFakeEngine = createPapelizSyncFakeEngine({ fakeEngineScenario: 'signed-out' })
+    papelizSyncTestEngineLoadResult = { papelizSyncEngineAvailability: 'in-this-build', papelizSyncEngine: papelizSyncFakeEngine }
+    vi.stubGlobal('navigator', { userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36' })
+    const { usePapelizSyncEngineStore } = await import('./papeliz-sync-engine-store')
+    await usePapelizSyncEngineStore.getState().loadPapelizSyncEngine()
+    const countDeviceListCalls = () => papelizSyncFakeEngine.fakeEngineCallNames.filter((fakeEngineCallName) => fakeEngineCallName === 'listSyncDevices').length
+    const signInThroughFakePage = async () => {
+      const deviceListCallCountBefore = countDeviceListCalls()
+      const signInAttempt = papelizSyncFakeEngine.startSyncSignIn({ papelizSyncStoragePlaceForNewAccount: null })
+      papelizSyncFakeEngine.finishFakeSyncSignIn()
+      await signInAttempt.syncSignInOutcome
+      await vi.waitFor(() => expect(countDeviceListCalls()).toBe(deviceListCallCountBefore + 1))
+      await new Promise((resolveAfterNaming) => setTimeout(resolveAfterNaming, 0))
+    }
+    const readThisDeviceName = async () => {
+      const syncDevicesOutcome = await papelizSyncFakeEngine.listSyncDevices()
+      return syncDevicesOutcome.syncActionOutcome === 'done' ? syncDevicesOutcome.syncActionDoneValue.find((syncDevice) => syncDevice.isThisSyncDevice)?.syncDeviceName : undefined
+    }
+
+    await signInThroughFakePage()
+    await vi.waitFor(() => expect(usePapelizSyncEngineStore.getState().thisWebSyncDeviceNamedCount).toBe(1))
+    expect(await readThisDeviceName()).toBe('Chrome on Windows')
+
+    await papelizSyncFakeEngine.nameThisSyncDevice('Work laptop')
+    await signInThroughFakePage()
+    expect(await readThisDeviceName()).toBe('Work laptop')
+    expect(usePapelizSyncEngineStore.getState().thisWebSyncDeviceNamedCount).toBe(1)
+  })
 })

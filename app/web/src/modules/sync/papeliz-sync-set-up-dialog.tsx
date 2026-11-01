@@ -9,6 +9,7 @@ import { isPapelizSyncNewPassphraseReady, PapelizSyncNewPassphraseFields, Papeli
 import { PapelizSyncDialogFrame, PapelizSyncDialogSteps, PapelizSyncFailureLine, PapelizSyncLoadingLine, PapelizSyncProgressBar } from './papeliz-sync-page-parts'
 import {
   describePapelizSyncActionFailureNow,
+  describePapelizSyncFileCount,
   describePapelizSyncVaultPassphraseChangedElsewhere,
   papelizSyncVaultEncryptionKindDisplayNames,
   papelizSyncVaultEncryptionKindReaderLines,
@@ -445,7 +446,7 @@ export function PapelizSyncSetUpDialog({ papelizSyncEngine, syncEngineSnapshot, 
                 syncProgressFraction={syncVaultTransferProgress.syncTransferFileCount === 0 ? 1 : syncVaultTransferProgress.syncTransferredFileCount / syncVaultTransferProgress.syncTransferFileCount}
               />
               <p className="mt-1.5 text-[12px] text-papeliz-ink-subtle tabular-nums" role="status">
-                {syncVaultTransferProgress.syncTransferredFileCount.toLocaleString('en-US')} of {syncVaultTransferProgress.syncTransferFileCount.toLocaleString('en-US')} files
+                {syncVaultTransferProgress.syncTransferredFileCount.toLocaleString('en-US')} of {describePapelizSyncFileCount(syncVaultTransferProgress.syncTransferFileCount)}
               </p>
             </>
           )}

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { PapelizSyncStatusReading } from './papeliz-sync-engine-contract'
 import {
   countPapelizSyncPassphraseCharacters,
+  describePapelizSyncFileCount,
   describePapelizSyncPlanLimitLines,
   describePapelizSyncPlanPrice,
   describePapelizSyncStatusForStatusBar,
@@ -110,6 +111,12 @@ describe('the plans', () => {
     ).toEqual(['100 GB, old versions included', '20 vaults · files up to 1 GB', '24 months of versions'])
     expect(formatPapelizSyncByteSize(24.31e9)).toBe('24.3 GB')
     expect(formatPapelizSyncByteSize(512)).toBe('512 B')
+  })
+
+  it('counts files the same way everywhere: "1 file", "2 files"', () => {
+    expect(describePapelizSyncFileCount(0)).toBe('0 files')
+    expect(describePapelizSyncFileCount(1)).toBe('1 file')
+    expect(describePapelizSyncFileCount(1482)).toBe('1,482 files')
   })
 
   it('shows the price exactly as the engine gives it, with the period added', () => {

@@ -6,7 +6,7 @@ import type { PapelizSyncAccountVaultReading, PapelizSyncActionOutcome, PapelizS
 import { openPapelizSyncSetUpDialog } from './papeliz-sync-flow-store'
 import { PapelizSyncFailureLine, PapelizSyncLoadingLine, PapelizSyncPageBox, PapelizSyncPageLabel, PapelizSyncPageSmallText, PapelizSyncTextButton } from './papeliz-sync-page-parts'
 import { PapelizSyncPassphraseField } from './papeliz-sync-passphrase-fields'
-import { describePapelizSyncActionFailureNow, formatPapelizSyncByteSize, papelizSyncVaultEncryptionKindDisplayNames } from './papeliz-sync-screen-words'
+import { describePapelizSyncActionFailureNow, describePapelizSyncFileCount, formatPapelizSyncByteSize, papelizSyncVaultEncryptionKindDisplayNames } from './papeliz-sync-screen-words'
 
 // The Sync page's "Synced vaults": every vault on the account, with its files, its size, its kind and
 // whether it's this vault or on this device, each with Delete from Sync (Adam's pick B, 2026-10-31).
@@ -140,72 +140,81 @@ export function PapelizSyncSyncedVaultsSection({
           const isAccountVaultDeleting = deletingPapelizSyncVaultId === accountVault.papelizSyncVaultId
           const isAccountVaultEndToEnd = accountVault.syncVaultEncryptionKind === 'end-to-end'
           return (
-            <div key={accountVault.papelizSyncVaultId} className="flex min-h-11 items-center gap-2.5 px-3 py-2">
-              <span aria-hidden="true" className="grid size-7 flex-none place-items-center rounded-lg bg-papeliz-blue-soft text-[13px] font-semibold text-papeliz-blue">
-                {accountVaultName.trim().charAt(0).toUpperCase() || '·'}
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="flex min-w-0 items-center gap-1.5">
-                  <span className="truncate text-[12.5px] font-medium">{accountVaultName}</span>
-                  {accountVaultPlace !== 'not-on-this-device' && (
-                    <span className="inline-flex h-[18px] flex-none items-center rounded-full bg-papeliz-surface-gray px-[7px] text-[10.5px] font-semibold text-papeliz-ink-muted">
-                      {accountVaultPlace === 'this-vault' ? 'This vault' : 'On this device'}
+            // A long name takes two lines rather than being cut short. In the gear's column, a row with
+            // three buttons (Unlock, Change passphrase, Delete) has its buttons under the name, on the right;
+            // one or two still fit beside it.
+            <div key={accountVault.papelizSyncVaultId} className="flex min-h-11 flex-wrap items-center justify-end gap-x-2.5 gap-y-1.5 px-3 py-2">
+              <div className="flex min-w-[min(100%,9rem)] flex-1 items-center gap-2.5">
+                <span aria-hidden="true" className="grid size-7 flex-none place-items-center rounded-lg bg-papeliz-blue-soft text-[13px] font-semibold text-papeliz-blue">
+                  {accountVaultName.trim().charAt(0).toUpperCase() || '·'}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                    <span className="line-clamp-2 min-w-0 text-[12.5px] leading-[1.3] font-medium [overflow-wrap:anywhere]" title={accountVaultName}>
+                      {accountVaultName}
                     </span>
-                  )}
-                </div>
-                <div className="flex flex-wrap items-center gap-x-1 text-[11.5px] leading-[1.35] text-papeliz-ink-subtle tabular-nums">
-                  <span className="inline-flex items-center gap-1 whitespace-nowrap">
-                    {isAccountVaultEndToEnd && <Lock className="size-3 flex-none" aria-hidden="true" />}
-                    {papelizSyncVaultEncryptionKindDisplayNames[accountVault.syncVaultEncryptionKind]}
-                  </span>
-                  {isPapelizSyncVaultLockedHere(accountVault) && <span className="whitespace-nowrap font-medium text-papeliz-warning-ink">· locked here</span>}
-                  <span className="whitespace-nowrap">
-                    · {accountVault.syncVaultFileCount.toLocaleString('en-US')} {accountVault.syncVaultFileCount === 1 ? 'file' : 'files'} · {formatPapelizSyncByteSize(accountVault.syncVaultStoredByteLength)}
-                  </span>
-                  {accountVaultPlace === 'not-on-this-device' && <span className="whitespace-nowrap">· not on this device</span>}
+                    {accountVaultPlace !== 'not-on-this-device' && (
+                      <span className="inline-flex h-[18px] flex-none items-center rounded-full bg-papeliz-surface-gray px-[7px] text-[10.5px] font-semibold text-papeliz-ink-muted">
+                        {accountVaultPlace === 'this-vault' ? 'This vault' : 'On this device'}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-x-1 text-[11.5px] leading-[1.35] text-papeliz-ink-subtle tabular-nums">
+                    <span className="inline-flex items-center gap-1 whitespace-nowrap">
+                      {isAccountVaultEndToEnd && <Lock className="size-3 flex-none" aria-hidden="true" />}
+                      {papelizSyncVaultEncryptionKindDisplayNames[accountVault.syncVaultEncryptionKind]}
+                    </span>
+                    {isPapelizSyncVaultLockedHere(accountVault) && <span className="whitespace-nowrap font-medium text-papeliz-warning-ink">· locked here</span>}
+                    <span className="whitespace-nowrap">
+                      · {describePapelizSyncFileCount(accountVault.syncVaultFileCount)} · {formatPapelizSyncByteSize(accountVault.syncVaultStoredByteLength)}
+                    </span>
+                    {accountVaultPlace === 'not-on-this-device' && <span className="whitespace-nowrap">· not on this device</span>}
+                  </div>
                 </div>
               </div>
-              {isPapelizSyncVaultLockedHere(accountVault) && (
+              <div className="flex flex-none items-center gap-2.5">
+                {isPapelizSyncVaultLockedHere(accountVault) && (
+                  <button
+                    type="button"
+                    aria-label={`Unlock “${accountVaultName}” on this device`}
+                    title={`Unlock “${accountVaultName}” on this device`}
+                    disabled={deletingPapelizSyncVaultId !== null}
+                    onClick={() => openAccountVaultDialog('unlock', accountVault)}
+                    className={`${papelizSyncVaultRowButtonClassName} hover:border-papeliz-blue-line hover:bg-papeliz-blue-soft hover:text-papeliz-blue`}
+                  >
+                    <LockOpen className="size-3.5" aria-hidden="true" />
+                  </button>
+                )}
+                {canPapelizSyncVaultPassphraseChange(accountVault) && (
+                  <button
+                    type="button"
+                    aria-label={`Change the passphrase for “${accountVaultName}”`}
+                    title={`Change the passphrase for “${accountVaultName}”`}
+                    disabled={deletingPapelizSyncVaultId !== null}
+                    onClick={() =>
+                      openPapelizSyncSetUpDialog({
+                        syncSetUpDialogKind: 'change-vault-passphrase',
+                        papelizSyncVaultId: accountVault.papelizSyncVaultId,
+                        syncVaultName: accountVaultName,
+                        isCurrentSyncVaultPassphraseAsked: isPapelizSyncVaultCurrentPassphraseAskedForChange(accountVault),
+                      })
+                    }
+                    className={`${papelizSyncVaultRowButtonClassName} hover:border-papeliz-blue-line hover:bg-papeliz-blue-soft hover:text-papeliz-blue`}
+                  >
+                    <KeyRound className="size-3.5" aria-hidden="true" />
+                  </button>
+                )}
                 <button
                   type="button"
-                  aria-label={`Unlock “${accountVaultName}” on this device`}
-                  title={`Unlock “${accountVaultName}” on this device`}
+                  aria-label={`Delete “${accountVaultName}” from Sync`}
+                  title={`Delete “${accountVaultName}” from Sync`}
                   disabled={deletingPapelizSyncVaultId !== null}
-                  onClick={() => openAccountVaultDialog('unlock', accountVault)}
-                  className={`${papelizSyncVaultRowButtonClassName} hover:border-papeliz-blue-line hover:bg-papeliz-blue-soft hover:text-papeliz-blue`}
+                  onClick={() => openAccountVaultDialog('delete', accountVault)}
+                  className={`${papelizSyncVaultRowButtonClassName} hover:border-papeliz-diff-removed-ink/40 hover:bg-papeliz-diff-removed hover:text-papeliz-diff-removed-ink focus-visible:text-papeliz-diff-removed-ink`}
                 >
-                  <LockOpen className="size-3.5" aria-hidden="true" />
+                  {isAccountVaultDeleting ? <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" /> : <Trash2 className="size-3.5" aria-hidden="true" />}
                 </button>
-              )}
-              {canPapelizSyncVaultPassphraseChange(accountVault) && (
-                <button
-                  type="button"
-                  aria-label={`Change the passphrase for “${accountVaultName}”`}
-                  title={`Change the passphrase for “${accountVaultName}”`}
-                  disabled={deletingPapelizSyncVaultId !== null}
-                  onClick={() =>
-                    openPapelizSyncSetUpDialog({
-                      syncSetUpDialogKind: 'change-vault-passphrase',
-                      papelizSyncVaultId: accountVault.papelizSyncVaultId,
-                      syncVaultName: accountVaultName,
-                      isCurrentSyncVaultPassphraseAsked: isPapelizSyncVaultCurrentPassphraseAskedForChange(accountVault),
-                    })
-                  }
-                  className={`${papelizSyncVaultRowButtonClassName} hover:border-papeliz-blue-line hover:bg-papeliz-blue-soft hover:text-papeliz-blue`}
-                >
-                  <KeyRound className="size-3.5" aria-hidden="true" />
-                </button>
-              )}
-              <button
-                type="button"
-                aria-label={`Delete “${accountVaultName}” from Sync`}
-                title={`Delete “${accountVaultName}” from Sync`}
-                disabled={deletingPapelizSyncVaultId !== null}
-                onClick={() => openAccountVaultDialog('delete', accountVault)}
-                className={`${papelizSyncVaultRowButtonClassName} hover:border-papeliz-diff-removed-ink/40 hover:bg-papeliz-diff-removed hover:text-papeliz-diff-removed-ink focus-visible:text-papeliz-diff-removed-ink`}
-              >
-                {isAccountVaultDeleting ? <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" /> : <Trash2 className="size-3.5" aria-hidden="true" />}
-              </button>
+              </div>
             </div>
           )
         })}

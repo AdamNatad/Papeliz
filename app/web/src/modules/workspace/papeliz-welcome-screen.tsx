@@ -2,6 +2,7 @@ import { AppWindow, BookOpen, CloudCheck, CloudDownload, Code, Download, Eye, Ey
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type Ref } from 'react'
 import { isPapelizSyncEngineInThisBuild } from 'virtual:papeliz-sync-engine-availability'
 import { isPapelizSyncUsedOnThisDevice, readPapelizSyncDevFakeEngineScenarioText, usePapelizSyncEngineSnapshot, usePapelizSyncEngineStore } from '../sync/papeliz-sync-engine-store'
+import { describePapelizSyncFileCount } from '../sync/papeliz-sync-screen-words'
 import { returnPapelizSyncSyncedVaultsPageToLive, usePapelizSyncSyncedVaultsPagePreviewStore } from '../sync/papeliz-sync-synced-vaults-page-preview-store'
 import {
   forgetPapelizSyncLinksOfDeletedVault,
@@ -964,7 +965,7 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                             const syncDownloadFileCountWords =
                               syncStartScreenDownload?.syncTransferredFileCount == null || syncStartScreenDownload.syncTransferFileCount === null
                                 ? null
-                                : `${syncStartScreenDownload.syncTransferredFileCount.toLocaleString('en-US')} of ${syncStartScreenDownload.syncTransferFileCount.toLocaleString('en-US')} files`
+                                : `${syncStartScreenDownload.syncTransferredFileCount.toLocaleString('en-US')} of ${describePapelizSyncFileCount(syncStartScreenDownload.syncTransferFileCount)}`
                             const syncDownloadPercent =
                               syncStartScreenDownload?.syncTransferredFileCount == null || !syncStartScreenDownload.syncTransferFileCount
                                 ? null

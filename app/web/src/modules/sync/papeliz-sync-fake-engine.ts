@@ -233,10 +233,23 @@ const papelizSyncFakeEngineNewDeviceAccountVaults: readonly PapelizSyncFakeAccou
   },
 ]
 
+// The locked scenario's account has one more End-to-end vault, not on this device. Its name is its own,
+// so it isn't mistaken for a new device's vault downloaded here before and opened.
+const papelizSyncFakeEngineLockedScenarioAccountVault: PapelizSyncFakeAccountOnlyVault = {
+  papelizSyncVaultId: 'pzvault_gggggggggggggggggggggggggg',
+  syncVaultName: 'Travel journal',
+  syncVaultEncryptionKind: 'end-to-end',
+  syncVaultFileCount: 318,
+  syncVaultStoredByteLength: 96e6,
+  syncVaultCreatedDaysAgo: 90,
+  syncVaultFakeNoteTextsByRelativePath: {
+    'Lisbon.md': '# Lisbon\n\nDownloaded by the fake engine.\n',
+  },
+}
+
 function listPapelizSyncFakeAccountOnlyVaults(fakeEngineScenario: PapelizSyncFakeEngineScenario): PapelizSyncFakeAccountOnlyVault[] {
   if (fakeEngineScenario === 'new-device' || fakeEngineScenario === 'download-stops') return [...papelizSyncFakeEngineNewDeviceAccountVaults]
-  // The locked scenario's account has one more End-to-end vault, not on this device.
-  if (fakeEngineScenario === 'locked') return papelizSyncFakeEngineNewDeviceAccountVaults.slice(0, 1)
+  if (fakeEngineScenario === 'locked') return [papelizSyncFakeEngineLockedScenarioAccountVault]
   return []
 }
 

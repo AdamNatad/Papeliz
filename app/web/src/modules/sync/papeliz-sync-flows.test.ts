@@ -216,6 +216,12 @@ describe('the fake engine, as Turn on Sync and the Sync page drive it', () => {
     expect(lockedLocalVault).toMatchObject({ syncVaultEncryptionKind: 'end-to-end', syncVaultLockState: 'locked', syncVaultStatus: { syncStatusKind: 'locked' } })
     const papelizSyncVaultId = lockedLocalVault?.papelizSyncVaultId ?? ''
     expect(await papelizSyncFakeEngine.listSyncFileVersions('vault-work', 'Plan.md')).toMatchObject({ syncActionFailureKind: 'locked' })
+    // The account's other End-to-end vault has a name of its own, apart from the new device's vaults.
+    const listedOutcome = await papelizSyncFakeEngine.listSyncedVaultsOnAccount()
+    expect(listedOutcome.syncActionOutcome === 'done' && listedOutcome.syncActionDoneValue.map((accountVault) => [accountVault.syncVaultName, accountVault.syncVaultLockState])).toEqual([
+      ['Work', 'locked'],
+      ['Travel journal', 'locked'],
+    ])
 
     expect(await papelizSyncFakeEngine.unlockSyncedVaultWithPassphrase(papelizSyncVaultId, 'not the passphrase')).toMatchObject({ syncActionFailureKind: 'wrong-passphrase' })
     expect(readFakeLocalVault(papelizSyncFakeEngine, 'vault-work')?.syncVaultLockState).toBe('locked')

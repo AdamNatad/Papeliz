@@ -141,6 +141,24 @@ describe('a download from the start screen', () => {
     expect(usePapelizWorkspaceStore.getState().workspaceNotice?.workspaceNoticeMessage).toBe('“Research notes” is on this device.')
   })
 
+  it('says where to unlock a download that stops locked', async () => {
+    vi.useFakeTimers()
+    const papelizSyncFakeEngine = createPapelizSyncFakeEngine({ fakeEngineScenario: 'download-stops', fakeCallDelayMilliseconds: 10 })
+    const unlock = unlockTestResearchNotes(papelizSyncFakeEngine)
+    await vi.advanceTimersByTimeAsync(10)
+    await unlock
+    const startedDownload = startPapelizSyncStartScreenDownload({
+      papelizSyncEngine: papelizSyncFakeEngine,
+      papelizOpenVault: (await createEmptyTestVault('locked-vault')).papelizOpenVault,
+      papelizSyncVaultId: researchNotesSyncVaultId,
+      isSyncDownloadCopyOnly: false,
+    })
+    await vi.advanceTimersByTimeAsync(10)
+    await startedDownload
+    papelizSyncFakeEngine.setFakeSyncVaultStatus('locked-vault', { syncStatusKind: 'locked' }, { syncVaultTransferKind: 'first-download', syncTransferredFileCount: 12, syncTransferFileCount: 1482 })
+    expect(readStartScreenDownload('locked-vault')).toMatchObject({ syncStartScreenDownloadStage: 'stopped', syncStartScreenDownloadStopWords: 'Locked. Unlock it in Settings › Sync.' })
+  })
+
   it('stops with the reason when the engine refuses it', async () => {
     const papelizSyncFakeEngine = createPapelizSyncFakeEngine({ fakeEngineScenario: 'new-device' })
     await startPapelizSyncStartScreenDownload({

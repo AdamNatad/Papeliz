@@ -11,7 +11,7 @@ import type {
   PapelizSyncEngine,
   PapelizSyncEngineSnapshot,
 } from './papeliz-sync-engine-contract'
-import { rememberPapelizSyncUsedOnThisDevice } from './papeliz-sync-engine-store'
+import { rememberPapelizSyncUsedOnThisDevice, usePapelizSyncEngineStore } from './papeliz-sync-engine-store'
 import { cancelPapelizSyncSignIn, describePapelizSyncSignInFromClickFailure, startPapelizSyncSignInFromClick } from './papeliz-sync-flow-store'
 import { openPapelizSyncNewTabWhenAddressIsReady, papelizSyncBlockedNewTabWords } from './papeliz-sync-new-tab'
 import { PapelizSyncFailureLine, PapelizSyncLoadingLine, PapelizSyncPageBox, PapelizSyncPageLabel, PapelizSyncPageRow, PapelizSyncPageSmallText, PapelizSyncPageText } from './papeliz-sync-page-parts'
@@ -164,6 +164,7 @@ function PapelizSyncSignedInAccount({ papelizSyncEngine, syncEngineSnapshot }: {
   const [accountActionFailureWords, setAccountActionFailureWords] = useState<string | null>(null)
   const [isAccountActionRunning, setIsAccountActionRunning] = useState(false)
   const currentTime = usePapelizSyncClockTime()
+  const thisWebSyncDeviceNamedCount = usePapelizSyncEngineStore((syncEngineState) => syncEngineState.thisWebSyncDeviceNamedCount)
   const syncSignIn = syncEngineSnapshot.syncSignIn
   const syncAccount = syncEngineSnapshot.syncAccount
 
@@ -175,7 +176,7 @@ function PapelizSyncSignedInAccount({ papelizSyncEngine, syncEngineSnapshot }: {
     return () => {
       isDeviceListLeft = true
     }
-  }, [papelizSyncEngine, syncDevicesReadCount])
+  }, [papelizSyncEngine, syncDevicesReadCount, thisWebSyncDeviceNamedCount])
 
   if (syncSignIn.syncSignInKind !== 'signed-in') return null
   const signInEmailAddress = syncSignIn.syncSignInEmailAddress

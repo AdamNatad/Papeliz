@@ -30,7 +30,13 @@ import { usePapelizSyncClockTime } from './papeliz-sync-clock'
 import { usePapelizSyncSyncedVaultsPagePreviewStore, type PapelizSyncSyncedVaultsPageStep } from './papeliz-sync-synced-vaults-page-preview-store'
 import { PapelizSyncFailureLine, PapelizSyncLoadingLine, PapelizSyncTextButton } from './papeliz-sync-page-parts'
 import { PapelizSyncPassphraseField } from './papeliz-sync-passphrase-fields'
-import { describePapelizSyncActionFailureNow, describePapelizSyncDay, formatPapelizSyncByteSize, papelizSyncVaultEncryptionKindDisplayNames } from './papeliz-sync-screen-words'
+import {
+  describePapelizSyncActionFailureNow,
+  describePapelizSyncDay,
+  describePapelizSyncFileCount,
+  formatPapelizSyncByteSize,
+  papelizSyncVaultEncryptionKindDisplayNames,
+} from './papeliz-sync-screen-words'
 import { listPapelizSyncVaultIdsCopiedHere } from './papeliz-sync-fetched-copies'
 import { requestPapelizSettingsGearSyncPage } from './papeliz-sync-settings-gear-request-store'
 import { pickEmptyPapelizVaultFolderForSyncDownload, startPapelizSyncStartScreenDownload } from './papeliz-sync-start-screen-download-store'
@@ -502,7 +508,7 @@ export function PapelizSyncSyncedVaultsPage({
                         {papelizSyncVaultEncryptionKindDisplayNames[accountVault.syncVaultEncryptionKind]}
                       </span>
                       <span className="whitespace-nowrap">
-                        · {accountVault.syncVaultFileCount.toLocaleString('en-US')} files · {formatPapelizSyncByteSize(accountVault.syncVaultStoredByteLength)}
+                        · {describePapelizSyncFileCount(accountVault.syncVaultFileCount)} · {formatPapelizSyncByteSize(accountVault.syncVaultStoredByteLength)}
                       </span>
                     </span>
                   </span>
