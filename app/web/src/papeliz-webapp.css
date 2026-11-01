@@ -939,6 +939,14 @@ label:has(> input[type='search']:focus-visible) {
   color: #fff;
 }
 
+/* On a touch screen they grow with the choices under them (.papeliz-sliding-choice), or they sit
+   higher than the words beside them. */
+@media (pointer: coarse) {
+  .papeliz-sliding-choice-pill-word {
+    height: 40px;
+  }
+}
+
 .papeliz-sliding-choice-pill-word[data-papeliz-sliding-choice-chosen='true'] {
   font-weight: 600;
 }
