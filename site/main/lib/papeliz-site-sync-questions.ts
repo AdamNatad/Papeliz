@@ -91,14 +91,14 @@ export const papelizSiteSyncQuestions: PapelizSiteQuestion[] = [
     papelizSiteQuestionAnchor: 'forgotten-passphrase',
     papelizSiteQuestionText: 'What if I forget my passphrase?',
     papelizSiteQuestionAnswerParts: [
-      'Only End-to-end vaults have a passphrase, and Papeliz can’t recover it. If you forget it, choose Delete from Sync for that vault, then turn Sync on again from a device that still has its notes. The notes on your devices stay as they are.',
+      'Only End-to-end vaults have a passphrase, and Papeliz can’t recover it. If you forget it, choose Remove from Sync for that vault, then turn Sync on again from a device that still has its notes. The notes on your devices stay as they are.',
     ],
   },
   {
     papelizSiteQuestionAnchor: 'switch-standard-and-end-to-end',
     papelizSiteQuestionText: 'Can I switch a vault between Standard and End-to-end?',
     papelizSiteQuestionAnswerParts: [
-      'Only by syncing it again: choose Delete from Sync for that vault, then turn Sync on with the other choice. The notes on your devices stay as they are.',
+      'Only by syncing it again: choose Remove from Sync for that vault, then turn Sync on with the other choice. The notes on your devices stay as they are.',
     ],
   },
   {

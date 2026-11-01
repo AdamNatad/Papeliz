@@ -36,9 +36,9 @@ export const papelizSyncVaultEncryptionKindReaderLines: Record<PapelizSyncVaultE
 // Set-up says it before Sync is turned on: names aren't encrypted, for either kind.
 export const papelizSyncVaultNameReadableLine = 'The vault’s name isn’t encrypted, so Papeliz can see it.'
 
-// An End-to-end vault's passphrase can't be recovered: forgetting it means Delete from Sync.
+// An End-to-end vault's passphrase can't be recovered: forgetting it means Remove from Sync.
 export const papelizSyncVaultPassphraseNotRecoverableLine =
-  'Papeliz can’t recover it. If you forget it, the synced copy can only be deleted and synced again from a device that still has the notes.'
+  'Papeliz can’t recover it. If you forget it, the vault can only be removed from Sync and synced again from a device that still has the notes.'
 
 // Change passphrase, for any End-to-end vault: the vault's key stays the same, only its wrap changes.
 // Without the key on this device, the current passphrase opens it first.

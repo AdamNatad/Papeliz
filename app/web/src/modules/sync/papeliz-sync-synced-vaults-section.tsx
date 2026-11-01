@@ -9,12 +9,12 @@ import { PapelizSyncPassphraseField } from './papeliz-sync-passphrase-fields'
 import { describePapelizSyncActionFailureNow, describePapelizSyncFileCount, formatPapelizSyncByteSize, papelizSyncVaultEncryptionKindDisplayNames } from './papeliz-sync-screen-words'
 
 // The Sync page's "Synced vaults": every vault on the account, with its files, its size, its kind and
-// whether it's this vault or on this device, each with Delete from Sync (Adam's pick B, 2026-10-31).
-// Deleting takes the synced copy and its old versions off the account; every device keeps its files and
+// whether it's this vault or on this device, each with Remove from Sync (Adam's pick B, 2026-10-31;
+// "Remove" rather than "Delete", as on the account page, 2026-11-01). Removing takes the synced copy and its old versions off the account; every device keeps its files and
 // stops syncing that vault. The confirmation asks for the vault's name, as Delete in the Hidden list
 // does. Every End-to-end vault has Change passphrase, which also asks the current passphrase when
 // this device doesn't hold the vault's key; one here that is locked has Unlock too, whose "Forgot
-// it?" leads to Delete from Sync, since its passphrase can't be recovered.
+// it?" leads to Remove from Sync, since its passphrase can't be recovered.
 
 export type PapelizSyncAccountVaultPlace = 'this-vault' | 'on-this-device' | 'not-on-this-device'
 
@@ -98,10 +98,10 @@ export function PapelizSyncSyncedVaultsSection({
     const syncVaultDeleteOutcome = await papelizSyncEngine.deleteSyncedVaultFromAccount(confirmedAccountVault.papelizSyncVaultId)
     setDeletingPapelizSyncVaultId(null)
     if (syncVaultDeleteOutcome.syncActionOutcome === 'failed') {
-      setSyncVaultDeleteFailureWords(`Couldn’t delete “${confirmedAccountVault.syncVaultName}” from Sync. ${describePapelizSyncActionFailureNow(syncVaultDeleteOutcome)}`)
+      setSyncVaultDeleteFailureWords(`Couldn’t remove “${confirmedAccountVault.syncVaultName}” from Sync. ${describePapelizSyncActionFailureNow(syncVaultDeleteOutcome)}`)
       return
     }
-    showWorkspaceNotice('info', `Deleted “${confirmedAccountVault.syncVaultName}” from Sync. Your devices keep its files.`)
+    showWorkspaceNotice('info', `Removed “${confirmedAccountVault.syncVaultName}” from Sync. Your devices keep its files.`)
     onAccountVaultsReadAgain()
   }
 
@@ -141,7 +141,7 @@ export function PapelizSyncSyncedVaultsSection({
           const isAccountVaultEndToEnd = accountVault.syncVaultEncryptionKind === 'end-to-end'
           return (
             // A long name takes two lines rather than being cut short. In the gear's column, a row with
-            // three buttons (Unlock, Change passphrase, Delete) has its buttons under the name, on the right;
+            // three buttons (Unlock, Change passphrase, Remove) has its buttons under the name, on the right;
             // one or two still fit beside it.
             <div key={accountVault.papelizSyncVaultId} className="flex min-h-11 flex-wrap items-center justify-end gap-x-2.5 gap-y-1.5 px-3 py-2">
               <div className="flex min-w-[min(100%,9rem)] flex-1 items-center gap-2.5">
@@ -206,8 +206,8 @@ export function PapelizSyncSyncedVaultsSection({
                 )}
                 <button
                   type="button"
-                  aria-label={`Delete “${accountVaultName}” from Sync`}
-                  title={`Delete “${accountVaultName}” from Sync`}
+                  aria-label={`Remove “${accountVaultName}” from Sync`}
+                  title={`Remove “${accountVaultName}” from Sync`}
                   disabled={deletingPapelizSyncVaultId !== null}
                   onClick={() => openAccountVaultDialog('delete', accountVault)}
                   className={`${papelizSyncVaultRowButtonClassName} hover:border-papeliz-diff-removed-ink/40 hover:bg-papeliz-diff-removed hover:text-papeliz-diff-removed-ink focus-visible:text-papeliz-diff-removed-ink`}
@@ -253,7 +253,7 @@ export function PapelizSyncSyncedVaultsSection({
               <p className="mt-3 text-[13px] leading-[1.45]">
                 Forgot it? Papeliz can’t recover it.{' '}
                 <PapelizSyncTextButton disabled={isSyncVaultUnlockRunning} onClick={() => openAccountVaultDialog('delete', accountVaultInDialog)}>
-                  Delete it from Sync
+                  Remove it from Sync
                 </PapelizSyncTextButton>
                 , then turn Sync on again from a device that still has the notes.
               </p>
@@ -267,7 +267,7 @@ export function PapelizSyncSyncedVaultsSection({
       )}
       {accountVaultDialogRequest?.accountVaultDialogKind === 'delete' && accountVaultInDialog !== undefined && (
         <PapelizConfirmDialog
-          confirmDialogTitle={`Delete “${accountVaultInDialog.syncVaultName}” from Sync?`}
+          confirmDialogTitle={`Remove “${accountVaultInDialog.syncVaultName}” from Sync?`}
           confirmDialogBody={
             <>
               <p>
@@ -279,7 +279,7 @@ export function PapelizSyncSyncedVaultsSection({
                 <span>It can’t be undone. Turning Sync on for it again uploads it as a new synced vault.</span>
               </p>
               <label className="mt-4 block text-[13px] font-medium text-papeliz-ink">
-                Type <span className="papeliz-selectable-text font-semibold">{accountVaultInDialog.syncVaultName}</span> to delete it
+                Type <span className="papeliz-selectable-text font-semibold">{accountVaultInDialog.syncVaultName}</span> to remove it
                 <input
                   value={typedSyncVaultName}
                   onChange={(changeEvent) => setTypedSyncVaultName(changeEvent.target.value)}
@@ -295,7 +295,7 @@ export function PapelizSyncSyncedVaultsSection({
               </label>
             </>
           }
-          confirmButtonLabel="Delete from Sync"
+          confirmButtonLabel="Remove from Sync"
           isConfirmActionDangerous
           isConfirmButtonDisabled={!isPapelizSyncVaultDeleteConfirmationTyped(typedSyncVaultName, accountVaultInDialog)}
           onConfirm={() => void deleteAccountVaultFromSync(accountVaultInDialog)}

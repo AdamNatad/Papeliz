@@ -437,7 +437,7 @@ describe('what the workspace reports to Sync', () => {
   })
 })
 
-describe('Delete from Sync on the Sync page', () => {
+describe('Remove from Sync on the Sync page', () => {
   const workAccountVault: PapelizSyncAccountVaultReading = {
     papelizSyncVaultId: 'pzvault_eeeeeeeeeeeeeeeeeeeeeeeeee',
     syncVaultName: 'Work',

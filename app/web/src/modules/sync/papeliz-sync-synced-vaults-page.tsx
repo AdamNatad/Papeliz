@@ -554,7 +554,7 @@ export function PapelizSyncSyncedVaultsPage({
               <button type="submit" hidden aria-hidden="true" tabIndex={-1} />
               <p className="mt-1.5 px-0.5 text-[12px] leading-[1.45] text-papeliz-ink-subtle">
                 It’s End-to-end, so it’s asked once on this device. Forgot it? Papeliz can’t recover it:{' '}
-                <PapelizSyncTextButton onClick={requestPapelizSettingsGearSyncPage}>delete it from Sync in Settings</PapelizSyncTextButton>.
+                <PapelizSyncTextButton onClick={requestPapelizSettingsGearSyncPage}>remove it from Sync in Settings</PapelizSyncTextButton>.
               </p>
             </form>
           )}

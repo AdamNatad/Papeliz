@@ -359,7 +359,7 @@ export function PapelizSyncSetUpDialog({ papelizSyncEngine, syncEngineSnapshot, 
           })}
         </div>
         <p className="mt-3 text-[12px] leading-[1.45] text-papeliz-ink-subtle">
-          {papelizSyncVaultNameReadableLine} To switch later, delete it from Sync and turn Sync on again.
+          {papelizSyncVaultNameReadableLine} To switch later, remove it from Sync and turn Sync on again.
         </p>
         {setUpActionLine}
       </PapelizSyncDialogFrame>
