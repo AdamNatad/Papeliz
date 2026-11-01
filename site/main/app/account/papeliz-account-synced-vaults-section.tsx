@@ -372,7 +372,7 @@ export function PapelizAccountSyncedVaultsSection({ papelizAccountSyncedVaults }
                       onClick={() => chooseSyncVaultDialog({ syncVaultDialogKind: 'delete', papelizSyncVaultId })}
                       className={`${papelizAccountCompactDangerButtonClassName} ${papelizAccountRowActionWidthClassName}`}
                     >
-                      Delete
+                      Delete from Sync
                     </button>
                   </>
                 }
@@ -683,6 +683,7 @@ function PapelizAccountSyncVaultPassphraseChangeDialog({
       <PapelizAccountDialog
         papelizAccountDialogTitle="Confirm It’s You"
         onPapelizAccountDialogClose={closeSyncVaultDialog}
+        papelizAccountDialogClosesOnlyFromItsButtons
         papelizAccountDialogFooter={
           <>
             <button type="button" onClick={closeSyncVaultDialog} className={papelizAccountSecondaryButtonClassName}>
@@ -873,6 +874,7 @@ function PapelizAccountSyncVaultDeletionDialog({
       <PapelizAccountDialog
         papelizAccountDialogTitle="Sign In Again to Continue"
         onPapelizAccountDialogClose={closeSyncVaultDialog}
+        papelizAccountDialogClosesOnlyFromItsButtons
         papelizAccountDialogFooter={
           <>
             <button type="button" onClick={closeSyncVaultDialog} className={papelizAccountSecondaryButtonClassName}>

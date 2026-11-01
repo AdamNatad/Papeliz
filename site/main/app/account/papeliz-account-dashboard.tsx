@@ -141,6 +141,7 @@ function PapelizAccountDeleteAccountRow({
           onPapelizAccountDialogClose={() => {
             if (!accountDeleteIsRunning) closePapelizAccountDeleteDialog()
           }}
+          papelizAccountDialogClosesOnlyFromItsButtons={accountDeleteStageKind === 'fresh-sign-in-needed'}
           papelizAccountDialogFooter={
             <>
               <button type="button" disabled={accountDeleteIsRunning} onClick={closePapelizAccountDeleteDialog} className={papelizAccountSecondaryButtonClassName}>

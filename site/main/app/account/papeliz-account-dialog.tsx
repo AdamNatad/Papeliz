@@ -5,16 +5,18 @@ import papelizAccountStyles from './papeliz-account.module.css'
 
 // The account page's dialog: a title, the body, then the footer's buttons (Close first, the main
 // action last). Escape, a click outside it and the footer's Close all close it, and focus goes back
-// to the button that opened it.
+// to the button that opened it. A dialog asking to sign in again closes only from its own buttons.
 export function PapelizAccountDialog({
   papelizAccountDialogTitle,
   papelizAccountDialogFooter,
   onPapelizAccountDialogClose,
+  papelizAccountDialogClosesOnlyFromItsButtons = false,
   children,
 }: {
   papelizAccountDialogTitle: string
   papelizAccountDialogFooter: ReactNode
   onPapelizAccountDialogClose: () => void
+  papelizAccountDialogClosesOnlyFromItsButtons?: boolean
   children: ReactNode
 }) {
   const papelizAccountDialogRef = useRef<HTMLDialogElement>(null)
@@ -52,7 +54,15 @@ export function PapelizAccountDialog({
       className={`${papelizAccountStyles.papelizAccountDialogEnter} m-auto max-h-[calc(100dvh-48px)] w-[480px] max-w-[calc(100vw-32px)] overflow-y-auto rounded-[14px] border border-papeliz-line bg-papeliz-surface p-0 text-papeliz-ink shadow-[0_24px_80px_rgb(0_40_100/0.25)] backdrop:bg-[rgb(10_20_40/0.4)] backdrop:backdrop-blur-[3px]`}
       onCancel={(papelizAccountDialogCancelEvent) => {
         papelizAccountDialogCancelEvent.preventDefault()
-        onPapelizAccountDialogClose()
+        if (!papelizAccountDialogClosesOnlyFromItsButtons) onPapelizAccountDialogClose()
+      }}
+      onClose={() => {
+        // The browser closes a dialog on a second Escape in a row even when its cancel is refused,
+        // so one that closes only from its buttons opens again.
+        const papelizAccountDialogElement = papelizAccountDialogRef.current
+        if (papelizAccountDialogClosesOnlyFromItsButtons && papelizAccountDialogElement?.isConnected && !papelizAccountDialogElement.open) {
+          papelizAccountDialogElement.showModal()
+        }
       }}
       onPointerDown={(papelizAccountDialogPointerEvent) => {
         papelizAccountDialogBackdropIsPressed.current =
@@ -60,6 +70,7 @@ export function PapelizAccountDialog({
       }}
       onClick={(papelizAccountDialogClickEvent) => {
         if (
+          !papelizAccountDialogClosesOnlyFromItsButtons &&
           papelizAccountDialogBackdropIsPressed.current &&
           papelizAccountDialogClickEvent.target === papelizAccountDialogRef.current &&
           isPapelizAccountDialogPointerOutside(papelizAccountDialogClickEvent)

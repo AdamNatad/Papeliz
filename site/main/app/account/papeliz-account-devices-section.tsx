@@ -271,6 +271,7 @@ export function PapelizAccountDevicesSection({
               : titlePapelizAccountSyncDeviceRemoval(syncDeviceRemoval.syncDeviceRecord)
           }
           onPapelizAccountDialogClose={() => setSyncDeviceRemoval(null)}
+          papelizAccountDialogClosesOnlyFromItsButtons={syncDeviceRemoval.syncDeviceRemovalStageKind === 'sign-in-ended'}
           papelizAccountDialogFooter={
             <>
               <button type="button" disabled={syncDeviceRemovalIsRunning} onClick={() => setSyncDeviceRemoval(null)} className={papelizAccountSecondaryButtonClassName}>
