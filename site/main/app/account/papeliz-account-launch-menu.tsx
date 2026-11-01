@@ -91,8 +91,9 @@ function PapelizAccountDownloadMenuItems() {
   )
 }
 
-// Closes an open menu on a press outside it or on Escape, and gives focus back to its button.
-function useClosePapelizAccountMenuOutside(menuIsOpen: boolean, closeMenu: () => void) {
+// Closes an open menu on a press outside it or on Escape, and gives focus back to its button. The
+// Vaults rows' Manage menus use it too.
+export function useClosePapelizAccountMenuOutside(menuIsOpen: boolean, closeMenu: () => void) {
   const papelizAccountMenuRootRef = useRef<HTMLDivElement>(null)
   const papelizAccountMenuButtonRef = useRef<HTMLButtonElement>(null)
   useEffect(() => {

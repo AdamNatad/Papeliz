@@ -7,8 +7,6 @@ import { PapelizSitePillSwitch } from '@/components/controls/papeliz-site-pill-s
 import {
   papelizAccountCompactDangerButtonClassName,
   papelizAccountCompactPrimaryButtonClassName,
-  papelizAccountCompactSoftBlueButtonClassName,
-  papelizAccountCompactSoftDangerButtonClassName,
   papelizAccountFieldLabelClassName,
   papelizAccountRowActionWidthClassName,
   papelizAccountSecondaryButtonClassName,
@@ -17,6 +15,7 @@ import {
 import { isPapelizAccountSignInFresh, papelizAccountChangePassphraseAfterSignInParameterName, papelizAccountPagePath } from './papeliz-account-config'
 import { papelizAccountSyncUnreachableMessage } from './papeliz-account-devices-section'
 import { PapelizAccountDialog } from './papeliz-account-dialog'
+import { PapelizAccountManageMenu, papelizAccountRowActionsDialogButtonClassName } from './papeliz-account-manage-menu'
 import { PapelizAccountRowGroup, PapelizAccountSectionIntro } from './papeliz-account-rows'
 import type { PapelizAccountSyncService, PapelizAccountSyncVaultEncryptionKind, PapelizAccountSyncVaultRecord } from './papeliz-account-sync-service'
 import { rewrapPapelizAccountSyncVaultKeyOffMainThread } from './papeliz-account-sync-vault-key-rewrap-client'
@@ -152,16 +151,16 @@ const papelizAccountSyncVaultEncryptionKindLabels: Record<
   standard: {
     syncVaultEncryptionKindName: 'Standard',
     SyncVaultEncryptionKindIcon: Cloud,
-    syncVaultEncryptionKindExplanation: 'No passphrase. Papeliz keeps their key, so they open on any device you sign in on.',
-    syncVaultEncryptionKindExplanationForOneVault: 'No passphrase. Papeliz keeps its key, so it opens on any device you sign in on.',
+    syncVaultEncryptionKindExplanation: 'Papeliz keeps the key, so each vault opens on any device you sign in on, with no passphrase.',
+    syncVaultEncryptionKindExplanationForOneVault: 'Papeliz keeps the key, so the vault opens on any device you sign in on, with no passphrase.',
     syncVaultEncryptionKindEmptyText: 'A vault shows here once you turn on Sync for it in Papeliz and choose Standard.',
   },
   'end-to-end': {
-    syncVaultEncryptionKindName: 'End-to-end',
+    syncVaultEncryptionKindName: 'End-to-End',
     SyncVaultEncryptionKindIcon: Lock,
-    syncVaultEncryptionKindExplanation: 'Each has its own passphrase, which Papeliz never receives and can’t recover.',
-    syncVaultEncryptionKindExplanationForOneVault: 'It has its own passphrase, which Papeliz never receives and can’t recover.',
-    syncVaultEncryptionKindEmptyText: 'A vault shows here once you turn on Sync for it in Papeliz and choose End-to-end.',
+    syncVaultEncryptionKindExplanation: 'Only its own passphrase opens each vault. Papeliz never receives the passphrase and can’t recover it.',
+    syncVaultEncryptionKindExplanationForOneVault: 'Only its passphrase opens it. Papeliz never receives the passphrase and can’t recover it.',
+    syncVaultEncryptionKindEmptyText: 'A vault shows here once you turn on Sync for it in Papeliz and choose End-to-End.',
   },
 }
 
@@ -268,7 +267,9 @@ export function PapelizAccountSyncedVaultsSection({ papelizAccountSyncedVaults }
 
   return (
     <>
-      <PapelizAccountSectionIntro>The vaults synced to your account. Removing one from Sync leaves its notes on your devices.</PapelizAccountSectionIntro>
+      {/* What every vault shares, then under the switch who holds the chosen kind's key (Adam,
+          2026-11-01: the tip's words on the page instead, "so no more tooltip then"). */}
+      <PapelizAccountSectionIntro>Every vault is encrypted on your device before it uploads, and travels over HTTPS.</PapelizAccountSectionIntro>
       {/* The site's pill switch, as tabs, with its bounce (Adam, 2026-11-01: "standard to end to end
           swatch on accounts should have our swatch bounce animation"). */}
       <div className="mb-3 md:mt-4 md:mb-1 md:w-[340px]">
@@ -288,7 +289,7 @@ export function PapelizAccountSyncedVaultsSection({ papelizAccountSyncedVaults }
             const syncVaultKindCount = listedSyncVaultRecords?.filter((syncVaultRecord) => syncVaultRecord.syncVaultEncryptionKind === syncVaultEncryptionKind).length
             return {
               papelizSitePillSwitchOptionValue: syncVaultEncryptionKind,
-              // "End-to-end, 1 vault"; just the name until the list loads.
+              // "End-to-End, 1 vault"; just the name until the list loads.
               papelizSitePillSwitchOptionAccessibleName:
                 syncVaultKindCount === undefined
                   ? syncVaultEncryptionKindName
@@ -372,30 +373,7 @@ export function PapelizAccountSyncedVaultsSection({ papelizAccountSyncedVaults }
                 syncVaultLineDetail={<PapelizAccountSyncVaultDetailPieces syncVaultDetailPieces={syncVaultDetailPieces} />}
                 syncVaultLinePhoneTapLabel={`${syncVaultRecord.syncVaultName}, ${syncVaultDetailPieces.join(' · ')}: ${syncVaultIsEndToEnd ? 'Change Passphrase or Remove from Sync' : 'Remove from Sync'}`}
                 onSyncVaultLinePhoneTap={() => chooseSyncVaultDialog({ syncVaultDialogKind: 'actions', papelizSyncVaultId })}
-                syncVaultLineActions={
-                  <>
-                    {syncVaultIsEndToEnd && (
-                      <button
-                        type="button"
-                        aria-haspopup="dialog"
-                        aria-label={`Change Passphrase for ${syncVaultRecord.syncVaultName}`}
-                        onClick={() => chooseSyncVaultDialog({ syncVaultDialogKind: 'change-passphrase', papelizSyncVaultId })}
-                        className={papelizAccountCompactSoftBlueButtonClassName}
-                      >
-                        Change Passphrase
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      aria-haspopup="dialog"
-                      aria-label={`Remove ${syncVaultRecord.syncVaultName} from Sync`}
-                      onClick={() => chooseSyncVaultDialog({ syncVaultDialogKind: 'delete', papelizSyncVaultId })}
-                      className={`${papelizAccountCompactSoftDangerButtonClassName} ${papelizAccountRowActionWidthClassName}`}
-                    >
-                      Remove from Sync
-                    </button>
-                  </>
-                }
+                syncVaultLineActions={<PapelizAccountSyncVaultManageMenu syncVaultRecord={syncVaultRecord} chooseSyncVaultDialog={chooseSyncVaultDialog} />}
               />
             )
           })}
@@ -466,8 +444,40 @@ export function PapelizAccountSyncedVaultsDialogs({
   return null
 }
 
-const papelizAccountSyncVaultActionButtonClassName =
-  'flex min-h-[48px] w-full cursor-pointer items-center gap-3 rounded-[10px] border border-papeliz-line bg-papeliz-surface px-3.5 text-left text-[14.5px] font-semibold transition-colors hover:bg-papeliz-surface-soft active:bg-papeliz-press focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-papeliz-blue'
+// A vault row's actions on a computer: Change Passphrase (End-to-end only) and Remove from Sync, the
+// same choices a tap on the row gives on a phone (Adam, 2026-11-01, picking "One Manage menu" over
+// white, soft, solid, icon and text buttons).
+function PapelizAccountSyncVaultManageMenu({
+  syncVaultRecord,
+  chooseSyncVaultDialog,
+}: {
+  syncVaultRecord: PapelizAccountSyncVaultRecord
+  chooseSyncVaultDialog: (syncVaultDialogChoice: PapelizAccountSyncVaultDialogChoice | null) => void
+}) {
+  const papelizSyncVaultId = syncVaultRecord.papelizSyncVaultId
+  return (
+    <PapelizAccountManageMenu
+      manageMenuLabel={`Manage ${syncVaultRecord.syncVaultName}`}
+      manageMenuChoices={[
+        ...(syncVaultRecord.syncVaultEncryptionKind === 'end-to-end'
+          ? [
+              {
+                manageMenuChoiceLabel: 'Change Passphrase',
+                ManageMenuChoiceIcon: KeyRound,
+                onManageMenuChoose: () => chooseSyncVaultDialog({ syncVaultDialogKind: 'change-passphrase', papelizSyncVaultId }),
+              },
+            ]
+          : []),
+        {
+          manageMenuChoiceLabel: 'Remove from Sync',
+          ManageMenuChoiceIcon: Trash2,
+          manageMenuChoiceIsDanger: true,
+          onManageMenuChoose: () => chooseSyncVaultDialog({ syncVaultDialogKind: 'delete', papelizSyncVaultId }),
+        },
+      ]}
+    />
+  )
+}
 
 // A phone's tap on a row: the vault, what it holds, and its actions.
 function PapelizAccountSyncVaultActionsDialog({
@@ -502,7 +512,7 @@ function PapelizAccountSyncVaultActionsDialog({
           <button
             type="button"
             onClick={() => chooseSyncVaultDialog({ syncVaultDialogKind: 'change-passphrase', papelizSyncVaultId })}
-            className={`${papelizAccountSyncVaultActionButtonClassName} text-papeliz-ink`}
+            className={`${papelizAccountRowActionsDialogButtonClassName} text-papeliz-ink`}
           >
             <KeyRound className="size-[18px] shrink-0 text-papeliz-ink-muted" aria-hidden="true" />
             Change Passphrase
@@ -511,7 +521,7 @@ function PapelizAccountSyncVaultActionsDialog({
         <button
           type="button"
           onClick={() => chooseSyncVaultDialog({ syncVaultDialogKind: 'delete', papelizSyncVaultId })}
-          className={`${papelizAccountSyncVaultActionButtonClassName} text-papeliz-diff-removed-ink`}
+          className={`${papelizAccountRowActionsDialogButtonClassName} text-papeliz-diff-removed-ink`}
         >
           <Trash2 className="size-[18px] shrink-0" aria-hidden="true" />
           Remove from Sync

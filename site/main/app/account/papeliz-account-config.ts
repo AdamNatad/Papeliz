@@ -29,6 +29,14 @@ export const papelizAccountDeletedParameterName = 'papeliz-account-deleted'
 export const papelizAccountDeleteAfterSignInParameterName = 'papeliz-account-delete-after-sign-in'
 // Change Passphrase needs the same recent sign-in; its flag names the vault whose dialog opens again.
 export const papelizAccountChangePassphraseAfterSignInParameterName = 'papeliz-account-change-passphrase-after-sign-in'
+// Profile's Change Email or Change Username, when Clerk asks for a recent sign-in first; its flag
+// names which dialog opens again.
+export const papelizAccountChangeProfileDetailAfterSignInParameterName = 'papeliz-account-change-profile-detail-after-sign-in'
+export type PapelizAccountProfileDetailKind = 'email' | 'username'
+export function readPapelizAccountProfileDetailToChangeAfterSignIn(papelizAccountPageSearchParameters: URLSearchParams): PapelizAccountProfileDetailKind | null {
+  const profileDetailKindAfterSignIn = papelizAccountPageSearchParameters.get(papelizAccountChangeProfileDetailAfterSignInParameterName)
+  return profileDetailKindAfterSignIn === 'email' || profileDetailKindAfterSignIn === 'username' ? profileDetailKindAfterSignIn : null
+}
 export const papelizAccountFreshSignInMinutes = 10
 
 // Clerk's session says how many minutes ago the first factor was verified (-1 for never).

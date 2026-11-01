@@ -24,16 +24,6 @@ export const papelizAccountRowActionWidthClassName = 'min-w-[84px] md:min-w-[112
 // outline").
 export const papelizAccountSecondaryButtonClassName =
   'inline-flex min-h-[38px] shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-papeliz-line-strong bg-papeliz-surface px-3.5 text-[13px] font-semibold whitespace-nowrap text-papeliz-ink shadow-[0_1px_2px_rgb(16_24_40/0.08)] transition-colors hover:bg-papeliz-surface-soft disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-papeliz-blue'
-
-// A pair of row actions in soft colors, a change in blue beside a removal in red, as on an End-to-end
-// vault's row (Adam, 2026-11-01: "i want soft blue and also means remove from sync is soft red so its
-// uniform").
-export const papelizAccountCompactSoftBlueButtonClassName =
-  'inline-flex min-h-[38px] shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-papeliz-blue-line bg-papeliz-blue-soft px-3.5 text-[13px] font-semibold whitespace-nowrap text-papeliz-blue transition-[background-color,scale] hover:bg-papeliz-blue-soft-hover active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-papeliz-blue'
-
-export const papelizAccountCompactSoftDangerButtonClassName =
-  'inline-flex min-h-[38px] shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-[color-mix(in_srgb,var(--color-papeliz-diff-removed-ink)_35%,transparent)] bg-papeliz-diff-removed px-3.5 text-[13px] font-semibold whitespace-nowrap text-papeliz-diff-removed-ink transition-[background-color,scale] hover:bg-[color-mix(in_srgb,var(--color-papeliz-diff-removed-ink)_10%,var(--color-papeliz-diff-removed))] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-papeliz-diff-removed-ink'
-
 export const papelizAccountTextFieldClassName =
   'block min-h-[42px] w-full rounded-[9px] border border-papeliz-line-strong bg-papeliz-surface px-3 text-sm text-papeliz-ink outline-none transition-[border-color,box-shadow] duration-150 ease-out placeholder:text-papeliz-ink-subtle focus:border-papeliz-blue focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--color-papeliz-blue)_25%,transparent)]'
 

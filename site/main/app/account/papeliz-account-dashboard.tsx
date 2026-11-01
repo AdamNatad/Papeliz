@@ -1,7 +1,7 @@
 'use client'
 
 import { useAuth, useClerk, useSession, useUser } from '@clerk/react'
-import { ArrowLeft, Check, ChevronRight, CreditCard, FingerprintPattern, FolderSync, Laptop, Mail, Power, RefreshCw, UserRound, type LucideIcon } from 'lucide-react'
+import { ArrowLeft, Check, ChevronRight, CreditCard, FingerprintPattern, FolderSync, Laptop, Power, RefreshCw, UserRound, type LucideIcon } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import type { IconType } from 'react-icons'
 import { FaApple } from 'react-icons/fa6'
@@ -21,11 +21,13 @@ import {
   papelizAccountPagePath,
   papelizAccountSupportPath,
   readPapelizAccountPasskeysAreOn,
+  type PapelizAccountProfileDetailKind,
 } from './papeliz-account-config'
 import { PapelizAccountBillingSection } from './papeliz-account-billing-section'
 import { PapelizAccountDevicesSection, usePapelizAccountSyncDeviceList, type PapelizAccountSyncDeviceList } from './papeliz-account-devices-section'
 import { PapelizAccountDialog } from './papeliz-account-dialog'
 import { PapelizAccountPhoneLaunchButtons, PapelizAccountSidebarLaunchButton } from './papeliz-account-launch-menu'
+import { PapelizAccountEmailRow, PapelizAccountUsernameRow } from './papeliz-account-profile-details'
 import { PapelizAccountRow, PapelizAccountRowGroup, papelizAccountPhoneChevronRowActionClassName } from './papeliz-account-rows'
 import type { PapelizAccountSyncService } from './papeliz-account-sync-service'
 import { PapelizAccountSyncPlansSection } from './papeliz-account-sync-plans-section'
@@ -226,10 +228,12 @@ function PapelizAccountSignInWayLine({
 function PapelizAccountProfileSection({
   papelizAccountSyncService,
   isPapelizAccountDeleteOpenedAfterSignIn,
+  papelizAccountProfileDetailToChangeAfterSignIn,
   papelizAccountPhoneLeaveCard,
 }: {
   papelizAccountSyncService: PapelizAccountSyncService
   isPapelizAccountDeleteOpenedAfterSignIn: boolean
+  papelizAccountProfileDetailToChangeAfterSignIn: PapelizAccountProfileDetailKind | null
   // Back to Main Site and Sign Out, on a phone; on Profile it comes before Contact Support and
   // Delete Account (Adam, 2026-10-31).
   papelizAccountPhoneLeaveCard: ReactNode
@@ -242,7 +246,6 @@ function PapelizAccountProfileSection({
   const [signInProviderConnectMessages, setSignInProviderConnectMessages] = useState<Partial<Record<PapelizAccountSignInProvider, string>>>({})
   if (!user) return null
   const papelizAccountPrimaryEmailAddress = user.primaryEmailAddress?.emailAddress ?? null
-  const papelizAccountEmailAddress = papelizAccountPrimaryEmailAddress ?? 'No email'
   const passkeyCount = user.passkeys.length
   const papelizAccountPasskeysAreOn = readPapelizAccountPasskeysAreOn(papelizAccountClerk)
 
@@ -288,9 +291,11 @@ function PapelizAccountProfileSection({
     <>
       <h1 className="mt-[22px] mb-2.5 text-[22px] font-[650] tracking-[-0.02em] md:mt-0 md:mb-[22px] md:text-[29px]">Your profile</h1>
       <PapelizAccountRowGroup>
-        <PapelizAccountRow papelizAccountRowTitle="Email" papelizAccountRowValue={papelizAccountEmailAddress} />
-        {user.username && <PapelizAccountRow papelizAccountRowTitle="Username" papelizAccountRowValue={user.username} />}
-        {/* Every way to sign in on one list, passkeys included (Adam, 2026-10-31). */}
+        <PapelizAccountEmailRow isEmailChangeOpenedAfterSignIn={papelizAccountProfileDetailToChangeAfterSignIn === 'email'} />
+        <PapelizAccountUsernameRow isUsernameChangeOpenedAfterSignIn={papelizAccountProfileDetailToChangeAfterSignIn === 'username'} />
+        {/* Every way to sign in on one list, passkeys included (Adam, 2026-10-31). No Email code line:
+            the Email above always gets a code (Adam, 2026-11-01: "this is redundant … whatever is the
+            email is its email code"). */}
         <PapelizAccountRow
           papelizAccountRowTitle="Ways to sign in"
           papelizAccountRowExtra={
@@ -330,12 +335,6 @@ function PapelizAccountProfileSection({
                   />
                 )
               })}
-              <PapelizAccountSignInWayLine
-                signInWayIcon={<Mail className="size-4 text-papeliz-ink-muted" aria-hidden="true" />}
-                signInWayName="Email code"
-                signInWayDetail={papelizAccountPrimaryEmailAddress ? `A code sent to ${papelizAccountPrimaryEmailAddress}` : 'A code sent to your email'}
-                signInWayAction={<PapelizAccountSignInWayConnectedStatus />}
-              />
               {papelizAccountPasskeysAreOn && (
                 <PapelizAccountSignInWayLine
                   signInWayIcon={<FingerprintPattern className="size-4 text-papeliz-ink-muted" aria-hidden="true" />}
@@ -423,11 +422,14 @@ export function PapelizAccountDashboard({
   papelizAccountSyncService,
   isPapelizAccountDeleteOpenedAfterSignIn = false,
   papelizSyncVaultIdToChangePassphraseAfterSignIn = null,
+  papelizAccountProfileDetailToChangeAfterSignIn = null,
 }: {
   papelizAccountSyncService: PapelizAccountSyncService
   isPapelizAccountDeleteOpenedAfterSignIn?: boolean
   // Change Passphrase sent the user to sign in again; its vault's dialog opens again on Vaults.
   papelizSyncVaultIdToChangePassphraseAfterSignIn?: string | null
+  // Change Email or Change Username did the same; its dialog opens again on Profile.
+  papelizAccountProfileDetailToChangeAfterSignIn?: PapelizAccountProfileDetailKind | null
 }) {
   const papelizAccountClerk = useClerk()
   const [chosenPapelizAccountSectionId, setChosenPapelizAccountSectionId] = useState<PapelizAccountSectionId>(
@@ -464,6 +466,7 @@ export function PapelizAccountDashboard({
       <PapelizAccountProfileSection
         papelizAccountSyncService={papelizAccountSyncService}
         isPapelizAccountDeleteOpenedAfterSignIn={isPapelizAccountDeleteOpenedAfterSignIn}
+        papelizAccountProfileDetailToChangeAfterSignIn={papelizAccountProfileDetailToChangeAfterSignIn}
         papelizAccountPhoneLeaveCard={papelizAccountPhoneLeaveCard}
       />
     ) : (

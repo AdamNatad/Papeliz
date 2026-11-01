@@ -6,11 +6,13 @@ import { useEffect, useState } from 'react'
 import {
   isPapelizAccountProductionHost,
   papelizAccountChangePassphraseAfterSignInParameterName,
+  papelizAccountChangeProfileDetailAfterSignInParameterName,
   papelizAccountDeleteAfterSignInParameterName,
   papelizAccountDeletedParameterName,
   papelizAccountPagePath,
   papelizAccountSignUpNeedsMoreParameterName,
   papelizAccountSsoCallbackParameterName,
+  readPapelizAccountProfileDetailToChangeAfterSignIn,
   selectPapelizAccountClerkPublishableKey,
 } from './papeliz-account-config'
 import { PapelizAccountDashboard } from './papeliz-account-dashboard'
@@ -88,18 +90,26 @@ function PapelizAccountPageScreen({ isPapelizAccountProductionHost }: { isPapeli
   const [isPapelizAccountDeleteOpenedAfterSignIn] = useState(() => papelizAccountPageSearchParameters.has(papelizAccountDeleteAfterSignInParameterName))
   // Change Passphrase did the same for one vault; its dialog opens again, and only once.
   const [papelizSyncVaultIdToChangePassphraseAfterSignIn] = useState(() => papelizAccountPageSearchParameters.get(papelizAccountChangePassphraseAfterSignInParameterName))
+  // And Change Email or Change Username, for Profile.
+  const [papelizAccountProfileDetailToChangeAfterSignIn] = useState(() => readPapelizAccountProfileDetailToChangeAfterSignIn(papelizAccountPageSearchParameters))
 
   useEffect(() => {
     if (isSignedIn) forgetPapelizAccountSsoPendingProvider()
   }, [isSignedIn])
 
   useEffect(() => {
-    if (!isSignedIn || (!isPapelizAccountDeleteOpenedAfterSignIn && papelizSyncVaultIdToChangePassphraseAfterSignIn === null)) return
+    if (
+      !isSignedIn ||
+      (!isPapelizAccountDeleteOpenedAfterSignIn && papelizSyncVaultIdToChangePassphraseAfterSignIn === null && papelizAccountProfileDetailToChangeAfterSignIn === null)
+    ) {
+      return
+    }
     const papelizAccountAddressWithoutAfterSignInFlags = new URL(window.location.href)
     papelizAccountAddressWithoutAfterSignInFlags.searchParams.delete(papelizAccountDeleteAfterSignInParameterName)
     papelizAccountAddressWithoutAfterSignInFlags.searchParams.delete(papelizAccountChangePassphraseAfterSignInParameterName)
+    papelizAccountAddressWithoutAfterSignInFlags.searchParams.delete(papelizAccountChangeProfileDetailAfterSignInParameterName)
     window.history.replaceState(window.history.state, '', papelizAccountAddressWithoutAfterSignInFlags.href)
-  }, [isSignedIn, isPapelizAccountDeleteOpenedAfterSignIn, papelizSyncVaultIdToChangePassphraseAfterSignIn])
+  }, [isSignedIn, isPapelizAccountDeleteOpenedAfterSignIn, papelizSyncVaultIdToChangePassphraseAfterSignIn, papelizAccountProfileDetailToChangeAfterSignIn])
 
   if (!isSignedIn && papelizAccountPageSearchParameters.has(papelizAccountDeletedParameterName)) {
     return (
@@ -145,6 +155,7 @@ function PapelizAccountPageScreen({ isPapelizAccountProductionHost }: { isPapeli
       papelizAccountSyncService={papelizAccountSyncService}
       isPapelizAccountDeleteOpenedAfterSignIn={isPapelizAccountDeleteOpenedAfterSignIn}
       papelizSyncVaultIdToChangePassphraseAfterSignIn={papelizSyncVaultIdToChangePassphraseAfterSignIn}
+      papelizAccountProfileDetailToChangeAfterSignIn={papelizAccountProfileDetailToChangeAfterSignIn}
     />
   )
 }

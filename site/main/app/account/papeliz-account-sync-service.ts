@@ -15,9 +15,10 @@ import { isPapelizAccountSyncPassphraseWrappedVaultKey, type PapelizAccountSyncP
 export const papelizAccountSyncDeviceSessionsPath = '/api/account/v1/device-sessions'
 export const papelizAccountSyncDevicesPath = '/api/account/v1/devices'
 export const papelizAccountSyncAccountDeletionFromSignInPagePath = '/api/account/v1/account/deletion-from-sign-in-page'
-// The Devices section's list and Remove, from a sign-in token and no device: GET answers
-// `{ syncDeviceRecords }` (an empty list when the sign-in has no Sync account); DELETE with a device ID
-// answers `{ removedPapelizSyncDeviceId }`, with any valid sign-in.
+// The Devices section's list, Rename and Remove, from a sign-in token and no device: GET answers
+// `{ syncDeviceRecords }` (an empty list when the sign-in has no Sync account); PUT
+// `…/:papelizSyncDeviceId/name` with `{ syncDeviceName }` answers `{ syncDeviceRecord }`; DELETE with a
+// device ID answers `{ removedPapelizSyncDeviceId }`, with any valid sign-in.
 export const papelizAccountSyncDevicesFromSignInPagePath = '/api/account/v1/devices-from-sign-in-page'
 // The Vaults section's list, Change Passphrase and Remove from Sync, from a sign-in token and
 // no device: GET answers `{ papelizSyncAccountId, syncAccountVaultRecords }` (an empty list when the
@@ -64,6 +65,15 @@ export type PapelizAccountSyncDeviceListOutcome =
 export type PapelizAccountSyncDeviceRemovalOutcome =
   | { syncDeviceRemovalOutcomeKind: 'removed' }
   | { syncDeviceRemovalOutcomeKind: 'refused'; syncDeviceRemovalRefusalMessage: string }
+
+// The longest name Sync keeps for a device.
+export const papelizAccountSyncDeviceNameMaximumCharacterCount = 128
+
+// `device-gone`: removed from another tab or device in the meantime.
+export type PapelizAccountSyncDeviceRenameOutcome =
+  | { syncDeviceRenameOutcomeKind: 'renamed'; syncDeviceRecord: PapelizAccountSyncDeviceRecord }
+  | { syncDeviceRenameOutcomeKind: 'device-gone' }
+  | { syncDeviceRenameOutcomeKind: 'refused'; syncDeviceRenameRefusalMessage: string }
 
 export type PapelizAccountSyncVaultEncryptionKind = 'standard' | 'end-to-end'
 
@@ -120,6 +130,7 @@ export interface PapelizAccountSyncService {
   // The Devices section: every device signed in to Sync, and Remove, which signs one out.
   listPapelizSyncDevices(signInToken: string): Promise<PapelizAccountSyncDeviceListOutcome>
   removePapelizSyncDeviceFromSignInPage(signInToken: string, papelizSyncDeviceId: string): Promise<PapelizAccountSyncDeviceRemovalOutcome>
+  renamePapelizSyncDeviceFromSignInPage(signInToken: string, papelizSyncDeviceId: string, syncDeviceName: string): Promise<PapelizAccountSyncDeviceRenameOutcome>
   // The Vaults section: every synced vault, Change Passphrase for an End-to-end one (its new
   // wrapped copy is made on this page), and Remove from Sync, which leaves every device's files.
   listPapelizSyncVaults(signInToken: string): Promise<PapelizAccountSyncVaultListOutcome>
@@ -318,6 +329,34 @@ async function requestPapelizSyncDeviceRemovalFromAccountWorker(signInToken: str
 }
 
 // The Account Worker's answer, or null when no Account Worker is on this origin (as above).
+async function requestPapelizSyncDeviceRenameFromAccountWorker(
+  signInToken: string,
+  papelizSyncDeviceId: string,
+  syncDeviceName: string,
+): Promise<PapelizAccountSyncDeviceRenameOutcome | null> {
+  const deviceRenameResponse = await fetch(`${papelizAccountSyncDevicesFromSignInPagePath}/${encodeURIComponent(papelizSyncDeviceId)}/name`, {
+    method: 'PUT',
+    credentials: 'omit',
+    cache: 'no-store',
+    headers: { Authorization: `Bearer ${signInToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ syncDeviceName }),
+  })
+  const deviceRenameReply: unknown = await deviceRenameResponse.json().catch(() => null)
+  if (deviceRenameResponse.ok) {
+    const renamedSyncDeviceRecordCandidate =
+      typeof deviceRenameReply === 'object' && deviceRenameReply !== null ? (deviceRenameReply as { syncDeviceRecord?: unknown }).syncDeviceRecord : null
+    const renamedSyncDeviceRecord = readPapelizAccountSyncDeviceRecords({ syncDeviceRecords: [renamedSyncDeviceRecordCandidate] })?.[0]
+    return renamedSyncDeviceRecord
+      ? { syncDeviceRenameOutcomeKind: 'renamed', syncDeviceRecord: renamedSyncDeviceRecord }
+      : { syncDeviceRenameOutcomeKind: 'refused', syncDeviceRenameRefusalMessage: 'Papeliz Sync sent a reply this page can’t read.' }
+  }
+  const { syncErrorCode, syncErrorMessage } = readPapelizSyncErrorReplyMessage(deviceRenameReply)
+  if (deviceRenameResponse.status === 404 && syncErrorCode === null) return null
+  if (syncErrorCode === 'device-not-found') return { syncDeviceRenameOutcomeKind: 'device-gone' }
+  return { syncDeviceRenameOutcomeKind: 'refused', syncDeviceRenameRefusalMessage: syncErrorMessage ?? `Papeliz Sync answered ${deviceRenameResponse.status}.` }
+}
+
+// The Account Worker's answer, or null when no Account Worker is on this origin (as above).
 async function requestPapelizSyncVaultListFromAccountWorker(signInToken: string): Promise<PapelizAccountSyncVaultListOutcome | null> {
   const vaultListResponse = await fetch(papelizAccountSyncVaultsFromSignInPagePath, {
     method: 'GET',
@@ -425,6 +464,14 @@ const papelizAccountSyncWorkerService: PapelizAccountSyncService = {
       }
     )
   },
+  async renamePapelizSyncDeviceFromSignInPage(signInToken, papelizSyncDeviceId, syncDeviceName) {
+    return (
+      (await requestPapelizSyncDeviceRenameFromAccountWorker(signInToken, papelizSyncDeviceId, syncDeviceName)) ?? {
+        syncDeviceRenameOutcomeKind: 'refused',
+        syncDeviceRenameRefusalMessage: 'Papeliz Sync answered 404.',
+      }
+    )
+  },
   async listPapelizSyncVaults(signInToken) {
     return (
       (await requestPapelizSyncVaultListFromAccountWorker(signInToken)) ?? {
@@ -461,6 +508,8 @@ interface PapelizAccountLocalFakeSyncAccount {
   papelizSyncDeviceIds: string[]
   // When each device was added; missing for accounts the fake kept before it recorded this.
   papelizSyncDeviceAddedAts?: Record<string, number>
+  // Names given with Rename; a device without one is named by its kind.
+  papelizSyncDeviceNames?: Record<string, string>
   // The fake's synced vaults. Nothing on the fake's origin makes one, so the list stays empty unless
   // one is written into the fake's storage by hand.
   papelizSyncVaultRecords?: PapelizAccountSyncVaultRecord[]
@@ -571,8 +620,21 @@ export const papelizAccountLocalFakeSyncService: PapelizAccountSyncService = {
       syncDeviceListOutcomeKind: 'listed',
       syncDeviceRecords: (localFakeSyncAccount?.papelizSyncDeviceIds ?? []).map((papelizSyncDeviceId) => {
         const syncDeviceAddedAt = localFakeSyncAccount?.papelizSyncDeviceAddedAts?.[papelizSyncDeviceId] ?? Date.now()
-        return { papelizSyncDeviceId, syncDeviceName: null, syncDevicePlatform: 'web', syncDeviceAddedAt, syncDeviceLastSeenAt: syncDeviceAddedAt }
+        const syncDeviceName = localFakeSyncAccount?.papelizSyncDeviceNames?.[papelizSyncDeviceId] ?? null
+        return { papelizSyncDeviceId, syncDeviceName, syncDevicePlatform: 'web', syncDeviceAddedAt, syncDeviceLastSeenAt: syncDeviceAddedAt }
       }),
+    }
+  },
+  async renamePapelizSyncDeviceFromSignInPage(signInToken, papelizSyncDeviceId, syncDeviceName) {
+    const localFakeSyncAccounts = readPapelizAccountLocalFakeSyncAccounts()
+    const localFakeSyncAccount = localFakeSyncAccounts[readPapelizAccountLocalFakeSignInSubject(signInToken)]
+    if (!localFakeSyncAccount?.papelizSyncDeviceIds.includes(papelizSyncDeviceId)) return { syncDeviceRenameOutcomeKind: 'device-gone' }
+    localFakeSyncAccount.papelizSyncDeviceNames = { ...localFakeSyncAccount.papelizSyncDeviceNames, [papelizSyncDeviceId]: syncDeviceName }
+    writePapelizAccountLocalFakeSyncAccounts(localFakeSyncAccounts)
+    const syncDeviceAddedAt = localFakeSyncAccount.papelizSyncDeviceAddedAts?.[papelizSyncDeviceId] ?? Date.now()
+    return {
+      syncDeviceRenameOutcomeKind: 'renamed',
+      syncDeviceRecord: { papelizSyncDeviceId, syncDeviceName, syncDevicePlatform: 'web', syncDeviceAddedAt, syncDeviceLastSeenAt: syncDeviceAddedAt },
     }
   },
   async removePapelizSyncDeviceFromSignInPage(signInToken, papelizSyncDeviceId) {
@@ -654,6 +716,14 @@ function createPapelizAccountSyncServiceWithLocalFakeFallback(): PapelizAccountS
       const accountWorkerOutcome = await requestPapelizSyncDeviceRemovalFromAccountWorker(signInToken, papelizSyncDeviceId)
       papelizAccountChosenSyncService = accountWorkerOutcome === null ? papelizAccountLocalFakeSyncService : papelizAccountSyncWorkerService
       return accountWorkerOutcome ?? papelizAccountLocalFakeSyncService.removePapelizSyncDeviceFromSignInPage(signInToken, papelizSyncDeviceId)
+    },
+    async renamePapelizSyncDeviceFromSignInPage(signInToken, papelizSyncDeviceId, syncDeviceName) {
+      if (papelizAccountChosenSyncService !== null) {
+        return papelizAccountChosenSyncService.renamePapelizSyncDeviceFromSignInPage(signInToken, papelizSyncDeviceId, syncDeviceName)
+      }
+      const accountWorkerOutcome = await requestPapelizSyncDeviceRenameFromAccountWorker(signInToken, papelizSyncDeviceId, syncDeviceName)
+      papelizAccountChosenSyncService = accountWorkerOutcome === null ? papelizAccountLocalFakeSyncService : papelizAccountSyncWorkerService
+      return accountWorkerOutcome ?? papelizAccountLocalFakeSyncService.renamePapelizSyncDeviceFromSignInPage(signInToken, papelizSyncDeviceId, syncDeviceName)
     },
     async listPapelizSyncVaults(signInToken) {
       if (papelizAccountChosenSyncService !== null) return papelizAccountChosenSyncService.listPapelizSyncVaults(signInToken)
