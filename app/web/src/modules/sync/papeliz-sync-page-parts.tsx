@@ -49,15 +49,18 @@ interface PapelizSyncPageRowProps {
   syncPageRowTitle: ReactNode
   syncPageRowDetail?: ReactNode
   syncPageRowEnd?: ReactNode
+  // A title that can be long (a device's name) takes up to two lines, breaking anywhere, rather than
+  // being cut short on one.
+  isSyncPageRowTitleTwoLines?: boolean
   className?: string
 }
 
-export function PapelizSyncPageRow({ SyncPageRowIcon, syncPageRowTitle, syncPageRowDetail, syncPageRowEnd, className }: PapelizSyncPageRowProps) {
+export function PapelizSyncPageRow({ SyncPageRowIcon, syncPageRowTitle, syncPageRowDetail, syncPageRowEnd, isSyncPageRowTitleTwoLines = false, className }: PapelizSyncPageRowProps) {
   return (
     <div className={joinPapelizClassNames('flex min-h-11 items-center gap-2.5 px-3 py-2', className)}>
       {SyncPageRowIcon !== undefined && <SyncPageRowIcon className="size-4 flex-none text-papeliz-ink-muted" aria-hidden="true" />}
       <div className="min-w-0 flex-1">
-        <div className="truncate text-[12.5px] font-medium">{syncPageRowTitle}</div>
+        <div className={joinPapelizClassNames('text-[12.5px] font-medium', isSyncPageRowTitleTwoLines ? 'line-clamp-2 [overflow-wrap:anywhere]' : 'truncate')}>{syncPageRowTitle}</div>
         {syncPageRowDetail !== undefined && <div className="text-[11.5px] leading-[1.35] text-papeliz-ink-subtle">{syncPageRowDetail}</div>}
       </div>
       {syncPageRowEnd}

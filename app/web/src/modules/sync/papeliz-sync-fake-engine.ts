@@ -741,6 +741,15 @@ export class PapelizSyncFakeEngine implements PapelizSyncEngine {
         syncDeviceLastSeenAt: currentTime - 26 * 60 * 60_000,
         isThisSyncDevice: false,
       },
+      // A browser that has no name: it shows as its kind.
+      {
+        papelizSyncDeviceId: 'pzdev_dddddddddddddddddddddddddd',
+        syncDeviceName: null,
+        syncDevicePlatform: 'web',
+        syncDeviceAddedAt: currentTime - 5 * 24 * 60 * 60_000,
+        syncDeviceLastSeenAt: currentTime - 3 * 24 * 60 * 60_000,
+        isThisSyncDevice: false,
+      },
     ]
     return createFakeDoneOutcome(fakeSyncDevices.filter((fakeSyncDevice) => !this.fakeRemovedDeviceIds.has(fakeSyncDevice.papelizSyncDeviceId)))
   }

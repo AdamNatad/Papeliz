@@ -56,6 +56,19 @@ export function mapPapelizSyncVaultIdsToCopiesHere(papelizVaultIdsOnThisDevice: 
   )
 }
 
+// Whether a synced vault of the account is here as a copy, given the vault on this device the account
+// last said it syncs with. A copy is linked while it downloads, so a reading of the account taken
+// before it finished still names its vault as syncing; that vault is the copy's own, and a copy never
+// syncs again.
+export function isPapelizSyncVaultCopiedHere(
+  papelizSyncVaultId: string,
+  papelizVaultIdOnThisDevice: string | null,
+  syncVaultCopiesHere: ReadonlyMap<string, string>,
+): boolean {
+  const papelizVaultIdOfCopyHere = syncVaultCopiesHere.get(papelizSyncVaultId)
+  return papelizVaultIdOfCopyHere !== undefined && (papelizVaultIdOnThisDevice === null || papelizVaultIdOnThisDevice === papelizVaultIdOfCopyHere)
+}
+
 // The synced vaults this device holds a copy of, counting only the copies still here.
 export function listPapelizSyncVaultIdsCopiedHere(papelizVaultIdsOnThisDevice: ReadonlySet<string>): Set<string> {
   return new Set(mapPapelizSyncVaultIdsToCopiesHere(papelizVaultIdsOnThisDevice).keys())

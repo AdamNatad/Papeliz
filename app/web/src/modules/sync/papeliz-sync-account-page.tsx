@@ -1,4 +1,4 @@
-import { ExternalLink, Globe, Laptop, LoaderCircle, LogOut, Pencil, RefreshCw, Smartphone, User, type LucideIcon } from 'lucide-react'
+import { ExternalLink, Globe, Laptop, LoaderCircle, LogOut, MonitorSmartphone, Pencil, RefreshCw, Smartphone, User, type LucideIcon } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { PapelizPillButton } from '../ui/papeliz-buttons'
 import { PapelizConfirmDialog } from '../ui/papeliz-confirm-dialog'
@@ -32,7 +32,35 @@ import { usePapelizSyncClockTime } from './papeliz-sync-clock'
 // subscription with Manage, the devices with Remove, and Sign out. An account is only for Papeliz
 // Sync, and it is deleted on papeliz.com/account, not here.
 
-const papelizSyncDevicePlatformIcons: Record<PapelizSyncDevicePlatform, LucideIcon> = { web: Globe, desktop: Laptop, mobile: Smartphone }
+interface PapelizSyncDevicePlatformLabel {
+  syncDevicePlatformName: string
+  SyncDevicePlatformIcon: LucideIcon
+}
+
+// Each kind's icon, and its name for a device that has no name of its own, as papeliz.com/account
+// names it.
+const papelizSyncDevicePlatformLabels: Record<PapelizSyncDevicePlatform, PapelizSyncDevicePlatformLabel> = {
+  web: { syncDevicePlatformName: 'Browser', SyncDevicePlatformIcon: Globe },
+  desktop: { syncDevicePlatformName: 'Computer', SyncDevicePlatformIcon: Laptop },
+  mobile: { syncDevicePlatformName: 'Phone or tablet', SyncDevicePlatformIcon: Smartphone },
+}
+
+// A kind this build doesn't know (one a newer Papeliz added) gets a plain device icon and "Unnamed device".
+function readPapelizSyncDevicePlatformLabel(syncDevicePlatform: PapelizSyncDevicePlatform): PapelizSyncDevicePlatformLabel {
+  return Object.hasOwn(papelizSyncDevicePlatformLabels, syncDevicePlatform)
+    ? papelizSyncDevicePlatformLabels[syncDevicePlatform]
+    : { syncDevicePlatformName: 'Unnamed device', SyncDevicePlatformIcon: MonitorSmartphone }
+}
+
+// The device's own name, or its kind when it has none.
+function namePapelizSyncDevice(syncDevice: PapelizSyncDeviceReading): string {
+  return syncDevice.syncDeviceName ?? readPapelizSyncDevicePlatformLabel(syncDevice.syncDevicePlatform).syncDevicePlatformName
+}
+
+// A device's name in its row (which gives it up to two lines), with the whole of it on hover.
+function PapelizSyncDeviceRowName({ syncDeviceShownName }: { syncDeviceShownName: string }) {
+  return <span title={syncDeviceShownName}>{syncDeviceShownName}</span>
+}
 
 function PapelizSyncAccountCenteredState({ accountStateTitle, children }: { accountStateTitle: string; children: ReactNode }) {
   return (
@@ -106,12 +134,13 @@ function describeSyncSubscriptionLine(syncAccount: PapelizSyncAccountReading, cu
 function PapelizSyncThisDeviceNameRow({ papelizSyncEngine, syncDevice, onSyncDeviceNamed }: { papelizSyncEngine: PapelizSyncEngine; syncDevice: PapelizSyncDeviceReading; onSyncDeviceNamed: () => void }) {
   const [typedSyncDeviceName, setTypedSyncDeviceName] = useState<string | null>(null)
   const [deviceNameFailureWords, setDeviceNameFailureWords] = useState<string | null>(null)
-  const SyncDevicePlatformIcon = papelizSyncDevicePlatformIcons[syncDevice.syncDevicePlatform]
+  const { SyncDevicePlatformIcon } = readPapelizSyncDevicePlatformLabel(syncDevice.syncDevicePlatform)
   if (typedSyncDeviceName === null) {
     return (
       <PapelizSyncPageRow
         SyncPageRowIcon={SyncDevicePlatformIcon}
-        syncPageRowTitle={syncDevice.syncDeviceName ?? 'This browser'}
+        syncPageRowTitle={<PapelizSyncDeviceRowName syncDeviceShownName={syncDevice.syncDeviceName ?? 'This browser'} />}
+        isSyncPageRowTitleTwoLines
         syncPageRowDetail={deviceNameFailureWords ?? 'This device'}
         syncPageRowEnd={
           <PapelizPillButton pillButtonVariant="gray" pillButtonSize="small" aria-label="Rename this device" title="Rename this device" onClick={() => setTypedSyncDeviceName(syncDevice.syncDeviceName ?? '')}>
@@ -251,8 +280,9 @@ function PapelizSyncSignedInAccount({ papelizSyncEngine, syncEngineSnapshot }: {
             ) : (
               <PapelizSyncPageRow
                 key={syncDevice.papelizSyncDeviceId}
-                SyncPageRowIcon={papelizSyncDevicePlatformIcons[syncDevice.syncDevicePlatform]}
-                syncPageRowTitle={syncDevice.syncDeviceName ?? 'Unnamed device'}
+                SyncPageRowIcon={readPapelizSyncDevicePlatformLabel(syncDevice.syncDevicePlatform).SyncDevicePlatformIcon}
+                syncPageRowTitle={<PapelizSyncDeviceRowName syncDeviceShownName={namePapelizSyncDevice(syncDevice)} />}
+                isSyncPageRowTitleTwoLines
                 syncPageRowDetail={syncDevice.syncDeviceLastSeenAt === null ? 'Not seen yet' : describePapelizSyncTimeAgo(syncDevice.syncDeviceLastSeenAt, currentTime)}
                 syncPageRowEnd={
                   <PapelizPillButton pillButtonVariant="gray" pillButtonSize="small" onClick={() => setAccountConfirmation({ accountConfirmationKind: 'remove-device', syncDevice })}>
@@ -288,7 +318,7 @@ function PapelizSyncSignedInAccount({ papelizSyncEngine, syncEngineSnapshot }: {
 
       {accountConfirmation?.accountConfirmationKind === 'remove-device' && (
         <PapelizConfirmDialog
-          confirmDialogTitle={`Remove “${accountConfirmation.syncDevice.syncDeviceName ?? 'Unnamed device'}”?`}
+          confirmDialogTitle={`Remove “${namePapelizSyncDevice(accountConfirmation.syncDevice)}”?`}
           confirmDialogBody={<p>It’s signed out of Sync within the hour. Its notes stay on it; it just stops syncing.</p>}
           confirmButtonLabel="Remove"
           onCancel={() => setAccountConfirmation(null)}

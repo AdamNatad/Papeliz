@@ -42,7 +42,7 @@ import {
   formatPapelizSyncByteSize,
   papelizSyncVaultEncryptionKindDisplayNames,
 } from './papeliz-sync-screen-words'
-import { mapPapelizSyncVaultIdsToCopiesHere } from './papeliz-sync-fetched-copies'
+import { isPapelizSyncVaultCopiedHere, mapPapelizSyncVaultIdsToCopiesHere } from './papeliz-sync-fetched-copies'
 import { requestPapelizSettingsGearSyncPage } from './papeliz-sync-settings-gear-request-store'
 import { PapelizSyncStartScreenDownloadProgressLines, readPapelizSyncStartScreenDownloadPercent } from './papeliz-sync-start-screen-download-progress'
 import {
@@ -250,8 +250,9 @@ export function PapelizSyncSyncedVaultsPage({
   // A synced vault is never offered again once it's here: syncing, downloaded as a copy (which isn't
   // linked to Sync, so only this device's own record knows it), or downloading now.
   const syncVaultCopiesHere = useMemo(() => mapPapelizSyncVaultIdsToCopiesHere(papelizVaultIdsOnThisDevice), [papelizVaultIdsOnThisDevice])
+  // A copy whose download finished while the page was open reads as a copy at once, without Refresh.
   const isAccountVaultCopiedHere = (accountVault: PapelizSyncAccountVaultReading) =>
-    accountVault.papelizVaultIdOnThisDevice === null && syncVaultCopiesHere.has(accountVault.papelizSyncVaultId)
+    isPapelizSyncVaultCopiedHere(accountVault.papelizSyncVaultId, accountVault.papelizVaultIdOnThisDevice, syncVaultCopiesHere)
   // The downloads from the start screen, as their Recent Vaults rows show them, by the synced vault.
   const syncStartScreenDownloadsByVaultId = usePapelizSyncStartScreenDownloadStore((syncStartScreenDownloadState) => syncStartScreenDownloadState.syncStartScreenDownloadsByVaultId)
   const syncStartScreenDownloadsBySyncVaultId = useMemo(
@@ -278,10 +279,24 @@ export function PapelizSyncSyncedVaultsPage({
   const isDownloadPlaceChoiceShown = isFolderStorageOn && isBrowserStorageOn
   const syncAccount = heldSyncedVaultsPagePreview === null ? (syncEngineReading?.syncEngineSnapshot.syncAccount ?? null) : heldSyncedVaultsPagePreview.previewSyncAccount
 
-  const closeSyncedVaultsPage = () => {
-    if (syncedVaultsPageStep === 'waiting-for-sign-in') cancelPapelizSyncSignIn()
-    onSyncedVaultsPageClose()
-  }
+  // Leaving the page while it waits for a sign-in cancels that sign-in, whichever way it's left: Close,
+  // the back arrow, Esc, the sidebar, the logo or a vault opening. The check runs just after the page
+  // goes, so a page that comes straight back (React's development double mount) keeps its sign-in.
+  const isSyncedVaultsPageWaitingForSignInRef = useRef(false)
+  const isSyncedVaultsPageMountedRef = useRef(false)
+  useEffect(() => {
+    isSyncedVaultsPageWaitingForSignInRef.current = syncedVaultsPageStep === 'waiting-for-sign-in' && heldSyncedVaultsPagePreview === null
+  }, [syncedVaultsPageStep, heldSyncedVaultsPagePreview])
+  useEffect(() => {
+    isSyncedVaultsPageMountedRef.current = true
+    return () => {
+      isSyncedVaultsPageMountedRef.current = false
+      if (!isSyncedVaultsPageWaitingForSignInRef.current) return
+      queueMicrotask(() => {
+        if (!isSyncedVaultsPageMountedRef.current) cancelPapelizSyncSignIn()
+      })
+    }
+  }, [])
 
   const signInFromClick = () => {
     if (papelizSyncEngine === null) return
@@ -758,14 +773,14 @@ export function PapelizSyncSyncedVaultsPage({
       onKeyDown={(keyDownEvent) => {
         if (keyDownEvent.key !== 'Escape' || keyDownEvent.defaultPrevented) return
         keyDownEvent.preventDefault()
-        closeSyncedVaultsPage()
+        onSyncedVaultsPageClose()
       }}
       className="papeliz-welcome-enter flex min-h-0 flex-1 flex-col"
     >
       <div className="flex items-start justify-between gap-2 px-3 pt-[11px] pb-1">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <PapelizIconButton iconButtonLabel="Back to Recent Vaults" iconButtonSize="small" className="-my-0.5 -ml-1.5" onClick={closeSyncedVaultsPage}>
+            <PapelizIconButton iconButtonLabel="Back to Recent Vaults" iconButtonSize="small" className="-my-0.5 -ml-1.5" onClick={onSyncedVaultsPageClose}>
               <ArrowLeft className="size-[15px]" aria-hidden="true" />
             </PapelizIconButton>
             <h2 id={syncedVaultsPageHeadingId} className="text-[18px] font-semibold tracking-[-0.01em]">
@@ -812,7 +827,7 @@ export function PapelizSyncSyncedVaultsPage({
 
       {/* Cancel at the left edge, the action at the right, as in New Vault's form. */}
       <div ref={syncedVaultsPageFooterRef} className="flex items-center justify-between gap-2 border-t border-papeliz-line p-3">
-        <button type="button" onClick={closeSyncedVaultsPage} className={joinPapelizClassNames(newVaultFormFooterButtonClassName, newVaultFormFooterCancelButtonColorClassName)}>
+        <button type="button" onClick={onSyncedVaultsPageClose} className={joinPapelizClassNames(newVaultFormFooterButtonClassName, newVaultFormFooterCancelButtonColorClassName)}>
           <PapelizSolidCircleXIcon className="size-[15px] flex-none" />
           {syncedVaultsPageCancelLabel}
         </button>
