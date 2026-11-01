@@ -22,9 +22,9 @@ type PapelizNoteSaveConflictDialogProps = {
 
 function listMergeChoices(otherSideKeepLabel: string): ReadonlyArray<{ vaultNoteMergeChoice: PapelizVaultNoteMergeChoice; mergeChoiceLabel: string }> {
   return [
-    { vaultNoteMergeChoice: 'both', mergeChoiceLabel: 'Keep both' },
+    { vaultNoteMergeChoice: 'both', mergeChoiceLabel: 'Keep Both' },
     { vaultNoteMergeChoice: 'saved', mergeChoiceLabel: otherSideKeepLabel },
-    { vaultNoteMergeChoice: 'mine', mergeChoiceLabel: 'Keep mine' },
+    { vaultNoteMergeChoice: 'mine', mergeChoiceLabel: 'Keep Mine' },
   ]
 }
 
@@ -48,7 +48,7 @@ export function PapelizNoteSaveConflictDialog({ loadedNoteSessionId, vaultNoteSa
   const SaveConflictIcon = isVaultNoteDeletedElsewhere ? FileQuestion : GitMerge
   const otherSyncDeviceName = syncNoteClashOtherDevice === undefined ? null : (syncNoteClashOtherDevice.otherSyncDeviceName ?? 'the other device')
   const papelizMergeChoices = listMergeChoices(
-    syncNoteClashOtherDevice === undefined ? 'Keep saved' : syncNoteClashOtherDevice.otherSyncDeviceName === null ? 'Keep theirs' : `Keep ${syncNoteClashOtherDevice.otherSyncDeviceName}’s`,
+    syncNoteClashOtherDevice === undefined ? 'Keep Saved' : syncNoteClashOtherDevice.otherSyncDeviceName === null ? 'Keep Theirs' : `Keep ${syncNoteClashOtherDevice.otherSyncDeviceName}’s`,
   )
 
   useEffect(() => {
@@ -76,10 +76,10 @@ export function PapelizNoteSaveConflictDialog({ loadedNoteSessionId, vaultNoteSa
         <div className="min-w-0 flex-1">
           <h2 id="papeliz-note-save-conflict-title" className="text-lg font-semibold">
             {isVaultNoteDeletedElsewhere
-              ? `“${vaultNoteTitle}” was moved or deleted elsewhere`
+              ? `“${vaultNoteTitle}” Was Moved or Deleted Elsewhere`
               : otherSyncDeviceName === null
-                ? `“${vaultNoteTitle}” changed elsewhere too`
-                : `“${vaultNoteTitle}” changed on ${otherSyncDeviceName} too`}
+                ? `“${vaultNoteTitle}” Changed Elsewhere Too`
+                : `“${vaultNoteTitle}” Changed on ${otherSyncDeviceName} Too`}
           </h2>
           <p className="text-sm text-papeliz-ink-muted">
             {isVaultNoteDeletedElsewhere
@@ -145,7 +145,7 @@ export function PapelizNoteSaveConflictDialog({ loadedNoteSessionId, vaultNoteSa
                 void resolveVaultNoteDeletedElsewhere(loadedNoteSessionId, 'close-note')
               }}
             >
-              Close note
+              Close Note
             </PapelizPillButton>
             <PapelizPillButton
               pillButtonVariant="primary"
@@ -154,7 +154,7 @@ export function PapelizNoteSaveConflictDialog({ loadedNoteSessionId, vaultNoteSa
                 void resolveVaultNoteDeletedElsewhere(loadedNoteSessionId, 'keep-my-copy')
               }}
             >
-              Keep my copy
+              Keep My Copy
             </PapelizPillButton>
           </>
         ) : (

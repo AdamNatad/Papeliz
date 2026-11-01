@@ -71,11 +71,17 @@ test('the start page offers browser vaults, and no folder actions that can’t w
 
 test('a new browser vault keeps its notes across a reload', async ({ page }) => {
   await page.getByRole('region', { name: 'Start' }).getByRole('button', { name: /^New Vault/ }).click()
-  // New Vault's form takes Recent Vaults' place in the start card. Where folders work it starts on
-  // Folder Storage; elsewhere that card is off and Browser Storage is chosen already.
+  // New Vault's form takes Recent Vaults' place in the start card, starting with the vault's name,
+  // focused. Where folders work it starts on Folder Storage; elsewhere that card is off and Browser
+  // Storage is chosen already.
   const newVaultForm = page.getByRole('region', { name: 'New Vault' })
+  const newVaultNameField = newVaultForm.getByLabel('Name')
+  await expect(newVaultNameField).toBeFocused()
   if (await isFolderOnDiskOffered(page)) await newVaultForm.getByRole('radio', { name: /^Browser Storage/ }).click()
-  await newVaultForm.getByLabel('Name').fill('Field Notes')
+  // Every vault has a name: without one, Create Vault stays off.
+  await newVaultNameField.fill('')
+  await expect(newVaultForm.getByRole('button', { name: 'Create Vault' })).toBeDisabled()
+  await newVaultNameField.fill('Field Notes')
   await newVaultForm.getByRole('button', { name: 'Create Vault' }).click()
   // The first note starts with its name ready to type.
   await page.waitForFunction(() => document.activeElement instanceof HTMLInputElement)
@@ -156,7 +162,7 @@ test('a zip imports as a new browser vault, and Download backup saves it all as 
   await page.getByRole('tab', { name: 'Reminder' }).click()
   await expect(page.getByText('Last backup')).toBeVisible()
   const backupDownloadPromise = page.waitForEvent('download')
-  await page.getByRole('button', { name: 'Download backup' }).click()
+  await page.getByRole('button', { name: 'Download Backup' }).click()
   const backupDownload = await backupDownloadPromise
   expect(backupDownload.suggestedFilename()).toMatch(/^Garden Club \d{4}-\d{2}-\d{2} \d{4}\.zip$/)
   const backupZipBytes = new Uint8Array(await readFile(await backupDownload.path()))

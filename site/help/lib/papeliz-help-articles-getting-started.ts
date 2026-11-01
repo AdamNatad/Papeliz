@@ -80,12 +80,13 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
       helpSection('Start a new vault', [
         helpNumberedSteps([
           'On the start page, choose **New Vault**. It opens where **Recent Vaults** was.',
+          'Type the vault’s name in **Name**. Every vault has one, and it shows in **Recent Vaults**, the top bar and the status bar.',
           'Choose where to keep it: **Folder Storage** or **Browser Storage**. The table under them compares the two. In Firefox, Safari and phone browsers, **Folder Storage** shows **Off in this browser** and **Browser Storage** is chosen.',
-          'For a folder, choose **Pick Folder**, pick or create an empty folder, and allow editing when the browser asks. For the browser, type a name and choose **Create Vault**.',
+          'For a folder, choose **Pick Folder**, pick the place it goes, such as **Documents**, and allow editing when the browser asks. Papeliz makes a folder with the vault’s name there. For the browser, choose **Create Vault**.',
           'Papeliz starts your first note, named and ready to write in.',
         ]),
         helpParagraph('**Cancel**, or Esc, goes back to **Recent Vaults**.'),
-        helpParagraph('If the folder you pick already has notes, Papeliz opens it as it is instead of starting over.'),
+        helpParagraph('If the place already has a folder with that name and something in it, Papeliz says so and lets you pick another name or another place. An empty folder of that name is used. To open a folder that already has notes, use **Open Vault**.'),
         helpParagraph('A vault kept in the browser lives in the browser’s own storage, not in a folder you can see. See [[keep-a-vault-in-your-browser]].'),
       ]),
       helpSection('Open a folder you already have', [
@@ -105,7 +106,7 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
         helpParagraph(
           'Vaults you make or open appear under **Recent Vaults** on the start page, most recent first, so you can reopen one in a click. Under each name, **Folder on this device** or **In this browser** says where it’s kept. Type in **Search vaults** to find one in a long list.',
         ),
-        helpParagraph('Right-click a vault for **Open** and **Hide**. A vault kept in this browser also has **Rename** and **Download backup**.'),
+        helpParagraph('Right-click a vault for **Open** and **Hide**. A vault kept in this browser also has **Rename** and **Download Backup**.'),
         helpParagraph('When you reopen a folder, the browser may ask for permission again. See [[troubleshooting]].'),
       ]),
       helpSection('Hide a vault', [
@@ -129,7 +130,7 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
           'Open the gear at the right end of the top bar and choose **Close Vault**. Papeliz asks first, then you go back to the start page, where you can open the vault again. Your notes are saved and stay in the folder, or in this browser for a browser vault.',
         ),
         helpParagraph(
-          'If a browser vault has changes since its last backup, the question says so and offers **Download backup** beside **Close vault**. The sample vault’s changes are lost when it closes.',
+          'If a browser vault has changes since its last backup, the question says so and offers **Download Backup** beside **Close Vault**. The sample vault’s changes are lost when it closes.',
         ),
       ]),
     ],
@@ -154,11 +155,12 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
       helpSection('Start one', [
         helpNumberedSteps([
           'On the start page, choose **New Vault**.',
+          'Type a name in **Name**.',
           'Choose **Browser Storage**. In Firefox, Safari and phone browsers it’s already chosen.',
-          'Type a name and choose **Create Vault**. Papeliz starts your first note.',
+          'Choose **Create Vault**. Papeliz starts your first note.',
         ]),
         helpParagraph(
-          'Each browser vault needs a name of its own, and capitals don’t make a name different. Papeliz suggests a free one, such as **Notes** or **Notes 2**, and a taken name shows “Can’t use this name (Name Taken)”. The name must also work as a folder’s name, since a backup unzips into a folder of that name.',
+          'Each browser vault needs a name of its own, and capitals don’t make a name different. Papeliz suggests a free one, such as **Notes** or **Notes 2**, and a taken name says ‘A vault named “Notes” already exists. Pick another name.’ The name must also work as a folder’s name, since a backup unzips into a folder of that name.',
         ),
         helpParagraph('In the status bar, a browser window icon comes before the vault’s name, and a saved note shows **Saved in browser**.'),
       ]),
@@ -171,7 +173,7 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
         helpParagraph(
           'A backup is the whole vault in one `.zip`: every note, folder and file, hidden ones too, so `.trash` and `.papeliz` come back. Inside, it all sits in one folder named after the vault.',
         ),
-        helpParagraph('Choose **Download backup** in any of these places:'),
+        helpParagraph('Choose **Download Backup** in any of these places:'),
         helpBulletList([
           'The gear’s **Settings**, on the **Reminder** tab.',
           'The **Backup due** chip in the status bar, or the reminder’s message.',
@@ -184,10 +186,10 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
       ]),
       helpSection('The backup reminder', [
         helpParagraph(
-          'Every browser vault has a backup reminder, on from the start. It comes 30 minutes after the first change since the last backup: Papeliz asks whether to back up, with **Download backup**, and the status bar shows **Backup due** until you do. It asks again each interval after that. With no changes since the last backup, nothing reminds you.',
+          'Every browser vault has a backup reminder, on from the start. It comes 30 minutes after the first change since the last backup: Papeliz asks whether to back up, with **Download Backup**, and the status bar shows **Backup due** until you do. It asks again each interval after that. With no changes since the last backup, nothing reminds you.',
         ),
         helpParagraph(
-          'To change it, open the gear, choose **Settings**, then the **Reminder** tab: the **Backup reminder** switch, **Remind me every** 10, 30 or 60 min, the **Last backup**, **Download backup**, and whether the browser keeps your storage.',
+          'To change it, open the gear, choose **Settings**, then the **Reminder** tab: the **Backup Reminder** switch, **Remind me every** 10, 30 or 60 min, the **Last backup**, **Download Backup**, and whether the browser keeps your storage.',
         ),
         helpParagraph('The reminder shows only in the tab you’re looking at, so several tabs don’t all ask.'),
       ]),
@@ -201,7 +203,7 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
           ['Storage nearly full', 'Papeliz is using 90% or more of the space this browser allows it. The status bar says so too. Download a backup, then make room.'],
         ]),
         helpParagraph(
-          'When the storage is full, a save fails: the status bar shows **Not saved** with “Browser Storage Full”, and a message offers **Download backup**. See [[troubleshooting]].',
+          'When the storage is full, a save fails: the status bar shows **Not saved** with “Browser storage full”, and a message offers **Download Backup**. See [[troubleshooting]].',
         ),
       ]),
       helpSection('Move it to a folder', [
@@ -220,7 +222,7 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
           '**Hide** takes it off **Recent Vaults** into **Hidden Vaults**. Its notes stay in this browser, and **Restore** brings it back.',
           '**Delete**, in Hidden Vaults, erases the vault and every note in it from this browser. It can’t be undone, so Papeliz offers **Download a backup** first and asks you to type the vault’s name.',
         ]),
-        helpParagraph('While another tab has the vault open, Rename and Delete are refused with “Open In Another Tab”. Close it there first.'),
+        helpParagraph('While another tab has the vault open, Rename and Delete are refused: “It’s open in another Papeliz tab. Close it there, then try again.”'),
       ]),
       helpSection('Two tabs on one vault', [
         helpParagraph(
@@ -256,8 +258,8 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
           'A start-page action that can’t work in this browser shows **Off in this browser**. Hover over it to see why, or press it to get the reason in a message. **Try Sample** works in every browser.',
         ),
         helpBulletList([
-          '“Couldn’t keep vaults in this browser (Update It, Or Use Chrome, Edge Or Firefox)”: the browser is too old, or lacks a feature browser vaults need.',
-          '“Couldn’t keep vaults in this browser (Storage Off)”: the browser refuses its storage here, as some private windows do, or site data is turned off for Papeliz.',
+          '“This browser can’t keep vaults. Update it, or use Chrome, Edge or Firefox.”: the browser is too old, or lacks a feature browser vaults need.',
+          '“This browser won’t keep vaults here, as in some private windows. Use a normal window, or let this site store data.”: the browser refuses its storage here, as some private windows do, or site data is turned off for Papeliz.',
         ]),
         helpParagraph('See [[troubleshooting]] for what to do.'),
       ]),
@@ -272,13 +274,13 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
   {
     papelizHelpArticleSlug: 'settings-gear',
     articleTitle: 'The Settings gear',
-    articleSummary: 'Accessibility, key bindings, backups, export, locking, focus mode and closing the vault, in one panel.',
+    articleSummary: 'Appearance, accessibility, key bindings, backups, export, locking, focus mode and closing the vault, in one panel.',
     papelizHelpGroupSlug: 'getting-started',
     papelizHelpArticleAvailability: 'available',
     articleSections: [
       helpSection('Open it', [
         helpParagraph(
-          'The gear at the right end of the top bar opens a panel: a list on the left, and the page you choose on the right. It opens on **Accessibility**. `Esc` or a click outside closes it.',
+          'The gear at the right end of the top bar opens a panel: a list on the left, and the page you choose on the right. It opens on **Appearance**. `Esc` or a click outside closes it.',
         ),
         helpParagraph('In a narrow window the list fills the panel. Each page opens over it, and the back arrow returns to the list.'),
       ]),
@@ -286,9 +288,11 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
         helpBulletList([
           '**Account**: coming soon.',
           '**Sync**: keep your vaults in sync across web, desktop and mobile, with end-to-end encryption for the vaults you choose. A paid add-on, coming soon.',
-          '**Settings**: **Key Bindings**, the shortcuts you can change. See [[keyboard-shortcuts]]. In a vault kept in your browser, Settings has two tabs, **Key Bindings** and **Reminder**, for the backup reminder and **Download backup**. See [[keep-a-vault-in-your-browser]].',
+          '**Settings**: **Key Bindings**, the shortcuts you can change. See [[keyboard-shortcuts]]. In a vault kept in your browser, Settings has two tabs, **Key Bindings** and **Reminder**, for the backup reminder and **Download Backup**. See [[keep-a-vault-in-your-browser]].',
           '**Export**: download notes as Word, PDF or HTML files. See **Export** below.',
-          '**Accessibility**: the theme, how your notes’ text looks, and how note tabs show. See [[text-settings-and-theme]].',
+          '**Appearance**: the theme, and how note tabs show. See [[text-settings-and-theme]].',
+          '**Accessibility**: how your notes’ text looks: font, size and width. See [[text-settings-and-theme]].',
+          '**AI Assistant**: choose the provider and add your key. See [[bring-your-own-key]].',
           '**Lock All Notes**: a switch that locks every note in the vault. See [[switch-views-and-lock]].',
           '**Focus Mode**: a switch for [[focus-mode|focus mode]].',
           '**Close Vault**, at the bottom: back to the start page. See [[open-a-folder]].',
@@ -313,7 +317,7 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
         ),
       ]),
       helpSection('On the start page', [
-        helpParagraph('The start page has a gear too, with **Account**, **Sync** and **Accessibility**. With no vault open, Accessibility holds only the theme.'),
+        helpParagraph('The start page has a gear too, with **Account**, **Sync** and **Appearance**. With no vault open, Appearance holds only the theme.'),
       ]),
     ],
     relatedArticleSlugs: ['text-settings-and-theme', 'keyboard-shortcuts', 'switch-views-and-lock'],

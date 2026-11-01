@@ -126,7 +126,7 @@ export function PapelizSyncSyncedVaultsSection({
   } else if (accountVaultsOutcome.syncActionOutcome === 'failed') {
     syncedVaultsBody = (
       <PapelizSyncFailureLine>
-        {describePapelizSyncActionFailureNow(accountVaultsOutcome)} <PapelizSyncTextButton onClick={onAccountVaultsReadAgain}>Try again</PapelizSyncTextButton>
+        {describePapelizSyncActionFailureNow(accountVaultsOutcome)} <PapelizSyncTextButton onClick={onAccountVaultsReadAgain}>Try Again</PapelizSyncTextButton>
       </PapelizSyncFailureLine>
     )
   } else if (accountVaultsOutcome.syncActionDoneValue.length === 0) {
@@ -186,8 +186,8 @@ export function PapelizSyncSyncedVaultsSection({
                 {isPapelizSyncVaultLockedHere(accountVault) && (
                   <button
                     type="button"
-                    aria-label={`Unlock “${accountVaultName}” on this device`}
-                    title={`Unlock “${accountVaultName}” on this device`}
+                    aria-label={`Unlock “${accountVaultName}” on This Device`}
+                    title={`Unlock “${accountVaultName}” on This Device`}
                     disabled={deletingPapelizSyncVaultId !== null}
                     onClick={() => openAccountVaultDialog('unlock', accountVault)}
                     className={`${papelizSyncVaultRowButtonClassName} hover:border-papeliz-blue-line hover:bg-papeliz-blue-soft hover:text-papeliz-blue`}
@@ -198,8 +198,8 @@ export function PapelizSyncSyncedVaultsSection({
                 {canPapelizSyncVaultPassphraseChange(accountVault) && (
                   <button
                     type="button"
-                    aria-label={`Change the passphrase for “${accountVaultName}”`}
-                    title={`Change the passphrase for “${accountVaultName}”`}
+                    aria-label={`Change the Passphrase for “${accountVaultName}”`}
+                    title={`Change the Passphrase for “${accountVaultName}”`}
                     disabled={deletingPapelizSyncVaultId !== null}
                     onClick={() =>
                       openPapelizSyncSetUpDialog({
@@ -234,12 +234,12 @@ export function PapelizSyncSyncedVaultsSection({
 
   return (
     <>
-      <PapelizSyncPageLabel>Synced vaults</PapelizSyncPageLabel>
+      <PapelizSyncPageLabel>Synced Vaults</PapelizSyncPageLabel>
       {syncedVaultsBody}
       {syncVaultDeleteFailureWords !== null && <PapelizSyncFailureLine className="mt-2">{syncVaultDeleteFailureWords}</PapelizSyncFailureLine>}
       {accountVaultDialogRequest?.accountVaultDialogKind === 'unlock' && accountVaultInDialog !== undefined && (
         <PapelizConfirmDialog
-          confirmDialogTitle={`Unlock “${accountVaultInDialog.syncVaultName}” on this device`}
+          confirmDialogTitle={`Unlock “${accountVaultInDialog.syncVaultName}” on This Device`}
           confirmDialogBody={
             <>
               <p>It’s End-to-end. Enter its passphrase once on this device, and it syncs here again without asking.</p>
@@ -263,7 +263,7 @@ export function PapelizSyncSyncedVaultsSection({
               <p className="mt-3 text-[13px] leading-[1.45]">
                 Forgot it? Papeliz can’t recover it.{' '}
                 <PapelizSyncTextButton disabled={isSyncVaultUnlockRunning} onClick={() => openAccountVaultDialog('delete', accountVaultInDialog)}>
-                  Remove it from Sync
+                  Remove It from Sync
                 </PapelizSyncTextButton>
                 , then turn Sync on again from a device that still has the notes.
               </p>

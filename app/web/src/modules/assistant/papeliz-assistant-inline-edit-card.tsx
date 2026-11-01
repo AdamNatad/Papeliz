@@ -13,7 +13,7 @@ import { diffPapelizTextByWords } from './papeliz-assistant-text-diff'
 const papelizInlineEditQuickActions: ReadonlyArray<{ inlineEditQuickAction: PapelizInlineEditQuickAction; quickActionLabel: string; QuickActionIcon: typeof Pencil }> = [
   { inlineEditQuickAction: 'shorter', quickActionLabel: 'Shorter', QuickActionIcon: TextQuote },
   { inlineEditQuickAction: 'rewrite', quickActionLabel: 'Rewrite', QuickActionIcon: Pencil },
-  { inlineEditQuickAction: 'fix-grammar', quickActionLabel: 'Fix grammar', QuickActionIcon: SpellCheck },
+  { inlineEditQuickAction: 'fix-grammar', quickActionLabel: 'Fix Grammar', QuickActionIcon: SpellCheck },
   { inlineEditQuickAction: 'translate', quickActionLabel: 'Translate', QuickActionIcon: Languages },
 ]
 
@@ -23,7 +23,7 @@ interface PapelizAssistantInlineEditCardProps {
 }
 
 // The edit box under a selected passage: an instruction or a quick action, then the change shown
-// in place as a diff with Accept, Reject and Try again. Drawn into the editor's block widget.
+// in place as a diff with Accept, Reject and Try Again. Drawn into the editor's block widget.
 export function PapelizAssistantInlineEditCard({ inlineEditHostElement, vaultNoteRelativePath }: PapelizAssistantInlineEditCardProps) {
   const inlineEditInstructionInputRef = useRef<HTMLInputElement>(null)
   const selectedPassageText = usePapelizInlineEditStore((inlineEditState) => inlineEditState.selectedPassageText)
@@ -150,7 +150,7 @@ export function PapelizAssistantInlineEditCard({ inlineEditHostElement, vaultNot
           disabled={inlineEditStage === 'running' || inlineEditStage === 'composing'}
           onClick={() => void runInlineEdit(inlineEditInstruction)}
         >
-          <RotateCw className="size-3.5" aria-hidden="true" /> Try again
+          <RotateCw className="size-3.5" aria-hidden="true" /> Try Again
         </PapelizPillButton>
         <span className="ml-auto flex items-center gap-1.5 text-xs text-papeliz-ink-subtle">
           <Lock className="size-3" aria-hidden="true" />

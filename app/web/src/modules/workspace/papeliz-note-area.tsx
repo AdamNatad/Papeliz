@@ -75,7 +75,7 @@ function isNoteTypingKey(keyboardEvent: KeyboardEvent): boolean {
 // What typing into a note that can't be changed says, and how to change it.
 function describeLockedNoteTyping(vaultNoteEditingLock: PapelizVaultNoteEditingLock, vaultNoteRelativePath: string): string {
   if (vaultNoteEditingLock.vaultNoteEditingLockKind === 'hidden-folder') return 'Notes in hidden folders open read-only.'
-  if (vaultNoteEditingLock.vaultNoteEditingLockKind === 'whole-vault') return 'All notes are locked. Unlock them in Accessibility.'
+  if (vaultNoteEditingLock.vaultNoteEditingLockKind === 'whole-vault') return 'All notes are locked. Turn off Lock All Notes in the Settings gear.'
   const vaultNoteTitle = getVaultNoteTitle(vaultNoteRelativePath)
   if (vaultNoteEditingLock.lockingVaultEntryRelativePath === vaultNoteRelativePath) return `“${vaultNoteTitle}” is locked. Press the lock on its tab to edit it.`
   return `“${vaultNoteTitle}” is locked with the folder “${getVaultEntryName(vaultNoteEditingLock.lockingVaultEntryRelativePath)}”. Press the lock on its tab to unlock the folder.`
@@ -304,7 +304,7 @@ export function PapelizNoteArea({ noteEditorSessionCache }: PapelizNoteAreaProps
           <p className="mt-2 text-papeliz-ink-muted">{isVaultWithoutNotes ? 'Start the first one here.' : 'Pick a note from the list, or start a new one.'}</p>
           <PapelizPillButton pillButtonVariant="primary" className="mt-5" onClick={() => void createVaultNoteInFolder('')}>
             <FilePlus className="size-4" aria-hidden="true" />
-            New note
+            New Note
           </PapelizPillButton>
         </div>
       </div>
@@ -384,12 +384,12 @@ export function PapelizNoteArea({ noteEditorSessionCache }: PapelizNoteAreaProps
             {isFailedNoteStillListed && (
               <PapelizPillButton pillButtonSize="small" className="bg-papeliz-surface" onClick={() => void openVaultNote(activeVaultNoteRelativePath)}>
                 <RotateCw className="size-[13px]" aria-hidden="true" />
-                Try again
+                Try Again
               </PapelizPillButton>
             )}
             <PapelizPillButton pillButtonSize="small" className="bg-papeliz-surface" onClick={() => void closeVaultNoteTab(activeVaultNoteRelativePath)}>
               <X className="size-[13px]" aria-hidden="true" />
-              Close tab
+              Close Tab
             </PapelizPillButton>
           </div>
         </div>

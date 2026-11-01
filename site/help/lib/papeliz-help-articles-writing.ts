@@ -93,7 +93,7 @@ export const papelizHelpWritingArticles: readonly PapelizHelpArticle[] = [
       ]),
       helpSection('Lock a whole folder', [
         helpParagraph(
-          'In the file list, right-click a folder and choose **Lock editing of its notes**. Every note in it stays locked until you choose **Unlock editing**. A single note has **Lock editing** in the same menu.',
+          'In the file list, right-click a folder and choose **Lock Editing of Its Notes**. Every note in it stays locked until you choose **Unlock Editing**. A single note has **Lock Editing** in the same menu.',
         ),
       ]),
       helpSection('Lock every note', [
@@ -192,7 +192,7 @@ tags: [garden, plans]
         helpBulletList([
           '**Format**: bold, italic, strikethrough, code, a link to a note, or a web link.',
           '**Turn the lines into**: heading 1, 2 or 3, a bulleted list, a numbered list, a checklist, or a quote.',
-          '**Text color** and **Text size**: color the selection from the palette or with any color, and make it larger or smaller.',
+          '**Text Color** and **Text Size**: color the selection from the palette or with any color, and make it larger or smaller.',
           '**Cards**: turn the lines into a callout card. See [[tags-properties-and-cards]].',
           '**Assistant**: Edit with Assistant and Ask Assistant, still in development. See [[inline-edits]].',
           'Cut, copy, paste, select all, undo and redo.',
@@ -250,18 +250,18 @@ tags: [garden, plans]
     articleSections: [
       helpSection('Text settings', [
         helpParagraph(
-          'Open the gear at the right end of the top bar. Its **Accessibility** page sets how notes look: the **Font** (Sans, Serif or Mono), the **Text size**, and the **Text width** (Narrow, Normal, Wide or Full). Changes show at once, and Papeliz remembers them. MD Code always uses a monospace font, a little smaller than your text size.',
+          'Open the gear at the right end of the top bar. Its **Accessibility** page sets how your notes’ text reads: the **Font** (Sans, Serif or Mono), the **Text Size**, and the **Text Width** (Narrow, Normal, Wide or Full). Changes show at once, and Papeliz remembers them. MD Code always uses a monospace font, a little smaller than your text size.',
         ),
         helpParagraph(
-          '**Text size** is a slider from 14 to 24 px. Drag it, click along it, or use the arrow keys, `Home` and `End`. **Reset Text Settings** puts the font, size and width back to their defaults.',
+          '**Text Size** is a slider from 14 to 24 px. Drag it, click along it, or use the arrow keys, `Home` and `End`. **Reset Text Settings** puts the font, size and width back to their defaults.',
         ),
       ]),
       helpSection('Theme', [
-        helpParagraph('**Theme**, at the top of the same page, picks **Light**, **Dark**, or **Device**, which follows your device’s setting. The start page’s gear has it too.'),
+        helpParagraph('**Theme**, at the top of the gear’s **Appearance** page, picks **Light**, **Dark**, or **Device**, which follows your device’s setting. The start page’s gear has it too.'),
       ]),
       helpSection('Note tabs', [
         helpParagraph(
-          '**Note tabs** picks how tabs show when they don’t fit in one row. **Scroll** keeps one row that scrolls sideways, and **Stack** wraps them onto more rows, so every tab shows.',
+          '**Note Tabs**, also on the **Appearance** page, picks how tabs show when they don’t fit in one row. **Scroll** keeps one row that scrolls sideways, and **Stack** wraps them onto more rows, so every tab shows.',
         ),
       ]),
       helpSection('Panels', [

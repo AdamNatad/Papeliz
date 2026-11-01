@@ -164,7 +164,7 @@ class PapelizMdViewTaskCheckboxWidget extends WidgetType {
     taskCheckbox.type = 'checkbox'
     taskCheckbox.checked = this.isTaskChecked
     taskCheckbox.className = 'cm-papeliz-md-view-task-checkbox'
-    taskCheckbox.setAttribute('aria-label', this.isTaskChecked ? 'Mark as not done' : 'Mark as done')
+    taskCheckbox.setAttribute('aria-label', this.isTaskChecked ? 'Mark as Not Done' : 'Mark as Done')
     taskCheckbox.addEventListener('mousedown', (mouseDownEvent) => mouseDownEvent.preventDefault())
     taskCheckbox.addEventListener('click', (clickEvent) => {
       clickEvent.preventDefault()

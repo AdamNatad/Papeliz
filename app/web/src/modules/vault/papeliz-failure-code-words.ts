@@ -80,13 +80,13 @@ export function describePapelizFailureCode(failureCode: string, failureCodeConte
     case 'Hidden Folder':
       return 'It’s in a hidden folder, which Papeliz only reads. Move it out of the hidden folder to change it.'
     case 'All Notes Locked':
-      return 'Every note is locked. Turn off Lock All Notes in Settings, then try again.'
+      return 'Every note is locked. Turn off Lock All Notes in the Settings gear, then try again.'
     case 'Note Locked':
       return 'This note is locked. Unlock it, then try again.'
     case 'Folder Locked':
       return 'Its folder is locked. Unlock the folder, then try again.'
     case 'Not Saved':
-      return 'Its changes aren’t saved yet. Press Try again to save them first.'
+      return 'Its changes aren’t saved yet. Press Try Again to save them first.'
     case 'Not Synced':
       return 'Papeliz Sync doesn’t carry this kind of file.'
     case 'Not Supported Yet':

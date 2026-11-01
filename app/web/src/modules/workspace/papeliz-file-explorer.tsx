@@ -345,13 +345,13 @@ export function PapelizFileExplorer({ fileListFootSection }: PapelizFileExplorer
       vaultEntryMenuItems.push(
         {
           menuItemKey: 'new-note-here',
-          menuItemLabel: 'New note here',
+          menuItemLabel: 'New Note Here',
           MenuItemIcon: FilePlus,
           onMenuItemSelect: () => void createVaultNoteInFolder(menuVaultEntry.vaultEntryRelativePath),
         },
         {
           menuItemKey: 'new-folder-here',
-          menuItemLabel: 'New folder here',
+          menuItemLabel: 'New Folder Here',
           MenuItemIcon: FolderPlus,
           onMenuItemSelect: () => void createVaultFolderInFolder(menuVaultEntry.vaultEntryRelativePath),
         },
@@ -375,7 +375,7 @@ export function PapelizFileExplorer({ fileListFootSection }: PapelizFileExplorer
     const isMenuVaultEntryLocked = lockedVaultEntryRelativePaths.includes(menuVaultEntry.vaultEntryRelativePath)
     vaultEntryMenuItems.push({
       menuItemKey: 'editing-lock',
-      menuItemLabel: isMenuVaultEntryLocked ? 'Unlock editing' : menuVaultEntry.vaultEntryKind === 'folder' ? 'Lock editing of its notes' : 'Lock editing',
+      menuItemLabel: isMenuVaultEntryLocked ? 'Unlock Editing' : menuVaultEntry.vaultEntryKind === 'folder' ? 'Lock Editing of Its Notes' : 'Lock Editing',
       MenuItemIcon: isMenuVaultEntryLocked ? LockOpen : Lock,
       onMenuItemSelect: () => setVaultEntryEditingLocked(menuVaultEntry.vaultEntryRelativePath, !isMenuVaultEntryLocked),
     })
@@ -388,7 +388,7 @@ export function PapelizFileExplorer({ fileListFootSection }: PapelizFileExplorer
     if (menuVaultEntryIndex > 0) {
       vaultEntryMenuItems.push({
         menuItemKey: 'move-up',
-        menuItemLabel: 'Move up',
+        menuItemLabel: 'Move Up',
         MenuItemIcon: ArrowUp,
         menuItemGroupHeading: 'Order',
         onMenuItemSelect: () => moveVaultEntryUpOrDown(menuVaultEntry.vaultEntryRelativePath, 'up'),
@@ -397,7 +397,7 @@ export function PapelizFileExplorer({ fileListFootSection }: PapelizFileExplorer
     if (menuVaultEntryIndex !== -1 && menuVaultEntryIndex < siblingVaultEntryNames.length - 1) {
       vaultEntryMenuItems.push({
         menuItemKey: 'move-down',
-        menuItemLabel: 'Move down',
+        menuItemLabel: 'Move Down',
         MenuItemIcon: ArrowDown,
         menuItemGroupHeading: menuVaultEntryIndex > 0 ? undefined : 'Order',
         onMenuItemSelect: () => moveVaultEntryUpOrDown(menuVaultEntry.vaultEntryRelativePath, 'down'),
@@ -417,7 +417,7 @@ export function PapelizFileExplorer({ fileListFootSection }: PapelizFileExplorer
       {
         menuItemKey: 'copy',
         // Beside Duplicate, "Copy" alone could mean the note's text.
-        menuItemLabel: menuVaultEntry.vaultEntryKind === 'folder' ? 'Copy folder' : 'Copy note',
+        menuItemLabel: menuVaultEntry.vaultEntryKind === 'folder' ? 'Copy Folder' : 'Copy Note',
         MenuItemIcon: Copy,
         onMenuItemSelect: () => copyVaultEntryForPaste(menuVaultEntry),
       },
@@ -425,14 +425,14 @@ export function PapelizFileExplorer({ fileListFootSection }: PapelizFileExplorer
     if (copiedVaultEntry !== null) {
       vaultEntryMenuItems.push({
         menuItemKey: 'paste',
-        menuItemLabel: `Paste “${getVaultEntryDisplayName(copiedVaultEntry.vaultEntryRelativePath, copiedVaultEntry.vaultEntryKind)}” here`,
+        menuItemLabel: `Paste “${getVaultEntryDisplayName(copiedVaultEntry.vaultEntryRelativePath, copiedVaultEntry.vaultEntryKind)}” Here`,
         MenuItemIcon: ClipboardPaste,
         onMenuItemSelect: () => void pasteCopiedVaultEntry(pasteTargetVaultFolderRelativePath),
       })
     }
     vaultEntryMenuItems.push({
       menuItemKey: 'move-to-trash',
-      menuItemLabel: 'Move to trash',
+      menuItemLabel: 'Move to Trash',
       MenuItemIcon: Trash2,
       isDangerousMenuItem: true,
       menuItemGroupHeading: ' ',
@@ -445,13 +445,13 @@ export function PapelizFileExplorer({ fileListFootSection }: PapelizFileExplorer
   const getVaultTopMenuItems = (): PapelizPopoverMenuItem[] => [
     {
       menuItemKey: 'new-note-at-top',
-      menuItemLabel: 'New note',
+      menuItemLabel: 'New Note',
       MenuItemIcon: FilePlus,
       onMenuItemSelect: () => void createVaultNoteInFolder(papelizVaultRootFolderRelativePath),
     },
     {
       menuItemKey: 'new-folder-at-top',
-      menuItemLabel: 'New folder',
+      menuItemLabel: 'New Folder',
       MenuItemIcon: FolderPlus,
       onMenuItemSelect: () => void createVaultFolderInFolder(papelizVaultRootFolderRelativePath),
     },
@@ -460,7 +460,7 @@ export function PapelizFileExplorer({ fileListFootSection }: PapelizFileExplorer
       : [
           {
             menuItemKey: 'paste-at-top',
-            menuItemLabel: `Paste “${getVaultEntryDisplayName(copiedVaultEntry.vaultEntryRelativePath, copiedVaultEntry.vaultEntryKind)}” here`,
+            menuItemLabel: `Paste “${getVaultEntryDisplayName(copiedVaultEntry.vaultEntryRelativePath, copiedVaultEntry.vaultEntryKind)}” Here`,
             MenuItemIcon: ClipboardPaste,
             onMenuItemSelect: () => void pasteCopiedVaultEntry(papelizVaultRootFolderRelativePath),
           },
@@ -540,14 +540,14 @@ export function PapelizFileExplorer({ fileListFootSection }: PapelizFileExplorer
         </h2>
         <span className="ml-auto" />
         <PapelizWorkspaceEyePreviewerSlot />
-        <PapelizIconButton iconButtonLabel="New note" iconButtonSize="small" onClick={() => void createVaultNoteInFolder(folderForNewEntries)}>
+        <PapelizIconButton iconButtonLabel="New Note" iconButtonSize="small" onClick={() => void createVaultNoteInFolder(folderForNewEntries)}>
           <FilePlus className="size-[15px]" aria-hidden="true" />
         </PapelizIconButton>
-        <PapelizIconButton iconButtonLabel="New folder" iconButtonSize="small" onClick={() => void createVaultFolderInFolder(folderForNewEntries)}>
+        <PapelizIconButton iconButtonLabel="New Folder" iconButtonSize="small" onClick={() => void createVaultFolderInFolder(folderForNewEntries)}>
           <FolderPlus className="size-[15px]" aria-hidden="true" />
         </PapelizIconButton>
         {/* Hide panel, docked or as a drawer. The vault closes from Home (Start page) in the top bar. */}
-        <PapelizIconButton iconButtonLabel="Hide the file list" iconButtonSize="small" onClick={() => setExplorerPanelOpen(false)}>
+        <PapelizIconButton iconButtonLabel="Hide the File List" iconButtonSize="small" onClick={() => setExplorerPanelOpen(false)}>
           <PanelLeftClose className="size-[15px]" aria-hidden="true" />
         </PapelizIconButton>
       </div>
@@ -605,7 +605,7 @@ export function PapelizFileExplorer({ fileListFootSection }: PapelizFileExplorer
           <div className="px-2.5 py-2 text-[13px] text-papeliz-ink-subtle">
             <p>No Markdown notes here yet.</p>
             <button type="button" className="mt-1 font-medium text-papeliz-blue hover:underline" onClick={() => void createVaultNoteInFolder('')}>
-              Create the first note
+              Create the First Note
             </button>
           </div>
         )}
@@ -629,7 +629,7 @@ export function PapelizFileExplorer({ fileListFootSection }: PapelizFileExplorer
             </ul>
             {noteTextOnlySearchResults.length > 0 && (
               <section aria-label="Notes whose text matches" className="mt-3">
-                <h3 className="px-2.5 pb-1 text-[12px] font-semibold text-papeliz-ink-subtle">In note text</h3>
+                <h3 className="px-2.5 pb-1 text-[12px] font-semibold text-papeliz-ink-subtle">In Note Text</h3>
                 <ul className="flex flex-col gap-px">
                   {noteTextOnlySearchResults.map((vaultSearchResult) => (
                     <li key={vaultSearchResult.vaultNoteRelativePath} className="papeliz-pop-enter">
@@ -739,7 +739,7 @@ export function PapelizFileExplorer({ fileListFootSection }: PapelizFileExplorer
 
       {vaultEntryAwaitingTrash !== null && (
         <PapelizConfirmDialog
-          confirmDialogTitle="Move to trash?"
+          confirmDialogTitle="Move to Trash?"
           confirmDialogBody={
             <p>
               “{getVaultEntryDisplayName(vaultEntryAwaitingTrash.vaultEntryRelativePath, vaultEntryAwaitingTrash.vaultEntryKind)}”
@@ -747,7 +747,7 @@ export function PapelizFileExplorer({ fileListFootSection }: PapelizFileExplorer
               <code className="rounded-md bg-papeliz-surface-gray px-1.5 font-mono text-[13px]">.trash</code> folder. Nothing is erased.
             </p>
           }
-          confirmButtonLabel="Move to trash"
+          confirmButtonLabel="Move to Trash"
           onCancel={() => setVaultEntryAwaitingTrash(null)}
           onConfirm={() => {
             const vaultEntryToTrash = vaultEntryAwaitingTrash

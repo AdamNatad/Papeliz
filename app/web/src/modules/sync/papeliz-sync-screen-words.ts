@@ -194,11 +194,11 @@ export interface PapelizSyncStatusBarDescription {
 // The missing-files dialog (papeliz-sync-missing-files-dialog.tsx): the files are still on Sync, Download
 // them again puts them back here, and They were deleted removes them everywhere, after a second step.
 export const papelizSyncMissingFilesDialogWords = {
-  downloadAgainButtonLabel: 'Download them again',
+  downloadAgainButtonLabel: 'Download Them Again',
   downloadAgainChoiceText: 'puts them back on this device, from Sync.',
-  deletedButtonLabel: 'They were deleted',
+  deletedButtonLabel: 'They Were Deleted',
   deletedChoiceText: 'removes them from Sync and from your other devices, which move them to their trash.',
-  notNowButtonLabel: 'Not now',
+  notNowButtonLabel: 'Not Now',
   deleteConfirmIntro: 'They’ll be removed from Sync, and your other devices will move them to their trash.',
   deleteConfirmButtonLabel: 'Delete from Sync',
   deleteConfirmBackButtonLabel: 'Back',
@@ -206,7 +206,7 @@ export const papelizSyncMissingFilesDialogWords = {
 } as const
 
 export function titlePapelizSyncMissingFilesDialog(syncMissingFileCount: number): string {
-  return `${countWithNoun(syncMissingFileCount, 'synced file is', 'synced files are')} missing here`
+  return `${countWithNoun(syncMissingFileCount, 'Synced File Is', 'Synced Files Are')} Missing Here`
 }
 
 export function introducePapelizSyncMissingFilesDialog(syncMissingFileCount: number, papelizVaultDisplayName: string): string {
@@ -219,7 +219,7 @@ export function describePapelizSyncMissingFilesNotice(syncMissingFileCount: numb
 }
 
 export function titlePapelizSyncMissingFilesDeleteConfirm(syncMissingFileCount: number): string {
-  return `Delete ${countWithNoun(syncMissingFileCount, 'file', 'files')} from Sync?`
+  return `Delete ${countWithNoun(syncMissingFileCount, 'File', 'Files')} from Sync?`
 }
 
 function describeSyncWaitingReason(syncWaitingReason: PapelizSyncWaitingReason, syncResumesAt: number | null, currentTime: number): string {

@@ -97,8 +97,8 @@ async function playTestProvider(page: Page): Promise<{ testProviderChatRequests:
 // Settings for a Custom provider at the test provider's address, through the AI Assistant provider
 // dialog the panel's set-up button opens.
 async function setUpTestProvider(page: Page): Promise<void> {
-  await page.getByRole('button', { name: 'Choose a provider' }).click()
-  const providerSettingsDialog = page.getByRole('dialog', { name: 'AI Assistant provider' })
+  await page.getByRole('button', { name: 'Choose a Provider' }).click()
+  const providerSettingsDialog = page.getByRole('dialog', { name: 'AI Assistant Provider' })
   await expect(providerSettingsDialog).toBeVisible()
   await providerSettingsDialog.getByRole('button', { name: /Provider/ }).click()
   await page.getByRole('option', { name: /^Custom/ }).click()

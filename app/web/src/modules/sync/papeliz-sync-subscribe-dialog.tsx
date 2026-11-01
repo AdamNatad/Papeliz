@@ -56,7 +56,7 @@ export function PapelizSyncSubscribeDialog({ papelizSyncEngine, syncEngineSnapsh
         SyncDialogIcon={Globe}
         isSyncDialogDrawnInPlace={isSyncDialogDrawnInPlace}
         onSyncDialogCancel={closePapelizSyncSubscribeFlow}
-        syncDialogTitle="Where should your synced notes be stored?"
+        syncDialogTitle="Where Should Your Synced Notes Be Stored?"
         syncDialogIntro={
           <>
             They are encrypted wherever they are. Pick the place nearest to you, or the one your work requires. <b className="text-papeliz-ink">You can’t change this later.</b>
@@ -73,7 +73,7 @@ export function PapelizSyncSubscribeDialog({ papelizSyncEngine, syncEngineSnapsh
               onClick={() => void continuePapelizSyncSubscribeToSignIn(papelizSyncEngine)}
             >
               {isSigningIn && <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />}
-              {isSigningIn ? 'Waiting for sign-in…' : 'Continue to sign in'}
+              {isSigningIn ? 'Waiting for sign-in…' : 'Continue to Sign In'}
             </PapelizPillButton>
           </>
         }
@@ -123,7 +123,7 @@ export function PapelizSyncSubscribeDialog({ papelizSyncEngine, syncEngineSnapsh
       SyncDialogIcon={CreditCard}
       isSyncDialogDrawnInPlace={isSyncDialogDrawnInPlace}
       onSyncDialogCancel={closePapelizSyncSubscribeFlow}
-      syncDialogTitle={isCheckingOut ? 'Finish checkout in the new tab' : 'Signed in. Now check out'}
+      syncDialogTitle={isCheckingOut ? 'Finish Checkout in the New Tab' : 'Signed In. Now Check Out'}
       syncDialogIntro={
         isCheckingOut
           ? 'Checkout runs on the payment provider’s own page. When it’s done, come back here: Papeliz sets up Sync on this device next.'
@@ -135,7 +135,7 @@ export function PapelizSyncSubscribeDialog({ papelizSyncEngine, syncEngineSnapsh
             Cancel
           </PapelizPillButton>
           <PapelizPillButton pillButtonVariant={isCheckingOut ? 'line' : 'primary'} onClick={() => continuePapelizSyncSubscribeToCheckout(papelizSyncEngine)}>
-            {isCheckingOut ? 'Open checkout again' : 'Continue to checkout'}
+            {isCheckingOut ? 'Open Checkout Again' : 'Continue to Checkout'}
           </PapelizPillButton>
         </>
       }

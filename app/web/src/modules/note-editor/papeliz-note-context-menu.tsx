@@ -80,27 +80,27 @@ const papelizInlineFormatMenuButtons: ReadonlyArray<{
   { inlineMarkdownFormat: 'underline', formatLabel: 'Underline', formatKeyBindingActionId: 'note-format-underline', formatGlyph: 'U' },
   { inlineMarkdownFormat: 'strikethrough', formatLabel: 'Strikethrough', formatGlyph: 'S' },
   { inlineMarkdownFormat: 'inline-code', formatLabel: 'Code', formatGlyph: '</>' },
-  { inlineMarkdownFormat: 'wikilink', formatLabel: 'Link to a note', formatGlyph: '[[ ]]' },
-  { inlineMarkdownFormat: 'link', formatLabel: 'Web link', formatGlyph: <Link className="size-[15px]" aria-hidden="true" /> },
+  { inlineMarkdownFormat: 'wikilink', formatLabel: 'Link to a Note', formatGlyph: '[[ ]]' },
+  { inlineMarkdownFormat: 'link', formatLabel: 'Web Link', formatGlyph: <Link className="size-[15px]" aria-hidden="true" /> },
 ]
 
 const papelizLineFormatMenuButtons: ReadonlyArray<{ lineMarkdownFormat: PapelizLineMarkdownFormat; formatLabel: string; FormatIcon: LucideIcon }> = [
   { lineMarkdownFormat: 'heading-1', formatLabel: 'Heading 1', FormatIcon: Heading1 },
   { lineMarkdownFormat: 'heading-2', formatLabel: 'Heading 2', FormatIcon: Heading2 },
   { lineMarkdownFormat: 'heading-3', formatLabel: 'Heading 3', FormatIcon: Heading3 },
-  { lineMarkdownFormat: 'bulleted-list', formatLabel: 'Bulleted list', FormatIcon: List },
-  { lineMarkdownFormat: 'numbered-list', formatLabel: 'Numbered list', FormatIcon: ListOrdered },
+  { lineMarkdownFormat: 'bulleted-list', formatLabel: 'Bulleted List', FormatIcon: List },
+  { lineMarkdownFormat: 'numbered-list', formatLabel: 'Numbered List', FormatIcon: ListOrdered },
   { lineMarkdownFormat: 'checklist', formatLabel: 'Checklist', FormatIcon: ListTodo },
   { lineMarkdownFormat: 'quote', formatLabel: 'Quote', FormatIcon: TextQuote },
 ]
 
 // Each kind wears its card's own colors, as the note draws them.
 const papelizCalloutMenuButtons: ReadonlyArray<{ calloutKind: PapelizNoteCalloutKind; calloutLabel: string; CalloutIcon: LucideIcon; calloutToneClassName: string }> = [
-  { calloutKind: 'note', calloutLabel: 'Note card', CalloutIcon: StickyNote, calloutToneClassName: 'bg-papeliz-blue-soft text-papeliz-blue' },
-  { calloutKind: 'success', calloutLabel: 'Success card', CalloutIcon: CircleCheck, calloutToneClassName: 'bg-papeliz-diff-added text-papeliz-diff-added-ink' },
-  { calloutKind: 'warning', calloutLabel: 'Warning card', CalloutIcon: TriangleAlert, calloutToneClassName: 'bg-papeliz-warning text-papeliz-warning-ink' },
-  { calloutKind: 'danger', calloutLabel: 'Danger card', CalloutIcon: OctagonAlert, calloutToneClassName: 'bg-papeliz-diff-removed text-papeliz-diff-removed-ink' },
-  { calloutKind: 'quote', calloutLabel: 'Quote card', CalloutIcon: Quote, calloutToneClassName: 'bg-papeliz-surface-gray text-papeliz-ink-muted' },
+  { calloutKind: 'note', calloutLabel: 'Note Card', CalloutIcon: StickyNote, calloutToneClassName: 'bg-papeliz-blue-soft text-papeliz-blue' },
+  { calloutKind: 'success', calloutLabel: 'Success Card', CalloutIcon: CircleCheck, calloutToneClassName: 'bg-papeliz-diff-added text-papeliz-diff-added-ink' },
+  { calloutKind: 'warning', calloutLabel: 'Warning Card', CalloutIcon: TriangleAlert, calloutToneClassName: 'bg-papeliz-warning text-papeliz-warning-ink' },
+  { calloutKind: 'danger', calloutLabel: 'Danger Card', CalloutIcon: OctagonAlert, calloutToneClassName: 'bg-papeliz-diff-removed text-papeliz-diff-removed-ink' },
+  { calloutKind: 'quote', calloutLabel: 'Quote Card', CalloutIcon: Quote, calloutToneClassName: 'bg-papeliz-surface-gray text-papeliz-ink-muted' },
 ]
 
 const papelizNoteContextMenuViewportMargin = 8
@@ -457,16 +457,16 @@ export function PapelizNoteContextMenu({
             </button>
           </div>
           <PapelizNoteContextMenuDivider />
-          <p className="px-2.5 pt-0.5 pb-1 text-[11.5px] font-semibold text-papeliz-ink-subtle">Text color</p>
-          <div role="group" aria-label="Text color" className="flex items-center justify-between px-1.5">
+          <p className="px-2.5 pt-0.5 pb-1 text-[11.5px] font-semibold text-papeliz-ink-subtle">Text Color</p>
+          <div role="group" aria-label="Text Color" className="flex items-center justify-between px-1.5">
             {papelizNoteCalloutColors.map((textColorName) => (
               <button
                 key={textColorName}
                 type="button"
                 role="menuitem"
                 tabIndex={-1}
-                aria-label={`${textColorName.charAt(0).toUpperCase()}${textColorName.slice(1)} text`}
-                title={`${textColorName.charAt(0).toUpperCase()}${textColorName.slice(1)} text`}
+                aria-label={`${textColorName.charAt(0).toUpperCase()}${textColorName.slice(1)} Text`}
+                title={`${textColorName.charAt(0).toUpperCase()}${textColorName.slice(1)} Text`}
                 data-papeliz-note-context-menu-item=""
                 aria-pressed={currentTextStyle?.textColor === textColorName}
                 onClick={runInNote(() => runTextStyle(noteEditorView, { textColor: textColorName }))}
@@ -478,7 +478,7 @@ export function PapelizNoteContextMenu({
               type="button"
               role="menuitem"
               tabIndex={-1}
-              aria-label="Text in any color"
+              aria-label="Text in Any Color"
               aria-expanded={colorPickerPurpose === 'text-color'}
               title="Pick any color for the text"
               data-papeliz-note-context-menu-item=""
@@ -491,8 +491,8 @@ export function PapelizNoteContextMenu({
               type="button"
               role="menuitem"
               tabIndex={-1}
-              aria-label="Remove the text color"
-              title="Remove the text color"
+              aria-label="Remove the Text Color"
+              title="Remove the Text Color"
               disabled={!currentTextStyle?.textColor}
               data-papeliz-note-context-menu-item=""
               onClick={runInNote(() => runTextStyle(noteEditorView, { textColor: null }))}
@@ -506,20 +506,20 @@ export function PapelizNoteContextMenu({
               <PapelizColorPicker
                 colorPickerLabel="Any color for the text"
                 initialHexColor="#e11d48"
-                chooseColorButtonLabel="Color text"
+                chooseColorButtonLabel="Color Text"
                 onColorChoose={(textHexColor) => runInNote(() => runTextStyle(noteEditorView, { textColor: textHexColor }))()}
               />
             </div>
           )}
-          <p className="px-2.5 pt-2 pb-1 text-[11.5px] font-semibold text-papeliz-ink-subtle">Text size</p>
-          <div role="group" aria-label="Text size" className="flex items-end gap-1 px-1.5">
+          <p className="px-2.5 pt-2 pb-1 text-[11.5px] font-semibold text-papeliz-ink-subtle">Text Size</p>
+          <div role="group" aria-label="Text Size" className="flex items-end gap-1 px-1.5">
             <button
               type="button"
               role="menuitemradio"
               tabIndex={-1}
               aria-checked={currentTextStyle === null || currentTextStyle.textSize === null}
-              aria-label="Normal size"
-              title="Normal size: the text's own size"
+              aria-label="Normal Size"
+              title="Normal Size: the text's own size"
               data-papeliz-note-context-menu-item=""
               onClick={runInNote(() => runTextStyle(noteEditorView, { textSize: null }))}
               className="grid h-8 flex-1 place-items-center rounded-lg text-papeliz-ink-muted transition-colors hover:bg-papeliz-hover hover:text-papeliz-ink aria-checked:bg-papeliz-blue-soft aria-checked:text-papeliz-blue focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-papeliz-blue"
@@ -533,8 +533,8 @@ export function PapelizNoteContextMenu({
                 role="menuitemradio"
                 tabIndex={-1}
                 aria-checked={currentTextStyle?.textSize === textSize}
-                aria-label={`${textSizeLabel} text`}
-                title={`${textSizeLabel} text`}
+                aria-label={`${textSizeLabel} Text`}
+                title={`${textSizeLabel} Text`}
                 data-papeliz-note-context-menu-item=""
                 onClick={runInNote(() => runTextStyle(noteEditorView, { textSize }))}
                 className="grid h-8 flex-1 place-items-center rounded-lg font-semibold text-papeliz-ink-muted transition-colors hover:bg-papeliz-hover hover:text-papeliz-ink aria-checked:bg-papeliz-blue-soft aria-checked:text-papeliz-blue focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-papeliz-blue"
@@ -552,9 +552,9 @@ export function PapelizNoteContextMenu({
                 type="button"
                 role="menuitem"
                 tabIndex={-1}
-                aria-label={currentCalloutCard === null ? calloutLabel : `Make this a ${calloutLabel.toLowerCase()}`}
+                aria-label={currentCalloutCard === null ? calloutLabel : `Make This a ${calloutLabel}`}
                 aria-pressed={currentCalloutCard !== null && currentCalloutCard.calloutKind === calloutKind && currentCalloutCard.calloutColor === null}
-                title={currentCalloutCard === null ? (hasSelectedText ? `${calloutLabel} around the selection` : calloutLabel) : `Make this a ${calloutLabel.toLowerCase()}`}
+                title={currentCalloutCard === null ? (hasSelectedText ? `${calloutLabel} around the selection` : calloutLabel) : `Make This a ${calloutLabel}`}
                 data-papeliz-note-context-menu-item=""
                 onClick={runInNote(() => runCalloutCardChoice(noteEditorView, calloutKind))}
                 className={joinPapelizClassNames(
@@ -569,9 +569,9 @@ export function PapelizNoteContextMenu({
               type="button"
               role="menuitem"
               tabIndex={-1}
-              aria-label="Custom card, in any color"
+              aria-label="Custom Card, in Any Color"
               aria-expanded={colorPickerPurpose === 'custom-card'}
-              title="Custom card: pick any color"
+              title="Custom Card: pick any color"
               data-papeliz-note-context-menu-item=""
               onClick={() => setColorPickerPurpose(colorPickerPurpose === 'custom-card' ? null : 'custom-card')}
               className="grid size-[32px] place-items-center rounded-lg transition-transform hover:bg-papeliz-hover active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-papeliz-blue aria-expanded:bg-papeliz-hover"
@@ -582,7 +582,7 @@ export function PapelizNoteContextMenu({
               type="button"
               role="menuitem"
               tabIndex={-1}
-              aria-label="Remove the card"
+              aria-label="Remove the Card"
               title={currentCalloutCard === null ? 'Put the cursor in a card to remove it' : 'Remove the card, keeping its text'}
               disabled={currentCalloutCard === null}
               data-papeliz-note-context-menu-item=""
@@ -601,7 +601,7 @@ export function PapelizNoteContextMenu({
                     type="button"
                     role="menuitem"
                     tabIndex={-1}
-                    aria-label={`${customCardColor.charAt(0).toUpperCase()}${customCardColor.slice(1)} card`}
+                    aria-label={`${customCardColor.charAt(0).toUpperCase()}${customCardColor.slice(1)} Card`}
                     title={`${customCardColor.charAt(0).toUpperCase()}${customCardColor.slice(1)}`}
                     data-papeliz-note-context-menu-item=""
                     onClick={runInNote(() => runCalloutCardChoice(noteEditorView, 'note', customCardColor))}
@@ -616,7 +616,7 @@ export function PapelizNoteContextMenu({
               <PapelizColorPicker
                 colorPickerLabel="Any color for the card"
                 initialHexColor="#7c3aed"
-                chooseColorButtonLabel="Add card"
+                chooseColorButtonLabel="Add Card"
                 onColorChoose={(customCardHexColor) => runInNote(() => runCalloutCardChoice(noteEditorView, 'note', customCardHexColor))()}
               />
             </div>
@@ -676,7 +676,7 @@ export function PapelizNoteContextMenu({
         />
       )}
       <PapelizNoteContextMenuItem
-        menuItemLabel="Select all"
+        menuItemLabel="Select All"
         MenuItemIcon={TextSelect}
         menuItemShortcutLabel="Ctrl A"
         onMenuItemSelect={runInNote(() => selectAll(noteEditorView))}

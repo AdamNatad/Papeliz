@@ -7,10 +7,10 @@ import { findPapelizBrowserVaultNameProblem, type PapelizBrowserVaultRecord } fr
 import { PapelizBrowserVaultNameField } from './papeliz-browser-vault-name-field'
 import { newVaultFormFooterActionButtonColorClassName, newVaultFormFooterCancelButtonColorClassName } from './papeliz-new-vault-form'
 
-// Cancel and Rename: flat, square-cornered and one width (the footer's ref sets it), in New Vault's
+// Cancel and Rename: pills of one width (the footer's ref sets it), in New Vault's
 // footer colors.
 const browserVaultNameDialogFooterButtonClassName =
-  'inline-flex h-7 flex-none items-center justify-center gap-1.5 rounded px-2.5 text-xs font-medium whitespace-nowrap transition-[background-color,border-color,color,filter,transform] duration-150 ease-out active:scale-[.99] disabled:pointer-events-none disabled:opacity-50'
+  'inline-flex h-7 flex-none items-center justify-center gap-1.5 rounded-full px-2.5 text-xs font-medium whitespace-nowrap transition-[background-color,border-color,color,filter,transform] duration-150 ease-out active:scale-[.99] disabled:pointer-events-none disabled:opacity-50'
 
 interface PapelizBrowserVaultNameDialogProps {
   renamedBrowserVaultRecord: PapelizBrowserVaultRecord

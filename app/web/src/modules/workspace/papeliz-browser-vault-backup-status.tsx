@@ -100,7 +100,7 @@ export function PapelizBrowserVaultBackupStatus({ papelizVaultId }: { papelizVau
       await noteBrowserVaultBackupReminderShown(currentTime)
       const backupSinceText = describePapelizChangesSinceBackup(checkedBrowserVaultRecord.papelizBrowserVaultLastBackupAt, currentTime)
       showWorkspaceNotice('info', `Back up “${checkedBrowserVaultRecord.papelizVaultDisplayName}”? ${backupSinceText}`, {
-        workspaceNoticeActionLabel: 'Download backup',
+        workspaceNoticeActionLabel: 'Download Backup',
         onWorkspaceNoticeAction: () => void downloadBackupWithNotice(),
       })
     }
@@ -127,7 +127,7 @@ export function PapelizBrowserVaultBackupStatus({ papelizVaultId }: { papelizVau
     if (!isBrowserStorageFullSaveFailure) return
     void usePapelizBrowserStorageStore.getState().refreshBrowserStorageState()
     showWorkspaceNotice('error', describePapelizFailureCodeMessage('Couldn’t save', 'Browser Storage Full'), {
-      workspaceNoticeActionLabel: 'Download backup',
+      workspaceNoticeActionLabel: 'Download Backup',
       onWorkspaceNoticeAction: () => void downloadBackupWithNotice(),
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps

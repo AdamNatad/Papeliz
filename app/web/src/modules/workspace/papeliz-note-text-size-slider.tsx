@@ -27,7 +27,7 @@ export function PapelizNoteTextSizeSlider() {
       </span>
       <input
         type="range"
-        aria-label="Text size"
+        aria-label="Text Size"
         aria-valuetext={`${noteFontSize} px`}
         min={minimumNoteFontSize}
         max={maximumNoteFontSize}

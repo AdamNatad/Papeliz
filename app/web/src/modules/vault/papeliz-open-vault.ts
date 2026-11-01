@@ -1,4 +1,4 @@
-import { describePapelizFailureCodeMessage } from './papeliz-failure-code-words'
+import { describePapelizFailureCodeMessage, describePapelizFailureMessage } from './papeliz-failure-code-words'
 import { describePapelizFolderAccessOffReason } from './papeliz-folder-access-support'
 import { PapelizFolderOnDiskVaultAdapter } from './papeliz-folder-on-disk-vault-adapter'
 import { PapelizInMemoryVaultAdapter } from './papeliz-in-memory-vault-adapter'
@@ -10,6 +10,7 @@ import {
   type PapelizRememberedVaultFolder,
 } from './papeliz-remembered-vault-folders'
 import { papelizSampleVaultDisplayName, papelizSampleVaultNotes } from './papeliz-sample-vault-notes'
+import { describeVaultEntryNameProblem } from './papeliz-vault-relative-paths'
 
 export const papelizSampleVaultId = 'papeliz-sample-vault'
 
@@ -76,6 +77,60 @@ export async function pickAndOpenPapelizVaultFolder(): Promise<PapelizOpenVaultR
   const vaultFolderPickResult = await pickPapelizVaultFolderHandle()
   if (!('vaultFolderPickOutcome' in vaultFolderPickResult)) return vaultFolderPickResult
   return openPapelizVaultFolderHandle(vaultFolderPickResult.papelizVaultFolderHandle)
+}
+
+// Why a name typed for a new folder vault can't be the folder's name, as a code ("Name Empty",
+// "Has A Blocked Character", ...), or null when it can. Whether the place picked already has that
+// name is known only once it is picked.
+export function findPapelizNewFolderVaultNameProblem(typedNewVaultName: string): string | null {
+  return describeVaultEntryNameProblem(typedNewVaultName)
+}
+
+// New Vault's folder, inside the folder picked: a new folder named after the vault, or an empty one of
+// that name already there. A folder there with anything in it is refused, since opening one that holds
+// notes is Open Vault's job, and so is a file of that name.
+export type PapelizNewFolderVaultFolderResult =
+  | { newFolderVaultFolderOutcome: 'ready'; papelizVaultFolderHandle: FileSystemDirectoryHandle }
+  | { newFolderVaultFolderOutcome: 'folder-not-empty' | 'file-has-the-name' }
+
+export async function makePapelizNewFolderVaultFolder(
+  pickedPlaceFolderHandle: FileSystemDirectoryHandle,
+  newVaultName: string,
+): Promise<PapelizNewFolderVaultFolderResult> {
+  let existingVaultFolderHandle: FileSystemDirectoryHandle | null = null
+  try {
+    existingVaultFolderHandle = await pickedPlaceFolderHandle.getDirectoryHandle(newVaultName)
+  } catch (existingFolderError) {
+    if (existingFolderError instanceof DOMException && existingFolderError.name === 'TypeMismatchError') return { newFolderVaultFolderOutcome: 'file-has-the-name' }
+    if (!(existingFolderError instanceof DOMException && existingFolderError.name === 'NotFoundError')) throw existingFolderError
+  }
+  if (existingVaultFolderHandle !== null) {
+    for await (const _existingFolderEntryName of existingVaultFolderHandle.keys()) return { newFolderVaultFolderOutcome: 'folder-not-empty' }
+    return { newFolderVaultFolderOutcome: 'ready', papelizVaultFolderHandle: existingVaultFolderHandle }
+  }
+  return { newFolderVaultFolderOutcome: 'ready', papelizVaultFolderHandle: await pickedPlaceFolderHandle.getDirectoryHandle(newVaultName, { create: true }) }
+}
+
+// New Vault in a folder: the browser's folder window picks where it goes (with permission to change
+// it), then the vault's folder is made there, named after the vault, and opened and remembered as any
+// folder vault is. Must run from a click.
+export async function pickPlaceAndOpenNewPapelizFolderVault(newVaultName: string): Promise<PapelizOpenVaultResult> {
+  const placeFolderPickResult = await pickPapelizVaultFolderHandle()
+  if (!('vaultFolderPickOutcome' in placeFolderPickResult)) return placeFolderPickResult
+  let newFolderVaultFolderResult: PapelizNewFolderVaultFolderResult
+  try {
+    newFolderVaultFolderResult = await makePapelizNewFolderVaultFolder(placeFolderPickResult.papelizVaultFolderHandle, newVaultName)
+  } catch (newVaultFolderError) {
+    return {
+      openVaultOutcome: 'failed',
+      openVaultFailureMessage: describePapelizFailureMessage(`Couldn’t make “${newVaultName}”`, newVaultFolderError, { failedEntryName: newVaultName, failedEntryKind: 'folder' }),
+    }
+  }
+  if (newFolderVaultFolderResult.newFolderVaultFolderOutcome !== 'ready') {
+    const takenNameEntryKind = newFolderVaultFolderResult.newFolderVaultFolderOutcome === 'folder-not-empty' ? 'folder' : 'file'
+    return { openVaultOutcome: 'failed', openVaultFailureMessage: `A ${takenNameEntryKind} named “${newVaultName}” is already there. Pick another name or another place.` }
+  }
+  return openPapelizVaultFolderHandle(newFolderVaultFolderResult.papelizVaultFolderHandle)
 }
 
 // Reopens a folder from the welcome screen's recent list, asking for permission again if the

@@ -5,6 +5,7 @@ import { usePapelizAssistantPanelUiStore } from '../assistant/papeliz-assistant-
 import { findPapelizAssistantProviderPreset } from '../assistant/papeliz-assistant-provider-presets'
 import { usePapelizAssistantProviderSettingsStore } from '../assistant/papeliz-assistant-provider-settings-store'
 import type { PapelizNoteViewMode } from '../note-editor/papeliz-note-editor'
+import { describePapelizFailureCodeMessage } from '../vault/papeliz-failure-code-words'
 import { describePapelizFolderAccessOffReason, type PapelizFolderAccessOffReason } from '../vault/papeliz-folder-access-support'
 import { PapelizInMemoryVaultAdapter, type PapelizInMemoryVaultNote } from '../vault/papeliz-in-memory-vault-adapter'
 import type { PapelizOpenVault } from '../vault/papeliz-open-vault'
@@ -190,11 +191,11 @@ function setAsideOutsideStateOnce(): void {
     stopAssistant: conversationState.stopAssistant,
   }
   usePapelizAssistantProviderSettingsStore.setState({
-    saveAssistantProviderSettings: async () => showPreviewOnlyNotice('Settings not saved (Preview Only).'),
-    forgetAssistantProviderSettings: async () => showPreviewOnlyNotice('Settings not changed (Preview Only).'),
+    saveAssistantProviderSettings: async () => showPreviewOnlyNotice('Settings not saved: this is only a preview.'),
+    forgetAssistantProviderSettings: async () => showPreviewOnlyNotice('Settings not changed: this is only a preview.'),
   })
   usePapelizAssistantConversationStore.setState({
-    sendAssistantMessage: async () => showPreviewOnlyNotice('Nothing sent (Preview Only).'),
+    sendAssistantMessage: async () => showPreviewOnlyNotice('Nothing sent: this is only a preview.'),
     // Stop ends the made-up answer where it is.
     stopAssistant: () =>
       usePapelizAssistantConversationStore.setState((conversationState) => ({
@@ -530,12 +531,12 @@ function describeStartScreenEyePreview(
     case 'start-open-vault-permission-refused':
       return {
         ...liveLikeStartScreenEyePreview,
-        previewStartScreenNotice: { previewNoticeKind: 'error', previewNoticeMessage: 'Couldn’t open the folder (No Permission)' },
+        previewStartScreenNotice: { previewNoticeKind: 'error', previewNoticeMessage: describePapelizFailureCodeMessage('Couldn’t open the folder', 'Permission Not Given') },
       }
     case 'start-open-vault-folder-gone':
       return {
         ...liveLikeStartScreenEyePreview,
-        previewStartScreenNotice: { previewNoticeKind: 'error', previewNoticeMessage: 'Couldn’t open “Field Notes” (Folder Not Found)' },
+        previewStartScreenNotice: { previewNoticeKind: 'error', previewNoticeMessage: describePapelizFailureCodeMessage('Couldn’t open “Field Notes”', 'Folder Not Found') },
       }
     case 'start-recent-vaults-empty':
       return { ...liveLikeStartScreenEyePreview, previewRememberedVaultFolders: [] }
@@ -573,7 +574,7 @@ function describeStartScreenEyePreview(
         previewRememberedVaultFolders: [...createPreviewRecentVaultFolders('few'), ...createPreviewHiddenVaultFolders(papelizEyePreviewerHiddenVaultNames.slice(2))],
         previewStartScreenNotice: {
           previewNoticeKind: 'error',
-          previewNoticeMessage: `Couldn’t delete 1 of ${papelizEyePreviewerHiddenVaultNames.length} vaults (Still Hidden)`,
+          previewNoticeMessage: `Couldn’t delete 1 of ${papelizEyePreviewerHiddenVaultNames.length} vaults. They stay in Hidden Vaults, so you can try again.`,
         },
       }
   }
@@ -697,11 +698,11 @@ async function holdVaultEyePreviewerState(workspaceEyePreviewerState: PapelizVau
       workspaceState.showWorkspaceNotice('info', 'Moved “Inbox” to the trash.')
       break
     case 'toast-error':
-      workspaceState.showWorkspaceNotice('error', 'Couldn’t save the chat (Disk Full)')
+      workspaceState.showWorkspaceNotice('error', describePapelizFailureCodeMessage('Couldn’t save the chat', 'Disk Full'))
       break
     case 'toast-error-try-again':
       workspaceState.showWorkspaceNotice('error', describePapelizFolderAccessOffReason('chooser-unavailable'), {
-        workspaceNoticeActionLabel: 'Try again',
+        workspaceNoticeActionLabel: 'Try Again',
         onWorkspaceNoticeAction: () => undefined,
       })
       break

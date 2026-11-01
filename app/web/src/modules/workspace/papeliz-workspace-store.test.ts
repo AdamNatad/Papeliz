@@ -122,7 +122,7 @@ describe('autosave', () => {
     expect(workspaceState.loadedVaultNotesByRelativePath['Inbox.md']?.draftVaultNoteText).toBe('precious words')
     expect(workspaceState.loadedVaultNotesByRelativePath['Inbox.md']?.noteSaveErrorMessage).toBe('Disk Full')
     expect(workspaceState.workspaceNotice?.workspaceNoticeKind).toBe('error')
-    expect(workspaceState.workspaceNotice?.workspaceNoticeMessage).toBe('Couldn’t close “Inbox”. Its changes aren’t saved yet. Press Try again to save them first.')
+    expect(workspaceState.workspaceNotice?.workspaceNoticeMessage).toBe('Couldn’t close “Inbox”. Its changes aren’t saved yet. Press Try Again to save them first.')
   })
 })
 

@@ -62,7 +62,7 @@ export function PapelizSyncOldVersionsDialog({ papelizSyncEngine, papelizVaultId
       SyncDialogIcon={History}
       isSyncDialogDrawnInPlace={false}
       onSyncDialogCancel={() => setPapelizSyncOldVersionsDialogShown(false)}
-      syncDialogTitle={`Old versions of “${getVaultNoteTitle(vaultNoteRelativePath)}”`}
+      syncDialogTitle={`Old Versions of “${getVaultNoteTitle(vaultNoteRelativePath)}”`}
       syncDialogIntro="Restoring one makes it the newest version on every device. The version it replaces stays in this list."
       syncDialogWidthClassName="w-[min(600px,calc(100vw-32px))]"
       syncDialogFooter={

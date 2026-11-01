@@ -36,7 +36,12 @@ import {
   renamePapelizBrowserVault,
   type PapelizBrowserVaultRecord,
 } from '../vault/papeliz-browser-vaults'
-import { openPapelizSampleVault, pickAndOpenPapelizVaultFolder, type PapelizOpenVaultResult } from '../vault/papeliz-open-vault'
+import {
+  openPapelizSampleVault,
+  pickAndOpenPapelizVaultFolder,
+  pickPlaceAndOpenNewPapelizFolderVault,
+  type PapelizOpenVaultResult,
+} from '../vault/papeliz-open-vault'
 import {
   deletePapelizRecentVault,
   isPapelizRecentVaultHidden,
@@ -46,7 +51,7 @@ import {
   type PapelizRecentVault,
 } from '../vault/papeliz-recent-vaults'
 import { isVaultFolderDeleteSupported } from '../vault/papeliz-remembered-vault-folders'
-import { describePapelizVaultError } from '../vault/papeliz-vault-adapter'
+import { describePapelizFailureMessage } from '../vault/papeliz-failure-code-words'
 import { papelizSampleVaultFirstNoteRelativePath, papelizSampleVaultNotes } from '../vault/papeliz-sample-vault-notes'
 import { usePapelizBrowserStorageStore } from './papeliz-browser-storage-store'
 import { downloadPapelizBrowserVaultBackupFromClick } from './papeliz-browser-vault-backup-reminder-store'
@@ -88,9 +93,43 @@ const papelizHiddenVaultDeleteButtonClassName =
   'border-papeliz-diff-removed-ink/35 bg-papeliz-surface text-papeliz-diff-removed-ink enabled:hover:border-papeliz-diff-removed-ink/55 enabled:hover:bg-papeliz-diff-removed enabled:active:scale-[0.985]'
 const papelizHiddenVaultActionButtonClassName =
   'inline-flex flex-none items-center justify-center gap-1 rounded-md border font-semibold transition-[background-color,border-color,color,scale] duration-150 disabled:cursor-not-allowed disabled:opacity-50'
+// A vault row's right end: when it was opened (or hidden), and its buttons. With a mouse on a wide screen
+// the time sits at the far right, and the buttons take its place while the pointer is over the row or
+// focus is in it: the two share one grid cell, as wide as the wider, so nothing moves. On a touch screen,
+// or below 768px, the buttons always show, after the time.
+const papelizVaultRowEndClassName = 'flex flex-none items-center gap-2.5 md:pointer-fine:grid md:pointer-fine:justify-items-end'
+const papelizVaultRowEndTimeClassName =
+  'text-[11.5px] whitespace-nowrap text-papeliz-ink-subtle transition-opacity duration-150 max-sm:hidden md:pointer-fine:col-start-1 md:pointer-fine:row-start-1 md:pointer-fine:group-focus-within:opacity-0 md:pointer-fine:group-hover:opacity-0'
+const papelizVaultRowEndButtonsClassName =
+  'flex items-center transition-opacity duration-150 md:pointer-fine:col-start-1 md:pointer-fine:row-start-1 md:pointer-fine:opacity-0 md:pointer-fine:group-focus-within:opacity-100 md:pointer-fine:group-hover:opacity-100'
+
+// Where a recent vault is kept, under its name.
+function PapelizRecentVaultPlace({ recentVault }: { recentVault: PapelizRecentVault }) {
+  return (
+    <span className="inline-flex items-center gap-1">
+      {recentVault.papelizRecentVaultKind === 'browser-vault-in-opfs' ? (
+        <>
+          <AppWindow className="size-3 flex-none" aria-hidden="true" />
+          In this browser
+        </>
+      ) : (
+        <>
+          <HardDrive className="size-3 flex-none" aria-hidden="true" />
+          Folder on this device
+        </>
+      )}
+    </span>
+  )
+}
+
 // The count of hidden vaults, in gray: beside the Hidden list's title, and on the eye's corner.
 const papelizHiddenVaultCountBadgeClassName =
   'grid place-items-center rounded-full border border-papeliz-line bg-papeliz-surface leading-none font-bold text-papeliz-ink-muted tabular-nums'
+
+// "Hidden 12 minutes ago", on a hidden vault's row.
+function describeHiddenVaultTime(recentVault: PapelizRecentVault): string {
+  return `Hidden ${describeTimeSince(recentVault.papelizVaultHiddenAt ?? recentVault.papelizVaultLastOpenedAt).toLowerCase()}`
+}
 
 function describeTimeSince(papelizEventTime: number): string {
   const elapsedMinutes = Math.round((papelizEventTime - Date.now()) / 60_000)
@@ -112,8 +151,6 @@ interface PapelizWelcomeActionProps {
   // Lit while its panel shows in the start card (Recent Vaults, New Vault, Synced Vaults): a brighter
   // fill with a white left edge.
   isWelcomeActionCurrent?: boolean
-  // A small tag after the title, such as "Sync" on Synced Vaults.
-  welcomeActionTagText?: string
   welcomeActionButtonRef?: Ref<HTMLButtonElement>
   onWelcomeActionSelect: () => void
 }
@@ -126,7 +163,6 @@ function PapelizWelcomeAction({
   isWelcomeActionDisabled,
   welcomeActionOffReasonText = null,
   isWelcomeActionCurrent = false,
-  welcomeActionTagText,
   welcomeActionButtonRef,
   onWelcomeActionSelect,
 }: PapelizWelcomeActionProps) {
@@ -156,12 +192,7 @@ function PapelizWelcomeAction({
           <WelcomeActionIcon className="size-3.5" aria-hidden="true" />
         </span>
         <span className="flex min-w-0 flex-col items-start leading-tight">
-          <span className={joinPapelizClassNames('flex max-w-full min-w-0 items-center gap-1', isWelcomeActionOff && 'opacity-55')}>
-            <span className="truncate text-[12px] font-semibold">{welcomeActionTitle}</span>
-            {welcomeActionTagText !== undefined && (
-              <span className="flex-none rounded-full bg-white/25 px-[5px] text-[9px] leading-[14px] font-bold">{welcomeActionTagText}</span>
-            )}
-          </span>
+          <span className={joinPapelizClassNames('max-w-full truncate text-[12px] font-semibold', isWelcomeActionOff && 'opacity-55')}>{welcomeActionTitle}</span>
           {isWelcomeActionOff ? (
             <span className="mt-0.5 rounded-full border border-papeliz-diff-removed-ink/30 bg-papeliz-diff-removed px-1.5 py-px text-[9.5px] leading-snug font-semibold text-papeliz-diff-removed-ink">
               Off in this browser
@@ -185,8 +216,9 @@ function PapelizWelcomeAction({
 
 const papelizRecentVaultSyncBadgeClassName = 'inline-flex h-[18px] flex-none items-center gap-1 rounded-full px-[7px] text-[10.5px] font-semibold whitespace-nowrap'
 
-// A recent vault's badges after where it's kept: "Synced" (blue) and its kind, Standard or End-to-end
-// with a lock; or "Local only", for a vault that doesn't sync (a copy that won't sync among them).
+// A recent vault's badges after where it's kept: "Synced" (green) and its kind, Standard (blue) or
+// End-to-end (purple, with a lock); or "Local only" (gray), for a vault that doesn't sync (a copy that
+// won't sync among them).
 function PapelizRecentVaultSyncBadges({ recentVaultSyncEncryptionKind }: { recentVaultSyncEncryptionKind: PapelizSyncVaultEncryptionKind | null }) {
   if (recentVaultSyncEncryptionKind === null) {
     return <span className={joinPapelizClassNames(papelizRecentVaultSyncBadgeClassName, 'bg-papeliz-surface-gray text-papeliz-ink-muted')}>Local only</span>
@@ -194,11 +226,17 @@ function PapelizRecentVaultSyncBadges({ recentVaultSyncEncryptionKind }: { recen
   const recentVaultSyncEncryptionKindName = papelizSyncVaultEncryptionKindDisplayNames[recentVaultSyncEncryptionKind]
   return (
     <>
-      <span className={joinPapelizClassNames(papelizRecentVaultSyncBadgeClassName, 'bg-papeliz-blue-soft text-papeliz-blue')}>
+      <span className={joinPapelizClassNames(papelizRecentVaultSyncBadgeClassName, 'bg-papeliz-callout-green-ground text-papeliz-callout-green-ink')}>
         <CloudCheck className="size-3" aria-hidden="true" />
         Synced
       </span>
-      <span title={`${recentVaultSyncEncryptionKindName} encryption`} className={joinPapelizClassNames(papelizRecentVaultSyncBadgeClassName, 'bg-papeliz-surface-gray text-papeliz-ink-muted')}>
+      <span
+        title={`${recentVaultSyncEncryptionKindName} encryption`}
+        className={joinPapelizClassNames(
+          papelizRecentVaultSyncBadgeClassName,
+          recentVaultSyncEncryptionKind === 'end-to-end' ? 'bg-papeliz-callout-purple-ground text-papeliz-callout-purple-ink' : 'bg-papeliz-blue-soft text-papeliz-blue',
+        )}
+      >
         {recentVaultSyncEncryptionKind === 'end-to-end' && <Lock className="size-3" aria-hidden="true" />}
         {recentVaultSyncEncryptionKindName}
       </span>
@@ -227,7 +265,7 @@ function describeRecentVaultDeleteRequest(recentVaultDeleteRequest: PapelizRecen
 
 // The start screen, shown when no vault is open: on the blue panel, Papeliz, the ways in (Recent
 // Vaults; a new vault, an import into this browser, a folder already in use, the sample vault; Synced
-// Vaults at the foot, tagged Sync, where the build has Sync) and who made it; beside it, the vaults opened
+// Vaults at the foot, where the build has Sync) and who made it; beside it, the vaults opened
 // before, to come back to in one click, each saying whether it syncs, and the Hidden list. Recent
 // Vaults' button and the logo in the top bar bring that list back from any other panel. A new vault
 // is a folder on the disk or a browser vault: Chrome and Edge ask which, other browsers keep it in
@@ -270,7 +308,7 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
     return firstPreviewHiddenRecentVault === undefined ? null : { recentVaultDeleteScope: 'one-vault', recentVault: firstPreviewHiddenRecentVault }
   })
   // New Vault's form, shown in the start card in place of Recent Vaults, with the name it suggests.
-  const [newVaultFormRequest, setNewVaultFormRequest] = useState<{ suggestedBrowserVaultName: string } | null>(null)
+  const [newVaultFormRequest, setNewVaultFormRequest] = useState<{ suggestedNewVaultName: string; initialNewVaultPlace?: PapelizNewVaultPlace } | null>(null)
   // The Synced Vaults page, shown there instead, and why the sign-in its button started didn't happen.
   const [isSyncedVaultsPageShown, setSyncedVaultsPageShown] = useState(false)
   // A pick in the page's previewer (development builds only) shows the page in that state.
@@ -364,7 +402,7 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
     if (previewStartScreenNotice === null || previewStartScreenNotice === undefined) return
     if (startScreenEyePreview?.previewFolderAccessOffReason === 'chooser-unavailable') {
       showWorkspaceNotice(previewStartScreenNotice.previewNoticeKind, previewStartScreenNotice.previewNoticeMessage, {
-        workspaceNoticeActionLabel: 'Try again',
+        workspaceNoticeActionLabel: 'Try Again',
         onWorkspaceNoticeAction: () => setFolderChooserUnavailable(false),
       })
       return
@@ -374,7 +412,7 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
 
   // In a preview, anything that would touch a folder or the remembered list says so instead.
   const showStartScreenPreviewOnlyNotice = () =>
-    showWorkspaceNotice('info', 'Nothing changed (Preview Only).')
+    showWorkspaceNotice('info', 'Nothing changed: this is only a preview.')
 
   const recentListVaults = useMemo(
     () => recentVaults.filter((recentVault) => !isPapelizRecentVaultHidden(recentVault)),
@@ -398,9 +436,9 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
     return listedRecentVaults.filter((recentVault) => recentVault.papelizVaultDisplayName.toLowerCase().includes(lowerCaseSearchText))
   }, [recentVaultSearchText, listedRecentVaults])
 
-  // The toast for a folder action that is off: why, with Try again when this page turned it off.
-  // Try again turns it back on and opens the folder window again at once, from its own click (in a
-  // preview it only turns it back on).
+  // The toast for a folder action that is off: why, with Try Again when this page turned it off.
+  // Try Again turns it back on and, for Open Vault, opens the folder window again at once, from its own
+  // click (in a preview it only turns it back on). New Vault's form is back, for Pick Folder again.
   const showFolderAccessOffNotice = (offReason: PapelizFolderAccessOffReason, isNewVault: boolean) => {
     const isOffReasonRetryable = offReason === 'chooser-unavailable' && detectedFolderAccessOffReason === null
     showWorkspaceNotice(
@@ -408,10 +446,10 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
       describePapelizFolderAccessOffReason(offReason),
       isOffReasonRetryable
         ? {
-            workspaceNoticeActionLabel: 'Try again',
+            workspaceNoticeActionLabel: 'Try Again',
             onWorkspaceNoticeAction: () => {
               setFolderChooserUnavailable(false)
-              if (startScreenEyePreview === null) void pickAndOpenFolderVault(isNewVault)
+              if (startScreenEyePreview === null && !isNewVault) void pickAndOpenFolderVault(false)
             },
           }
         : undefined,
@@ -512,8 +550,8 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
   }
 
   // Recent Vaults in the start card, from its button or the logo: Synced Vaults, New Vault's form and
-  // the Hidden list give way to it.
-  const isRecentVaultListOnScreen = !isSyncedVaultsPageOnScreen && newVaultFormRequest === null && !isHiddenVaultListShown
+  // the Hidden list give way to it. Its button stays lit in the Hidden list too, which its eye opens.
+  const isRecentVaultsPanelOnScreen = !isSyncedVaultsPageOnScreen && newVaultFormRequest === null
   const showRecentVaults = () => {
     closeSyncedVaultsPage()
     setNewVaultFormRequest(null)
@@ -534,19 +572,17 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
     if (recentVaultToOpen !== undefined && !isOpeningVault) void reopenRecentVault(recentVaultToOpen)
   }
 
-  // New Vault: its form in the start card (where to keep it, and a browser vault's name); a folder
-  // straight away where browser vaults are off.
+  // New Vault: its form in the start card (the vault's name, and where to keep it).
   const startNewVault = () => {
     closeSyncedVaultsPage()
-    if (!isBrowserVaultOn) {
+    if (!isBrowserVaultOn && folderAccessOffReason === 'unsupported') {
       // Neither kind works here: the browser vault's reason says what to do.
-      if (folderAccessOffReason === 'unsupported' && browserVaultOffReasonText !== null) showWorkspaceNotice('error', browserVaultOffReasonText)
-      else void openFolderVault(true)
+      if (browserVaultOffReasonText !== null) showWorkspaceNotice('error', browserVaultOffReasonText)
       return
     }
     scrollStartPagePanelIntoViewOnPhone()
     if (newVaultFormRequest !== null) return
-    setNewVaultFormRequest({ suggestedBrowserVaultName: pickFreePapelizBrowserVaultName('Notes', browserVaultRecords) })
+    setNewVaultFormRequest({ suggestedNewVaultName: pickFreePapelizBrowserVaultName('Notes', browserVaultRecords) })
   }
 
   // New Vault's form cancelled: Recent Vaults again, and focus back on New Vault.
@@ -557,23 +593,26 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
 
   // New Vault's form confirmed. Runs from its click: the folder window and Firefox's question about
   // keeping storage need one.
-  const finishNewVault = async (typedBrowserVaultName: string, chosenNewVaultPlace: PapelizNewVaultPlace) => {
-    setNewVaultFormRequest(null)
-    if (chosenNewVaultPlace === 'folder-on-disk') {
-      await openFolderVault(true)
-      return
-    }
+  const finishNewVault = async (typedNewVaultName: string, chosenNewVaultPlace: PapelizNewVaultPlace) => {
     if (startScreenEyePreview !== null) {
       showStartScreenPreviewOnlyNotice()
+      return
+    }
+    setNewVaultFormRequest(null)
+    if (chosenNewVaultPlace === 'folder-on-disk') {
+      await pickPlaceAndOpenNewFolderVault(typedNewVaultName)
       return
     }
     askBrowserToKeepStorage()
     setIsOpeningVault(true)
     try {
-      const createdBrowserVaultRecord = await createPapelizBrowserVault(typedBrowserVaultName)
+      const createdBrowserVaultRecord = await createPapelizBrowserVault(typedNewVaultName)
       await finishOpeningVault(await openPapelizBrowserVault(createdBrowserVaultRecord), true)
     } catch (browserVaultCreateError) {
-      showWorkspaceNotice('error', `Couldn’t make “${typedBrowserVaultName}” (${describePapelizVaultError(browserVaultCreateError)})`)
+      showWorkspaceNotice(
+        'error',
+        describePapelizFailureMessage(`Couldn’t make “${typedNewVaultName}”`, browserVaultCreateError, { failedEntryName: typedNewVaultName, failedEntryKind: 'vault' }),
+      )
       reloadRecentVaults()
     } finally {
       setIsOpeningVault(false)
@@ -604,6 +643,28 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
       return
     }
     await pickAndOpenFolderVault(isNewVault)
+  }
+
+  // New Vault in a folder: the folder window picks where it goes, and a folder of the vault's name is
+  // made there and opened. Must run from New Vault's click. If no vault opens (the window closed, or the
+  // name is taken there), the form comes back with the name typed, to change it or pick again.
+  const pickPlaceAndOpenNewFolderVault = async (typedNewVaultName: string) => {
+    setIsOpeningVault(true)
+    setVaultFolderWindowOpen(true)
+    try {
+      let newFolderVaultOpenResult: PapelizOpenVaultResult
+      try {
+        newFolderVaultOpenResult = await pickPlaceAndOpenNewPapelizFolderVault(typedNewVaultName)
+      } finally {
+        setVaultFolderWindowOpen(false)
+      }
+      if (newFolderVaultOpenResult.openVaultOutcome !== 'opened') {
+        setNewVaultFormRequest({ suggestedNewVaultName: typedNewVaultName, initialNewVaultPlace: 'folder-on-disk' })
+      }
+      await finishOpeningVault(newFolderVaultOpenResult, true)
+    } finally {
+      setIsOpeningVault(false)
+    }
   }
 
   // Shows the folder window and opens the folder picked. Must run from a click.
@@ -699,7 +760,7 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
           'error',
           recentVaultsToDelete.length === 1
             ? (recentVaultDeleteFailureMessages[0] ?? '')
-            : `Couldn’t delete ${keptVaultCount} of ${recentVaultsToDelete.length} vaults (Still Hidden)`,
+            : `Couldn’t delete ${keptVaultCount} of ${recentVaultsToDelete.length} vaults. They stay in Hidden Vaults, so you can try again.`,
         )
       }
     } finally {
@@ -731,7 +792,13 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
     try {
       await renamePapelizBrowserVault(renamedBrowserVaultRecord.papelizVaultId, typedBrowserVaultName)
     } catch (browserVaultRenameError) {
-      showWorkspaceNotice('error', `Couldn’t rename “${renamedBrowserVaultRecord.papelizVaultDisplayName}” (${describePapelizVaultError(browserVaultRenameError)})`)
+      showWorkspaceNotice(
+        'error',
+        describePapelizFailureMessage(`Couldn’t rename “${renamedBrowserVaultRecord.papelizVaultDisplayName}”`, browserVaultRenameError, {
+          failedEntryName: typedBrowserVaultName,
+          failedEntryKind: 'vault',
+        }),
+      )
     } finally {
       reloadRecentVaults()
     }
@@ -786,7 +853,7 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                 welcomeActionTitle="Recent Vaults"
                 welcomeActionDescription="Vaults opened before."
                 isWelcomeActionDisabled={false}
-                isWelcomeActionCurrent={isRecentVaultListOnScreen}
+                isWelcomeActionCurrent={isRecentVaultsPanelOnScreen}
                 onWelcomeActionSelect={() => {
                   showRecentVaults()
                   scrollStartPagePanelIntoViewOnPhone()
@@ -835,7 +902,6 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                     isWelcomeActionDisabled={isOpeningVault}
                     welcomeActionOffReasonText={syncedVaultsActionOffReasonText}
                     isWelcomeActionCurrent={isSyncedVaultsPageOnScreen}
-                    welcomeActionTagText="Sync"
                     onWelcomeActionSelect={openSyncedVaultsPage}
                   />
                 </div>
@@ -884,9 +950,11 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
               <PapelizNewVaultForm
                 newVaultFormHeadingId="papeliz-new-vault-form-heading"
                 folderAccessOffReasonText={folderAccessOffReasonText}
-                suggestedBrowserVaultName={newVaultFormRequest.suggestedBrowserVaultName}
+                browserVaultOffReasonText={browserVaultOffReasonText}
+                suggestedNewVaultName={newVaultFormRequest.suggestedNewVaultName}
+                initialNewVaultPlace={newVaultFormRequest.initialNewVaultPlace}
                 existingBrowserVaultRecords={browserVaultRecords}
-                onNewVaultConfirm={(typedBrowserVaultName, chosenNewVaultPlace) => void finishNewVault(typedBrowserVaultName, chosenNewVaultPlace)}
+                onNewVaultConfirm={(typedNewVaultName, chosenNewVaultPlace) => void finishNewVault(typedNewVaultName, chosenNewVaultPlace)}
                 onNewVaultCancel={cancelNewVault}
               />
             ) : (
@@ -933,8 +1001,8 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                       <>
                         <button
                           type="button"
-                          aria-label="Reload the list"
-                          title="Reload the list"
+                          aria-label="Reload the List"
+                          title="Reload the List"
                           aria-busy={isRecentVaultListReloading || undefined}
                           onClick={reloadRecentVaultList}
                           className="papeliz-recent-vaults-reload-button grid size-8 flex-none place-items-center rounded-full border border-papeliz-line text-papeliz-ink-muted hover:bg-papeliz-hover hover:text-papeliz-ink"
@@ -1039,12 +1107,12 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                         ? shownRecentVaults.map((recentVault) => {
                             const isThisVaultDeleting = deletingPapelizVaultIds?.has(recentVault.papelizVaultId) === true
                             return (
-                              // A hidden vault's row: the same card, not clickable, with Restore and Delete (Delete
-                              // asks first).
+                              // A hidden vault's row: the same card, not clickable, with where it's kept, when it was
+                              // hidden, and Restore and Delete (Delete asks first).
                               <li
                                 key={recentVault.papelizVaultId}
                                 aria-label={recentVault.papelizVaultDisplayName}
-                                className="flex items-center gap-3 rounded-xl border border-papeliz-line bg-papeliz-surface px-2.5 py-2 max-sm:flex-wrap max-sm:gap-y-2"
+                                className="group flex items-center gap-3 rounded-xl border border-papeliz-line bg-papeliz-surface px-2.5 py-2 max-sm:flex-wrap max-sm:gap-y-2"
                               >
                                 <span
                                   aria-hidden="true"
@@ -1054,14 +1122,18 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                                 </span>
                                 <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                                   <span className="truncate text-[13.5px] font-semibold">{recentVault.papelizVaultDisplayName}</span>
-                                  <span className="text-[11.5px] text-papeliz-ink-subtle">
-                                    Hidden {describeTimeSince(recentVault.papelizVaultHiddenAt ?? recentVault.papelizVaultLastOpenedAt).toLowerCase()}
+                                  <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11.5px] text-papeliz-ink-subtle">
+                                    <PapelizRecentVaultPlace recentVault={recentVault} />
+                                    {/* On a phone the time sits on its own line here. */}
+                                    <span className="basis-full sm:hidden">{describeHiddenVaultTime(recentVault)}</span>
                                   </span>
                                 </span>
-                                {/* Restore and Delete side by side at the far right, as tall as the toolbar's buttons (40px on a
-                                    touch screen), inside the Recent Vaults row height. On a phone they take a line of their own
-                                    under the name. */}
-                                <span className="flex flex-none items-center gap-1.5 max-sm:w-full max-sm:justify-end">
+                                {/* The time, then Restore and Delete, as tall as the toolbar's buttons (40px on a touch screen),
+                                    inside the Recent Vaults row height. On a phone the buttons take a line of their own under
+                                    the name. */}
+                                <span className={joinPapelizClassNames(papelizVaultRowEndClassName, 'max-sm:w-full max-sm:justify-end')}>
+                                  <span className={papelizVaultRowEndTimeClassName}>{describeHiddenVaultTime(recentVault)}</span>
+                                  <span className={joinPapelizClassNames(papelizVaultRowEndButtonsClassName, 'gap-1.5')}>
                                   <button
                                     type="button"
                                     disabled={deletingPapelizVaultIds !== null}
@@ -1098,6 +1170,7 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                                     <Trash2 className="size-3.5" aria-hidden="true" />
                                     {isThisVaultDeleting ? 'Deleting…' : 'Delete'}
                                   </button>
+                                  </span>
                                 </span>
                               </li>
                             )
@@ -1143,19 +1216,7 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                                     <span className="truncate text-[13.5px] font-semibold">{recentVault.papelizVaultDisplayName}</span>
                                     {syncStartScreenDownload === undefined ? (
                                       <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11.5px] text-papeliz-ink-subtle">
-                                        <span className="inline-flex items-center gap-1">
-                                          {recentVault.papelizRecentVaultKind === 'browser-vault-in-opfs' ? (
-                                            <>
-                                              <AppWindow className="size-3 flex-none" aria-hidden="true" />
-                                              In this browser
-                                            </>
-                                          ) : (
-                                            <>
-                                              <HardDrive className="size-3 flex-none" aria-hidden="true" />
-                                              Folder on this device
-                                            </>
-                                          )}
-                                        </span>
+                                        <PapelizRecentVaultPlace recentVault={recentVault} />
                                         {recentVaultSyncEncryptionKinds !== null && (
                                           <PapelizRecentVaultSyncBadges recentVaultSyncEncryptionKind={recentVaultSyncEncryptionKinds.get(recentVault.papelizVaultId) ?? null} />
                                         )}
@@ -1166,11 +1227,8 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                                       <PapelizSyncStartScreenDownloadProgressLines syncStartScreenDownload={syncStartScreenDownload} />
                                     )}
                                   </span>
-                                  {syncStartScreenDownload === undefined ? (
-                                    <span className="flex-none text-[11.5px] text-papeliz-ink-subtle max-sm:hidden">{describeTimeSince(recentVault.papelizVaultLastOpenedAt)}</span>
-                                  ) : (
-                                    !isSyncDownloadStopped &&
-                                    syncDownloadPercent !== null && <span className="flex-none text-[11.5px] text-papeliz-ink-subtle tabular-nums">{syncDownloadPercent}%</span>
+                                  {syncStartScreenDownload !== undefined && !isSyncDownloadStopped && syncDownloadPercent !== null && (
+                                    <span className="flex-none text-[11.5px] text-papeliz-ink-subtle tabular-nums">{syncDownloadPercent}%</span>
                                   )}
                                 </button>
                                 {isSyncDownloadStopped ? (
@@ -1180,37 +1238,41 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                                     className="mr-2.5 inline-flex h-7 flex-none items-center gap-1.5 rounded-full border border-papeliz-line-strong px-3 text-[12.5px] font-semibold text-papeliz-ink hover:bg-papeliz-hover"
                                   >
                                     <RotateCcw className="size-3.5" aria-hidden="true" />
-                                    Try again
+                                    Try Again
                                   </button>
                                 ) : (
                                   syncStartScreenDownload === undefined && (
-                                    <>
-                                      <PapelizIconButton
-                                        iconButtonLabel={`Hide ${recentVault.papelizVaultDisplayName}`}
-                                        iconButtonSize="small"
-                                        className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 max-md:opacity-100 pointer-coarse:size-10 pointer-coarse:opacity-100"
-                                        onClick={() => setRecentVaultHidden(recentVault, true)}
-                                      >
-                                        <EyeOff className="size-[15px]" aria-hidden="true" />
-                                      </PapelizIconButton>
-                                      {/* The row's menu (the right-click one), for a mouse, a keyboard or a finger. On a touch
-                                          screen it and Hide grow to 40px side by side, so their hit areas never overlap. */}
-                                      <PapelizIconButton
-                                        iconButtonLabel={`More for ${recentVault.papelizVaultDisplayName}`}
-                                        iconButtonSize="small"
-                                        aria-haspopup="menu"
-                                        className="mr-2.5 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 max-md:opacity-100 pointer-coarse:mr-1 pointer-coarse:size-10 pointer-coarse:opacity-100"
-                                        onClick={(clickEvent) => {
-                                          const moreButtonRect = clickEvent.currentTarget.getBoundingClientRect()
-                                          setRecentVaultMenu({
-                                            recentVault,
-                                            recentVaultMenuPosition: { menuAnchorLeft: moreButtonRect.left, menuAnchorTop: moreButtonRect.bottom + 4 },
-                                          })
-                                        }}
-                                      >
-                                        <Ellipsis className="size-[15px]" aria-hidden="true" />
-                                      </PapelizIconButton>
-                                    </>
+                                    // The time, then Hide and the row's menu (the right-click one), for a mouse, a keyboard or
+                                    // a finger. On a touch screen the two grow to 40px side by side, so their hit areas never
+                                    // overlap.
+                                    <span className={joinPapelizClassNames(papelizVaultRowEndClassName, 'mr-2.5 pointer-coarse:mr-1')}>
+                                      <span className={papelizVaultRowEndTimeClassName}>{describeTimeSince(recentVault.papelizVaultLastOpenedAt)}</span>
+                                      <span className={papelizVaultRowEndButtonsClassName}>
+                                        <PapelizIconButton
+                                          iconButtonLabel={`Hide ${recentVault.papelizVaultDisplayName}`}
+                                          iconButtonSize="small"
+                                          className="pointer-coarse:size-10"
+                                          onClick={() => setRecentVaultHidden(recentVault, true)}
+                                        >
+                                          <EyeOff className="size-[15px]" aria-hidden="true" />
+                                        </PapelizIconButton>
+                                        <PapelizIconButton
+                                          iconButtonLabel={`More for ${recentVault.papelizVaultDisplayName}`}
+                                          iconButtonSize="small"
+                                          aria-haspopup="menu"
+                                          className="pointer-coarse:size-10"
+                                          onClick={(clickEvent) => {
+                                            const moreButtonRect = clickEvent.currentTarget.getBoundingClientRect()
+                                            setRecentVaultMenu({
+                                              recentVault,
+                                              recentVaultMenuPosition: { menuAnchorLeft: moreButtonRect.left, menuAnchorTop: moreButtonRect.bottom + 4 },
+                                            })
+                                          }}
+                                        >
+                                          <Ellipsis className="size-[15px]" aria-hidden="true" />
+                                        </PapelizIconButton>
+                                      </span>
+                                    </span>
                                   )
                                 )}
                               </li>
@@ -1265,7 +1327,7 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                         },
                         {
                           menuItemKey: 'download-browser-vault-backup',
-                          menuItemLabel: 'Download backup',
+                          menuItemLabel: 'Download Backup',
                           MenuItemIcon: Download,
                           onMenuItemSelect: () => {
                             const backedUpRecentVault = recentVaultMenu.recentVault
@@ -1304,8 +1366,8 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                   recentVaultDeleteRequest.recentVaultDeleteScope === 'one-vault'
                     ? `Delete “${recentVaultDeleteRequest.recentVault.papelizVaultDisplayName}”?`
                     : recentVaultDeleteRequest.recentVaults.length === 1
-                      ? 'Delete 1 hidden vault?'
-                      : `Delete all ${recentVaultDeleteRequest.recentVaults.length} hidden vaults?`
+                      ? 'Delete 1 Hidden Vault?'
+                      : `Delete All ${recentVaultDeleteRequest.recentVaults.length} Hidden Vaults?`
                 }
                 confirmDialogBody={
                   <>

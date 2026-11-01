@@ -111,7 +111,7 @@ export function PapelizWorkspace() {
   }, [])
 
   useEffect(() => {
-    // The three shortcuts follow Accessibility > Key Bindings (Ctrl+E, Ctrl+S and Ctrl+Shift+F by
+    // The three shortcuts follow Settings > Key Bindings (Ctrl+E, Ctrl+S and Ctrl+Shift+F by
     // default); Esc stays Esc.
     const handleWorkspaceShortcut = (keyboardEvent: KeyboardEvent) => {
       const workspaceState = usePapelizWorkspaceStore.getState()
@@ -147,7 +147,7 @@ export function PapelizWorkspace() {
         if (noteSaveErrorCodesShownByRelativePath.has(vaultNoteRelativePath) && noteSaveErrorCodesShownByRelativePath.get(vaultNoteRelativePath) === noteSaveErrorCode) continue
         noteSaveErrorCodesShownByRelativePath.set(vaultNoteRelativePath, noteSaveErrorCode)
         workspaceState.showWorkspaceNotice('error', describePapelizNoteSaveFailureMessage(getVaultNoteTitle(vaultNoteRelativePath), noteSaveErrorCode), {
-          workspaceNoticeActionLabel: 'Try again',
+          workspaceNoticeActionLabel: 'Try Again',
           onWorkspaceNoticeAction: () => void usePapelizWorkspaceStore.getState().saveVaultNoteNow(vaultNoteRelativePath),
         })
       }
@@ -241,11 +241,11 @@ export function PapelizWorkspace() {
               <p>This vault lives only in this browser tab, so changes to its notes are lost when it closes. You go back to the start page.</p>
             )
           }
-          confirmButtonLabel="Close vault"
+          confirmButtonLabel="Close Vault"
           confirmDialogSecondaryAction={
             isOpenBrowserVaultChangedSinceBackup
               ? {
-                  secondaryActionLabel: isBrowserVaultBackupDownloading ? 'Backing up…' : 'Download backup',
+                  secondaryActionLabel: isBrowserVaultBackupDownloading ? 'Backing up…' : 'Download Backup',
                   isSecondaryActionDisabled: isBrowserVaultBackupDownloading,
                   onSecondaryActionSelect: () => void downloadBackupWithNotice(),
                 }

@@ -28,7 +28,7 @@ export function PapelizFocusModeAssistant() {
       {isLatestAnswerShown && (
         <div className="papeliz-notice-enter pointer-events-auto relative w-full max-w-[720px] rounded-3xl border border-papeliz-line bg-papeliz-surface shadow-papeliz-pop">
           <PapelizIconButton
-            iconButtonLabel="Put the answer away"
+            iconButtonLabel="Put the Answer Away"
             iconButtonSize="small"
             className="absolute top-2.5 right-2.5"
             onClick={() => setDismissedChatEntryCount(chatEntries.length)}

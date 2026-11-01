@@ -81,7 +81,7 @@ export function PapelizSettingsGearReminderTab() {
         onClick={() => void setBrowserVaultBackupReminder({ papelizBrowserVaultBackupReminderOn: !isBackupReminderOn })}
         className="mt-3 flex w-full items-center justify-between gap-2 rounded-lg py-1 text-left text-[13px] font-semibold focus-visible:outline-2 focus-visible:outline-papeliz-blue"
       >
-        Backup reminder
+        Backup Reminder
         <span
           aria-hidden="true"
           className={joinPapelizClassNames(
@@ -117,7 +117,7 @@ export function PapelizSettingsGearReminderTab() {
         className="mt-3 w-full justify-center"
       >
         <Download className="size-4" aria-hidden="true" />
-        {isBrowserVaultBackupDownloading ? 'Backing up…' : 'Download backup'}
+        {isBrowserVaultBackupDownloading ? 'Backing up…' : 'Download Backup'}
       </PapelizPillButton>
       <PapelizBrowserStorageLine />
     </div>

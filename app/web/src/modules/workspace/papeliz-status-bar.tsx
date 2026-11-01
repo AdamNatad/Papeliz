@@ -61,8 +61,8 @@ function PapelizNoteZoomControl() {
     <span className="flex flex-none items-center gap-0.5 max-sm:hidden" role="group" aria-label="Zoom">
       <button
         type="button"
-        aria-label="Zoom out"
-        title="Zoom out (Ctrl+scroll down)"
+        aria-label="Zoom Out"
+        title="Zoom Out (Ctrl+scroll down)"
         disabled={noteZoomPercent <= papelizNoteZoomPercentLimits.minimumNoteZoomPercent}
         onClick={() => stepNoteZoomPercent('out')}
         className="papeliz-note-zoom-button"
@@ -85,8 +85,8 @@ function PapelizNoteZoomControl() {
       </button>
       <button
         type="button"
-        aria-label="Zoom in"
-        title="Zoom in (Ctrl+scroll up)"
+        aria-label="Zoom In"
+        title="Zoom In (Ctrl+scroll up)"
         disabled={noteZoomPercent >= papelizNoteZoomPercentLimits.maximumNoteZoomPercent}
         onClick={() => stepNoteZoomPercent('in')}
         className="papeliz-note-zoom-button"
@@ -227,7 +227,7 @@ export function PapelizStatusBar() {
                   className="font-semibold text-white underline-offset-2 hover:underline focus-visible:outline-white"
                   onClick={() => void saveVaultNoteNow(activeVaultNoteRelativePath)}
                 >
-                  Try again
+                  Try Again
                 </button>
               </>
             )}

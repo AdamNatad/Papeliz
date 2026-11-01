@@ -1,5 +1,4 @@
 import type { Ref } from 'react'
-import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { describePapelizFailureCode } from '../vault/papeliz-failure-code-words'
 
 interface PapelizBrowserVaultNameFieldProps {
@@ -8,33 +7,24 @@ interface PapelizBrowserVaultNameFieldProps {
   // Why the typed name can't be used, as a code ("Name Taken"), or null when it can.
   browserVaultNameProblem: string | null
   browserVaultNameProblemId: string
-  // "Name" over the field (Rename), or beside it on one line (New Vault's Empty row).
-  browserVaultNameFieldLayout?: 'label-over-field' | 'label-beside-field'
   onBrowserVaultNameType: (typedBrowserVaultName: string) => void
   // Enter in the field.
   onBrowserVaultNameSubmit: () => void
 }
 
-// A browser vault's Name field, for New Vault and for Rename. A name that can't be used says why under
-// the field.
+// A vault's Name field: New Vault's, for a vault in a folder or in the browser, and a browser vault's
+// Rename. A name that can't be used says why under the field.
 export function PapelizBrowserVaultNameField({
   browserVaultNameInputRef,
   typedBrowserVaultName,
   browserVaultNameProblem,
   browserVaultNameProblemId,
-  browserVaultNameFieldLayout = 'label-over-field',
   onBrowserVaultNameType,
   onBrowserVaultNameSubmit,
 }: PapelizBrowserVaultNameFieldProps) {
-  const isLabelBesideField = browserVaultNameFieldLayout === 'label-beside-field'
   return (
     <>
-      <label
-        className={joinPapelizClassNames(
-          'text-[12px] leading-snug font-semibold whitespace-nowrap text-papeliz-ink',
-          isLabelBesideField ? 'flex min-w-0 flex-1 items-center gap-2.5' : 'block',
-        )}
-      >
+      <label className="block text-[12px] leading-snug font-semibold whitespace-nowrap text-papeliz-ink">
         Name
         <input
           ref={browserVaultNameInputRef}
@@ -50,10 +40,7 @@ export function PapelizBrowserVaultNameField({
           aria-describedby={browserVaultNameProblem === null ? undefined : browserVaultNameProblemId}
           autoComplete="off"
           spellCheck={false}
-          className={joinPapelizClassNames(
-            'block h-[30px] w-full rounded-md border border-papeliz-line bg-papeliz-surface px-2.5 text-[13px] font-normal text-papeliz-ink focus:border-papeliz-blue-line focus:ring-2 focus:ring-papeliz-blue-line/55 focus:outline-none',
-            isLabelBesideField ? 'min-w-0 flex-1' : 'mt-1',
-          )}
+          className="mt-1 block h-[30px] w-full rounded-md border border-papeliz-line bg-papeliz-surface px-2.5 text-[13px] font-normal text-papeliz-ink focus:border-papeliz-blue-line focus:ring-2 focus:ring-papeliz-blue-line/55 focus:outline-none"
         />
       </label>
       {browserVaultNameProblem !== null && typedBrowserVaultName.length > 0 && (

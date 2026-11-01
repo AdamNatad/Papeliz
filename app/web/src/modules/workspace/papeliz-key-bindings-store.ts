@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { papelizKeyBindingsSettingName, readPapelizUserSetting, writePapelizUserSetting } from '../settings/papeliz-user-settings'
 
-// The shortcuts a user can change in Accessibility > Key Bindings. Each is written the way
+// The shortcuts a user can change in Settings > Key Bindings. Each is written the way
 // CodeMirror writes keys ("Mod-Shift-f", where Mod is ⌘ on a Mac and Ctrl elsewhere). The window's
 // shortcuts and the note editor's both check a key press against the current binding at the moment
 // it is pressed, so a change works at once, in every open note. Only the changed shortcuts are kept
@@ -28,15 +28,15 @@ export interface PapelizKeyBinding {
 // In the order the Key Bindings dialog lists them.
 export const papelizDefaultKeyBindings: readonly PapelizKeyBinding[] = [
   { papelizKeyBindingActionId: 'note-view-switch', keyBindingActionLabel: 'Switch MD Code / MD View', papelizKeyBindingDefaultShortcut: 'Mod-e', papelizKeyBindingUserShortcut: null },
-  { papelizKeyBindingActionId: 'vault-notes-save-all', keyBindingActionLabel: 'Save all notes now', papelizKeyBindingDefaultShortcut: 'Mod-s', papelizKeyBindingUserShortcut: null },
-  { papelizKeyBindingActionId: 'focus-mode-toggle', keyBindingActionLabel: 'Focus mode', papelizKeyBindingDefaultShortcut: 'Mod-Shift-f', papelizKeyBindingUserShortcut: null },
+  { papelizKeyBindingActionId: 'vault-notes-save-all', keyBindingActionLabel: 'Save All Notes Now', papelizKeyBindingDefaultShortcut: 'Mod-s', papelizKeyBindingUserShortcut: null },
+  { papelizKeyBindingActionId: 'focus-mode-toggle', keyBindingActionLabel: 'Focus Mode', papelizKeyBindingDefaultShortcut: 'Mod-Shift-f', papelizKeyBindingUserShortcut: null },
   { papelizKeyBindingActionId: 'note-format-bold', keyBindingActionLabel: 'Bold', papelizKeyBindingDefaultShortcut: 'Mod-b', papelizKeyBindingUserShortcut: null },
   { papelizKeyBindingActionId: 'note-format-italic', keyBindingActionLabel: 'Italic', papelizKeyBindingDefaultShortcut: 'Mod-i', papelizKeyBindingUserShortcut: null },
   { papelizKeyBindingActionId: 'note-format-underline', keyBindingActionLabel: 'Underline', papelizKeyBindingDefaultShortcut: 'Mod-u', papelizKeyBindingUserShortcut: null },
   { papelizKeyBindingActionId: 'assistant-inline-edit', keyBindingActionLabel: 'Edit with Assistant', papelizKeyBindingDefaultShortcut: 'Mod-k', papelizKeyBindingUserShortcut: null },
   {
     papelizKeyBindingActionId: 'md-view-wikilink-open',
-    keyBindingActionLabel: 'Open the link under the cursor',
+    keyBindingActionLabel: 'Open the Link or Tag Under the Cursor',
     papelizKeyBindingDefaultShortcut: 'Mod-Enter',
     papelizKeyBindingUserShortcut: null,
   },
@@ -50,7 +50,7 @@ const papelizFixedKeyboardShortcuts: ReadonlyArray<{ fixedKeyboardShortcutLabel:
   { fixedKeyboardShortcutLabel: 'Cut', fixedKeyboardShortcut: 'Mod-x' },
   { fixedKeyboardShortcutLabel: 'Copy', fixedKeyboardShortcut: 'Mod-c' },
   { fixedKeyboardShortcutLabel: 'Paste', fixedKeyboardShortcut: 'Mod-v' },
-  { fixedKeyboardShortcutLabel: 'Select all', fixedKeyboardShortcut: 'Mod-a' },
+  { fixedKeyboardShortcutLabel: 'Select All', fixedKeyboardShortcut: 'Mod-a' },
   { fixedKeyboardShortcutLabel: 'Find', fixedKeyboardShortcut: 'Mod-f' },
 ]
 

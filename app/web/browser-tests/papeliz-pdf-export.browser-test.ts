@@ -34,7 +34,7 @@ async function openExportPageWithPdf(page: Page): Promise<void> {
 
 // A new note in the sample vault holding this text.
 async function addSampleVaultNote(page: Page, noteName: string, noteText: string): Promise<void> {
-  await page.getByRole('button', { name: 'New note' }).first().click()
+  await page.getByRole('button', { name: 'New Note' }).first().click()
   await page.waitForFunction(() => document.activeElement instanceof HTMLInputElement)
   await page.keyboard.press('Control+a')
   await page.keyboard.type(noteName)
@@ -51,9 +51,9 @@ async function addSampleVaultNote(page: Page, noteName: string, noteText: string
 }
 
 // Presses Export and keeps the downloaded file; answers the computer-fonts question when it comes.
-async function exportAndDownload(page: Page, computerFontsAnswer: 'Print them as pictures' | null = null): Promise<{ exportFileName: string; exportFileBytes: Uint8Array }> {
+async function exportAndDownload(page: Page, computerFontsAnswer: 'Print Them as Pictures' | null = null): Promise<{ exportFileName: string; exportFileBytes: Uint8Array }> {
   const exportDownload = page.waitForEvent('download', { timeout: 120_000 })
-  await page.getByRole('button', { name: /^Export (all notes |\d+ notes )?as PDF/ }).click()
+  await page.getByRole('button', { name: /^Export (All Notes |\d+ Notes )?as PDF/ }).click()
   if (computerFontsAnswer !== null) {
     const computerFontsQuestion = page.getByText('Papeliz can use fonts on this computer. Nothing leaves your computer.')
     const isQuestionAsked = await computerFontsQuestion.waitFor({ timeout: 30_000 }).then(
@@ -116,7 +116,7 @@ test('prints every line of the scripts note as text, through pictures of the cha
   await prepareExportPage(page)
   await addSampleVaultNote(page, 'Scripts and emoji', scriptsAndEmojiNoteText)
   await openExportPageWithPdf(page)
-  const { exportFileName, exportFileBytes } = await exportAndDownload(page, 'Print them as pictures')
+  const { exportFileName, exportFileBytes } = await exportAndDownload(page, 'Print Them as Pictures')
   expect(exportFileName).toBe('Scripts and emoji.pdf')
   const { pdfText } = await readPdfFile(exportFileBytes)
   // Every line reads back in reading order, Arabic and Hebrew included.
@@ -158,7 +158,7 @@ test('uses the computer’s fonts without asking where the browser already allow
 // PAPELIZ_PDF_EXPORT_VERAPDF_FOLDER names. Skipped when it isn't set.
 const pdfExportVerapdfFolderPath = process.env.PAPELIZ_PDF_EXPORT_VERAPDF_FOLDER ?? ''
 
-async function exportEveryNoteForVerapdf(page: Page, verapdfZipFileName: string, computerFontsAnswer: 'Print them as pictures' | null): Promise<void> {
+async function exportEveryNoteForVerapdf(page: Page, verapdfZipFileName: string, computerFontsAnswer: 'Print Them as Pictures' | null): Promise<void> {
   await prepareExportPage(page)
   const exportTestNotesFolderUrl = new URL('../src/modules/export-print-style/papeliz-export-test-notes/', import.meta.url)
   for (const testNoteFileName of (await readdir(exportTestNotesFolderUrl)).sort()) {
@@ -168,7 +168,7 @@ async function exportEveryNoteForVerapdf(page: Page, verapdfZipFileName: string,
     await addSampleVaultNote(page, testNoteName, await readFile(new URL(testNoteFileName, exportTestNotesFolderUrl), 'utf8'))
   }
   await openExportPageWithPdf(page)
-  await page.getByRole('button', { name: 'Select all' }).click()
+  await page.getByRole('button', { name: 'Select All' }).click()
   const { exportFileBytes } = await exportAndDownload(page, computerFontsAnswer)
   await mkdir(pdfExportVerapdfFolderPath, { recursive: true })
   await writeFile(join(pdfExportVerapdfFolderPath, verapdfZipFileName), exportFileBytes)
@@ -177,7 +177,7 @@ async function exportEveryNoteForVerapdf(page: Page, verapdfZipFileName: string,
 test('writes every note as a PDF for veraPDF, with pictures of the characters', async ({ page, browserName }) => {
   test.skip(pdfExportVerapdfFolderPath === '', 'Set PAPELIZ_PDF_EXPORT_VERAPDF_FOLDER to write the files.')
   test.setTimeout(300_000)
-  await exportEveryNoteForVerapdf(page, `${browserName} character pictures.zip`, 'Print them as pictures')
+  await exportEveryNoteForVerapdf(page, `${browserName} character pictures.zip`, 'Print Them as Pictures')
 })
 
 test('writes every note as a PDF for veraPDF, in the computer’s fonts (Edge)', async ({ browser, browserName }) => {

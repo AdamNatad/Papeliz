@@ -187,8 +187,8 @@ export function PapelizAssistantUsageView() {
   const inlineEditsAddedUpCost = addUpModelTokenUsageCosts(inlineEditModelTokenUsageTallies)
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-3 py-3">
-      <section aria-label="This vault">
-        <PapelizUsageViewSectionHeading>This vault</PapelizUsageViewSectionHeading>
+      <section aria-label="This Vault">
+        <PapelizUsageViewSectionHeading>This Vault</PapelizUsageViewSectionHeading>
         <dl>
           <PapelizUsageViewTotalRow
             usageTotalLabel="Input tokens"
@@ -210,8 +210,8 @@ export function PapelizAssistantUsageView() {
         </dl>
       </section>
 
-      <section aria-label="By model">
-        <PapelizUsageViewSectionHeading>By model</PapelizUsageViewSectionHeading>
+      <section aria-label="By Model">
+        <PapelizUsageViewSectionHeading>By Model</PapelizUsageViewSectionHeading>
         <ul className="flex flex-col">
           {vaultModelTokenUsageTallies.map((modelTokenUsageTally) => (
             <PapelizUsageViewModelRow key={modelTokenUsageTally.providerModelName} modelTokenUsageTally={modelTokenUsageTally} />
@@ -220,8 +220,8 @@ export function PapelizAssistantUsageView() {
       </section>
 
       {inlineEditsTokenUsageTally.assistantRequestCount > 0 && (
-        <section aria-label="Inline edits">
-          <PapelizUsageViewSectionHeading>Inline edits</PapelizUsageViewSectionHeading>
+        <section aria-label="Inline Edits">
+          <PapelizUsageViewSectionHeading>Inline Edits</PapelizUsageViewSectionHeading>
           <p className="px-2 py-1 text-sm text-papeliz-ink-muted tabular-nums">
             {describeAssistantTokenUsageTally(inlineEditsTokenUsageTally, true)}
             {inlineEditsAddedUpCost !== null && ` · ${describeAddedUpCost(inlineEditsAddedUpCost)}`}

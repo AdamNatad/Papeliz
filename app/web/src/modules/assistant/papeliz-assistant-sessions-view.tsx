@@ -169,7 +169,7 @@ export function PapelizAssistantSessionsView() {
                       <button
                         type="button"
                         aria-label={`Delete ${chatSessionTitle}`}
-                        title="Delete this chat session"
+                        title="Delete This Chat Session"
                         onClick={() =>
                           setChatSessionAwaitingDelete({ chatSessionVaultNoteRelativePath: chatSessionRow.chatSessionVaultNoteRelativePath, chatSessionTitle })
                         }
@@ -191,7 +191,7 @@ export function PapelizAssistantSessionsView() {
 
       {chatSessionAwaitingDelete !== null && (
         <PapelizConfirmDialog
-          confirmDialogTitle="Delete this chat session?"
+          confirmDialogTitle="Delete This Chat Session?"
           confirmDialogBody={
             <p>
               “{chatSessionAwaitingDelete.chatSessionTitle}” moves into this vault’s{' '}

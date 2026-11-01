@@ -25,6 +25,6 @@ describe('a failed save in plain words', () => {
       expect(noteSaveFailureShortReason).not.toBe(noteSaveErrorCode)
       expect(noteSaveFailureAdvice).toMatch(/\.$/)
     }
-    expect(describePapelizNoteSaveFailure('Something New').noteSaveFailureAdvice).toBe('Press Try again. If it keeps failing, copy your changes somewhere safe.')
+    expect(describePapelizNoteSaveFailure('Something New').noteSaveFailureAdvice).toBe('Press Try Again. If it keeps failing, copy your changes somewhere safe.')
   })
 })

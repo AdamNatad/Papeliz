@@ -143,7 +143,7 @@ export function PapelizAssistantComposer({ composerPlacement }: PapelizAssistant
       : [
           {
             menuItemKey: 'review-changes',
-            menuItemLabel: 'Review changes',
+            menuItemLabel: 'Review Changes',
             MenuItemIcon: ShieldCheck,
             isMenuItemChecked: !isBypassPermissionOn,
             menuItemGroupHeading: 'In Write',
@@ -151,7 +151,7 @@ export function PapelizAssistantComposer({ composerPlacement }: PapelizAssistant
           },
           {
             menuItemKey: 'bypass-permission',
-            menuItemLabel: 'Bypass permission',
+            menuItemLabel: 'Bypass Permission',
             MenuItemIcon: ShieldAlert,
             isMenuItemChecked: isBypassPermissionOn,
             isDangerousMenuItem: true,
@@ -195,10 +195,10 @@ export function PapelizAssistantComposer({ composerPlacement }: PapelizAssistant
                 onClick={() => sendQueuedAssistantMessageNow(queuedMessage.queuedMessageId)}
                 className="flex-none rounded-full px-2 py-0.5 text-[12px] font-medium text-papeliz-blue hover:bg-papeliz-blue-soft"
               >
-                Send now
+                Send Now
               </button>
               <PapelizIconButton
-                iconButtonLabel={`Remove “${queuedMessage.queuedMessageText}” from the queue`}
+                iconButtonLabel={`Remove “${queuedMessage.queuedMessageText}” from the Queue`}
                 iconButtonSize="extra-small"
                 onClick={() => removeQueuedAssistantMessage(queuedMessage.queuedMessageId)}
               >
@@ -241,7 +241,7 @@ export function PapelizAssistantComposer({ composerPlacement }: PapelizAssistant
             <b className="font-semibold text-papeliz-blue">Selection · </b>
             {pendingSelectionContext.selectedText}
           </span>
-          <PapelizIconButton iconButtonLabel="Remove the selection" iconButtonSize="extra-small" onClick={() => setPendingSelectionContext(null)}>
+          <PapelizIconButton iconButtonLabel="Remove the Selection" iconButtonSize="extra-small" onClick={() => setPendingSelectionContext(null)}>
             <X className="size-3" aria-hidden="true" />
           </PapelizIconButton>
         </div>
@@ -300,8 +300,8 @@ export function PapelizAssistantComposer({ composerPlacement }: PapelizAssistant
         />
         <button
           type="button"
-          aria-label="Add files or pictures"
-          title="Add files or pictures (or paste or drop them here)"
+          aria-label="Add Files or Pictures"
+          title="Add Files or Pictures (or paste or drop them here)"
           onClick={() => attachmentFileInputRef.current?.click()}
           className="mr-0.5 grid size-7 flex-none place-items-center rounded-full border border-papeliz-line text-papeliz-ink-muted transition-colors hover:bg-papeliz-hover hover:text-papeliz-ink pointer-coarse:size-10"
         >
@@ -311,11 +311,11 @@ export function PapelizAssistantComposer({ composerPlacement }: PapelizAssistant
           type="button"
           onClick={() => setAssistantContextMode(assistantContextMode === 'active-note' ? 'whole-vault' : 'active-note')}
           title="What the assistant sees with your message. Click to switch."
-          aria-label={isNoteContextShown ? `Sees ${getVaultNoteTitle(activeVaultNoteRelativePath)}` : 'Sees the whole vault'}
+          aria-label={isNoteContextShown ? `Sees ${getVaultNoteTitle(activeVaultNoteRelativePath)}` : 'Sees the Whole Vault'}
           className={joinPapelizClassNames(papelizComposerQuietButtonClassName, 'max-w-[30%] flex-shrink')}
         >
           {isNoteContextShown ? <FileText className="size-3.5 flex-none" aria-hidden="true" /> : <Library className="size-3.5 flex-none" aria-hidden="true" />}
-          <span className="hidden truncate @min-[26rem]:inline">{isNoteContextShown ? getVaultNoteTitle(activeVaultNoteRelativePath) : 'Whole vault'}</span>
+          <span className="hidden truncate @min-[26rem]:inline">{isNoteContextShown ? getVaultNoteTitle(activeVaultNoteRelativePath) : 'Whole Vault'}</span>
         </button>
         {assistantMode === 'write' && (
           <button

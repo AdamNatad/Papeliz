@@ -5,7 +5,8 @@ import type { PapelizPdfExportLocalFontData } from '../pdf-export/papeliz-pdf-ex
 import { papelizExportPaperSizeSettingName, readPapelizUserSetting, writePapelizUserSetting } from '../settings/papeliz-user-settings'
 import { PapelizPillButton } from '../ui/papeliz-buttons'
 import { PapelizSlidingChoiceGroup } from '../ui/papeliz-sliding-choice-group'
-import { describePapelizVaultError, PapelizVaultOperationError } from '../vault/papeliz-vault-adapter'
+import { describePapelizErrorSentence } from '../vault/papeliz-failure-code-words'
+import { PapelizVaultOperationError } from '../vault/papeliz-vault-adapter'
 import { getVaultEntryParentFolderRelativePath } from '../vault/papeliz-vault-relative-paths'
 import { buildThenSavePapelizExportFile, type PapelizExportFileKind } from './papeliz-export-file-save'
 import { usePapelizNoteTypographyStore } from './papeliz-note-typography-store'
@@ -76,6 +77,13 @@ const papelizSettingsGearExportPaperChoices: ReadonlyArray<{ exportPaperSize: Pa
 
 function isPapelizExportPageSize(storedExportPaperSize: unknown): storedExportPaperSize is PapelizExportPageSize {
   return storedExportPaperSize === 'letter' || storedExportPaperSize === 'a4'
+}
+
+// A failed export's line: "The export stopped.", then why as a sentence of its own, capitalized and
+// ending in one full stop (the PDF export's own reasons start lowercase and have none).
+function describeExportFailureLine(exportFailureMessage: string): string {
+  const exportFailureSentence = exportFailureMessage.charAt(0).toUpperCase() + exportFailureMessage.slice(1)
+  return `The export stopped. ${exportFailureSentence}${/[.!?…]$/.test(exportFailureSentence) ? '' : '.'}`
 }
 
 // A PDF export waits on this while the page asks whether it may use the computer's fonts.
@@ -286,9 +294,9 @@ export function PapelizSettingsGearExportPage() {
     papelizSettingsGearExportFormatRows.find((exportFormatRow) => exportFormatRow.exportFormat === chosenExportFormat) ?? papelizSettingsGearExportFormatRows[0]
   const chosenExportFormatLabel = chosenExportFormatRow?.exportFormatLabel ?? ''
   const exportButtonLabel = isEveryExportNoteTicked
-    ? `Export all notes as ${chosenExportFormatLabel}`
+    ? `Export All Notes as ${chosenExportFormatLabel}`
     : tickedExportNoteCount > 1
-      ? `Export ${tickedExportNoteCount} notes as ${chosenExportFormatLabel}`
+      ? `Export ${tickedExportNoteCount} Notes as ${chosenExportFormatLabel}`
       : `Export as ${chosenExportFormatLabel}`
   // One note downloads as its own file (a vault of one note too); only two or more come as a .zip.
   const exportSelectionSummary =
@@ -430,7 +438,7 @@ export function PapelizSettingsGearExportPage() {
       )
     } catch (exportError) {
       setExportRunState(
-        exportAbortController.signal.aborted ? { exportRunKind: 'cancelled' } : { exportRunKind: 'failed', exportFailureMessage: describePapelizVaultError(exportError) },
+        exportAbortController.signal.aborted ? { exportRunKind: 'cancelled' } : { exportRunKind: 'failed', exportFailureMessage: describePapelizErrorSentence(exportError) },
       )
     } finally {
       if (exportAbortControllerRef.current === exportAbortController) exportAbortControllerRef.current = null
@@ -455,7 +463,7 @@ export function PapelizSettingsGearExportPage() {
       : exportRunState.exportRunKind === 'cancelled'
         ? 'Export cancelled.'
         : exportRunState.exportRunKind === 'failed'
-          ? `The export stopped: ${exportRunState.exportFailureMessage}.`
+          ? describeExportFailureLine(exportRunState.exportFailureMessage)
           : null
   const exportNotices = isChosenExportFormatReady && exportRunState.exportRunKind === 'saved' ? exportRunState.exportNotices : []
   const hiddenExportNoticeCount = exportNotices.length - papelizSettingsGearShownExportNoticeCount
@@ -498,7 +506,7 @@ export function PapelizSettingsGearExportPage() {
           onClick={() => setTickedVaultNoteRelativePaths(isEveryExportNoteTicked ? new Set() : new Set(everyExportNoteRelativePath))}
           className="text-[12px] font-semibold text-papeliz-blue hover:underline disabled:opacity-40"
         >
-          {isEveryExportNoteTicked ? 'Clear' : 'Select all'}
+          {isEveryExportNoteTicked ? 'Clear' : 'Select All'}
         </button>
       </div>
       <div className="rounded-xl border border-papeliz-line bg-papeliz-surface p-1">
@@ -575,10 +583,10 @@ export function PapelizSettingsGearExportPage() {
           </p>
           <div className="mt-2 flex flex-wrap gap-1.5">
             <PapelizPillButton pillButtonVariant="primary" pillButtonSize="small" onClick={() => void answerWithComputerFonts()} className="pointer-coarse:h-10">
-              Use this computer’s fonts
+              Use This Computer’s Fonts
             </PapelizPillButton>
             <PapelizPillButton pillButtonVariant="line" pillButtonSize="small" onClick={() => computerFontsQuestion.answerComputerFontsQuestion(null)} className="pointer-coarse:h-10">
-              Print them as pictures
+              Print Them as Pictures
             </PapelizPillButton>
           </div>
         </div>

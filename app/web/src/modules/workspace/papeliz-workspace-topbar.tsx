@@ -63,7 +63,7 @@ export function PapelizWorkspaceTopbar() {
       <div className="flex min-w-0 items-center gap-1 max-md:min-w-max max-sm:pr-1 sm:gap-1.5">
         {!isFocusModeOn && (
           <PapelizIconButton
-            iconButtonLabel={isExplorerPanelOpen ? 'Hide the file list' : 'Show the file list'}
+            iconButtonLabel={isExplorerPanelOpen ? 'Hide the File List' : 'Show the File List'}
             iconButtonTone="topbar"
             onClick={() => setExplorerPanelOpen(!isExplorerPanelOpen)}
           >
@@ -73,7 +73,7 @@ export function PapelizWorkspaceTopbar() {
         <button
           type="button"
           aria-label="Papeliz, close the vault and go to the start page"
-          title="Close vault"
+          title="Close Vault"
           onClick={() => setVaultCloseConfirmationShown(true)}
           className="flex flex-none items-center gap-1 rounded-lg px-1 py-1 transition-colors hover:bg-white/10 focus-visible:outline-white sm:gap-1.5"
         >
@@ -94,9 +94,9 @@ export function PapelizWorkspaceTopbar() {
 
       <div className="flex min-w-0 items-center justify-end gap-0.5">
         {isFocusModeOn ? (
-          <PapelizPillButton pillButtonVariant="on-topbar" pillButtonSize="small" className="mr-1" onClick={() => setFocusModeOn(false)} title="Exit focus (Esc)">
+          <PapelizPillButton pillButtonVariant="on-topbar" pillButtonSize="small" className="mr-1" onClick={() => setFocusModeOn(false)} title="Exit Focus (Esc)">
             <Minimize2 className="size-[14px]" aria-hidden="true" />
-            <span className="max-sm:sr-only">Exit focus</span>
+            <span className="max-sm:sr-only">Exit Focus</span>
           </PapelizPillButton>
         ) : (
           <PapelizIconButton

@@ -6,6 +6,7 @@ import { usePapelizFooterEqualButtonWidthRef } from '../ui/papeliz-footer-equal-
 import { PapelizInfoTip } from '../ui/papeliz-info-tip'
 import { PapelizSolidCircleCheckIcon, PapelizSolidCircleXIcon } from '../ui/papeliz-solid-circle-icons'
 import { findPapelizBrowserVaultNameProblem, type PapelizBrowserVaultRecord } from '../vault/papeliz-browser-vaults'
+import { findPapelizNewFolderVaultNameProblem } from '../vault/papeliz-open-vault'
 import { PapelizBrowserVaultNameField } from './papeliz-browser-vault-name-field'
 
 // Where a new vault is kept: a folder on the disk (Chrome, Edge and Brave) or this browser.
@@ -151,59 +152,69 @@ export const newVaultFormFooterActionButtonColorClassName = papelizMainActionBut
 
 interface PapelizNewVaultFormProps {
   newVaultFormHeadingId: string
-  // Why this browser can't keep a vault in a folder, or null when it can. The folder card then stays,
-  // greyed, and says why.
+  // Why this browser can't keep a vault in a folder, or in the browser, or null when it can. That card
+  // then stays, greyed, and says why.
   folderAccessOffReasonText: string | null
-  suggestedBrowserVaultName: string
+  browserVaultOffReasonText: string | null
+  suggestedNewVaultName: string
+  // The place chosen when the form opens; by default a folder where folders work. The form comes back
+  // on the place it had when making a folder vault didn't go through.
+  initialNewVaultPlace?: PapelizNewVaultPlace
   existingBrowserVaultRecords: readonly PapelizBrowserVaultRecord[]
-  onNewVaultConfirm: (typedBrowserVaultName: string, chosenNewVaultPlace: PapelizNewVaultPlace) => void
+  onNewVaultConfirm: (typedNewVaultName: string, chosenNewVaultPlace: PapelizNewVaultPlace) => void
   onNewVaultCancel: () => void
 }
 
-// New Vault, in the start card in place of Recent Vaults: the two places as cards (an icon tile, a
-// badge, one line and a radio at the right edge) and a comparison under them, with Cancel at the left
-// edge and the action at the right. Browser Storage asks for the new vault's name in its card; a folder
-// takes its name from the folder picked next. Esc cancels.
+// New Vault, in the start card in place of Recent Vaults: the vault's name first (every vault has one),
+// then the two places as cards (an icon tile, a badge, one line and a radio at the right edge) and a
+// comparison under them, with Cancel at the left edge and the action at the right. A browser vault is
+// made under the name; a folder vault is a new folder of that name, made in the place picked next. The
+// action stays off until the name can be used, and says why under the field. Esc cancels.
 export function PapelizNewVaultForm({
   newVaultFormHeadingId,
   folderAccessOffReasonText,
-  suggestedBrowserVaultName,
+  browserVaultOffReasonText,
+  suggestedNewVaultName,
+  initialNewVaultPlace,
   existingBrowserVaultRecords,
   onNewVaultConfirm,
   onNewVaultCancel,
 }: PapelizNewVaultFormProps) {
-  const newVaultFormRef = useRef<HTMLDivElement>(null)
-  const browserVaultNameInputRef = useRef<HTMLInputElement>(null)
+  const newVaultNameInputRef = useRef<HTMLInputElement>(null)
   const newVaultFormFooterRef = usePapelizFooterEqualButtonWidthRef(128)
   const newVaultFormIdPrefix = useId()
   const newVaultPlacePromptId = `${newVaultFormIdPrefix}-place-prompt`
-  const folderAccessOffReasonId = `${newVaultFormIdPrefix}-folder-access-off-reason`
+  const newVaultPlaceOffReasonTexts: Record<PapelizNewVaultPlace, string | null> = {
+    'folder-on-disk': folderAccessOffReasonText,
+    'browser-vault-in-opfs': browserVaultOffReasonText,
+  }
   const isFolderVaultOn = folderAccessOffReasonText === null
-  const [typedBrowserVaultName, setTypedBrowserVaultName] = useState(suggestedBrowserVaultName)
-  const [chosenNewVaultPlace, setChosenNewVaultPlace] = useState<PapelizNewVaultPlace>(isFolderVaultOn ? 'folder-on-disk' : 'browser-vault-in-opfs')
-  const isBrowserVaultNameAsked = chosenNewVaultPlace === 'browser-vault-in-opfs'
-  const browserVaultNameProblem = isBrowserVaultNameAsked ? findPapelizBrowserVaultNameProblem(typedBrowserVaultName, existingBrowserVaultRecords, null) : null
+  const [typedNewVaultName, setTypedNewVaultName] = useState(suggestedNewVaultName)
+  const [chosenNewVaultPlace, setChosenNewVaultPlace] = useState<PapelizNewVaultPlace>(
+    initialNewVaultPlace !== undefined && newVaultPlaceOffReasonTexts[initialNewVaultPlace] === null
+      ? initialNewVaultPlace
+      : isFolderVaultOn
+        ? 'folder-on-disk'
+        : 'browser-vault-in-opfs',
+  )
+  const isFolderVaultChosen = chosenNewVaultPlace === 'folder-on-disk'
+  const newVaultNameProblem = isFolderVaultChosen
+    ? findPapelizNewFolderVaultNameProblem(typedNewVaultName)
+    : findPapelizBrowserVaultNameProblem(typedNewVaultName, existingBrowserVaultRecords, null)
 
   // The Name field opens with the name chosen, ready to type over.
   useEffect(() => {
-    browserVaultNameInputRef.current?.focus()
-    browserVaultNameInputRef.current?.select()
-  }, [isBrowserVaultNameAsked])
-
-  // Opened from New Vault: focus moves to the chosen place, unless the Name field took it above.
-  useEffect(() => {
-    if (document.activeElement === browserVaultNameInputRef.current) return
-    newVaultFormRef.current?.querySelector<HTMLInputElement>('input[type="radio"]:checked')?.focus()
+    newVaultNameInputRef.current?.focus()
+    newVaultNameInputRef.current?.select()
   }, [])
 
   const confirmNewVault = () => {
-    if (browserVaultNameProblem !== null) return
-    onNewVaultConfirm(typedBrowserVaultName.trim(), chosenNewVaultPlace)
+    if (newVaultNameProblem !== null) return
+    onNewVaultConfirm(typedNewVaultName.trim(), chosenNewVaultPlace)
   }
 
   return (
     <div
-      ref={newVaultFormRef}
       onKeyDown={(keyDownEvent) => {
         if (keyDownEvent.key !== 'Escape' || keyDownEvent.defaultPrevented) return
         keyDownEvent.preventDefault()
@@ -230,17 +241,32 @@ export function PapelizNewVaultForm({
             ?
           </a>
         </div>
-        <p id={newVaultPlacePromptId} className="mt-0.5 text-[12.5px] text-papeliz-ink-muted">
-          Choose where to keep this vault.
-        </p>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-3 pt-2.5 pb-3">
+      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-3 pt-2 pb-3">
+        <div>
+          <PapelizBrowserVaultNameField
+            browserVaultNameInputRef={newVaultNameInputRef}
+            typedBrowserVaultName={typedNewVaultName}
+            browserVaultNameProblem={newVaultNameProblem}
+            browserVaultNameProblemId={`${newVaultFormIdPrefix}-name-problem`}
+            onBrowserVaultNameType={setTypedNewVaultName}
+            onBrowserVaultNameSubmit={confirmNewVault}
+          />
+          {isFolderVaultChosen && newVaultNameProblem === null && (
+            <p className="mt-1 text-[12px] leading-snug text-papeliz-ink-subtle">Papeliz makes a folder named “{typedNewVaultName.trim()}” in the place you pick.</p>
+          )}
+        </div>
+        <p id={newVaultPlacePromptId} className="mt-1 text-[12.5px] text-papeliz-ink-muted">
+          Choose where to keep this vault.
+        </p>
         <div role="radiogroup" aria-labelledby={newVaultPlacePromptId} className="flex flex-col gap-2">
           {papelizNewVaultPlaceDescriptions.map((newVaultPlaceDescription) => {
             const { newVaultPlace, NewVaultPlaceIcon } = newVaultPlaceDescription
             const isNewVaultPlaceChosen = newVaultPlace === chosenNewVaultPlace
-            const isNewVaultPlaceOff = newVaultPlace === 'folder-on-disk' && !isFolderVaultOn
+            const newVaultPlaceOffReasonText = newVaultPlaceOffReasonTexts[newVaultPlace]
+            const isNewVaultPlaceOff = newVaultPlaceOffReasonText !== null
+            const newVaultPlaceOffReasonId = `${newVaultFormIdPrefix}-${newVaultPlace}-off-reason`
             return (
               <div
                 key={newVaultPlace}
@@ -272,7 +298,7 @@ export function PapelizNewVaultForm({
                     value={newVaultPlace}
                     checked={isNewVaultPlaceChosen}
                     disabled={isNewVaultPlaceOff}
-                    aria-describedby={isNewVaultPlaceOff ? folderAccessOffReasonId : undefined}
+                    aria-describedby={isNewVaultPlaceOff ? newVaultPlaceOffReasonId : undefined}
                     onChange={() => setChosenNewVaultPlace(newVaultPlace)}
                     className={joinPapelizClassNames('order-last size-4 flex-none accent-papeliz-blue', isNewVaultPlaceOff ? 'opacity-55' : 'cursor-pointer')}
                   />
@@ -289,28 +315,14 @@ export function PapelizNewVaultForm({
                       </span>
                     </span>
                     {isNewVaultPlaceOff ? (
-                      <span id={folderAccessOffReasonId} className="truncate text-[12.5px] leading-snug font-medium max-sm:whitespace-normal text-papeliz-diff-removed-ink">
-                        {folderAccessOffReasonText}
+                      <span id={newVaultPlaceOffReasonId} className="truncate text-[12.5px] leading-snug font-medium max-sm:whitespace-normal text-papeliz-diff-removed-ink">
+                        {newVaultPlaceOffReasonText}
                       </span>
                     ) : (
                       <span className="truncate text-[12.5px] leading-snug text-papeliz-ink-subtle max-sm:whitespace-normal">{newVaultPlaceDescription.newVaultPlaceLine}</span>
                     )}
                   </span>
                 </label>
-                {/* The name, lined up under the title: the card's edge (14px), the tile (36px) and its gap (12px). */}
-                {isNewVaultPlaceChosen && newVaultPlace === 'browser-vault-in-opfs' && (
-                  <div className="pr-3.5 pb-3 pl-[62px]">
-                    <PapelizBrowserVaultNameField
-                      browserVaultNameInputRef={browserVaultNameInputRef}
-                      typedBrowserVaultName={typedBrowserVaultName}
-                      browserVaultNameProblem={browserVaultNameProblem}
-                      browserVaultNameProblemId={`${newVaultFormIdPrefix}-name-problem`}
-                      browserVaultNameFieldLayout="label-beside-field"
-                      onBrowserVaultNameType={setTypedBrowserVaultName}
-                      onBrowserVaultNameSubmit={confirmNewVault}
-                    />
-                  </div>
-                )}
               </div>
             )
           })}
@@ -326,7 +338,7 @@ export function PapelizNewVaultForm({
               className={joinPapelizClassNames(
                 'rounded-xl border border-papeliz-line text-[12px] leading-snug transition-colors duration-300',
                 newVaultPlace === chosenNewVaultPlace ? 'bg-papeliz-blue-soft' : 'bg-papeliz-surface-soft',
-                newVaultPlace === 'folder-on-disk' && !isFolderVaultOn && 'opacity-55',
+                newVaultPlaceOffReasonTexts[newVaultPlace] !== null && 'opacity-55',
               )}
             >
               <h3 className="px-2.5 py-[5px] font-semibold text-papeliz-ink">
@@ -371,7 +383,7 @@ export function PapelizNewVaultForm({
                     className={joinPapelizClassNames(
                       'px-2.5 py-[5px] text-left font-semibold whitespace-nowrap text-papeliz-ink transition-colors duration-300',
                       newVaultPlace === chosenNewVaultPlace && 'bg-papeliz-blue-soft',
-                      newVaultPlace === 'folder-on-disk' && !isFolderVaultOn && 'opacity-55',
+                      newVaultPlaceOffReasonTexts[newVaultPlace] !== null && 'opacity-55',
                     )}
                   >
                     <NewVaultPlaceIcon
@@ -397,7 +409,7 @@ export function PapelizNewVaultForm({
                         className={joinPapelizClassNames(
                           'px-2.5 py-[5px] whitespace-nowrap transition-colors duration-300',
                           newVaultPlace === chosenNewVaultPlace ? 'bg-papeliz-blue-soft text-papeliz-ink' : 'text-papeliz-ink-muted',
-                          newVaultPlace === 'folder-on-disk' && !isFolderVaultOn && 'opacity-55',
+                          newVaultPlaceOffReasonTexts[newVaultPlace] !== null && 'opacity-55',
                         )}
                       >
                         {comparisonCell.comparisonCellText}
@@ -425,12 +437,12 @@ export function PapelizNewVaultForm({
         </button>
         <button
           type="button"
-          disabled={browserVaultNameProblem !== null}
+          disabled={newVaultNameProblem !== null}
           onClick={confirmNewVault}
           className={joinPapelizClassNames(newVaultFormFooterButtonClassName, newVaultFormFooterActionButtonColorClassName)}
         >
           <PapelizSolidCircleCheckIcon className="size-[15px] flex-none" />
-          {isBrowserVaultNameAsked ? 'Create Vault' : 'Pick Folder'}
+          {isFolderVaultChosen ? 'Pick Folder' : 'Create Vault'}
         </button>
       </div>
     </div>

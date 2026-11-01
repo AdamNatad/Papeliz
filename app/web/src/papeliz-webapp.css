@@ -91,10 +91,6 @@
 
   --shadow-papeliz-card: 0 1px 2px rgb(17 17 18 / 0.04), 0 6px 20px rgb(17 17 18 / 0.06);
   --shadow-papeliz-pop: 0 2px 6px rgb(17 17 18 / 0.06), 0 18px 48px rgb(17 17 18 / 0.14);
-  /* The start screen's white action on the blue panel (Synced Vaults), and its icon's tile; pale
-     blue in the dark theme, so its blue and gray words read the same in both. */
-  --color-papeliz-welcome-action-white-ground: #ffffff;
-  --color-papeliz-welcome-action-white-tile: #eaf2fe;
 
   --ease-papeliz-out: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
@@ -173,8 +169,6 @@
   --color-papeliz-look-gray: #a2a8b2;
   --shadow-papeliz-card: 0 1px 2px rgb(0 0 0 / 0.4), 0 6px 20px rgb(0 0 0 / 0.3);
   --shadow-papeliz-pop: 0 2px 6px rgb(0 0 0 / 0.4), 0 18px 48px rgb(0 0 0 / 0.55);
-  --color-papeliz-welcome-action-white-ground: #dce9fd;
-  --color-papeliz-welcome-action-white-tile: #ffffff;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -250,8 +244,6 @@
     --color-papeliz-look-gray: #a2a8b2;
     --shadow-papeliz-card: 0 1px 2px rgb(0 0 0 / 0.4), 0 6px 20px rgb(0 0 0 / 0.3);
     --shadow-papeliz-pop: 0 2px 6px rgb(0 0 0 / 0.4), 0 18px 48px rgb(0 0 0 / 0.55);
-    --color-papeliz-welcome-action-white-ground: #dce9fd;
-    --color-papeliz-welcome-action-white-tile: #ffffff;
   }
 }
 
@@ -772,7 +764,7 @@ label:has(> input[type='search']:focus-visible) {
   transform: scale(0.88);
 }
 
-/* ---- Sliding choices (papeliz-sliding-choice-group.tsx): the Accessibility menu's choices and the
+/* ---- Sliding choices (papeliz-sliding-choice-group.tsx): the Settings gear's choices and the
    Assistant panel's tabs. The white pill moves as the MD Code | MD View switch's does. ---- */
 
 .papeliz-sliding-choice-group {

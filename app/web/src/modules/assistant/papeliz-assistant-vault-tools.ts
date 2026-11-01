@@ -1,6 +1,6 @@
 import { findPapelizVaultNoteBacklinks } from '../links/papeliz-vault-note-index'
 import { createPapelizWikilinkTargetResolver } from '../links/papeliz-wikilink-targets'
-import { describePapelizVaultError } from '../vault/papeliz-vault-adapter'
+import { describePapelizErrorSentence } from '../vault/papeliz-failure-code-words'
 import {
   describeVaultEntryNameProblem,
   isVaultNoteFileName,
@@ -242,7 +242,7 @@ export async function executePapelizAssistantVaultTool(toolCall: PapelizChatTool
           proposalDraft: null,
         }
       } catch (vaultReadError) {
-        return failedToolOutcome('Read a note', describePapelizVaultError(vaultReadError))
+        return failedToolOutcome('Read a note', describePapelizErrorSentence(vaultReadError))
       }
     }
     case 'listVaultNoteLinks': {
@@ -316,7 +316,7 @@ export async function executePapelizAssistantVaultTool(toolCall: PapelizChatTool
           },
         }
       } catch (vaultReadError) {
-        return failedToolOutcome('Propose an edit', describePapelizVaultError(vaultReadError))
+        return failedToolOutcome('Propose an edit', describePapelizErrorSentence(vaultReadError))
       }
     }
     case 'proposeVaultNoteCreate': {

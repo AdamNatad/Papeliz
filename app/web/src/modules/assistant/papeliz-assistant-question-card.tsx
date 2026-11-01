@@ -249,8 +249,8 @@ export function PapelizAssistantQuestionCard({ questionEntry }: PapelizAssistant
               {!isAskingSeveral && (
                 <button
                   type="submit"
-                  aria-label="Send your answer"
-                  title="Send your answer"
+                  aria-label="Send Your Answer"
+                  title="Send Your Answer"
                   disabled={(currentStepAnswer?.ownAnswerText ?? '').trim().length === 0}
                   className="grid size-7 flex-none place-items-center rounded-full bg-papeliz-gradient-start text-white transition-opacity disabled:opacity-0"
                 >
@@ -276,7 +276,7 @@ export function PapelizAssistantQuestionCard({ questionEntry }: PapelizAssistant
             disabled={isLastQuestionStep ? !isEveryStepAnswered : !isCurrentStepAnswered}
             onClick={goToNextQuestionStep}
           >
-            {isLastQuestionStep ? 'Send answers' : 'Next'}
+            {isLastQuestionStep ? 'Send Answers' : 'Next'}
             {isLastQuestionStep ? <ArrowUp className="size-3.5" aria-hidden="true" /> : <ArrowRight className="size-3.5" aria-hidden="true" />}
           </PapelizPillButton>
         </div>

@@ -34,7 +34,7 @@ export const papelizHelpReferenceArticles: readonly PapelizHelpArticle[] = [
           ['Ctrl+Z', 'Undo'],
           [['Ctrl+Y', 'Ctrl+Shift+Z'], 'Redo'],
           ['[[', 'Suggest notes to link to'],
-          ['Ctrl+Enter', 'Open the wikilink under the cursor (MD View)'],
+          ['Ctrl+Enter', 'Open the wikilink, or search for the #tag, under the cursor (MD View)'],
           ['Ctrl+Click', 'Open a web link in a new tab (MD View)'],
         ]),
       ]),
@@ -72,7 +72,7 @@ export const papelizHelpReferenceArticles: readonly PapelizHelpArticle[] = [
       ]),
       helpSection('Change a shortcut', [
         helpParagraph(
-          'Open the gear at the right end of the top bar and choose **Settings**. **Key Bindings** lists every shortcut you can change: switching views, saving, focus mode, bold, italic, underline, editing with the assistant, and opening the link under the cursor.',
+          'Open the gear at the right end of the top bar and choose **Settings**. **Key Bindings** lists every shortcut you can change: switching views, saving, focus mode, bold, italic, underline, editing with the assistant, and opening the link or tag under the cursor.',
         ),
         helpNumberedSteps(['Click a shortcut.', 'Press the new keys. `Esc` stops without a change.']),
         helpParagraph(
@@ -145,21 +145,21 @@ Three raised beds this year. See [[Reading list]] #garden
       helpSection('An action says Off in this browser', [
         helpParagraph('Hover over the action, or press it, to see why. Then:'),
         helpBulletList([
-          '“Couldn’t keep vaults in this browser (Update It, Or Use Chrome, Edge Or Firefox)”: update your browser, or use Chrome or Edge 103, Firefox 113 or Safari 16.4 or later.',
-          '“Couldn’t keep vaults in this browser (Storage Off)”: open Papeliz in a normal window instead of a private one, and allow site data for Papeliz in your browser’s settings.',
+          '“This browser can’t keep vaults. Update it, or use Chrome, Edge or Firefox.”: update your browser, or use Chrome or Edge 103, Firefox 113 or Safari 16.4 or later.',
+          '“This browser won’t keep vaults here, as in some private windows. Use a normal window, or let this site store data.”: open Papeliz in a normal window instead of a private one, and allow site data for Papeliz in your browser’s settings.',
           '**Open Vault** that can’t open folders: only Chrome and Edge on a computer open folders on your disk, on a secure `https://` page. Elsewhere, keep the vault in your browser instead.',
-          '“Couldn’t open the folder window (Use Its Own Tab)”: Papeliz is showing inside another site’s page. Open it in a tab of its own.',
+          '“The folder window can’t open here. Open Papeliz in its own tab, then try again.”: Papeliz is showing inside another site’s page. Open it in a tab of its own.',
         ]),
         helpParagraph('**Try Sample** works in every browser. See [[browser-support]].'),
       ]),
       helpSection('A note didn’t save', [
         helpParagraph(
-          'The status bar shows the reason when a save fails. Check that the folder still exists and that Papeliz still has permission to edit it, then choose **Try again** or press `Ctrl+S`.',
+          'The status bar shows the reason when a save fails. Check that the folder still exists and that Papeliz still has permission to edit it, then choose **Try Again** or press `Ctrl+S`.',
         ),
       ]),
-      helpSection('Browser Storage Full', [
+      helpSection('The browser’s storage is full', [
         helpParagraph(
-          'In a vault kept in your browser, a save that finds the browser’s storage full shows **Not saved** with “Browser Storage Full”, and a message offers **Download backup**. Your typing is still in the open tab, so keep the tab open. Download a backup, make room, for example by deleting a browser vault you no longer need, then choose **Try again**.',
+          'In a vault kept in your browser, a save that finds the browser’s storage full shows **Not saved** with “Browser storage full”, and a message offers **Download Backup**. Your typing is still in the open tab, so keep the tab open. Download a backup, make room, for example by deleting a browser vault you no longer need, then choose **Try Again**.',
         ),
       ]),
       helpSection('Storage nearly full', [
@@ -185,7 +185,7 @@ Three raised beds this year. See [[Reading list]] #garden
       ]),
       helpSection('The assistant can’t connect', [
         helpParagraph(
-          'Choose **Test connection** in **Provider and API key**, and check the key, the base URL and the model. A provider that doesn’t accept calls from a web page can’t be used from Papeliz, and servers on your own computer need to allow Papeliz’s address. See [[choose-a-provider]].',
+          'Choose **Test Connection** in **Provider Settings**, and check the key, the base URL and the model. A provider that doesn’t accept calls from a web page can’t be used from Papeliz, and servers on your own computer need to allow Papeliz’s address. See [[choose-a-provider]].',
         ),
       ]),
     ],

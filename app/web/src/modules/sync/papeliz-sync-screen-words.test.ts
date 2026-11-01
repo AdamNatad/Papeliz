@@ -182,13 +182,13 @@ describe('the status bar', () => {
 
 describe('the missing-files dialog', () => {
   it('says the files are still on Sync and what each choice does', () => {
-    expect(titlePapelizSyncMissingFilesDialog(14)).toBe('14 synced files are missing here')
-    expect(titlePapelizSyncMissingFilesDialog(1)).toBe('1 synced file is missing here')
+    expect(titlePapelizSyncMissingFilesDialog(14)).toBe('14 Synced Files Are Missing Here')
+    expect(titlePapelizSyncMissingFilesDialog(1)).toBe('1 Synced File Is Missing Here')
     expect(introducePapelizSyncMissingFilesDialog(14, 'Field Notes')).toBe('They were gone from “Field Notes” when it opened on this device. They’re still on Sync, and nothing has been deleted.')
     expect(introducePapelizSyncMissingFilesDialog(1, 'Field Notes')).toBe('It was gone from “Field Notes” when it opened on this device. It’s still on Sync, and nothing has been deleted.')
     expect(papelizSyncMissingFilesDialogWords.downloadAgainChoiceText).toBe('puts them back on this device, from Sync.')
     expect(papelizSyncMissingFilesDialogWords.deletedChoiceText).toBe('removes them from Sync and from your other devices, which move them to their trash.')
-    expect(titlePapelizSyncMissingFilesDeleteConfirm(14)).toBe('Delete 14 files from Sync?')
+    expect(titlePapelizSyncMissingFilesDeleteConfirm(14)).toBe('Delete 14 Files from Sync?')
     expect(describePapelizSyncMissingFilesNotice(2, 'Field Notes')).toBe('2 synced files are missing from “Field Notes” on this device. They’re still on Sync, and nothing is deleted until you choose.')
   })
 })

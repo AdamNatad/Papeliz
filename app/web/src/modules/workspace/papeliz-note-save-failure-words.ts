@@ -26,7 +26,7 @@ export function describePapelizNoteSaveFailure(noteSaveErrorCode: string | null)
     case 'File Not Found':
       return {
         noteSaveFailureShortReason: 'Folder gone',
-        noteSaveFailureAdvice: 'The note’s folder was moved or deleted outside Papeliz. Copy your changes somewhere safe, then press Try again.',
+        noteSaveFailureAdvice: 'The note’s folder was moved or deleted outside Papeliz. Copy your changes somewhere safe, then press Try Again.',
       }
     case 'Disk Full':
       return { noteSaveFailureShortReason: 'Disk full', noteSaveFailureAdvice: describePapelizFailureCode(noteSaveErrorCode) }
@@ -37,7 +37,7 @@ export function describePapelizNoteSaveFailure(noteSaveErrorCode: string | null)
   return {
     noteSaveFailureShortReason: 'Couldn’t write the file',
     noteSaveFailureAdvice:
-      noteSaveFailureSentence === papelizUnknownFailureSentence ? 'Press Try again. If it keeps failing, copy your changes somewhere safe.' : noteSaveFailureSentence,
+      noteSaveFailureSentence === papelizUnknownFailureSentence ? 'Press Try Again. If it keeps failing, copy your changes somewhere safe.' : noteSaveFailureSentence,
   }
 }
 

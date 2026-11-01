@@ -48,8 +48,8 @@ export function PapelizSyncPassphraseField({
         {onSyncPassphraseShownToggle !== undefined && (
           <button
             type="button"
-            aria-label={isSyncPassphraseShown ? 'Hide passphrase' : 'Show passphrase'}
-            title={isSyncPassphraseShown ? 'Hide passphrase' : 'Show passphrase'}
+            aria-label={isSyncPassphraseShown ? 'Hide Passphrase' : 'Show Passphrase'}
+            title={isSyncPassphraseShown ? 'Hide Passphrase' : 'Show Passphrase'}
             aria-pressed={isSyncPassphraseShown}
             onClick={onSyncPassphraseShownToggle}
             className="absolute top-1/2 right-1.5 grid size-7 -translate-y-1/2 place-items-center rounded-full text-papeliz-ink-subtle hover:bg-papeliz-hover hover:text-papeliz-ink"

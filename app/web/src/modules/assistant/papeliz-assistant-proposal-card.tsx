@@ -142,7 +142,7 @@ export function PapelizAssistantProposalCard({ assistantProposalId }: PapelizAss
               onClick={() => void acceptAssistantProposal(assistantProposalId)}
             >
               {isTrashProposal ? <Trash2 className="size-3.5" aria-hidden="true" /> : <Check className="size-3.5" aria-hidden="true" />}
-              {isTrashProposal ? 'Move to Trash' : isCreateProposal ? 'Create note' : 'Accept'}
+              {isTrashProposal ? 'Move to Trash' : isCreateProposal ? 'Create Note' : 'Accept'}
             </PapelizPillButton>
             <PapelizPillButton pillButtonSize="small" onClick={() => rejectAssistantProposal(assistantProposalId)}>
               Reject

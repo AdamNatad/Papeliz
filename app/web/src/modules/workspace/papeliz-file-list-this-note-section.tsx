@@ -143,7 +143,7 @@ export function PapelizFileListThisNoteSection({ noteEditorSessionCache }: Papel
   if (activeVaultNoteRelativePath === null) return null
   const backlinksLabel = vaultNoteBacklinks.length > 0 ? `Backlinks ${vaultNoteBacklinks.length}` : 'Backlinks'
   return (
-    <section aria-label="This note" className="-mx-2.5 flex-none border-t border-papeliz-line px-2.5 pt-1.5">
+    <section aria-label="This Note" className="-mx-2.5 flex-none border-t border-papeliz-line px-2.5 pt-1.5">
       <button
         type="button"
         aria-expanded={!isThisNoteSectionFolded}
@@ -157,14 +157,14 @@ export function PapelizFileListThisNoteSection({ noteEditorSessionCache }: Papel
           )}
           aria-hidden="true"
         />
-        This note
+        This Note
         {isThisNoteSectionFolded && <span className="ml-auto truncate text-[12px] font-normal text-papeliz-ink-subtle">Outline · {backlinksLabel}</span>}
       </button>
       <div className="papeliz-file-list-this-note-body" data-papeliz-this-note-folded={isThisNoteSectionFolded} inert={isThisNoteSectionFolded}>
         <div>
           <div className="pt-1.5 pb-1.5">
             <PapelizSlidingChoiceGroup<PapelizFileListThisNoteView>
-              slidingChoiceGroupLabel="This note"
+              slidingChoiceGroupLabel="This Note"
               slidingChoiceGroupRole="tablist"
               slidingChoiceGroupTone="solid-blue"
               chosenSlidingChoiceValue={thisNoteSectionView}

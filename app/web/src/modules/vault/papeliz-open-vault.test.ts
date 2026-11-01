@@ -1,6 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createPapelizFakeVaultFolder, PapelizFakeDirectoryHandle } from './papeliz-fake-file-system-access.test-support'
-import { papelizFolderWindowShortestHumanCancelMilliseconds, pickAndOpenPapelizVaultFolder, reopenRememberedPapelizVaultFolder } from './papeliz-open-vault'
+import { createPapelizFakeVaultFolder, PapelizFakeDirectoryHandle, readPapelizFakeVaultFolder } from './papeliz-fake-file-system-access.test-support'
+import {
+  findPapelizNewFolderVaultNameProblem,
+  makePapelizNewFolderVaultFolder,
+  papelizFolderWindowShortestHumanCancelMilliseconds,
+  pickAndOpenPapelizVaultFolder,
+  pickPlaceAndOpenNewPapelizFolderVault,
+  reopenRememberedPapelizVaultFolder,
+} from './papeliz-open-vault'
 
 function stubBrowserWithFolderPicker(showDirectoryPicker: (() => Promise<FileSystemDirectoryHandle>) | undefined) {
   vi.stubGlobal('window', { isSecureContext: true, showDirectoryPicker })
@@ -104,5 +111,68 @@ describe('reopening a recent folder', () => {
     }
     const openVaultResult = await reopenRememberedPapelizVaultFolder(rememberedVaultFolderFor(fakeVaultRootHandle))
     expect(openVaultResult.openVaultOutcome === 'failed' && openVaultResult.openVaultFailureMessage).toBe('Couldn’t open “Field Notes”. The folder was moved, renamed or deleted. Find it on your disk and open it again.')
+  })
+})
+
+describe('making a new vault in a folder', () => {
+  it('needs a name that can be a folder’s name', () => {
+    expect(findPapelizNewFolderVaultNameProblem('')).toBe('Name Empty')
+    expect(findPapelizNewFolderVaultNameProblem('   ')).toBe('Name Empty')
+    expect(findPapelizNewFolderVaultNameProblem('.notes')).toBe('Starts With A Dot')
+    expect(findPapelizNewFolderVaultNameProblem('Work/Home')).toBe('Has A Blocked Character')
+    expect(findPapelizNewFolderVaultNameProblem('Notes.')).toBe('Ends With A Dot')
+    expect(findPapelizNewFolderVaultNameProblem('x'.repeat(201))).toBe('Name Too Long')
+    expect(findPapelizNewFolderVaultNameProblem('Field Notes')).toBeNull()
+  })
+
+  it('makes a folder named after the vault inside the place picked, and opens it', async () => {
+    const pickedPlaceHandle = await createPapelizFakeVaultFolder('Documents', { 'Taxes.pdf': 'pdf' })
+    stubBrowserWithFolderPicker(async () => pickedPlaceHandle.asFileSystemDirectoryHandle())
+    const openVaultResult = await pickPlaceAndOpenNewPapelizFolderVault('Field Notes')
+    expect(openVaultResult.openVaultOutcome).toBe('opened')
+    if (openVaultResult.openVaultOutcome !== 'opened') return
+    expect(openVaultResult.papelizOpenVault.papelizVaultDisplayName).toBe('Field Notes')
+    expect(openVaultResult.papelizOpenVault.papelizVaultAdapter.papelizVaultKind).toBe('folder-on-disk')
+    expect(await readPapelizFakeVaultFolder(pickedPlaceHandle)).toEqual({ 'Taxes.pdf': 'pdf', 'Field Notes/': '' })
+  })
+
+  it('uses an empty folder of that name already there', async () => {
+    const pickedPlaceHandle = await createPapelizFakeVaultFolder('Documents', { 'Field Notes/': '' })
+    const emptyVaultFolderHandle = await pickedPlaceHandle.getDirectoryHandle('Field Notes')
+    expect(await makePapelizNewFolderVaultFolder(pickedPlaceHandle.asFileSystemDirectoryHandle(), 'Field Notes')).toEqual({
+      newFolderVaultFolderOutcome: 'ready',
+      papelizVaultFolderHandle: emptyVaultFolderHandle,
+    })
+    expect(await readPapelizFakeVaultFolder(pickedPlaceHandle)).toEqual({ 'Field Notes/': '' })
+  })
+
+  it('refuses a folder of that name with something in it, and leaves it as it was', async () => {
+    const pickedPlaceHandle = await createPapelizFakeVaultFolder('Documents', { 'Field Notes/Inbox.md': '# Inbox' })
+    stubBrowserWithFolderPicker(async () => pickedPlaceHandle.asFileSystemDirectoryHandle())
+    expect(await pickPlaceAndOpenNewPapelizFolderVault('Field Notes')).toEqual({
+      openVaultOutcome: 'failed',
+      openVaultFailureMessage: 'A folder named “Field Notes” is already there. Pick another name or another place.',
+    })
+    expect(await readPapelizFakeVaultFolder(pickedPlaceHandle)).toEqual({ 'Field Notes/': '', 'Field Notes/Inbox.md': '# Inbox' })
+  })
+
+  it('refuses a file of that name', async () => {
+    const pickedPlaceHandle = await createPapelizFakeVaultFolder('Documents', { 'Field Notes': 'a file' })
+    stubBrowserWithFolderPicker(async () => pickedPlaceHandle.asFileSystemDirectoryHandle())
+    expect(await pickPlaceAndOpenNewPapelizFolderVault('Field Notes')).toEqual({
+      openVaultOutcome: 'failed',
+      openVaultFailureMessage: 'A file named “Field Notes” is already there. Pick another name or another place.',
+    })
+  })
+
+  it('makes nothing when the folder window is closed', async () => {
+    let performanceNowMilliseconds = 1000
+    vi.spyOn(performance, 'now').mockImplementation(() => performanceNowMilliseconds)
+    stubBrowserWithFolderPicker(async () => {
+      performanceNowMilliseconds += papelizFolderWindowShortestHumanCancelMilliseconds + 900
+      throw new DOMException('The user aborted a request.', 'AbortError')
+    })
+    expect(await pickPlaceAndOpenNewPapelizFolderVault('Field Notes')).toEqual({ openVaultOutcome: 'cancelled' })
+    vi.restoreAllMocks()
   })
 })

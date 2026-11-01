@@ -275,7 +275,7 @@ export function PapelizAssistantProviderSettingsDialog({ onProviderSettingsDialo
           </span>
           <div className="min-w-0 flex-1">
             <h2 id={`${providerFieldIdPrefix}-title`} className="text-lg font-semibold">
-              AI Assistant provider
+              AI Assistant Provider
             </h2>
             <p className="text-sm text-papeliz-ink-muted">Bring your own key. The assistant talks straight from this browser to the provider you pick, with your key.</p>
           </div>
@@ -352,7 +352,7 @@ export function PapelizAssistantProviderSettingsDialog({ onProviderSettingsDialo
             ) : (
               <PlugZap className="size-3.5" aria-hidden="true" />
             )}
-            Test connection
+            Test Connection
           </button>
         </div>
         {/* The show/hide eye sits inside the field, so the field is as wide as the others. */}
@@ -368,7 +368,7 @@ export function PapelizAssistantProviderSettingsDialog({ onProviderSettingsDialo
             className={`${papelizProviderFieldClassName} pr-12 font-mono text-[13px]`}
           />
           <PapelizIconButton
-            iconButtonLabel={isApiKeyShown ? 'Hide the key' : 'Show the key'}
+            iconButtonLabel={isApiKeyShown ? 'Hide the Key' : 'Show the Key'}
             iconButtonSize="small"
             className="absolute top-1.5 right-1.5"
             onClick={() => setIsApiKeyShown(!isApiKeyShown)}
@@ -395,7 +395,7 @@ export function PapelizAssistantProviderSettingsDialog({ onProviderSettingsDialo
               className={`size-3.5 ${providerCheckState.providerCheckKind === 'running' && providerCheckState.providerCheckSubject === 'model-list' ? 'animate-spin' : ''}`}
               aria-hidden="true"
             />
-            {loadedProviderModelNames === null ? 'Load models' : 'Load again'}
+            {loadedProviderModelNames === null ? 'Load Models' : 'Load Again'}
           </button>
         </div>
         <div className="mt-1.5">
@@ -440,7 +440,7 @@ export function PapelizAssistantProviderSettingsDialog({ onProviderSettingsDialo
         <details className="group/model-price mt-4 rounded-2xl border border-papeliz-line px-4 py-2.5" open={savedUserModelPrice !== undefined || undefined}>
           <summary className="flex cursor-pointer list-none items-center gap-1.5 text-[13px] font-semibold select-none [&::-webkit-details-marker]:hidden">
             <ChevronRight className="size-3.5 flex-none transition-transform group-open/model-price:rotate-90" aria-hidden="true" />
-            <span className="whitespace-nowrap">Model price</span>
+            <span className="whitespace-nowrap">Model Price</span>
             {/* On a phone only the prices show; "per 1M tokens" is under the boxes. */}
             <span className="ml-auto min-w-0 truncate pl-3 text-[12.5px] font-normal text-papeliz-ink-muted tabular-nums">
               {modelPriceSummaryText}
@@ -509,7 +509,7 @@ export function PapelizAssistantProviderSettingsDialog({ onProviderSettingsDialo
                 setEditedProviderSettings(createDefaultPapelizAssistantProviderSettings(editedProviderSettings.papelizAssistantProviderId))
               }}
             >
-              Forget this key
+              Forget This Key
             </PapelizPillButton>
           )}
           <PapelizPillButton

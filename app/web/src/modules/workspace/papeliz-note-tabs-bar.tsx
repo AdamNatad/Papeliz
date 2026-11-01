@@ -42,19 +42,19 @@ interface PapelizNoteTabPress {
 
 // The tab lock's words: what a click does, given what keeps the note from being edited.
 function describeNoteTabLock(vaultNoteEditingLock: PapelizVaultNoteEditingLock | null, vaultNoteRelativePath: string, vaultNoteTabTitle: string) {
-  if (vaultNoteEditingLock === null) return { noteTabLockLabel: `Lock ${vaultNoteTabTitle}`, noteTabLockTitle: 'Lock this note' }
+  if (vaultNoteEditingLock === null) return { noteTabLockLabel: `Lock ${vaultNoteTabTitle}`, noteTabLockTitle: 'Lock This Note' }
   if (vaultNoteEditingLock.vaultNoteEditingLockKind === 'hidden-folder') {
     return { noteTabLockLabel: `${vaultNoteTabTitle} is read-only`, noteTabLockTitle: 'Notes in hidden folders open read-only.' }
   }
   if (vaultNoteEditingLock.vaultNoteEditingLockKind === 'whole-vault') {
-    return { noteTabLockLabel: 'All notes are locked', noteTabLockTitle: 'All notes are locked. Unlock them in Accessibility.' }
+    return { noteTabLockLabel: 'All notes are locked', noteTabLockTitle: 'All notes are locked. Turn off Lock All Notes in the Settings gear.' }
   }
   if (vaultNoteEditingLock.lockingVaultEntryRelativePath === vaultNoteRelativePath) {
     return { noteTabLockLabel: `Unlock ${vaultNoteTabTitle}`, noteTabLockTitle: 'Locked. Click to unlock.' }
   }
   const lockingFolderName = getVaultEntryName(vaultNoteEditingLock.lockingVaultEntryRelativePath)
   return {
-    noteTabLockLabel: `Unlock the folder “${lockingFolderName}”`,
+    noteTabLockLabel: `Unlock the Folder “${lockingFolderName}”`,
     noteTabLockTitle: `Locked with the folder “${lockingFolderName}”. Click to unlock the folder.`,
   }
 }
@@ -102,7 +102,7 @@ export function PapelizNoteTabsBar() {
 
   // The lock at the front of a tab: open when the note can be edited, closed when it (or its
   // folder, or the whole vault) is locked. A click locks the note, or unlocks whatever locks it;
-  // the whole vault's lock is lifted in Accessibility.
+  // the whole vault's lock is lifted with Lock All Notes in the Settings gear.
   const toggleVaultNoteTabLock = (vaultNoteRelativePath: string) => {
     const vaultNoteEditingLock = findVaultNoteEditingLock(isWholeVaultEditingLocked, lockedVaultEntryRelativePaths, vaultNoteRelativePath)
     if (vaultNoteEditingLock === null) {
@@ -110,11 +110,11 @@ export function PapelizNoteTabsBar() {
       return
     }
     if (vaultNoteEditingLock.vaultNoteEditingLockKind === 'hidden-folder') {
-      showWorkspaceNotice('info', 'This note is read-only (Hidden Folder).')
+      showWorkspaceNotice('info', 'This note is in a hidden folder, which Papeliz only reads.')
       return
     }
     if (vaultNoteEditingLock.vaultNoteEditingLockKind === 'whole-vault') {
-      showWorkspaceNotice('info', 'All notes are locked (Unlock In Accessibility).')
+      showWorkspaceNotice('info', 'All notes are locked. Turn off Lock All Notes in the Settings gear.')
       return
     }
     const lockingVaultEntryRelativePath = vaultNoteEditingLock.lockingVaultEntryRelativePath
@@ -327,8 +327,8 @@ export function PapelizNoteTabsBar() {
   const newNoteTabButton = (
     <button
       type="button"
-      aria-label="New note"
-      title="New note"
+      aria-label="New Note"
+      title="New Note"
       onClick={() =>
         void createVaultNoteInFolder(activeVaultNoteRelativePath === null ? '' : getVaultEntryParentFolderRelativePath(activeVaultNoteRelativePath))
       }
@@ -355,7 +355,7 @@ export function PapelizNoteTabsBar() {
       {/* Scroll: when the tabs don't fit, a thin gray scrollbar runs under them, shown only while the
           pointer is over the tabs or they scroll; the tabs keep their height and rise into the gap
           above them to make room, and a mouse wheel scrolls the strip sideways. Stack
-          (Accessibility): the tabs wrap onto more rows, so every one shows. */}
+          (Appearance): the tabs wrap onto more rows, so every one shows. */}
       <nav
         ref={noteTabsNavRef}
         aria-label="Open notes"
@@ -557,8 +557,8 @@ export function PapelizNoteTabsBar() {
               </span>
               <button
                 type="button"
-                aria-label="Close the proposal preview"
-                title="Close the proposal preview"
+                aria-label="Close the Proposal Preview"
+                title="Close the Proposal Preview"
                 onClick={closeAssistantProposalPreview}
                 className="mr-2 grid size-5 flex-none place-items-center rounded-md text-papeliz-ink-subtle transition-colors hover:bg-papeliz-press hover:text-papeliz-ink"
               >

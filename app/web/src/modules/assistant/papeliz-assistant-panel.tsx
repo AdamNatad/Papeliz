@@ -71,7 +71,7 @@ export function PapelizAssistantPanel({ onAssistantPanelClose }: PapelizAssistan
             Settings gear right above it. */}
         <div className="ml-auto flex items-center gap-0.5">
           <PapelizIconButton
-            iconButtonLabel="New chat"
+            iconButtonLabel="New Chat"
             iconButtonSize="small"
             className={papelizAssistantPanelHeaderButtonTouchClassName}
             onClick={() => {
@@ -100,7 +100,7 @@ export function PapelizAssistantPanel({ onAssistantPanelClose }: PapelizAssistan
             <ChartNoAxesColumn className="size-[15px]" aria-hidden="true" />
           </PapelizIconButton>
           <PapelizIconButton
-            iconButtonLabel="Provider settings"
+            iconButtonLabel="Provider Settings"
             iconButtonSize="small"
             className={papelizAssistantPanelHeaderButtonTouchClassName}
             aria-haspopup="dialog"
@@ -109,7 +109,7 @@ export function PapelizAssistantPanel({ onAssistantPanelClose }: PapelizAssistan
             <KeyRound className="size-[15px]" aria-hidden="true" />
           </PapelizIconButton>
           <PapelizIconButton
-            iconButtonLabel="Close the AI Assistant panel"
+            iconButtonLabel="Close the AI Assistant Panel"
             iconButtonSize="small"
             className={papelizAssistantPanelHeaderButtonTouchClassName}
             onClick={onAssistantPanelClose}
@@ -147,7 +147,7 @@ export function PapelizAssistantPanel({ onAssistantPanelClose }: PapelizAssistan
       {assistantPanelTab !== 'chat' && (
         <div className="flex flex-none items-center gap-1.5 px-2.5 pt-2">
           <PapelizIconButton
-            iconButtonLabel="Back to the chat"
+            iconButtonLabel="Back to the Chat"
             iconButtonSize="small"
             className={papelizAssistantPanelHeaderButtonTouchClassName}
             onClick={() => setAssistantPanelTab('chat')}
@@ -172,7 +172,7 @@ export function PapelizAssistantPanel({ onAssistantPanelClose }: PapelizAssistan
               <div className="flex flex-none items-center gap-3 px-[18px] pb-2.5 text-[13px] text-papeliz-ink-muted">
                 <span className="min-w-0 flex-1">Set up a provider to keep chatting.</span>
                 <PapelizPillButton pillButtonVariant="primary" pillButtonSize="small" onClick={() => setProviderSettingsDialogOpen(true)}>
-                  Choose a provider
+                  Choose a Provider
                 </PapelizPillButton>
               </div>
             )

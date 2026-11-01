@@ -828,7 +828,7 @@ export const usePapelizAssistantConversationStore = create<PapelizAssistantConve
     addAssistantAttachmentFiles: async (attachmentFiles) => {
       for (const attachmentFile of attachmentFiles) {
         if (getConversationState().pendingAssistantAttachments.length >= papelizAssistantAttachmentLimit) {
-          usePapelizWorkspaceStore.getState().showWorkspaceNotice('error', `Couldn’t add “${attachmentFile.name}” (${papelizAssistantAttachmentLimit} Files At Most)`)
+          usePapelizWorkspaceStore.getState().showWorkspaceNotice('error', `Couldn’t add “${attachmentFile.name}”. A message can carry up to ${papelizAssistantAttachmentLimit} files.`)
           return
         }
         const attachmentReadResult = await readPapelizAssistantAttachmentFile(attachmentFile)
@@ -919,7 +919,7 @@ export const usePapelizAssistantConversationStore = create<PapelizAssistantConve
       if (openVault === null || getConversationState().isAssistantRunning) return
       const savedChatSession = parsePapelizChatSessionFile(await readLatestPapelizVaultNoteText(openVault, chatSessionVaultNoteRelativePath).catch(() => ''))
       if (savedChatSession === null) {
-        usePapelizWorkspaceStore.getState().showWorkspaceNotice('error', 'Couldn’t open the chat (Not A Chat)')
+        usePapelizWorkspaceStore.getState().showWorkspaceNotice('error', 'Couldn’t open the chat. The file isn’t a saved chat, or it’s damaged.')
         return
       }
       // Earlier answers come back as text; their proposals were settled when the chat was saved.

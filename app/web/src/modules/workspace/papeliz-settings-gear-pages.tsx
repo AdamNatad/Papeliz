@@ -77,9 +77,9 @@ export function PapelizSettingsGearAppearancePage({ isNoteTabsLayoutShown }: Pap
 
       {isNoteTabsLayoutShown && (
         <>
-          <PapelizSettingsGearFieldLabel>Note tabs</PapelizSettingsGearFieldLabel>
+          <PapelizSettingsGearFieldLabel>Note Tabs</PapelizSettingsGearFieldLabel>
           <PapelizSlidingChoiceGroup
-            slidingChoiceGroupLabel="Note tabs"
+            slidingChoiceGroupLabel="Note Tabs"
             slidingChoiceGroupRole="radiogroup"
             chosenSlidingChoiceValue={noteTabsLayout}
             onSlidingChoiceSelect={setNoteTabsLayout}
@@ -122,12 +122,12 @@ export function PapelizSettingsGearAccessibilityPage() {
         }))}
       />
 
-      <PapelizSettingsGearFieldLabel>Text size</PapelizSettingsGearFieldLabel>
+      <PapelizSettingsGearFieldLabel>Text Size</PapelizSettingsGearFieldLabel>
       <PapelizNoteTextSizeSlider />
 
-      <PapelizSettingsGearFieldLabel>Text width</PapelizSettingsGearFieldLabel>
+      <PapelizSettingsGearFieldLabel>Text Width</PapelizSettingsGearFieldLabel>
       <PapelizSlidingChoiceGroup
-        slidingChoiceGroupLabel="Text width"
+        slidingChoiceGroupLabel="Text Width"
         slidingChoiceGroupRole="radiogroup"
         chosenSlidingChoiceValue={noteColumnWidth}
         onSlidingChoiceSelect={(chosenNoteColumnWidth) => changeNoteTypography({ noteColumnWidth: chosenNoteColumnWidth })}

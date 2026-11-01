@@ -56,7 +56,7 @@ import { getVaultNoteTitle } from '../vault/papeliz-vault-relative-paths'
 // with their kinds, what syncs, storage, Old versions and Pause on this device, with what to do when
 // storage is full, a payment failed, the subscription ended or an End-to-end vault is locked here.
 
-function PapelizSyncManageSubscriptionButton({ papelizSyncEngine, manageButtonLabel = 'Manage subscription' }: { papelizSyncEngine: PapelizSyncEngine; manageButtonLabel?: string }) {
+function PapelizSyncManageSubscriptionButton({ papelizSyncEngine, manageButtonLabel = 'Manage Subscription' }: { papelizSyncEngine: PapelizSyncEngine; manageButtonLabel?: string }) {
   const [manageFailureWords, setManageFailureWords] = useState<string | null>(null)
   return (
     <>
@@ -105,7 +105,7 @@ function PapelizSyncPlansState({ papelizSyncEngine, syncEngineSnapshot, plansSta
                 )
               }}
             >
-              Sign in
+              Sign In
             </PapelizSyncTextButton>
           </PapelizSyncPageSmallText>
         )
@@ -156,7 +156,7 @@ function readSyncEndedNotice(syncAccount: PapelizSyncAccountReading, currentTime
 // Each follows its vault's kind. AI provider keys never sync; they're pasted on each device.
 const papelizSyncWhatSyncsSwitchRows: ReadonlyArray<{ whatSyncsChoiceName: keyof PapelizSyncWhatSyncsChoices; whatSyncsTitle: string; whatSyncsDetail?: string }> = [
   { whatSyncsChoiceName: 'isAppSettingSyncOn', whatSyncsTitle: 'Settings', whatSyncsDetail: 'Theme, text, key bindings' },
-  { whatSyncsChoiceName: 'isAssistantChatSyncOn', whatSyncsTitle: 'Assistant chats' },
+  { whatSyncsChoiceName: 'isAssistantChatSyncOn', whatSyncsTitle: 'Assistant Chats' },
 ]
 
 // Sync on: this account is subscribed (or its subscription ended with vaults syncing here).
@@ -255,7 +255,7 @@ function PapelizSyncOnState({ papelizSyncEngine, syncEngineSnapshot, syncAccount
       <PapelizSyncPageSmallText className="mt-0.5">{describePapelizSyncStoragePlaceLine(syncAccount.papelizSyncStoragePlace)}</PapelizSyncPageSmallText>
 
       {syncAccount.syncSubscriptionState === 'payment-past-due' && (
-        <PapelizSyncPageNotice syncPageNoticeAction={<PapelizSyncManageSubscriptionButton papelizSyncEngine={papelizSyncEngine} manageButtonLabel="Update payment" />}>
+        <PapelizSyncPageNotice syncPageNoticeAction={<PapelizSyncManageSubscriptionButton papelizSyncEngine={papelizSyncEngine} manageButtonLabel="Update Payment" />}>
           Your last payment didn’t go through. Update it to keep syncing; your changes are saved here meanwhile.
         </PapelizSyncPageNotice>
       )}
@@ -271,7 +271,7 @@ function PapelizSyncOnState({ papelizSyncEngine, syncEngineSnapshot, syncAccount
         </>
       )}
       {isOverStorage && !isReadOnly && (
-        <PapelizSyncPageNotice syncPageNoticeAction={<PapelizSyncManageSubscriptionButton papelizSyncEngine={papelizSyncEngine} manageButtonLabel="Change plan" />}>
+        <PapelizSyncPageNotice syncPageNoticeAction={<PapelizSyncManageSubscriptionButton papelizSyncEngine={papelizSyncEngine} manageButtonLabel="Change Plan" />}>
           <b>Your Sync storage is full.</b> Uploads wait until there’s room; downloads go on, and every change stays saved on this device. Old versions count toward storage and
           are thinned as they age, which frees room over time. To sync again now, move to a bigger plan.
         </PapelizSyncPageNotice>
@@ -320,7 +320,7 @@ function PapelizSyncOnState({ papelizSyncEngine, syncEngineSnapshot, syncAccount
 
       {openVaultClashes.length > 0 && (
         <>
-          <PapelizSyncPageLabel>To settle</PapelizSyncPageLabel>
+          <PapelizSyncPageLabel>To Settle</PapelizSyncPageLabel>
           <PapelizSyncPageBox>
             {openVaultClashes.map((syncNoteClash) => (
               <PapelizSyncPageRow
@@ -396,9 +396,9 @@ function PapelizSyncOnState({ papelizSyncEngine, syncEngineSnapshot, syncAccount
         onAccountVaultDialogRequest={setAccountVaultDialogRequest}
       />
 
-      <PapelizSyncPageLabel>What syncs</PapelizSyncPageLabel>
+      <PapelizSyncPageLabel>What Syncs</PapelizSyncPageLabel>
       <PapelizSyncPageBox>
-        <PapelizSyncPageRow syncPageRowTitle="Notes and attachments" syncPageRowDetail="Always" syncPageRowEnd={<Check className="size-4 flex-none text-papeliz-ok" aria-label="Always on" />} />
+        <PapelizSyncPageRow syncPageRowTitle="Notes and Attachments" syncPageRowDetail="Always" syncPageRowEnd={<Check className="size-4 flex-none text-papeliz-ok" aria-label="Always on" />} />
         {papelizSyncWhatSyncsSwitchRows.map((whatSyncsSwitchRow) => (
           <PapelizSyncPageRow
             key={whatSyncsSwitchRow.whatSyncsChoiceName}
@@ -441,7 +441,7 @@ function PapelizSyncOnState({ papelizSyncEngine, syncEngineSnapshot, syncAccount
           onClick={() => setPapelizSyncOldVersionsDialogShown(true)}
         >
           <History className="size-3.5" aria-hidden="true" />
-          Old versions
+          Old Versions
         </PapelizPillButton>
         <PapelizPillButton
           pillButtonVariant="gray"
@@ -449,7 +449,7 @@ function PapelizSyncOnState({ papelizSyncEngine, syncEngineSnapshot, syncAccount
           onClick={() => void papelizSyncEngine.setSyncPausedOnThisDevice(!syncEngineSnapshot.isSyncPausedOnThisDevice)}
         >
           {syncEngineSnapshot.isSyncPausedOnThisDevice ? <Play className="size-3.5" aria-hidden="true" /> : <CirclePause className="size-3.5" aria-hidden="true" />}
-          {syncEngineSnapshot.isSyncPausedOnThisDevice ? 'Resume on this device' : 'Pause on this device'}
+          {syncEngineSnapshot.isSyncPausedOnThisDevice ? 'Resume on This Device' : 'Pause on This Device'}
         </PapelizPillButton>
       </div>
     </div>
@@ -464,7 +464,7 @@ function PapelizSyncPageForSnapshot({ papelizSyncEngine, syncEngineSnapshot }: {
       <PapelizSyncCenteredStep SyncStepIcon={CloudOff} syncStepTitle="This device is signed out of Sync">
         <PapelizSyncPageText className="max-w-[240px]">It was removed on another device, or its sign-in stopped working. Its notes are untouched.</PapelizSyncPageText>
         <PapelizPillButton pillButtonVariant="primary" pillButtonSize="small" onClick={() => void startPapelizSyncSignInFromClick(papelizSyncEngine, null)}>
-          Sign in again
+          Sign In Again
         </PapelizPillButton>
       </PapelizSyncCenteredStep>
     )

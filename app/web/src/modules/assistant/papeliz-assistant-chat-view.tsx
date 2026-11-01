@@ -189,7 +189,7 @@ function PapelizAssistantChatEntryView({ chatEntry }: { chatEntry: PapelizAssist
           {chatEntry.chatEntryText}
           {chatEntry.isChatEntryError && (
             <button type="button" className="ml-2 font-semibold underline underline-offset-2" onClick={() => setProviderSettingsDialogOpen(true)}>
-              Provider settings
+              Provider Settings
             </button>
           )}
         </div>
@@ -231,7 +231,7 @@ export function PapelizAssistantChatView() {
             <p className="text-[13px] font-medium text-papeliz-ink">{activeProviderConnection.providerSetupProblem}</p>
           )}
           <PapelizPillButton pillButtonVariant="primary" onClick={() => setProviderSettingsDialogOpen(true)}>
-            Choose a provider
+            Choose a Provider
           </PapelizPillButton>
         </div>
       )}
@@ -243,19 +243,19 @@ export function PapelizAssistantChatView() {
           <div className="flex flex-wrap gap-1.5">
             {activeVaultNoteRelativePath !== null && (
               <button type="button" className="papeliz-assistant-suggestion-chip" onClick={() => void sendAssistantMessage('Summarize this note in a few bullet points.')}>
-                <FileSearch className="size-3.5" aria-hidden="true" /> Summarize this note
+                <FileSearch className="size-3.5" aria-hidden="true" /> Summarize This Note
               </button>
             )}
             {activeVaultNoteRelativePath !== null && (
               <button type="button" className="papeliz-assistant-suggestion-chip" onClick={() => void sendAssistantMessage('Which of my notes are related to this one, and how?')}>
-                <Link2 className="size-3.5" aria-hidden="true" /> Related notes
+                <Link2 className="size-3.5" aria-hidden="true" /> Related Notes
               </button>
             )}
             <button type="button" className="papeliz-assistant-suggestion-chip" onClick={() => void sendAssistantMessage(papelizSuggestLinksRequestText)}>
-              <Link2 className="size-3.5" aria-hidden="true" /> Suggest links
+              <Link2 className="size-3.5" aria-hidden="true" /> Suggest Links
             </button>
             <button type="button" className="papeliz-assistant-suggestion-chip" onClick={() => void sendAssistantMessage(papelizSuggestTagsRequestText)}>
-              <Tags className="size-3.5" aria-hidden="true" /> Suggest tags
+              <Tags className="size-3.5" aria-hidden="true" /> Suggest Tags
             </button>
           </div>
           <p className="text-xs text-papeliz-ink-subtle">Select text in a note and press {inlineEditShortcutLabel} to edit it in place.</p>
@@ -268,7 +268,7 @@ export function PapelizAssistantChatView() {
         <div className="papeliz-pop-enter sticky bottom-0 flex items-center gap-2 rounded-full border border-papeliz-blue-line bg-papeliz-surface px-3 py-1.5 shadow-papeliz-card">
           <span className="text-[13px] text-papeliz-ink-muted">{pendingProposalCount} changes waiting</span>
           <PapelizPillButton pillButtonVariant="primary" pillButtonSize="small" className="ml-auto" onClick={() => void acceptAllPendingAssistantProposals()}>
-            Accept all
+            Accept All
           </PapelizPillButton>
         </div>
       )}

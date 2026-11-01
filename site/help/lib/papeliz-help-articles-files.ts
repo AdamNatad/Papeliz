@@ -23,7 +23,7 @@ export const papelizHelpFilesArticles: readonly PapelizHelpArticle[] = [
       ]),
       helpSection('Create notes and folders', [
         helpParagraph(
-          'Use the **New note** and **New folder** buttons at the top of the list, or right-click a folder and choose **New note here** or **New folder here**.',
+          'Use the **New Note** and **New Folder** buttons at the top of the list, or right-click a folder and choose **New Note Here** or **New Folder Here**.',
         ),
       ]),
       helpSection('Search notes', [
@@ -32,7 +32,7 @@ export const papelizHelpFilesArticles: readonly PapelizHelpArticle[] = [
       helpSection('Arrange', [
         helpBulletList([
           'Drag a note or folder onto a folder to move it there, or between rows to change the order.',
-          'Or choose **Move up** and **Move down** in the right-click menu, or press `Alt+↑` and `Alt+↓`.',
+          'Or choose **Move Up** and **Move Down** in the right-click menu, or press `Alt+↑` and `Alt+↓`.',
           'Papeliz keeps the order in the vault’s `.papeliz` folder, so it travels with the folder.',
         ]),
       ]),
@@ -47,7 +47,7 @@ export const papelizHelpFilesArticles: readonly PapelizHelpArticle[] = [
         ),
         helpParagraph('The lock at the front of a tab locks that note. See [[switch-views-and-lock]].'),
         helpParagraph(
-          'When tabs don’t fit in one row, they scroll sideways. To wrap them onto more rows instead, choose **Stack** under **Note tabs** on the gear’s **Accessibility** page. See [[text-settings-and-theme]].',
+          'When tabs don’t fit in one row, they scroll sideways. To wrap them onto more rows instead, choose **Stack** under **Note Tabs** on the gear’s **Appearance** page. See [[text-settings-and-theme]].',
         ),
       ]),
       helpSection('Keyboard', [
@@ -84,7 +84,7 @@ export const papelizHelpFilesArticles: readonly PapelizHelpArticle[] = [
       ]),
       helpSection('Delete', [
         helpParagraph(
-          'Press `Delete` or choose **Move to trash**. The note or folder moves into the vault’s `.trash` folder, which the file list doesn’t show. Papeliz never deletes a note outright.',
+          'Press `Delete` or choose **Move to Trash**. The note or folder moves into the vault’s `.trash` folder, which the file list doesn’t show. Papeliz never deletes a note outright.',
         ),
         helpParagraph(
           'To get a note back from a folder on your disk, move it out of `.trash` with your computer’s file manager. A vault kept in your browser has no folder you can open that way, but its `.trash` comes along in every backup. See [[keep-a-vault-in-your-browser]].',
@@ -125,7 +125,7 @@ export const papelizHelpFilesArticles: readonly PapelizHelpArticle[] = [
         helpParagraph(
           'While a folder vault is open, Papeliz checks your open notes for changes from other apps every few seconds, and looks over the whole vault again when you come back to its tab. A note with no unsaved changes takes the new text. A note you’re typing in keeps your text, and its next save combines both versions line by line.',
         ),
-        helpNote('If both changed the same lines, Papeliz asks what to keep: **Keep both**, **Keep saved** or **Keep mine**.'),
+        helpNote('If both changed the same lines, Papeliz asks what to keep: **Keep Both**, **Keep Saved** or **Keep Mine**.'),
       ]),
     ],
     relatedArticleSlugs: ['rename-move-and-trash', 'where-your-notes-live'],

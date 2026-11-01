@@ -2,8 +2,8 @@ import { create } from 'zustand'
 import { papelizNoteTabsLayoutSettingName, readPapelizUserSetting, writePapelizUserSetting } from '../settings/papeliz-user-settings'
 
 // How the open notes' tabs sit when there are more than fit: Scroll keeps one row with a scrollbar
-// under it; Stack wraps them onto more rows, so every tab shows. Chosen in the Accessibility menu
-// and kept in the browser's settings.
+// under it; Stack wraps them onto more rows, so every tab shows. Chosen on the Settings gear's
+// Appearance page and kept in the browser's settings.
 
 export type PapelizNoteTabsLayout = 'scroll' | 'stack'
 

@@ -50,7 +50,7 @@ export function PapelizAssistantProposalPreview() {
           <span className="flex flex-none gap-2">
             <PapelizPillButton pillButtonVariant="primary" pillButtonSize="small" onClick={() => void acceptAssistantProposal(assistantProposal.assistantProposalId)}>
               <Check className="size-3.5" aria-hidden="true" />
-              {isCreateProposal ? 'Create note' : 'Accept'}
+              {isCreateProposal ? 'Create Note' : 'Accept'}
             </PapelizPillButton>
             <PapelizPillButton pillButtonSize="small" onClick={() => rejectAssistantProposal(assistantProposal.assistantProposalId)}>
               Reject

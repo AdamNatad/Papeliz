@@ -143,7 +143,7 @@ function PapelizSyncThisDeviceNameRow({ papelizSyncEngine, syncDevice, onSyncDev
         isSyncPageRowTitleTwoLines
         syncPageRowDetail={deviceNameFailureWords ?? 'This device'}
         syncPageRowEnd={
-          <PapelizPillButton pillButtonVariant="gray" pillButtonSize="small" aria-label="Rename this device" title="Rename this device" onClick={() => setTypedSyncDeviceName(syncDevice.syncDeviceName ?? '')}>
+          <PapelizPillButton pillButtonVariant="gray" pillButtonSize="small" aria-label="Rename This Device" title="Rename This Device" onClick={() => setTypedSyncDeviceName(syncDevice.syncDeviceName ?? '')}>
             <Pencil className="size-3.5" aria-hidden="true" />
           </PapelizPillButton>
         }
@@ -312,7 +312,7 @@ function PapelizSyncSignedInAccount({ papelizSyncEngine, syncEngineSnapshot }: {
           }}
         >
           <LogOut className="size-3.5" aria-hidden="true" />
-          Sign out
+          Sign Out
         </PapelizPillButton>
       </div>
 
@@ -359,14 +359,14 @@ export function PapelizSyncAccountPage() {
           return (
             <PapelizSyncAccountCenteredState accountStateTitle="Signed out of Sync">
               <PapelizSyncPageText className="mt-0.5 max-w-[230px]">Your notes on this device are untouched.</PapelizSyncPageText>
-              <PapelizSyncAccountSignInButton papelizSyncEngine={papelizSyncEngine} signInButtonLabel="Sign in again" />
+              <PapelizSyncAccountSignInButton papelizSyncEngine={papelizSyncEngine} signInButtonLabel="Sign In Again" />
             </PapelizSyncAccountCenteredState>
           )
         }
         return (
           <PapelizSyncAccountCenteredState accountStateTitle="Sign in to Papeliz">
             <PapelizSyncPageText className="mt-0.5 max-w-[230px]">Sync your notes on all your devices.</PapelizSyncPageText>
-            <PapelizSyncAccountSignInButton papelizSyncEngine={papelizSyncEngine} signInButtonLabel="Sign in" />
+            <PapelizSyncAccountSignInButton papelizSyncEngine={papelizSyncEngine} signInButtonLabel="Sign In" />
           </PapelizSyncAccountCenteredState>
         )
       }}

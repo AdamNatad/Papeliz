@@ -125,7 +125,7 @@ export function PapelizSyncSetUpDialog({ papelizSyncEngine, syncEngineSnapshot, 
       <PapelizSyncFailureLine className="mt-3">{setUpActionState.setUpFailureWords}</PapelizSyncFailureLine>
     ) : setUpActionState.setUpActionKind === 'fresh-sign-in-needed' ? (
       <div className="mt-3 rounded-xl border border-papeliz-blue-line bg-papeliz-blue-soft px-3 py-2.5 text-[12.5px] leading-[1.45]">
-        <p className="font-semibold">Confirm it’s you</p>
+        <p className="font-semibold">Confirm It’s You</p>
         <p className="mt-0.5">This needs a sign-in from the last 10 minutes, so Papeliz knows it’s you. The sign-in page opens in a new tab, then this carries on.</p>
         <PapelizPillButton
           pillButtonVariant="primary"
@@ -143,7 +143,7 @@ export function PapelizSyncSetUpDialog({ papelizSyncEngine, syncEngineSnapshot, 
             })
           }}
         >
-          Sign in again
+          Sign In Again
         </PapelizPillButton>
       </div>
     ) : null
@@ -176,7 +176,7 @@ export function PapelizSyncSetUpDialog({ papelizSyncEngine, syncEngineSnapshot, 
   }
   const notNowButton = (
     <PapelizPillButton pillButtonVariant="gray" disabled={isSetUpActionRunning} onClick={closePapelizSyncSetUpDialog}>
-      Not now
+      Not Now
     </PapelizPillButton>
   )
 
@@ -188,7 +188,7 @@ export function PapelizSyncSetUpDialog({ papelizSyncEngine, syncEngineSnapshot, 
       return (
         <PapelizSyncDialogFrame
           {...dialogFrameProps}
-          syncDialogTitle="The passphrase is changed"
+          syncDialogTitle="The Passphrase Is Changed"
           syncDialogIntro={`Use the new one when a device asks for “${syncVaultName}”.`}
           syncDialogFooter={
             <PapelizPillButton pillButtonVariant="primary" onClick={closePapelizSyncSetUpDialog}>
@@ -220,7 +220,7 @@ export function PapelizSyncSetUpDialog({ papelizSyncEngine, syncEngineSnapshot, 
     return (
       <PapelizSyncDialogFrame
         {...dialogFrameProps}
-        syncDialogTitle={`Change the passphrase for “${syncVaultName}”`}
+        syncDialogTitle={`Change the Passphrase for “${syncVaultName}”`}
         syncDialogIntro={
           isCurrentSyncVaultPassphraseAsked ? `${papelizSyncVaultPassphraseChangeCurrentAskedLine} ${papelizSyncVaultPassphraseChangeIntro}` : papelizSyncVaultPassphraseChangeIntro
         }
@@ -230,7 +230,7 @@ export function PapelizSyncSetUpDialog({ papelizSyncEngine, syncEngineSnapshot, 
               Cancel
             </PapelizPillButton>
             <PapelizPillButton pillButtonVariant="primary" disabled={!isPassphraseChangeReady || isSetUpActionRunning} onClick={changeVaultPassphrase}>
-              {runningButtonContent('Change passphrase')}
+              {runningButtonContent('Change Passphrase')}
             </PapelizPillButton>
           </>
         }
@@ -274,7 +274,7 @@ export function PapelizSyncSetUpDialog({ papelizSyncEngine, syncEngineSnapshot, 
     return (
       <PapelizSyncDialogFrame
         {...dialogFrameProps}
-        syncDialogTitle="Turn on Sync for a vault"
+        syncDialogTitle="Turn On Sync for a Vault"
         syncDialogIntro="Open a folder or a browser vault, then turn Sync on for it in Settings."
         syncDialogFooter={
           <PapelizPillButton pillButtonVariant="primary" onClick={closePapelizSyncSetUpDialog}>
@@ -310,7 +310,7 @@ export function PapelizSyncSetUpDialog({ papelizSyncEngine, syncEngineSnapshot, 
     return (
       <PapelizSyncDialogFrame
         {...dialogFrameProps}
-        syncDialogTitle="Turn on Sync for this vault"
+        syncDialogTitle="Turn On Sync for This Vault"
         syncDialogIntro={`“${openVaultName}” uploads encrypted, and your other devices can download it. Choose who can read it.`}
         syncDialogFooter={
           <>
@@ -327,7 +327,7 @@ export function PapelizSyncSetUpDialog({ papelizSyncEngine, syncEngineSnapshot, 
                 setSyncSetUpStep({ syncSetUpStepKind: 'vault-passphrase' })
               }}
             >
-              {runningButtonContent(chosenSyncVaultEncryptionKind === 'standard' ? 'Start syncing' : 'Continue')}
+              {runningButtonContent(chosenSyncVaultEncryptionKind === 'standard' ? 'Start Syncing' : 'Continue')}
             </PapelizPillButton>
           </>
         }
@@ -377,7 +377,7 @@ export function PapelizSyncSetUpDialog({ papelizSyncEngine, syncEngineSnapshot, 
     return (
       <PapelizSyncDialogFrame
         {...dialogFrameProps}
-        syncDialogTitle={`Choose a passphrase for “${openVaultName}”`}
+        syncDialogTitle={`Choose a Passphrase for “${openVaultName}”`}
         syncDialogIntro="It locks this vault before anything leaves this device. You type it once on each device that downloads the vault."
         syncDialogFooter={
           <>
@@ -393,7 +393,7 @@ export function PapelizSyncSetUpDialog({ papelizSyncEngine, syncEngineSnapshot, 
               Back
             </PapelizPillButton>
             <PapelizPillButton pillButtonVariant="primary" disabled={!isNewPassphraseReady || isSetUpActionRunning} onClick={startSyncingOpenVault}>
-              {runningButtonContent('Start syncing')}
+              {runningButtonContent('Start Syncing')}
             </PapelizPillButton>
           </>
         }
@@ -428,7 +428,7 @@ export function PapelizSyncSetUpDialog({ papelizSyncEngine, syncEngineSnapshot, 
   return (
     <PapelizSyncDialogFrame
       {...dialogFrameProps}
-      syncDialogTitle={isTransferDone ? `“${transferredVaultName}” syncs` : `Syncing “${transferredVaultName}”`}
+      syncDialogTitle={isTransferDone ? `“${transferredVaultName}” Syncs` : `Syncing “${transferredVaultName}”`}
       syncDialogIntro={
         isTransferDone
           ? 'It’s up to date. Changes now sync by themselves while the vault is open; the status bar shows where they stand.'

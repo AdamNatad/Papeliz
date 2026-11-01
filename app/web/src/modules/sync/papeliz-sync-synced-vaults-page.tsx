@@ -122,7 +122,7 @@ function PapelizSyncDownloadOptionsButton({ isSyncDownloadCopyOnly, onKeepInSync
       <button
         ref={syncDownloadOptionsButtonRef}
         type="button"
-        aria-label="Sync options"
+        aria-label="Sync Options"
         aria-describedby={syncDownloadOptionsTooltipId}
         aria-haspopup="menu"
         aria-expanded={syncDownloadOptionsMenuPosition !== null}
@@ -141,18 +141,18 @@ function PapelizSyncDownloadOptionsButton({ isSyncDownloadCopyOnly, onKeepInSync
           role="tooltip"
           className="pointer-events-none absolute top-full right-0 z-20 mt-1.5 w-[220px] rounded-lg bg-papeliz-ink px-2.5 py-1.5 text-[11.5px] leading-snug text-papeliz-surface opacity-0 shadow-papeliz-pop transition-opacity duration-150 group-focus-within/download-options:opacity-100 group-hover/download-options:opacity-100"
         >
-          <b className="block font-semibold">Sync options</b>
+          <b className="block font-semibold">Sync Options</b>
           It keeps syncing after it downloads. Choose Download a copy only to keep it off Sync.
         </span>
       )}
       {syncDownloadOptionsMenuPosition !== null && (
         <PapelizPopoverMenu
-          menuLabel="Sync options"
+          menuLabel="Sync Options"
           menuPosition={syncDownloadOptionsMenuPosition}
           onMenuClose={() => setSyncDownloadOptionsMenuPosition(null)}
           menuItems={[
-            { menuItemKey: 'keep-synced-vault-in-sync', menuItemLabel: 'Keep it in sync', MenuItemIcon: CloudCheck, isMenuItemChecked: !isSyncDownloadCopyOnly, onMenuItemSelect: onKeepInSyncChoose },
-            { menuItemKey: 'download-synced-vault-copy-only', menuItemLabel: 'Download a copy only', MenuItemIcon: CloudOff, isMenuItemChecked: isSyncDownloadCopyOnly, onMenuItemSelect: onCopyOnlyChoose },
+            { menuItemKey: 'keep-synced-vault-in-sync', menuItemLabel: 'Keep It in Sync', MenuItemIcon: CloudCheck, isMenuItemChecked: !isSyncDownloadCopyOnly, onMenuItemSelect: onKeepInSyncChoose },
+            { menuItemKey: 'download-synced-vault-copy-only', menuItemLabel: 'Download a Copy Only', MenuItemIcon: CloudOff, isMenuItemChecked: isSyncDownloadCopyOnly, onMenuItemSelect: onCopyOnlyChoose },
           ]}
         />
       )}
@@ -425,7 +425,7 @@ export function PapelizSyncSyncedVaultsPage({
         </PapelizSyncSyncedVaultsPageCenteredStep>
       )
       syncedVaultsPagePrimaryAction = {
-        primaryActionLabel: 'Try again',
+        primaryActionLabel: 'Try Again',
         PrimaryActionIcon: RotateCcw,
         onPrimaryActionSelect: () => {
           if (heldSyncedVaultsPagePreview === null) void loadPapelizSyncEngine()
@@ -440,18 +440,18 @@ export function PapelizSyncSyncedVaultsPage({
             {syncedVaultsPageStep === 'device-removed' ? 'This device was signed out of Sync. ' : ''}The sign-in page opens in a new tab.
           </PapelizSyncSyncedVaultsPageStepText>
           <p className="mt-1 text-[12px] text-papeliz-ink-subtle">
-            No subscription? Sync is a paid add-on. <PapelizSyncTextButton onClick={requestPapelizSettingsGearSyncPage}>See plans</PapelizSyncTextButton>
+            No subscription? Sync is a paid add-on. <PapelizSyncTextButton onClick={requestPapelizSettingsGearSyncPage}>See Plans</PapelizSyncTextButton>
           </p>
         </PapelizSyncSyncedVaultsPageCenteredStep>
       )
-      syncedVaultsPagePrimaryAction = { primaryActionLabel: 'Sign in', onPrimaryActionSelect: signInFromClick }
+      syncedVaultsPagePrimaryAction = { primaryActionLabel: 'Sign In', onPrimaryActionSelect: signInFromClick }
       break
     case 'waiting-for-sign-in':
       syncedVaultsPageBody = (
         <PapelizSyncSyncedVaultsPageCenteredStep SyncedVaultsPageStepIcon={Cloud} syncedVaultsPageStepTitle="Finish signing in in the new tab">
           <PapelizSyncSyncedVaultsPageStepText>Papeliz carries on here once you’re signed in.</PapelizSyncSyncedVaultsPageStepText>
           <p className="mt-1 text-[12px] text-papeliz-ink-subtle">
-            Tab didn’t open? <PapelizSyncTextButton onClick={signInFromClick}>Open the sign-in page</PapelizSyncTextButton>
+            Tab didn’t open? <PapelizSyncTextButton onClick={signInFromClick}>Open the Sign-In Page</PapelizSyncTextButton>
           </p>
         </PapelizSyncSyncedVaultsPageCenteredStep>
       )
@@ -465,7 +465,7 @@ export function PapelizSyncSyncedVaultsPage({
           <PapelizSyncSyncedVaultsPageStepText>Papeliz Sync is a paid add-on. Choose a plan, then turn Sync on for a vault on another device to fetch it here.</PapelizSyncSyncedVaultsPageStepText>
         </PapelizSyncSyncedVaultsPageCenteredStep>
       )
-      syncedVaultsPagePrimaryAction = { primaryActionLabel: 'See plans', PrimaryActionIcon: CreditCard, onPrimaryActionSelect: requestPapelizSettingsGearSyncPage }
+      syncedVaultsPagePrimaryAction = { primaryActionLabel: 'See Plans', PrimaryActionIcon: CreditCard, onPrimaryActionSelect: requestPapelizSettingsGearSyncPage }
       break
     case 'subscription-held':
       syncedVaultsPageBody = (
@@ -478,7 +478,7 @@ export function PapelizSyncSyncedVaultsPage({
           </PapelizSyncSyncedVaultsPageStepText>
         </PapelizSyncSyncedVaultsPageCenteredStep>
       )
-      syncedVaultsPagePrimaryAction = { primaryActionLabel: 'See plans', PrimaryActionIcon: CreditCard, onPrimaryActionSelect: requestPapelizSettingsGearSyncPage }
+      syncedVaultsPagePrimaryAction = { primaryActionLabel: 'See Plans', PrimaryActionIcon: CreditCard, onPrimaryActionSelect: requestPapelizSettingsGearSyncPage }
       break
     case 'synced-vault-list': {
       if (accountVaultsOutcome === null) {
@@ -491,7 +491,7 @@ export function PapelizSyncSyncedVaultsPage({
             <PapelizSyncSyncedVaultsPageStepText>{describePapelizSyncActionFailureNow(accountVaultsOutcome)}</PapelizSyncSyncedVaultsPageStepText>
           </PapelizSyncSyncedVaultsPageCenteredStep>
         )
-        syncedVaultsPagePrimaryAction = { primaryActionLabel: 'Try again', PrimaryActionIcon: RotateCcw, onPrimaryActionSelect: () => setAccountVaultsReadCount((readCount) => readCount + 1) }
+        syncedVaultsPagePrimaryAction = { primaryActionLabel: 'Try Again', PrimaryActionIcon: RotateCcw, onPrimaryActionSelect: () => setAccountVaultsReadCount((readCount) => readCount + 1) }
         break
       }
       const accountVaultCount = accountVaultsOutcome.syncActionDoneValue.length
@@ -607,7 +607,7 @@ export function PapelizSyncSyncedVaultsPage({
                         className="inline-flex h-7 flex-none items-center gap-1.5 rounded-full border border-papeliz-line-strong px-3 text-[12.5px] font-semibold text-papeliz-ink hover:bg-papeliz-hover"
                       >
                         <RotateCcw className="size-3.5" aria-hidden="true" />
-                        Try again
+                        Try Again
                       </button>
                     ) : (
                       syncDownloadPercent !== null && <span className="flex-none text-[11.5px] text-papeliz-ink-subtle tabular-nums">{syncDownloadPercent}%</span>
@@ -874,7 +874,7 @@ export function PapelizSyncSyncedVaultsPage({
 
       {isCopyOnlyWarningShown && (
         <PapelizConfirmDialog
-          confirmDialogTitle="Download a copy only?"
+          confirmDialogTitle="Download a Copy Only?"
           confirmDialogBody={
             <>
               <p>“{chosenAccountVaultName}” comes down as a copy that won’t sync.</p>
@@ -884,7 +884,7 @@ export function PapelizSyncSyncedVaultsPage({
               </p>
             </>
           }
-          confirmButtonLabel="Download a copy"
+          confirmButtonLabel="Download a Copy"
           onConfirm={() => {
             setSyncDownloadCopyOnly(true)
             setCopyOnlyWarningShown(false)

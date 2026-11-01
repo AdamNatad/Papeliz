@@ -131,7 +131,7 @@ describe('matching a key press', () => {
 describe('conflicts', () => {
   it('refuses keys another action uses, by its name', () => {
     expect(findPapelizKeyBindingConflict('Mod-i', 'note-format-bold', readTestKeyBindings(), false)).toBe('Italic')
-    expect(findPapelizKeyBindingConflict('Ctrl-Shift-F', 'note-format-bold', readTestKeyBindings(), false)).toBe('Focus mode')
+    expect(findPapelizKeyBindingConflict('Ctrl-Shift-F', 'note-format-bold', readTestKeyBindings(), false)).toBe('Focus Mode')
   })
 
   it('refuses the editor’s own shortcuts', () => {

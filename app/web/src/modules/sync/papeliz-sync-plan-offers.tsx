@@ -66,7 +66,7 @@ export function PapelizSyncPlanOffersSection({ papelizSyncEngine, syncEngineSnap
             setPlanOffersReadCount(planOffersReadCount + 1)
           }}
         >
-          Try again
+          Try Again
         </PapelizSyncTextButton>
       </PapelizSyncFailureLine>
     )

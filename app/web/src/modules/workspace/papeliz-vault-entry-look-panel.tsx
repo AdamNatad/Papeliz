@@ -102,7 +102,7 @@ export function PapelizVaultEntryLookPanel({
     <div
       ref={lookPanelRef}
       role="dialog"
-      aria-label={`Color and icon of ${vaultEntryDisplayName}`}
+      aria-label={`Color and Icon of ${vaultEntryDisplayName}`}
       className="papeliz-pop-enter fixed z-50 max-h-[calc(100dvh-16px)] w-[268px] overflow-y-auto overscroll-contain rounded-2xl border border-papeliz-line bg-papeliz-surface p-3 text-papeliz-ink shadow-papeliz-pop pointer-coarse:w-[300px]"
       style={{ left: clampedLookPanelPosition.menuAnchorLeft, top: clampedLookPanelPosition.menuAnchorTop }}
     >
@@ -114,8 +114,8 @@ export function PapelizVaultEntryLookPanel({
           type="button"
           role="radio"
           aria-checked={currentLook.lookColor === undefined}
-          aria-label="No color"
-          title="No color"
+          aria-label="No Color"
+          title="No Color"
           onClick={() => changeLook({ lookColor: undefined })}
           className={joinPapelizClassNames(swatchClassName, 'bg-papeliz-surface-gray text-papeliz-ink-muted', currentLook.lookColor === undefined && chosenSwatchRingClassName)}
         >
@@ -138,8 +138,8 @@ export function PapelizVaultEntryLookPanel({
           type="button"
           role="radio"
           aria-checked={isCustomColorChosen}
-          aria-label="Your own color"
-          title="Your own color"
+          aria-label="Your Own Color"
+          title="Your Own Color"
           aria-expanded={isCustomColorPickerShown}
           onClick={() => setIsCustomColorPickerShown(!isCustomColorPickerShown)}
           className={joinPapelizClassNames(swatchClassName, 'bg-papeliz-surface-gray text-papeliz-ink-muted', isCustomColorChosen && chosenSwatchRingClassName)}
@@ -151,7 +151,7 @@ export function PapelizVaultEntryLookPanel({
       {isCustomColorPickerShown && (
         <div className="mt-2.5 rounded-xl bg-papeliz-surface-soft p-2">
           <PapelizColorPicker
-            colorPickerLabel="Your own color"
+            colorPickerLabel="Your Own Color"
             initialHexColor={isCustomColorChosen && currentLook.lookColor !== undefined ? currentLook.lookColor : '#0064d4'}
             chooseColorButtonLabel="Use"
             onColorChoose={(chosenHexColor) => {
@@ -195,7 +195,7 @@ export function PapelizVaultEntryLookPanel({
         onClick={() => setVaultEntryLook(vaultEntryRelativePath, {})}
         className="mt-3 text-[12.5px] font-medium text-papeliz-blue hover:underline disabled:pointer-events-none disabled:opacity-40"
       >
-        Reset to default
+        Reset to Default
       </button>
     </div>,
     document.body,
