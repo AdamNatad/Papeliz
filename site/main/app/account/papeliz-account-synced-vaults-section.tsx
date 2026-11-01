@@ -7,6 +7,8 @@ import { PapelizSitePillSwitch } from '@/components/controls/papeliz-site-pill-s
 import {
   papelizAccountCompactDangerButtonClassName,
   papelizAccountCompactPrimaryButtonClassName,
+  papelizAccountCompactSoftBlueButtonClassName,
+  papelizAccountCompactSoftDangerButtonClassName,
   papelizAccountFieldLabelClassName,
   papelizAccountRowActionWidthClassName,
   papelizAccountSecondaryButtonClassName,
@@ -28,8 +30,8 @@ import { describePapelizAccountPastDay } from './papeliz-account-time-descriptio
 
 // The account page's Vaults section (Adam, 2026-11-01: rows like Devices, under a Standard /
 // End-to-end tab switch; "on our account page just call them Vaults"): every vault synced with
-// Papeliz Sync, Delete from Sync on each, and Change Passphrase on an End-to-end one, which runs in
-// this browser. The passphrases never leave it.
+// Papeliz Sync, Remove from Sync on each ("rename this Remove from Sync not Delete from Sync"), and
+// Change Passphrase on an End-to-end one, which runs in this browser. The passphrases never leave it.
 
 export type PapelizAccountSyncVaultListStage =
   | { syncVaultListStageKind: 'not-loaded' }
@@ -180,17 +182,32 @@ function describePapelizAccountSyncVaultByteSize(syncVaultStoredByteLength: numb
   return `${syncVaultByteSizeNumberText} ${papelizAccountSyncVaultByteSizeUnits[syncVaultByteSizeUnitIndex]}`
 }
 
-// "128 files · 4.2 MB · Syncing since Oct 2". Sync keeps no last-sync time for a vault, only when it
-// was made.
-function describePapelizAccountSyncVault(syncVaultRecord: PapelizAccountSyncVaultRecord, currentTime: number): string {
+// "128 files", "4.2 MB", "Syncing since Oct 2", shown as "128 files · 4.2 MB · Syncing since Oct 2".
+// Sync keeps no last-sync time for a vault, only when it was made.
+function describePapelizAccountSyncVaultDetailPieces(syncVaultRecord: PapelizAccountSyncVaultRecord, currentTime: number): readonly string[] {
   const syncVaultFileCountText = `${syncVaultRecord.syncVaultFileCount.toLocaleString('en-US')} ${syncVaultRecord.syncVaultFileCount === 1 ? 'file' : 'files'}`
   const syncVaultByteSizeText = describePapelizAccountSyncVaultByteSize(syncVaultRecord.syncVaultStoredByteLength)
-  return `${syncVaultFileCountText} · ${syncVaultByteSizeText} · Syncing since ${describePapelizAccountPastDay(syncVaultRecord.syncVaultCreatedAt, currentTime)}`
+  return [syncVaultFileCountText, syncVaultByteSizeText, `Syncing since ${describePapelizAccountPastDay(syncVaultRecord.syncVaultCreatedAt, currentTime)}`]
+}
+
+// The pieces joined by dots, each kept whole, so a narrow line breaks only between pieces and the dot
+// stays at the end of the line it follows.
+function PapelizAccountSyncVaultDetailPieces({ syncVaultDetailPieces }: { syncVaultDetailPieces: readonly string[] }) {
+  return syncVaultDetailPieces.map((syncVaultDetailPiece, syncVaultDetailPieceIndex) => (
+    <span key={syncVaultDetailPieceIndex}>
+      {syncVaultDetailPieceIndex > 0 && ' '}
+      <span className="whitespace-nowrap">
+        {syncVaultDetailPiece}
+        {syncVaultDetailPieceIndex < syncVaultDetailPieces.length - 1 && ' ·'}
+      </span>
+    </span>
+  ))
 }
 
 // One line of the list, or of its loading, failed and empty states: an icon tile, a title over a
 // detail, and the actions on the right. A line with `onSyncVaultLinePhoneTap` is one tap target on a
-// phone, with a chevron, and shows its actions only on a computer.
+// phone, with a chevron, and shows its actions only on a computer. Where the actions would leave the
+// detail less than 12rem, as on a tablet, they move under it, still on the right.
 function PapelizAccountSyncVaultLine({
   SyncVaultLineIcon,
   syncVaultLineTitle,
@@ -201,23 +218,23 @@ function PapelizAccountSyncVaultLine({
 }: {
   SyncVaultLineIcon: LucideIcon
   syncVaultLineTitle: string
-  syncVaultLineDetail: string
+  syncVaultLineDetail: ReactNode
   syncVaultLineActions?: ReactNode
   syncVaultLinePhoneTapLabel?: string
   onSyncVaultLinePhoneTap?: () => void
 }) {
   return (
-    <div className="relative flex min-h-[58px] items-center gap-3 border-b border-papeliz-line px-3.5 py-2.5 last:border-b-0 md:gap-4 md:px-0 md:py-4 md:last:border-b">
+    <div className="relative flex min-h-[58px] items-center gap-3 border-b border-papeliz-line px-3.5 py-2.5 last:border-b-0 md:flex-wrap md:gap-4 md:px-0 md:py-4 md:last:border-b">
       <span className="grid size-9 shrink-0 place-items-center rounded-lg border border-papeliz-line bg-papeliz-surface-soft">
         <SyncVaultLineIcon className="size-[18px] text-papeliz-ink-muted" aria-hidden="true" />
       </span>
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 md:basis-48">
         <h2 className="text-[14.5px] font-semibold break-words md:text-base">{syncVaultLineTitle}</h2>
         <p className="mt-0.5 text-[13px] text-pretty text-papeliz-ink-muted md:text-sm">{syncVaultLineDetail}</p>
       </div>
       {onSyncVaultLinePhoneTap ? (
         <>
-          <div className="flex shrink-0 items-center gap-2 max-md:hidden">{syncVaultLineActions}</div>
+          <div className="flex shrink-0 items-center gap-2 max-md:hidden md:ml-auto">{syncVaultLineActions}</div>
           <button
             type="button"
             aria-haspopup="dialog"
@@ -229,7 +246,7 @@ function PapelizAccountSyncVaultLine({
           </button>
         </>
       ) : (
-        syncVaultLineActions
+        syncVaultLineActions && <div className="flex shrink-0 items-center gap-2 md:ml-auto">{syncVaultLineActions}</div>
       )}
     </div>
   )
@@ -251,12 +268,12 @@ export function PapelizAccountSyncedVaultsSection({ papelizAccountSyncedVaults }
 
   return (
     <>
-      <PapelizAccountSectionIntro>The vaults synced to your account. Deleting one from Sync leaves its notes on your devices.</PapelizAccountSectionIntro>
+      <PapelizAccountSectionIntro>The vaults synced to your account. Removing one from Sync leaves its notes on your devices.</PapelizAccountSectionIntro>
       {/* The site's pill switch, as tabs, with its bounce (Adam, 2026-11-01: "standard to end to end
           swatch on accounts should have our swatch bounce animation"). */}
       <div className="mb-3 md:mt-4 md:mb-1 md:w-[340px]">
         <PapelizSitePillSwitch
-          papelizSitePillSwitchLabel="Kind of vault"
+          papelizSitePillSwitchLabel="Vault encryption"
           papelizSitePillSwitchVariant="compact"
           papelizSitePillSwitchOptionWidths="equal"
           papelizSitePillSwitchRole={{
@@ -271,6 +288,11 @@ export function PapelizAccountSyncedVaultsSection({ papelizAccountSyncedVaults }
             const syncVaultKindCount = listedSyncVaultRecords?.filter((syncVaultRecord) => syncVaultRecord.syncVaultEncryptionKind === syncVaultEncryptionKind).length
             return {
               papelizSitePillSwitchOptionValue: syncVaultEncryptionKind,
+              // "End-to-end, 1 vault"; just the name until the list loads.
+              papelizSitePillSwitchOptionAccessibleName:
+                syncVaultKindCount === undefined
+                  ? syncVaultEncryptionKindName
+                  : `${syncVaultEncryptionKindName}, ${syncVaultKindCount} ${syncVaultKindCount === 1 ? 'vault' : 'vaults'}`,
               papelizSitePillSwitchOptionLabel: (
                 <>
                   <SyncVaultEncryptionKindIcon className="size-[15px] shrink-0" aria-hidden="true" />
@@ -285,9 +307,7 @@ export function PapelizAccountSyncedVaultsSection({ papelizAccountSyncedVaults }
                       syncVaultEncryptionKind === chosenSyncVaultEncryptionKind ? 'bg-white/20' : 'bg-papeliz-surface'
                     }`}
                   >
-                    <span className="sr-only">, </span>
                     {syncVaultKindCount}
-                    <span className="sr-only">{syncVaultKindCount === 1 ? ' vault' : ' vaults'}</span>
                   </span>
                 ),
             }
@@ -342,15 +362,15 @@ export function PapelizAccountSyncedVaultsSection({ papelizAccountSyncedVaults }
           )}
           {chosenSyncVaultRecords?.map((syncVaultRecord) => {
             const syncVaultIsEndToEnd = syncVaultRecord.syncVaultEncryptionKind === 'end-to-end'
-            const syncVaultDetail = describePapelizAccountSyncVault(syncVaultRecord, currentTime)
+            const syncVaultDetailPieces = describePapelizAccountSyncVaultDetailPieces(syncVaultRecord, currentTime)
             const papelizSyncVaultId = syncVaultRecord.papelizSyncVaultId
             return (
               <PapelizAccountSyncVaultLine
                 key={papelizSyncVaultId}
                 SyncVaultLineIcon={chosenSyncVaultEncryptionKindLabels.SyncVaultEncryptionKindIcon}
                 syncVaultLineTitle={syncVaultRecord.syncVaultName}
-                syncVaultLineDetail={syncVaultDetail}
-                syncVaultLinePhoneTapLabel={`${syncVaultRecord.syncVaultName}, ${syncVaultDetail}: ${syncVaultIsEndToEnd ? 'Change Passphrase or Delete from Sync' : 'Delete from Sync'}`}
+                syncVaultLineDetail={<PapelizAccountSyncVaultDetailPieces syncVaultDetailPieces={syncVaultDetailPieces} />}
+                syncVaultLinePhoneTapLabel={`${syncVaultRecord.syncVaultName}, ${syncVaultDetailPieces.join(' · ')}: ${syncVaultIsEndToEnd ? 'Change Passphrase or Remove from Sync' : 'Remove from Sync'}`}
                 onSyncVaultLinePhoneTap={() => chooseSyncVaultDialog({ syncVaultDialogKind: 'actions', papelizSyncVaultId })}
                 syncVaultLineActions={
                   <>
@@ -360,7 +380,7 @@ export function PapelizAccountSyncedVaultsSection({ papelizAccountSyncedVaults }
                         aria-haspopup="dialog"
                         aria-label={`Change Passphrase for ${syncVaultRecord.syncVaultName}`}
                         onClick={() => chooseSyncVaultDialog({ syncVaultDialogKind: 'change-passphrase', papelizSyncVaultId })}
-                        className={papelizAccountSecondaryButtonClassName}
+                        className={papelizAccountCompactSoftBlueButtonClassName}
                       >
                         Change Passphrase
                       </button>
@@ -368,11 +388,11 @@ export function PapelizAccountSyncedVaultsSection({ papelizAccountSyncedVaults }
                     <button
                       type="button"
                       aria-haspopup="dialog"
-                      aria-label={`Delete ${syncVaultRecord.syncVaultName} from Sync`}
+                      aria-label={`Remove ${syncVaultRecord.syncVaultName} from Sync`}
                       onClick={() => chooseSyncVaultDialog({ syncVaultDialogKind: 'delete', papelizSyncVaultId })}
-                      className={`${papelizAccountCompactDangerButtonClassName} ${papelizAccountRowActionWidthClassName}`}
+                      className={`${papelizAccountCompactSoftDangerButtonClassName} ${papelizAccountRowActionWidthClassName}`}
                     >
-                      Delete from Sync
+                      Remove from Sync
                     </button>
                   </>
                 }
@@ -415,7 +435,7 @@ export function PapelizAccountSyncedVaultsDialogs({
       <PapelizAccountSyncVaultActionsDialog
         key={`actions-${chosenSyncVaultRecord.papelizSyncVaultId}`}
         syncVaultRecord={chosenSyncVaultRecord}
-        syncVaultDetail={describePapelizAccountSyncVault(chosenSyncVaultRecord, currentTime)}
+        syncVaultDetailPieces={describePapelizAccountSyncVaultDetailPieces(chosenSyncVaultRecord, currentTime)}
         chooseSyncVaultDialog={chooseSyncVaultDialog}
       />
     )
@@ -452,11 +472,11 @@ const papelizAccountSyncVaultActionButtonClassName =
 // A phone's tap on a row: the vault, what it holds, and its actions.
 function PapelizAccountSyncVaultActionsDialog({
   syncVaultRecord,
-  syncVaultDetail,
+  syncVaultDetailPieces,
   chooseSyncVaultDialog,
 }: {
   syncVaultRecord: PapelizAccountSyncVaultRecord
-  syncVaultDetail: string
+  syncVaultDetailPieces: readonly string[]
   chooseSyncVaultDialog: (syncVaultDialogChoice: PapelizAccountSyncVaultDialogChoice | null) => void
 }) {
   const { syncVaultEncryptionKindName, syncVaultEncryptionKindExplanationForOneVault } = papelizAccountSyncVaultEncryptionKindLabels[syncVaultRecord.syncVaultEncryptionKind]
@@ -472,7 +492,9 @@ function PapelizAccountSyncVaultActionsDialog({
       }
     >
       <p>
-        <span className="font-semibold text-papeliz-ink">{syncVaultEncryptionKindName}</span> · {syncVaultDetail}
+        <span className="font-semibold text-papeliz-ink">{syncVaultEncryptionKindName}</span>
+        {' · '}
+        <PapelizAccountSyncVaultDetailPieces syncVaultDetailPieces={syncVaultDetailPieces} />
       </p>
       <p>{syncVaultEncryptionKindExplanationForOneVault}</p>
       <div className="mt-1 grid gap-2">
@@ -492,7 +514,7 @@ function PapelizAccountSyncVaultActionsDialog({
           className={`${papelizAccountSyncVaultActionButtonClassName} text-papeliz-diff-removed-ink`}
         >
           <Trash2 className="size-[18px] shrink-0" aria-hidden="true" />
-          Delete from Sync
+          Remove from Sync
         </button>
       </div>
     </PapelizAccountDialog>
@@ -819,7 +841,7 @@ function PapelizAccountSyncVaultPassphraseChangeDialog({
 
 type PapelizAccountSyncVaultDeletionStageKind = 'confirming' | 'deleting' | 'sign-in-ended' | 'failed'
 
-// Delete from Sync: the synced copy, its old versions and its stored key go; every device keeps its
+// Remove from Sync: the synced copy, its old versions and its stored key go; every device keeps its
 // files. The vault's name is typed first. Any live sign-in will do; no recent one is needed.
 function PapelizAccountSyncVaultDeletionDialog({
   papelizAccountSyncService,
@@ -886,14 +908,14 @@ function PapelizAccountSyncVaultDeletionDialog({
           </>
         }
       >
-        <p>Your sign-in on this page has ended. Sign in again, then delete the vault from Sync.</p>
+        <p>Your sign-in on this page has ended. Sign in again, then remove the vault from Sync.</p>
       </PapelizAccountDialog>
     )
   }
 
   return (
     <PapelizAccountDialog
-      papelizAccountDialogTitle={`Delete “${syncVaultName}” from Sync?`}
+      papelizAccountDialogTitle={`Remove “${syncVaultName}” from Sync?`}
       onPapelizAccountDialogClose={closeDeletionDialog}
       papelizAccountDialogFooter={
         <>
@@ -906,7 +928,7 @@ function PapelizAccountSyncVaultDeletionDialog({
             onClick={() => void deletePapelizAccountSyncVault()}
             className={papelizAccountCompactDangerButtonClassName}
           >
-            {syncVaultDeletionIsRunning ? 'Deleting…' : syncVaultDeletionStageKind === 'failed' ? 'Try Again' : 'Delete from Sync'}
+            {syncVaultDeletionIsRunning ? 'Removing…' : syncVaultDeletionStageKind === 'failed' ? 'Try Again' : 'Remove from Sync'}
           </button>
         </>
       }

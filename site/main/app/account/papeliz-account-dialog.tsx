@@ -3,8 +3,10 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react'
 import papelizAccountStyles from './papeliz-account.module.css'
 
-// The account page's dialog: a title, the body, then the footer's buttons (Close first, the main
-// action last). Escape, a click outside it and the footer's Close all close it, and focus goes back
+// The account page's dialog: a title, the body, then the footer's buttons: Cancel or Close at the
+// left edge, the main action at the right edge, the same width (Adam, 2026-11-01: "move the cancel to
+// the opposite side and make them uniform"); a lone button sits on the right, and on a phone the two
+// share the row. Escape, a click outside it and the footer's Close all close it, and focus goes back
 // to the button that opened it. A dialog asking to sign in again closes only from its own buttons.
 export function PapelizAccountDialog({
   papelizAccountDialogTitle,
@@ -86,7 +88,9 @@ export function PapelizAccountDialog({
         </h2>
       </header>
       <div className="grid gap-3 px-5 py-6 text-[15px] leading-relaxed text-pretty text-papeliz-ink-muted sm:px-6">{children}</div>
-      <footer className="flex flex-wrap justify-end gap-2 border-t border-papeliz-line px-5 py-4 sm:px-6 max-sm:[&>*]:flex-1">{papelizAccountDialogFooter}</footer>
+      <footer className="flex flex-wrap justify-between gap-2 border-t border-papeliz-line px-5 py-4 max-sm:grid max-sm:auto-cols-fr max-sm:grid-flow-col sm:px-6 sm:[&>*]:min-w-38 sm:[&>:only-child]:ml-auto">
+        {papelizAccountDialogFooter}
+      </footer>
     </dialog>
   )
 }

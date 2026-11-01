@@ -390,7 +390,7 @@ function PapelizAccountProfileSection({
 }
 
 // Sync shows the plans to buy; Vaults lists the synced vaults, with Change Passphrase and
-// Delete from Sync (Adam, 2026-11-01); Devices lists the devices signed in to Sync, with Remove (Adam,
+// Remove from Sync (Adam, 2026-11-01); Devices lists the devices signed in to Sync, with Remove (Adam,
 // 2026-10-31); Billing lists what it covers.
 function PapelizAccountPlansVaultsDevicesAndBillingSection({
   papelizAccountSectionId,

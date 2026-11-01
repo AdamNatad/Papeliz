@@ -19,7 +19,7 @@ export const papelizAccountSyncAccountDeletionFromSignInPagePath = '/api/account
 // `{ syncDeviceRecords }` (an empty list when the sign-in has no Sync account); DELETE with a device ID
 // answers `{ removedPapelizSyncDeviceId }`, with any valid sign-in.
 export const papelizAccountSyncDevicesFromSignInPagePath = '/api/account/v1/devices-from-sign-in-page'
-// The Vaults section's list, Change Passphrase and Delete from Sync, from a sign-in token and
+// The Vaults section's list, Change Passphrase and Remove from Sync, from a sign-in token and
 // no device: GET answers `{ papelizSyncAccountId, syncAccountVaultRecords }` (an empty list when the
 // sign-in has no Sync account); PUT `…/:papelizSyncVaultId/passphrase-wrapped-key` answers
 // `{ syncAccountVaultRecord }`, and needs a sign-in in the last 10 minutes; DELETE
@@ -121,7 +121,7 @@ export interface PapelizAccountSyncService {
   listPapelizSyncDevices(signInToken: string): Promise<PapelizAccountSyncDeviceListOutcome>
   removePapelizSyncDeviceFromSignInPage(signInToken: string, papelizSyncDeviceId: string): Promise<PapelizAccountSyncDeviceRemovalOutcome>
   // The Vaults section: every synced vault, Change Passphrase for an End-to-end one (its new
-  // wrapped copy is made on this page), and Delete from Sync, which leaves every device's files.
+  // wrapped copy is made on this page), and Remove from Sync, which leaves every device's files.
   listPapelizSyncVaults(signInToken: string): Promise<PapelizAccountSyncVaultListOutcome>
   replacePapelizSyncVaultPassphraseWrappedKey(
     signInToken: string,

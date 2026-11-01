@@ -8,6 +8,9 @@ export type PapelizSitePillSwitchOption<PapelizSitePillSwitchValue extends strin
   papelizSitePillSwitchOptionLabel: ReactNode
   // Beside the label, above the pill: a badge, a count.
   papelizSitePillSwitchOptionExtra?: ReactNode
+  // The option's name for a screen reader, when the label and extra together don't read as one, such
+  // as an icon, a name and a bare count.
+  papelizSitePillSwitchOptionAccessibleName?: string
   papelizSitePillSwitchOptionDescribedById?: string
 }
 
@@ -152,6 +155,7 @@ export function PapelizSitePillSwitch<PapelizSitePillSwitchValue extends string>
             }}
             type="button"
             data-papeliz-pill-switch-chosen={papelizSitePillSwitchOptionIsChosen}
+            aria-label={papelizSitePillSwitchOption.papelizSitePillSwitchOptionAccessibleName}
             aria-describedby={papelizSitePillSwitchOption.papelizSitePillSwitchOptionDescribedById}
             {...(papelizSitePillSwitchRole.papelizSitePillSwitchRoleKind === 'tabs'
               ? {
