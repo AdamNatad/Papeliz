@@ -591,12 +591,12 @@ function serveStaticDirectory(launcherTarget, { openBrowser }) {
 }
 
 // ---- webapp start sync-local --------------------------------------------------------------------
-// One `wrangler dev` runs the real Account Worker and Sync Worker, from their own wrangler.jsonc, behind
-// the router Worker (build_tools/webapp/papeliz-sync-local-workers-router.mjs), with their local D1,
-// Durable Objects and R2 kept in a Git-ignored folder across runs. The site's dev server serves
-// /account/, and the webapp's dev server serves the real engine and puts both on the app's origin
-// (papeliz-sync-engine-vite-plugin.mjs). Nothing reaches Cloudflare; /account/ signs in with the
-// sign-in provider's development instance.
+// One `wrangler dev` runs the real Account Worker, Sync Worker and Templates Worker, from their own
+// wrangler.jsonc, behind the router Worker (build_tools/webapp/papeliz-sync-local-workers-router.mjs),
+// with their local D1, Durable Objects and R2 kept in a Git-ignored folder across runs. The site's dev
+// server serves /account/, and the webapp's dev server serves the real engine and puts both on the
+// app's origin (papeliz-sync-engine-vite-plugin.mjs). Nothing reaches Cloudflare; /account/ signs in
+// with the sign-in provider's development instance.
 
 const papelizSyncLocalWorkersStateDirectory = path.join(papelizRepositoryRoot, '.papeliz-sync-local-workers')
 const papelizSyncLocalWranglerStateDirectory = path.join(papelizSyncLocalWorkersStateDirectory, 'wrangler-state')
@@ -606,8 +606,10 @@ const papelizSyncSignInPageDevServerPort = 14203
 // (site/main/app/account/papeliz-account-config.ts): the Account Worker checks its tokens.
 const papelizSyncLocalSignInProviderOrigin = 'https://certain-cub-9360.clerk.accounts.dev'
 const papelizSyncLocalGrantSigningKeyId = 'papeliz-sync-local-workers-grant-key'
-// How the Account Worker binds each shard of its account directory.
+// How the Account Worker binds each shard of its account directory, and the Templates Worker each shard
+// of its gallery.
 const papelizSyncAccountDirectoryShardBindingPattern = /^PAPELIZ_SYNC_ACCOUNT_DIRECTORY_S\d{4}$/
+const papelizTemplateGalleryShardBindingPattern = /^PAPELIZ_TEMPLATE_GALLERY_S\d{4}$/
 // Made-up R2 signing values: the router answers the links they sign, and nothing is sent to R2.
 const papelizSyncLocalR2SigningSettings = {
   PAPELIZ_SYNC_R2_CLOUDFLARE_ACCOUNT_ID: '00000000000000000000000000000000',
@@ -638,6 +640,17 @@ function readOrCreatePapelizSyncLocalStandardVaultKeyWrapSecret() {
   return standardVaultKeyWrapSecretText
 }
 
+// The Templates Worker keys each account's hash with this secret: 32 random bytes as base64url, made on
+// the first run and kept, so local votes and reports still belong to their accounts after a restart.
+// Never printed.
+function readOrCreatePapelizTemplateGalleryLocalAccountHashSecret() {
+  const accountHashSecretFilePath = path.join(papelizSyncLocalWorkersStateDirectory, 'papeliz-template-gallery-local-account-hash-secret.txt')
+  if (existsSync(accountHashSecretFilePath)) return readFileSync(accountHashSecretFilePath, 'utf8').trim()
+  const accountHashSecretText = Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64url')
+  writeFileSync(accountHashSecretFilePath, `${accountHashSecretText}\n`)
+  return accountHashSecretText
+}
+
 // A Worker's generated wrangler.json and, beside it, the .dev.vars that `wrangler dev` reads for it.
 function writePapelizSyncLocalWorkerFiles(workerFolderName, workerConfig, workerDevVars) {
   const workerFolder = path.join(papelizSyncLocalWorkersStateDirectory, workerFolderName)
@@ -657,7 +670,12 @@ async function preparePapelizSyncLocalWorkers(webappSyncLocalOrigin) {
   const syncWorkspaceRoot = path.join(papelizRepositoryRoot, 'sync')
   const accountWorkerFolder = path.join(syncWorkspaceRoot, 'papeliz-sync-account-worker')
   const vaultWorkerFolder = path.join(syncWorkspaceRoot, 'papeliz-sync-vault-worker')
-  if (!existsSync(path.join(accountWorkerFolder, 'wrangler.jsonc')) || !existsSync(path.join(vaultWorkerFolder, 'wrangler.jsonc'))) {
+  const templateGalleryWorkerFolder = path.join(syncWorkspaceRoot, 'papeliz-template-gallery-worker')
+  if (
+    !existsSync(path.join(accountWorkerFolder, 'wrangler.jsonc')) ||
+    !existsSync(path.join(vaultWorkerFolder, 'wrangler.jsonc')) ||
+    !existsSync(path.join(templateGalleryWorkerFolder, 'wrangler.jsonc'))
+  ) {
     throw new PapelizLauncherError('This checkout has no Papeliz Sync Workers (sync/), so there is nothing to run locally.')
   }
   if (!existsSync(path.join(syncWorkspaceRoot, 'node_modules'))) throw new PapelizLauncherError("Papeliz Sync's packages aren't installed. Run: pnpm --dir sync install")
@@ -665,20 +683,37 @@ async function preparePapelizSyncLocalWorkers(webappSyncLocalOrigin) {
   const wranglerPackageJsonPath = requireFromAccountWorker.resolve('wrangler/package.json')
   const wranglerCommandFilePath = path.join(path.dirname(wranglerPackageJsonPath), JSON.parse(readFileSync(wranglerPackageJsonPath, 'utf8')).bin.wrangler)
   const { experimental_readRawConfig: readWranglerRawConfig } = await import(pathToFileURL(requireFromAccountWorker.resolve('wrangler')).href)
+  // Each path in a Worker's config is made absolute: its main module, its D1 migrations and its module
+  // aliases (the Templates Worker bundles the webapp's template checks through them).
   const readWorkerConfigForLocalRun = (workerFolder) => {
     const { routes: _cloudflareRoutes, ...workerConfig } = readWranglerRawConfig({ config: path.join(workerFolder, 'wrangler.jsonc') }).rawConfig
-    return { ...workerConfig, main: path.resolve(workerFolder, workerConfig.main) }
+    const localWorkerConfig = { ...workerConfig, main: path.resolve(workerFolder, workerConfig.main) }
+    if (workerConfig.d1_databases !== undefined) {
+      localWorkerConfig.d1_databases = workerConfig.d1_databases.map((d1Database) => ({
+        ...d1Database,
+        migrations_dir: path.resolve(workerFolder, d1Database.migrations_dir ?? 'migrations'),
+      }))
+    }
+    if (workerConfig.alias !== undefined) {
+      localWorkerConfig.alias = Object.fromEntries(
+        Object.entries(workerConfig.alias).map(([aliasedModuleName, aliasedModulePath]) => [aliasedModuleName, path.resolve(workerFolder, aliasedModulePath)]),
+      )
+    }
+    return localWorkerConfig
   }
   const accountWorkerConfig = readWorkerConfigForLocalRun(accountWorkerFolder)
-  accountWorkerConfig.d1_databases = (accountWorkerConfig.d1_databases ?? []).map((d1Database) => ({
-    ...d1Database,
-    migrations_dir: path.resolve(accountWorkerFolder, d1Database.migrations_dir ?? 'migrations'),
-  }))
+  accountWorkerConfig.d1_databases ??= []
   const vaultWorkerConfig = readWorkerConfigForLocalRun(vaultWorkerFolder)
+  const templateGalleryWorkerConfig = readWorkerConfigForLocalRun(templateGalleryWorkerFolder)
   // The account directory's shards, each its own local D1 database (sync/README.md, "Account directory").
   const accountDirectoryShardDatabases = accountWorkerConfig.d1_databases.filter((d1Database) => papelizSyncAccountDirectoryShardBindingPattern.test(d1Database.binding ?? ''))
   if (accountDirectoryShardDatabases.length === 0) {
     throw new PapelizLauncherError("The Account Worker's wrangler.jsonc binds no account directory shard (PAPELIZ_SYNC_ACCOUNT_DIRECTORY_S<4 digits>).")
+  }
+  // The template gallery's shards, each its own local D1 database.
+  const templateGalleryShardDatabases = (templateGalleryWorkerConfig.d1_databases ?? []).filter((d1Database) => papelizTemplateGalleryShardBindingPattern.test(d1Database.binding ?? ''))
+  if (templateGalleryShardDatabases.length === 0) {
+    throw new PapelizLauncherError("The Templates Worker's wrangler.jsonc binds no gallery shard (PAPELIZ_TEMPLATE_GALLERY_S<4 digits>).")
   }
 
   mkdirSync(papelizSyncLocalWorkersStateDirectory, { recursive: true })
@@ -693,6 +728,7 @@ async function preparePapelizSyncLocalWorkers(webappSyncLocalOrigin) {
       services: [
         { binding: 'PAPELIZ_SYNC_ACCOUNT_WORKER', service: accountWorkerConfig.name },
         { binding: 'PAPELIZ_SYNC_VAULT_WORKER', service: vaultWorkerConfig.name },
+        { binding: 'PAPELIZ_TEMPLATE_GALLERY_WORKER', service: templateGalleryWorkerConfig.name },
       ],
       durable_objects: { bindings: [{ name: 'PAPELIZ_SYNC_ACCOUNT_DURABLE_OBJECT', class_name: 'PapelizSyncAccountDurableObject', script_name: accountWorkerConfig.name }] },
       d1_databases: accountDirectoryShardDatabases,
@@ -715,11 +751,22 @@ async function preparePapelizSyncLocalWorkers(webappSyncLocalOrigin) {
     ...papelizSyncLocalR2SigningSettings,
     PAPELIZ_SYNC_LOCAL_RUNTIME_WITHOUT_JURISDICTIONS: 'true',
   })
+  // The same sign-in as the Account Worker's. Its admin route stays off (no Cloudflare Access here), and
+  // Submit and Recheck reach the real GitHub and jsDelivr.
+  const templateGalleryWorkerConfigFilePath = writePapelizSyncLocalWorkerFiles(templateGalleryWorkerConfig.name, templateGalleryWorkerConfig, {
+    PAPELIZ_TEMPLATE_GALLERY_ACCOUNT_HASH_SECRET: readOrCreatePapelizTemplateGalleryLocalAccountHashSecret(),
+    PAPELIZ_TEMPLATE_GALLERY_SNAPSHOT_CACHE_KEY_URL: `${webappSyncLocalOrigin}/api/templates/gallery`,
+    PAPELIZ_TEMPLATE_GALLERY_ALLOWED_SIGN_IN_ORIGINS: webappSyncLocalOrigin,
+    PAPELIZ_TEMPLATE_GALLERY_SIGN_IN_TOKEN_ISSUER: papelizSyncLocalSignInProviderOrigin,
+    PAPELIZ_TEMPLATE_GALLERY_SIGN_IN_JWKS_URL: `${papelizSyncLocalSignInProviderOrigin}/.well-known/jwks.json`,
+  })
   return {
     wranglerCommandFilePath,
     accountDirectoryShardDatabases,
     accountWorkerConfigFilePath,
-    workerConfigFilePaths: [routerConfigFilePath, accountWorkerConfigFilePath, vaultWorkerConfigFilePath],
+    templateGalleryShardDatabases,
+    templateGalleryWorkerConfigFilePath,
+    workerConfigFilePaths: [routerConfigFilePath, accountWorkerConfigFilePath, vaultWorkerConfigFilePath, templateGalleryWorkerConfigFilePath],
   }
 }
 
@@ -773,7 +820,7 @@ async function runPapelizSyncLocalWorkersTarget(launcherRequest, launcherTarget,
   const stateDirectoryForDisplay = path.relative(papelizRepositoryRoot, papelizSyncLocalWorkersStateDirectory)
   if (launcherRequest.dryRun) {
     console.log(` [plan] Write each Worker's local config and .dev.vars into ${stateDirectoryForDisplay}/ (Git-ignored), with a made-up grant signing key and Standard vault key wrap secret kept there`)
-    console.log(` [plan] wrangler d1 migrations apply <each account directory shard> --local, then wrangler dev with the router, Account and Sync Workers on ${localWorkersRouterOrigin}`)
+    console.log(` [plan] wrangler d1 migrations apply <each account directory and template gallery shard> --local, then wrangler dev with the router, Account, Sync and Templates Workers on ${localWorkersRouterOrigin}`)
     console.log(` [plan] pnpm run site:dev ${nextServerArguments(papelizSyncSignInPageDevServerPort).join(' ')} (unless a server already answers on ${papelizSyncSignInPageDevServerPort})`)
     console.log(` [plan] pnpm ${webappScriptArguments.join(' ')}, with the real Sync engine and its proxy to ${localWorkersRouterOrigin} and ${signInPageDevServerOrigin}`)
     return 0
@@ -784,13 +831,25 @@ async function runPapelizSyncLocalWorkersTarget(launcherRequest, launcherTarget,
   }
   const preparedLocalWorkers = await preparePapelizSyncLocalWorkers(webappSyncLocalOrigin)
   console.log(` [ready] Local Workers' configs and settings in ${stateDirectoryForDisplay}/`)
-  // Each shard of the account directory gets the same migrations. CI makes wrangler apply them without
-  // asking first.
-  for (const accountDirectoryShardDatabase of preparedLocalWorkers.accountDirectoryShardDatabases) {
-    const shardDescription = `account directory shard ${accountDirectoryShardDatabase.database_name} (${accountDirectoryShardDatabase.binding})`
+  // Each shard of the account directory, and of the template gallery, gets its Worker's migrations. CI
+  // makes wrangler apply them without asking first.
+  const localShardMigrations = [
+    ...preparedLocalWorkers.accountDirectoryShardDatabases.map((shardDatabase) => ({
+      shardDatabase,
+      shardKindDescription: 'account directory shard',
+      workerConfigFilePath: preparedLocalWorkers.accountWorkerConfigFilePath,
+    })),
+    ...preparedLocalWorkers.templateGalleryShardDatabases.map((shardDatabase) => ({
+      shardDatabase,
+      shardKindDescription: 'template gallery shard',
+      workerConfigFilePath: preparedLocalWorkers.templateGalleryWorkerConfigFilePath,
+    })),
+  ]
+  for (const { shardDatabase, shardKindDescription, workerConfigFilePath } of localShardMigrations) {
+    const shardDescription = `${shardKindDescription} ${shardDatabase.database_name} (${shardDatabase.binding})`
     const migrationsExitCode = await runForeground(
       process.execPath,
-      [preparedLocalWorkers.wranglerCommandFilePath, 'd1', 'migrations', 'apply', accountDirectoryShardDatabase.database_name, '--local', '--persist-to', papelizSyncLocalWranglerStateDirectory, '-c', preparedLocalWorkers.accountWorkerConfigFilePath],
+      [preparedLocalWorkers.wranglerCommandFilePath, 'd1', 'migrations', 'apply', shardDatabase.database_name, '--local', '--persist-to', papelizSyncLocalWranglerStateDirectory, '-c', workerConfigFilePath],
       { cwd: papelizSyncLocalWorkersStateDirectory, extraEnvironment: { CI: 'true' } },
     )
     if (migrationsExitCode !== 0) throw new PapelizLauncherError(`Applying the migrations to the local ${shardDescription} failed.`)
@@ -828,7 +887,7 @@ async function runPapelizSyncLocalWorkersTarget(launcherRequest, launcherTarget,
     stopSyncLocalServers()
     throw new PapelizLauncherError('The local Sync Workers did not start; see the workers log.')
   }
-  console.log(` [ready] Local Account and Sync Workers at ${localWorkersRouterOrigin}`)
+  console.log(` [ready] Local Account, Sync and Templates Workers at ${localWorkersRouterOrigin}`)
 
   if (await isLoopbackPortFree(papelizSyncSignInPageDevServerPort)) {
     syncLocalServers.push(startPapelizSyncLocalServer({

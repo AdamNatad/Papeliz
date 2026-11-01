@@ -33,6 +33,8 @@ function buildPapelizSyncLocalWorkersDevProxy(papelizSyncLocalWorkersOrigin, pap
     '/api/account/': { target: papelizSyncLocalWorkersOrigin },
     // The live connection is a WebSocket on this route.
     '/api/sync/': { target: papelizSyncLocalWorkersOrigin, ws: true },
+    // Papeliz Templates' list, Submit, Recheck, votes and reports, on the local Templates Worker.
+    '/api/templates/': { target: papelizSyncLocalWorkersOrigin },
     '/papeliz-sync-local-r2-storage/': { target: papelizSyncLocalWorkersOrigin },
     '/papeliz-sync-local-workers/': { target: papelizSyncLocalWorkersOrigin },
     // The sign-in page, its scripts and hot reload, and the site files it links. The webapp's own

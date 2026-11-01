@@ -1,8 +1,8 @@
 // The local Workers' front door for `webapp start sync-local` (papeliz-launcher.mjs). One `wrangler dev`
 // runs this Worker first, beside the real Account Worker and Sync Worker; only the first Worker of a
 // `wrangler dev` answers on its port, so this one hands each request on:
-// - `/api/account/*` to the Account Worker and `/api/sync/*` (the live connection included) to the
-//   Sync Worker, by service binding;
+// - `/api/account/*` to the Account Worker, `/api/sync/*` (the live connection included) to the Sync
+//   Worker and `/api/templates/*` to the Templates Worker, by service binding;
 // - `/papeliz-sync-local-r2-storage/<bucket>/<object key>` to R2's local stand-in. The Sync Worker
 //   signs its upload and download links for R2's S3 host, which the local runtime has no copy of, so
 //   this Worker rewrites those links in the Sync Worker's replies to point here, on the app's own
@@ -91,6 +91,7 @@ export default {
     const routerRequestUrl = new URL(routerRequest.url)
     const routerRequestPath = routerRequestUrl.pathname
     if (routerRequestPath.startsWith('/api/account/')) return routerBindings.PAPELIZ_SYNC_ACCOUNT_WORKER.fetch(routerRequest)
+    if (routerRequestPath.startsWith('/api/templates/')) return routerBindings.PAPELIZ_TEMPLATE_GALLERY_WORKER.fetch(routerRequest)
     if (routerRequestPath.startsWith('/api/sync/')) {
       const vaultWorkerResponse = await routerBindings.PAPELIZ_SYNC_VAULT_WORKER.fetch(routerRequest)
       if (vaultWorkerResponse.webSocket) return vaultWorkerResponse
