@@ -26,7 +26,7 @@ const testSignedInReading: PapelizSyncSignInReading = {
 }
 
 describe('the Recent Vaults sync badges', () => {
-  it('calls every vault Local only on a device that has never used Sync, without the engine', () => {
+  it('calls every vault Local on a device that has never used Sync, without the engine', () => {
     expect(readPapelizRecentVaultSyncEncryptionKinds({ isPapelizSyncExpectedOnThisDevice: false, syncEngineSnapshot: null })).toEqual(new Map())
   })
 
@@ -43,7 +43,7 @@ describe('the Recent Vaults sync badges', () => {
     )
   })
 
-  it('calls every vault Local only while this device is signed out of Sync', () => {
+  it('calls every vault Local while this device is signed out of Sync', () => {
     expect(readPapelizRecentVaultSyncEncryptionKinds({ isPapelizSyncExpectedOnThisDevice: true, syncEngineSnapshot: createTestSyncEngineSnapshot({ syncSignInKind: 'device-removed' }) })).toEqual(
       new Map(),
     )

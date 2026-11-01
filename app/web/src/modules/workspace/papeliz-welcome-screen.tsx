@@ -3,7 +3,6 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type
 import { isPapelizSyncEngineInThisBuild } from 'virtual:papeliz-sync-engine-availability'
 import type { PapelizSyncVaultEncryptionKind } from '../sync/papeliz-sync-engine-contract'
 import { isPapelizSyncUsedOnThisDevice, readPapelizSyncDevFakeEngineScenarioText, usePapelizSyncEngineSnapshot, usePapelizSyncEngineStore } from '../sync/papeliz-sync-engine-store'
-import { papelizSyncVaultEncryptionKindDisplayNames } from '../sync/papeliz-sync-screen-words'
 import { PapelizSyncStartScreenDownloadProgressLines, readPapelizSyncStartScreenDownloadPercent } from '../sync/papeliz-sync-start-screen-download-progress'
 import { returnPapelizSyncSyncedVaultsPageToLive, usePapelizSyncSyncedVaultsPagePreviewStore } from '../sync/papeliz-sync-synced-vaults-page-preview-store'
 import {
@@ -216,29 +215,34 @@ function PapelizWelcomeAction({
 
 const papelizRecentVaultSyncBadgeClassName = 'inline-flex h-[18px] flex-none items-center gap-1 rounded-full px-[7px] text-[10.5px] font-semibold whitespace-nowrap'
 
-// A recent vault's badges after where it's kept: "Synced" (green) and its kind, Standard (blue) or
-// End-to-end (purple, with a lock); or "Local only" (gray), for a vault that doesn't sync (a copy that
-// won't sync among them).
+// The badges' words for a synced vault's encryption, in Adam's own casing (2026-11-02: "Standard
+// Encryption / End-to-End Encryption / Local / Sync"). The Sync pages keep their shorter names.
+const papelizRecentVaultEncryptionBadgeWords: Record<PapelizSyncVaultEncryptionKind, string> = {
+  standard: 'Standard Encryption',
+  'end-to-end': 'End-to-End Encryption',
+}
+
+// A recent vault's badges after where it's kept: "Sync" (green) and its encryption, Standard
+// Encryption (blue) or End-to-End Encryption (purple, with a lock); or "Local" (orange), for a vault
+// that doesn't sync (a copy that won't sync among them).
 function PapelizRecentVaultSyncBadges({ recentVaultSyncEncryptionKind }: { recentVaultSyncEncryptionKind: PapelizSyncVaultEncryptionKind | null }) {
   if (recentVaultSyncEncryptionKind === null) {
-    return <span className={joinPapelizClassNames(papelizRecentVaultSyncBadgeClassName, 'bg-papeliz-surface-gray text-papeliz-ink-muted')}>Local only</span>
+    return <span className={joinPapelizClassNames(papelizRecentVaultSyncBadgeClassName, 'bg-papeliz-callout-orange-ground text-papeliz-callout-orange-ink')}>Local</span>
   }
-  const recentVaultSyncEncryptionKindName = papelizSyncVaultEncryptionKindDisplayNames[recentVaultSyncEncryptionKind]
   return (
     <>
       <span className={joinPapelizClassNames(papelizRecentVaultSyncBadgeClassName, 'bg-papeliz-callout-green-ground text-papeliz-callout-green-ink')}>
         <CloudCheck className="size-3" aria-hidden="true" />
-        Synced
+        Sync
       </span>
       <span
-        title={`${recentVaultSyncEncryptionKindName} encryption`}
         className={joinPapelizClassNames(
           papelizRecentVaultSyncBadgeClassName,
           recentVaultSyncEncryptionKind === 'end-to-end' ? 'bg-papeliz-callout-purple-ground text-papeliz-callout-purple-ink' : 'bg-papeliz-blue-soft text-papeliz-blue',
         )}
       >
         {recentVaultSyncEncryptionKind === 'end-to-end' && <Lock className="size-3" aria-hidden="true" />}
-        {recentVaultSyncEncryptionKindName}
+        {papelizRecentVaultEncryptionBadgeWords[recentVaultSyncEncryptionKind]}
       </span>
     </>
   )
@@ -494,7 +498,7 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
   const syncedVaultsActionOffReasonText = isFolderVaultOn || isBrowserVaultOn ? null : (browserVaultOffReasonText ?? folderAccessOffReasonText)
 
   // A device signed in to Sync before (or the dev fake engine) loads the engine now, for the recent
-  // vaults' "Synced" and the downloads left unfinished below.
+  // vaults' "Sync" badge and the downloads left unfinished below.
   const loadPapelizSyncEngine = usePapelizSyncEngineStore((syncEngineState) => syncEngineState.loadPapelizSyncEngine)
   const isPapelizSyncExpectedOnThisDevice = useMemo(() => isPapelizSyncUsedOnThisDevice() || readPapelizSyncDevFakeEngineScenarioText() !== null, [])
   useEffect(() => {
@@ -502,8 +506,8 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
     if (isPapelizSyncExpectedOnThisDevice) void loadPapelizSyncEngine()
   }, [isSyncedVaultsActionShown, startScreenEyePreview, isPapelizSyncExpectedOnThisDevice, loadPapelizSyncEngine])
 
-  // Once the engine has loaded: which recent vaults sync ("Synced" and its kind on their row, while
-  // signed in; "Local only" otherwise), and the first downloads closing the tab left unfinished,
+  // Once the engine has loaded: which recent vaults sync ("Sync" and its encryption on their row, while
+  // signed in; "Local" otherwise), and the first downloads closing the tab left unfinished,
   // picked up once the list is read. A build without Sync shows neither badge.
   const syncEngineReading = usePapelizSyncEngineSnapshot()
   const loadedSyncEngine = syncEngineReading?.papelizSyncEngine ?? null
