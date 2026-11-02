@@ -62,7 +62,7 @@ export function PapelizAccountSsoCallback() {
         papelizAccountStateKind="loading"
         papelizAccountLoadingStep="signing-in"
         papelizAccountStateTitle="Signing you in"
-        papelizAccountStateText={`Finishing with ${papelizAccountSsoProviderName}…`}
+        papelizAccountStateText={`Finishing with ${papelizAccountSsoProviderName}`}
       />
       <AuthenticateWithRedirectCallback
         signInUrl={papelizAccountReturnPath}

@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, Download, FilePen, FileText, Folder, Globe, LayoutTemplate, LoaderCircle, Printer, Search, Settings } from 'lucide-react'
+import { ChevronDown, ChevronRight, Download, FilePen, FileText, Folder, Globe, LayoutTemplate, LoaderCircle, Printer, Search, Settings, X } from 'lucide-react'
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import {
   choosePapelizExportDefaultPageSize,
@@ -22,10 +22,9 @@ import { findPapelizTemplateExportDetailsProblem, listPapelizTemplateExportTags 
 import { PapelizPillButton } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { PapelizSlidingChoiceGroup } from '../ui/papeliz-sliding-choice-group'
-import { describePapelizErrorSentence } from '../vault/papeliz-failure-code-words'
 import { PapelizVaultOperationError } from '../vault/papeliz-vault-adapter'
 import { getVaultEntryParentFolderRelativePath } from '../vault/papeliz-vault-relative-paths'
-import { buildThenSavePapelizExportFile, type PapelizExportFileKind } from './papeliz-export-file-save'
+import { buildThenSavePapelizExportFile, describePapelizExportErrorSentence, type PapelizExportFileKind, type PapelizExportFileSaveOutcome } from './papeliz-export-file-save'
 import { PapelizSettingsGearExportFormatSettingsDialog } from './papeliz-settings-gear-export-format-settings-dialog'
 import {
   PapelizSettingsGearExportHtmlSettings,
@@ -87,7 +86,12 @@ const papelizSettingsGearExportFormatOneNoteFileExtensions: Record<PapelizSettin
 type PapelizSettingsGearExportRunState =
   | { exportRunKind: 'idle' }
   | { exportRunKind: 'running'; exportedNoteCount: number; exportNoteCount: number }
-  | { exportRunKind: 'saved'; savedExportFileName: string; isDownloaded: boolean; exportNotices: readonly string[] }
+  | {
+      exportRunKind: 'saved'
+      savedExportFileName: string
+      exportFileSaveOutcome: Exclude<PapelizExportFileSaveOutcome, 'save-dialog-closed'>
+      exportNotices: readonly string[]
+    }
   | { exportRunKind: 'cancelled' }
   | { exportRunKind: 'failed'; exportFailureMessage: string }
 
@@ -241,6 +245,12 @@ function readStoredTemplateExportSettings(storedTemplateExportSettings: unknown,
 function describeExportFailureLine(exportFailureMessage: string): string {
   const exportFailureSentence = exportFailureMessage.charAt(0).toUpperCase() + exportFailureMessage.slice(1)
   return `The export stopped. ${exportFailureSentence}${/[.!?…]$/.test(exportFailureSentence) ? '' : '.'}`
+}
+
+// A saved export's line, kept short. A file the browser wouldn't write where the person chose went to
+// the downloads instead, so it reads as downloaded.
+function describeSavedExportLine(savedExportFileName: string, exportFileSaveOutcome: Exclude<PapelizExportFileSaveOutcome, 'save-dialog-closed'>): string {
+  return exportFileSaveOutcome === 'saved-to-chosen-file' ? `Saved “${savedExportFileName}”.` : `Downloaded “${savedExportFileName}”.`
 }
 
 // A PDF export waits on this while the page asks whether it may use the computer's fonts.
@@ -784,13 +794,13 @@ export function PapelizSettingsGearExportPage() {
           : {
               exportRunKind: 'saved',
               savedExportFileName: preparedExport.exportFileName,
-              isDownloaded: exportFileSaveOutcome === 'downloaded',
+              exportFileSaveOutcome,
               exportNotices: builtExport.exportNotices,
             },
       )
     } catch (exportError) {
       setExportRunState(
-        exportAbortController.signal.aborted ? { exportRunKind: 'cancelled' } : { exportRunKind: 'failed', exportFailureMessage: describePapelizErrorSentence(exportError) },
+        exportAbortController.signal.aborted ? { exportRunKind: 'cancelled' } : { exportRunKind: 'failed', exportFailureMessage: describePapelizExportErrorSentence(exportError) },
       )
     } finally {
       if (exportAbortControllerRef.current === exportAbortController) exportAbortControllerRef.current = null
@@ -811,7 +821,7 @@ export function PapelizSettingsGearExportPage() {
   const exportRunLine = !isChosenExportFormatReady
     ? `${chosenExportFormatLabel} export is coming soon.`
     : exportRunState.exportRunKind === 'saved'
-      ? `${exportRunState.isDownloaded ? 'Downloaded' : 'Saved'} “${exportRunState.savedExportFileName}”.`
+      ? describeSavedExportLine(exportRunState.savedExportFileName, exportRunState.exportFileSaveOutcome)
       : exportRunState.exportRunKind === 'cancelled'
         ? 'Export cancelled.'
         : exportRunState.exportRunKind === 'failed'
@@ -1010,21 +1020,36 @@ export function PapelizSettingsGearExportPage() {
         </PapelizSettingsGearExportFormatSettingsDialog>
       )}
 
-      <PapelizPillButton
-        pillButtonVariant="primary"
-        pillButtonSize="small"
-        disabled={!canExport}
-        aria-label={isExportRunning ? undefined : exportButtonAccessibleName}
-        onClick={() => void exportTickedNotes()}
-        className="mt-3 w-full pointer-coarse:h-10"
-      >
-        {isExportRunning ? <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" /> : <Download className="size-3.5" aria-hidden="true" />}
-        {exportRunState.exportRunKind === 'running'
-          ? exportRunState.exportNoteCount > 1
-            ? `Exporting ${exportRunState.exportedNoteCount} of ${exportRunState.exportNoteCount}…`
-            : 'Exporting…'
-          : 'Export'}
-      </PapelizPillButton>
+      {/* While it runs, the button shows the progress at full colour and an × at its right end
+          cancels; the × turns red under the pointer. */}
+      <div className="relative mt-3">
+        <PapelizPillButton
+          pillButtonVariant="primary"
+          pillButtonSize="small"
+          disabled={!canExport}
+          aria-label={isExportRunning ? undefined : exportButtonAccessibleName}
+          onClick={() => void exportTickedNotes()}
+          className={`w-full pointer-coarse:h-10 ${isExportRunning ? 'px-8 disabled:opacity-100' : ''}`}
+        >
+          {isExportRunning ? <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" /> : <Download className="size-3.5" aria-hidden="true" />}
+          {exportRunState.exportRunKind === 'running'
+            ? exportRunState.exportNoteCount > 1
+              ? `Exporting ${exportRunState.exportedNoteCount} of ${exportRunState.exportNoteCount}…`
+              : 'Exporting…'
+            : 'Export'}
+        </PapelizPillButton>
+        {isExportRunning && (
+          <button
+            type="button"
+            aria-label="Cancel Export"
+            title="Cancel Export"
+            onClick={() => exportAbortControllerRef.current?.abort()}
+            className="absolute top-1/2 right-1 grid size-[22px] -translate-y-1/2 place-items-center rounded-full bg-white/20 text-white transition-colors duration-150 hover:bg-papeliz-red-gradient-start focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-papeliz-blue pointer-coarse:size-8"
+          >
+            <X className="size-3" strokeWidth={2.5} aria-hidden="true" />
+          </button>
+        )}
+      </div>
       {isExportRunning && computerFontsQuestion !== null && (
         <div className="mt-2 rounded-xl border border-papeliz-line bg-papeliz-surface p-2.5 text-[12px] leading-[1.45] text-papeliz-ink-muted">
           <p>
@@ -1042,12 +1067,8 @@ export function PapelizSettingsGearExportPage() {
         </div>
       )}
       <div role="status" className="mt-1.5 text-center text-[11.5px] text-papeliz-ink-subtle">
-        {isExportRunning ? (
-          <button type="button" onClick={() => exportAbortControllerRef.current?.abort()} className="font-semibold text-papeliz-blue hover:underline">
-            Cancel
-          </button>
-        ) : (
-          exportRunLine !== null && <p className={exportRunState.exportRunKind === 'failed' && isChosenExportFormatReady ? 'text-papeliz-error-notice-ink' : ''}>{exportRunLine}</p>
+        {!isExportRunning && exportRunLine !== null && (
+          <p className={exportRunState.exportRunKind === 'failed' && isChosenExportFormatReady ? 'text-papeliz-error-notice-ink' : ''}>{exportRunLine}</p>
         )}
         {!isExportRunning && exportNotices.length > 0 && (
           <ul className="mt-1 flex flex-col gap-0.5 text-left leading-[1.4] text-papeliz-ink-muted">

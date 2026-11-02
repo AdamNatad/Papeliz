@@ -227,7 +227,7 @@ export function PapelizAccountSyncHandOverScreen({ papelizSyncSignInPageParamete
       papelizAccountStateKind="loading"
       papelizAccountLoadingStep={syncHandOverStage.syncHandOverStageKind === 'handing-over' ? 'handing-over' : 'signing-in'}
       papelizAccountStateTitle="Signing Papeliz in"
-      papelizAccountStateText={syncHandOverStage.syncHandOverStageKind === 'handing-over' ? 'Handing your sign-in to Papeliz…' : 'Setting up Sync on this device…'}
+      papelizAccountStateText={syncHandOverStage.syncHandOverStageKind === 'handing-over' ? 'Handing your sign-in to Papeliz' : 'Setting up Sync on this device'}
     />
   )
 }
