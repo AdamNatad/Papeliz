@@ -1,5 +1,8 @@
 import { Code, Eye, Minimize2, WandSparkles } from 'lucide-react'
+import { isPapelizDesktopApp } from 'virtual:papeliz-desktop-platform-availability'
+import { PapelizDesktopWindowControls, usePapelizDesktopWindowBarDragHandlers } from '../desktop/papeliz-desktop-window-controls'
 import { PapelizIconButton, PapelizPillButton } from '../ui/papeliz-buttons'
+import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { PapelizFileListToggleIcon } from '../ui/papeliz-file-list-toggle-icon'
 import { PapelizMark } from '../ui/papeliz-mark'
 import { usePapelizKeyBindingShortcutLabel } from './papeliz-key-bindings-store'
@@ -67,9 +70,17 @@ export function PapelizWorkspaceTopbar() {
   const setExplorerPanelOpen = usePapelizWorkspaceStore((workspaceState) => workspaceState.setExplorerPanelOpen)
   const setAssistantPanelOpen = usePapelizWorkspaceStore((workspaceState) => workspaceState.setAssistantPanelOpen)
   const setFocusModeOn = usePapelizWorkspaceStore((workspaceState) => workspaceState.setFocusModeOn)
+  const desktopWindowBarDragHandlers = usePapelizDesktopWindowBarDragHandlers()
 
   return (
-    <header className="grid h-12 flex-none grid-cols-[1fr_auto_1fr] items-center gap-1 bg-papeliz-topbar px-2 text-white sm:gap-2 sm:px-3">
+    <header
+      {...desktopWindowBarDragHandlers}
+      className={joinPapelizClassNames(
+        'grid h-12 flex-none grid-cols-[1fr_auto_1fr] items-center gap-1 bg-papeliz-topbar pl-2 text-white sm:gap-2 sm:pl-3',
+        // In Papeliz for Windows the window buttons end the bar, flush with the window's edge.
+        isPapelizDesktopApp ? 'pr-0' : 'pr-2 sm:pr-3',
+      )}
+    >
       <div className="flex min-w-0 items-center gap-1 max-md:min-w-max max-sm:pr-1 sm:gap-1.5">
         {!isFocusModeOn && (
           <PapelizIconButton
@@ -113,6 +124,7 @@ export function PapelizWorkspaceTopbar() {
         )}
         <PapelizTopbarExportButton />
         <PapelizSettingsGearButton settingsGearPlace="workspace" />
+        <PapelizDesktopWindowControls />
       </div>
     </header>
   )

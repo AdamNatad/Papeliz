@@ -1,6 +1,7 @@
 import { AppWindow, BookOpen, CloudCheck, CloudDownload, Code, Download, Ellipsis, Eye, EyeOff, FolderOpen, FolderPlus, HardDrive, History, LayoutTemplate, Lock, Pencil, RefreshCw, RotateCcw, Search, Trash2, type LucideIcon } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type Ref } from 'react'
 import { isPapelizDesktopApp } from 'virtual:papeliz-desktop-platform-availability'
+import { PapelizDesktopWindowControls, usePapelizDesktopWindowBarDragHandlers } from '../desktop/papeliz-desktop-window-controls'
 import { isPapelizSyncEngineInThisBuild } from 'virtual:papeliz-sync-engine-availability'
 import type { PapelizSyncVaultEncryptionKind } from '../sync/papeliz-sync-engine-contract'
 import { isPapelizSyncUsedOnThisDevice, readPapelizSyncDevFakeEngineScenarioText, usePapelizSyncEngineSnapshot, usePapelizSyncEngineStore } from '../sync/papeliz-sync-engine-store'
@@ -349,6 +350,7 @@ function findPreviewHiddenRecentVaults(startScreenEyePreview: PapelizStartScreen
 }
 
 function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEyePreview: PapelizStartScreenEyePreview | null }) {
+  const desktopWindowBarDragHandlers = usePapelizDesktopWindowBarDragHandlers()
   const openVaultInWorkspace = usePapelizWorkspaceStore((workspaceState) => workspaceState.openVaultInWorkspace)
   const showWorkspaceNotice = usePapelizWorkspaceStore((workspaceState) => workspaceState.showWorkspaceNotice)
   const askBrowserToKeepStorage = usePapelizBrowserStorageStore((browserStorageState) => browserStorageState.askBrowserToKeepStorage)
@@ -929,7 +931,14 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
 
   return (
     <div className="flex min-h-full flex-col bg-papeliz-surface-soft">
-      <header className="flex h-12 flex-none items-center gap-2.5 bg-papeliz-topbar px-3 text-white sm:px-5">
+      <header
+        {...desktopWindowBarDragHandlers}
+        className={joinPapelizClassNames(
+          'flex h-12 flex-none items-center gap-2.5 bg-papeliz-topbar pl-3 text-white sm:pl-5',
+          // In Papeliz for Windows the window buttons end the header, flush with the window's edge.
+          isPapelizDesktopApp ? 'pr-0' : 'pr-3 sm:pr-5',
+        )}
+      >
         {/* The logo goes back to Recent Vaults from any panel. */}
         <button
           type="button"
@@ -943,6 +952,7 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
         </button>
         <div className="ml-auto flex items-center gap-1.5">
           <PapelizSettingsGearButton settingsGearPlace="start-page" />
+          <PapelizDesktopWindowControls />
         </div>
       </header>
 

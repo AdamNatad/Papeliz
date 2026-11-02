@@ -87,9 +87,13 @@ export interface PapelizDesktopWindow {
   subscribeToDesktopMaximizeButtonPointerState(
     onDesktopMaximizeButtonPointerStateChange: (desktopMaximizeButtonPointerState: PapelizDesktopMaximizeButtonPointerState) => void,
   ): () => void
-  // The close button and Alt+F4 call this first and close the window once it settles, so unsaved
-  // text is written before the window goes. Gives back the call that removes it.
+  // The close button, Alt+F4 and Windows' own close call this first and close the window once it
+  // settles, so unsaved text is written before the window goes. If it throws, the window stays open
+  // (a note couldn't be saved, and the app says why). Gives back the call that removes it.
   setDesktopWindowCloseRequestHandler(beforeDesktopWindowCloses: () => Promise<void>): () => void
+  // The bar's close button: asks Windows to close the window, the same way Alt+F4 does, so the handler
+  // above runs first.
+  closeDesktopWindow(): Promise<void>
 }
 
 // A newer Papeliz for Windows, from the update check at start.

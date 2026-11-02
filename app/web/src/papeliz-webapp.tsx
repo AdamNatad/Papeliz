@@ -16,18 +16,27 @@ export function PapelizWebapp() {
 
   // Papeliz for Windows' native side starts loading at once (in a browser this does nothing). Flows
   // that need it wait for it, so nothing runs before it is there; one that fails to load leaves the
-  // browser's own way in place.
+  // browser's own way in place. Once it is there, web links go to the person's browser, and closing
+  // the window (its close button, Alt+F4) first saves every note: if one still isn't saved, the window
+  // stays open, with the save's own failure showing.
   useEffect(() => {
     let stopSendingExternalLinksToSystemBrowser: (() => void) | null = null
+    let stopSavingBeforeDesktopWindowCloses: (() => void) | null = null
     let isPapelizWebappShown = true
     void loadPapelizDesktopPlatformOnce()
       .then((papelizDesktopPlatform) => {
-        if (papelizDesktopPlatform !== null && isPapelizWebappShown) stopSendingExternalLinksToSystemBrowser = sendPapelizDesktopExternalLinksToSystemBrowser(papelizDesktopPlatform)
+        if (papelizDesktopPlatform === null || !isPapelizWebappShown) return
+        stopSendingExternalLinksToSystemBrowser = sendPapelizDesktopExternalLinksToSystemBrowser(papelizDesktopPlatform)
+        stopSavingBeforeDesktopWindowCloses = papelizDesktopPlatform.desktopWindow.setDesktopWindowCloseRequestHandler(async () => {
+          await usePapelizWorkspaceStore.getState().saveAllVaultNotesNow()
+          if (hasUnsavedPapelizVaultNotes()) throw new Error('A note isn’t saved yet, so the window stays open.')
+        })
       })
       .catch(() => null)
     return () => {
       isPapelizWebappShown = false
       stopSendingExternalLinksToSystemBrowser?.()
+      stopSavingBeforeDesktopWindowCloses?.()
     }
   }, [])
 
