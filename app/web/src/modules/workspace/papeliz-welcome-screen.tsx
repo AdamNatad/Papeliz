@@ -5,6 +5,7 @@ import type { PapelizSyncVaultEncryptionKind } from '../sync/papeliz-sync-engine
 import { isPapelizSyncUsedOnThisDevice, readPapelizSyncDevFakeEngineScenarioText, usePapelizSyncEngineSnapshot, usePapelizSyncEngineStore } from '../sync/papeliz-sync-engine-store'
 import { PapelizSyncStartScreenDownloadProgressLines, readPapelizSyncStartScreenDownloadPercent } from '../sync/papeliz-sync-start-screen-download-progress'
 import { returnPapelizSyncSyncedVaultsPageToLive, usePapelizSyncSyncedVaultsPagePreviewStore } from '../sync/papeliz-sync-synced-vaults-page-preview-store'
+import { takePapelizTemplateGalleryIdFromAddress } from '../template-gallery/papeliz-template-gallery-address-request'
 import { returnPapelizTemplateGalleryPageToLive, usePapelizTemplateGalleryPagePreviewStore } from '../template-gallery/papeliz-template-gallery-page-preview-store'
 import {
   forgetPapelizSyncLinksOfDeletedVault,
@@ -367,8 +368,10 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
   // A pick in the page's previewer (development builds only) shows the page in that state.
   const heldSyncedVaultsPagePreview = usePapelizSyncSyncedVaultsPagePreviewStore((syncedVaultsPagePreviewState) => syncedVaultsPagePreviewState.heldSyncedVaultsPagePreview)
   const isSyncedVaultsPageOnScreen = isSyncedVaultsPageShown || heldSyncedVaultsPagePreview !== null
-  // Templates' pages, shown there instead, as Synced Vaults' is; its previewer can hold them too.
-  const [isTemplateGalleryPageShown, setTemplateGalleryPageShown] = useState(false)
+  // Templates' pages, shown there instead, as Synced Vaults' is; its previewer can hold them too. The
+  // website's Open in Papeliz opens them at once, on the template its address names.
+  const [templateGalleryIdFromAddress, setTemplateGalleryIdFromAddress] = useState(takePapelizTemplateGalleryIdFromAddress)
+  const [isTemplateGalleryPageShown, setTemplateGalleryPageShown] = useState(templateGalleryIdFromAddress !== null)
   const heldTemplateGalleryPagePreview = usePapelizTemplateGalleryPagePreviewStore((templateGalleryPagePreviewState) => templateGalleryPagePreviewState.heldTemplateGalleryPagePreview)
   const isTemplateGalleryPageOnScreen = !isSyncedVaultsPageOnScreen && (isTemplateGalleryPageShown || heldTemplateGalleryPagePreview !== null)
   const syncStartScreenDownloadsByVaultId = usePapelizSyncStartScreenDownloadStore((syncStartScreenDownloadState) => syncStartScreenDownloadState.syncStartScreenDownloadsByVaultId)
@@ -627,6 +630,7 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
   }
 
   const closeTemplateGalleryPage = () => {
+    setTemplateGalleryIdFromAddress(null)
     setTemplateGalleryPageShown(false)
     returnPapelizTemplateGalleryPageToLive()
   }
@@ -1058,6 +1062,7 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                   browserVaultOffReasonText={browserVaultOffReasonText}
                   existingBrowserVaultRecords={browserVaultRecords}
                   onTemplateGalleryPageClose={closeTemplateGalleryPage}
+                  initialPapelizTemplateGalleryId={templateGalleryIdFromAddress ?? undefined}
                   onTemplateVaultOpen={openTemplateVault}
                   onVaultFolderChooserUnavailable={() => {
                     setFolderChooserUnavailable(true)

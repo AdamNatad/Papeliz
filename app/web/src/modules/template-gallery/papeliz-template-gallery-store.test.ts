@@ -99,7 +99,7 @@ afterEach(() => {
 })
 
 describe('template gallery store', () => {
-  it('opens on Featured, with the built-in templates, and says New and Top 100 aren’t available yet', async () => {
+  it('opens on Featured, with the built-in templates, and keeps New and Top 100 waiting for the Templates Worker', async () => {
     await usePapelizTemplateGalleryStore.getState().openTemplateGallery()
     expect(usePapelizTemplateGalleryStore.getState()).toMatchObject({
       templateGalleryTab: 'featured',

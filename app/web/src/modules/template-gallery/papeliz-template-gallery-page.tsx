@@ -13,6 +13,7 @@ import {
   describeTemplateGalleryDay,
   describeTemplateGalleryRowDetail,
   describeTemplateGalleryTag,
+  isPapelizTemplateGalleryWorkerFeatureComingSoon,
   PapelizTemplateGalleryCenteredStep,
   PapelizTemplateGalleryRowDetail,
   PapelizTemplateGalleryRowTags,
@@ -94,6 +95,8 @@ interface PapelizTemplateGalleryPageProps {
   onVaultFolderChooserUnavailable: () => void
   // Set in an open vault, for Import from Template.
   templateGalleryVaultImport?: PapelizTemplateGalleryVaultImport
+  // A listed template to open on, over the gallery, as the website's Open in Papeliz asks.
+  initialPapelizTemplateGalleryId?: string
 }
 
 export function PapelizTemplateGalleryPage({
@@ -105,6 +108,7 @@ export function PapelizTemplateGalleryPage({
   onTemplateVaultOpen,
   onVaultFolderChooserUnavailable,
   templateGalleryVaultImport,
+  initialPapelizTemplateGalleryId,
 }: PapelizTemplateGalleryPageProps) {
   const showWorkspaceNotice = usePapelizWorkspaceStore((workspaceState) => workspaceState.showWorkspaceNotice)
   const askBrowserToKeepStorage = usePapelizBrowserStorageStore((browserStorageState) => browserStorageState.askBrowserToKeepStorage)
@@ -121,7 +125,11 @@ export function PapelizTemplateGalleryPage({
   const { openTemplateGallery, cancelTemplateUse, resetTemplateCheckRun, resetTemplateRecheck } = templateGalleryScreenModel
 
   const [templateGalleryScreens, setTemplateGalleryScreens] = useState<readonly PapelizTemplateGalleryScreen[]>(
-    () => heldTemplateGalleryPagePreview?.previewTemplateGalleryScreens ?? [{ templateGalleryScreenKind: 'gallery' }],
+    () =>
+      heldTemplateGalleryPagePreview?.previewTemplateGalleryScreens ??
+      (initialPapelizTemplateGalleryId === undefined
+        ? [{ templateGalleryScreenKind: 'gallery' }]
+        : [{ templateGalleryScreenKind: 'gallery' }, { templateGalleryScreenKind: 'template-page', papelizTemplateGalleryId: initialPapelizTemplateGalleryId }]),
   )
   // A page opened from another moves focus to its heading; the gallery opened from the start screen
   // leaves focus on Templates' button, as Synced Vaults does.
@@ -476,11 +484,11 @@ function PapelizTemplateGalleryList({
     templateGalleryListBody = (
       <PapelizTemplateGalleryCenteredStep
         TemplateGalleryStepIcon={Hourglass}
-        templateGalleryStepTitle={templateGalleryTab === 'new' ? 'New isn’t available yet' : 'Top 100 isn’t available yet'}
+        templateGalleryStepTitle={templateGalleryTab === 'new' ? 'New is Coming Soon' : 'Top 100 is Coming Soon'}
         templateGalleryStepText={
           templateGalleryTab === 'new'
-            ? 'Templates people submit show here, newest first, once the Templates server is running. Featured is ready now.'
-            : 'The hundred best by votes show here once the Templates server is running. Featured is ready now.'
+            ? 'Templates people submit from GitHub will show here, newest first. Featured is ready now.'
+            : 'The hundred best by votes will show here. Featured is ready now.'
         }
       >
         <PapelizPillButton pillButtonVariant="outline" className="mt-2 pointer-coarse:h-10" onClick={() => selectTemplateGalleryTab('featured')}>
@@ -562,16 +570,20 @@ function PapelizTemplateGalleryList({
               className="min-w-0 flex-1 bg-transparent text-[12.5px] text-papeliz-ink placeholder:text-papeliz-ink-subtle focus:outline-none"
             />
           </label>
-          <button
-            type="button"
-            aria-label="Refresh"
-            title="Refresh"
-            aria-busy={isTemplateGalleryRefreshTurning || undefined}
-            onClick={refreshTemplateGallery}
-            className="grid size-8 flex-none place-items-center rounded-full border border-papeliz-line text-papeliz-ink-muted transition-colors hover:bg-papeliz-hover hover:text-papeliz-ink pointer-coarse:size-10"
-          >
-            <RefreshCw className={joinPapelizClassNames('size-4', isTemplateGalleryRefreshTurning && 'animate-spin')} aria-hidden="true" />
-          </button>
+          {/* A build that reads no Templates server lists only the templates built into it, so it has
+              nothing to refresh. */}
+          {templateGallerySnapshotStage !== 'not-available-yet' && (
+            <button
+              type="button"
+              aria-label="Refresh"
+              title="Refresh"
+              aria-busy={isTemplateGalleryRefreshTurning || undefined}
+              onClick={refreshTemplateGallery}
+              className="grid size-8 flex-none place-items-center rounded-full border border-papeliz-line text-papeliz-ink-muted transition-colors hover:bg-papeliz-hover hover:text-papeliz-ink pointer-coarse:size-10"
+            >
+              <RefreshCw className={joinPapelizClassNames('size-4', isTemplateGalleryRefreshTurning && 'animate-spin')} aria-hidden="true" />
+            </button>
+          )}
           <button
             type="button"
             aria-label="Submit Template"
@@ -628,10 +640,6 @@ function PapelizTemplateGalleryList({
       >
         {templateGalleryListBody}
       </div>
-
-      {templateGallerySnapshotStage === 'not-available-yet' && templateGalleryTab === 'featured' && featuredTemplateGalleryRows.length > 0 && (
-        <p className="px-3 pb-2.5 text-[11px] text-papeliz-ink-subtle">Votes, New and Top 100 open with the Templates server.</p>
-      )}
     </div>
   )
 }
@@ -680,7 +688,8 @@ function PapelizTemplateGalleryRowItem({
         </span>
       </button>
       <span className="mr-2.5 flex flex-none items-center gap-2 max-sm:mr-0 max-sm:w-full max-sm:justify-end max-sm:px-2.5 max-sm:pb-2">
-        <PapelizTemplateGalleryVotePill templateGalleryRow={templateGalleryRow} />
+        {/* Votes wait for the Templates Worker; a template's page shows them Coming Soon. */}
+        {!isPapelizTemplateGalleryWorkerFeatureComingSoon && <PapelizTemplateGalleryVotePill templateGalleryRow={templateGalleryRow} />}
         <PapelizPillButton
           pillButtonVariant="outline"
           pillButtonSize="small"

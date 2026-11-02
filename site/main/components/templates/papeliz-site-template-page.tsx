@@ -17,7 +17,7 @@ import {
   readPapelizSiteTemplateCategoryNames,
   type PapelizSiteTemplatesSnapshotRow,
 } from '@/lib/papeliz-site-templates'
-import { isPapelizSiteTemplatesOpen } from '@/lib/papeliz-site-config'
+import { isPapelizSiteTemplatesWorkerSwitchedOn } from '@/lib/papeliz-site-config'
 
 function PapelizSiteTemplateDetail({ papelizSiteTemplateDetailLabel, children }: { papelizSiteTemplateDetailLabel: string; children: ReactNode }) {
   return (
@@ -32,8 +32,8 @@ const papelizSiteTemplateTextLinkClassName = 'font-medium text-papeliz-blue hove
 
 // One template's page (/templates/<owner>/<repository>/): what it is, who shares it, its Category and tags, its license, whether it
 // runs commands, and the commit Papeliz checked, with Open in Papeliz and View on GitHub. Every word
-// of its name, description and tags is the author's, shown as text. While Templates are closed, a grey
-// Coming soon takes Open in Papeliz's place.
+// of its name, description and tags is the author's, shown as text. While the Templates Worker is
+// switched off, the Votes line says Coming Soon instead of counts nobody could have given.
 export function PapelizSiteTemplatePage({
   papelizSiteTemplateRow,
   templateGallerySnapshotBuiltAt,
@@ -42,7 +42,7 @@ export function PapelizSiteTemplatePage({
   templateGallerySnapshotBuiltAt: number | null
 }) {
   const { templateCategoryDisplayName, templateSubcategoryDisplayName, templateExtraTagDisplayNames } = readPapelizSiteTemplateCategoryNames(papelizSiteTemplateRow)
-  const papelizSiteTemplateOpenInPapelizHref = isPapelizSiteTemplatesOpen ? createPapelizSiteTemplateOpenInPapelizHref(papelizSiteTemplateRow) : null
+  const papelizSiteTemplateOpenInPapelizHref = createPapelizSiteTemplateOpenInPapelizHref(papelizSiteTemplateRow)
 
   return (
     <article className="mx-auto max-w-4xl px-4 pt-10 pb-16 sm:px-6 sm:pt-14 sm:pb-20">
@@ -91,14 +91,6 @@ export function PapelizSiteTemplatePage({
             Open in Papeliz
           </a>
         )}
-        {!isPapelizSiteTemplatesOpen && (
-          <span
-            aria-disabled="true"
-            className="inline-flex min-h-12 items-center justify-center rounded-full border border-dashed border-papeliz-line-strong bg-papeliz-surface-gray px-6 text-base font-medium text-papeliz-ink-subtle"
-          >
-            Coming soon
-          </span>
-        )}
         <a
           href={createPapelizSiteTemplateGitHubHref(papelizSiteTemplateRow)}
           rel="noopener noreferrer"
@@ -142,17 +134,23 @@ export function PapelizSiteTemplatePage({
           </PapelizSiteTemplateDetail>
         )}
         <PapelizSiteTemplateDetail papelizSiteTemplateDetailLabel="Votes">
-          <span className="inline-flex items-center gap-4">
-            <span className="inline-flex items-center gap-1.5">
-              <ThumbsUp className="size-4" aria-hidden="true" />
-              {papelizSiteTemplateRow.templateUpVoteCount.toLocaleString('en-US')} up
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <ThumbsDown className="size-4" aria-hidden="true" />
-              {papelizSiteTemplateRow.templateDownVoteCount.toLocaleString('en-US')} down
-            </span>
-          </span>
-          <span className="mt-1 block text-sm">Voting in Papeliz is coming, with a free account.</span>
+          {isPapelizSiteTemplatesWorkerSwitchedOn ? (
+            <>
+              <span className="inline-flex items-center gap-4">
+                <span className="inline-flex items-center gap-1.5">
+                  <ThumbsUp className="size-4" aria-hidden="true" />
+                  {papelizSiteTemplateRow.templateUpVoteCount.toLocaleString('en-US')} up
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <ThumbsDown className="size-4" aria-hidden="true" />
+                  {papelizSiteTemplateRow.templateDownVoteCount.toLocaleString('en-US')} down
+                </span>
+              </span>
+              <span className="mt-1 block text-sm">Voting in Papeliz is coming, with a free account.</span>
+            </>
+          ) : (
+            'Coming Soon in Papeliz, with a free account.'
+          )}
         </PapelizSiteTemplateDetail>
       </dl>
     </article>

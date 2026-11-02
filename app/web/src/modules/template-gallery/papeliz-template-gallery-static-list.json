@@ -1,0 +1,33 @@
+{
+  "papelizTemplateGallerySnapshotVersion": 1,
+  "templateGallerySnapshotBuiltAt": 1793653362000,
+  "featuredPapelizTemplateGalleryIds": ["AdamNatad/P1-Workflow"],
+  "newPapelizTemplateGalleryIds": [],
+  "topPapelizTemplateGalleryIds": [],
+  "templateGallerySnapshotRows": [
+    {
+      "papelizTemplateGalleryId": "AdamNatad/P1-Workflow",
+      "templateRepositoryOwner": "AdamNatad",
+      "templateRepositoryName": "P1-Workflow",
+      "templateCommitSha": "64bf461f3dcdc96cf8a59a8c778e9eb4d7093f79",
+      "templateIncludedFileListDigest": "Ms//Y2KcSinCLr/9ze/x5x8VIDELRC009lvsWqOGDIk=",
+      "templateName": "P1-Workflow",
+      "templateDescription": "Your personal knowledge base that grows as you build your project: one folder of plain Markdown that holds the plan, the tasks, the decisions and the rules every AI coding agent follows.",
+      "templateTags": ["coding", "project-workflow", "ai-agents"],
+      "templateFirstNotePath": "README.md",
+      "templateLicenseId": "MIT",
+      "templateThumbnailPictureUrl": "https://cdn.jsdelivr.net/gh/AdamNatad/P1-Workflow@64bf461f3dcdc96cf8a59a8c778e9eb4d7093f79/p1-workflow-template-thumbnail.png",
+      "templateIncludedFileCount": 67,
+      "templateIncludedByteCount": 327592,
+      "isTemplateRunningCommands": true,
+      "isTemplateFeatured": true,
+      "templateListedAt": null,
+      "templateCheckedAt": 1793653362000,
+      "templateUpVoteCount": 0,
+      "templateDownVoteCount": 0,
+      "templateTopRank": null,
+      "templateUpdatedByRecheckAt": null,
+      "templateUpdatedByRecheckChangedFileCount": null
+    }
+  ]
+}

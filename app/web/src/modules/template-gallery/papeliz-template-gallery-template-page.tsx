@@ -15,7 +15,9 @@ import {
   describeTemplateGalleryFileCount,
   describeTemplateGalleryTag,
   formatTemplateGalleryByteSize,
+  isPapelizTemplateGalleryWorkerFeatureComingSoon,
   PapelizTemplateGalleryAuthorPicture,
+  PapelizTemplateGalleryComingSoonPill,
   PapelizTemplateGalleryFileTree,
   PapelizTemplateGalleryLicenseTag,
   PapelizTemplateGalleryRecheckButton,
@@ -150,8 +152,10 @@ export function PapelizTemplateGalleryTemplatePage({
             )}
           </p>
         </div>
-        {/* Recheck and the votes, together at the top right. */}
+        {/* Recheck and the votes, together at the top right, after Coming Soon while they wait for the
+            Templates Worker. */}
         <div className="flex flex-none items-center gap-2">
+          {isPapelizTemplateGalleryWorkerFeatureComingSoon && <PapelizTemplateGalleryComingSoonPill />}
           <PapelizTemplateGalleryRecheckButton
             templateGalleryRow={templateGalleryRow}
             templateRecheckState={templateGalleryScreenModel.templateRecheckState}
@@ -213,15 +217,30 @@ export function PapelizTemplateGalleryTemplatePage({
                 <Eye className="size-3.5" aria-hidden="true" />
                 Preview
               </button>
-              <button
-                type="button"
-                title={papelizTemplateGalleryReportingOffText}
-                onClick={() => showWorkspaceNotice('info', papelizTemplateGalleryReportingOffText)}
-                className="inline-flex items-center gap-1.5 rounded text-papeliz-ink-muted underline-offset-2 hover:text-papeliz-ink hover:underline pointer-coarse:py-2"
-              >
-                <Flag className="size-3.5" aria-hidden="true" />
-                Report
-              </button>
+              {isPapelizTemplateGalleryWorkerFeatureComingSoon ? (
+                <span className="inline-flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    aria-disabled="true"
+                    title="Report is Coming Soon"
+                    className="inline-flex cursor-not-allowed items-center gap-1.5 rounded text-papeliz-ink-muted opacity-55 pointer-coarse:py-2"
+                  >
+                    <Flag className="size-3.5" aria-hidden="true" />
+                    Report
+                  </button>
+                  <PapelizTemplateGalleryComingSoonPill />
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  title={papelizTemplateGalleryReportingOffText}
+                  onClick={() => showWorkspaceNotice('info', papelizTemplateGalleryReportingOffText)}
+                  className="inline-flex items-center gap-1.5 rounded text-papeliz-ink-muted underline-offset-2 hover:text-papeliz-ink hover:underline pointer-coarse:py-2"
+                >
+                  <Flag className="size-3.5" aria-hidden="true" />
+                  Report
+                </button>
+              )}
             </div>
           </div>
           <section aria-labelledby={`${templateGalleryPageHeadingId}-whats-inside`} className="h-fit rounded-xl border border-papeliz-line bg-papeliz-surface px-1.5 py-2">

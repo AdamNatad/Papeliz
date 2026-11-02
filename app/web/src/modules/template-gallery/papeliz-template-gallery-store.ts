@@ -39,6 +39,7 @@ import {
   type PapelizTemplateRepositoryName,
 } from './papeliz-template-gallery-network-reading'
 import { buildPapelizTemplateAuthorPictureUrl } from './papeliz-template-gallery-picture-hosts'
+import { papelizTemplateGalleryStaticListRows } from './papeliz-template-gallery-static-list'
 import {
   createPapelizTemplateSourceVaultFile,
   listPapelizTemplateVaultImportFiles,
@@ -56,11 +57,9 @@ import { joinVaultRelativePath } from '../vault/papeliz-vault-relative-paths'
 // reads, and Use Template's steps, which New Vault's form drives. The screens read the state and call
 // the actions the contract names (papeliz-template-gallery-contract.ts).
 
-// The Featured templates built into the app, read from jsDelivr at their commits when the Templates
-// Worker can't be reached. P1-Workflow (`AdamNatad/P1-Workflow`) goes first here once its repository
-// exists: its row, with the commit and the files' fingerprint Papeliz checked, refreshed when the app
-// is built.
-export const papelizTemplateGalleryBuiltInFeaturedRows: readonly PapelizTemplateGalleryRow[] = []
+// The Featured templates built into the app (papeliz-template-gallery-static-list.ts), read from jsDelivr
+// at their commits. They are the whole gallery while the Templates Worker is switched off.
+export const papelizTemplateGalleryBuiltInFeaturedRows: readonly PapelizTemplateGalleryRow[] = papelizTemplateGalleryStaticListRows
 
 // What the store reaches outside itself, so the tests can give their own. Each is the page's own
 // when left out.
@@ -286,7 +285,8 @@ export const usePapelizTemplateGalleryStore = create<PapelizTemplateGalleryState
   }
 
   // The gallery's lists, read again; the tab shown stays. New and Top 100 wait for the Templates
-  // Worker's snapshot, which this build doesn't read yet.
+  // Worker's snapshot, which this build doesn't read (papeliz-template-gallery-worker-switch.ts), so
+  // nothing here reaches the network.
   const readTemplateGalleryLists = async () => {
     set({
       featuredTemplateGalleryRows: papelizTemplateGalleryBuiltInFeaturedRows.map(

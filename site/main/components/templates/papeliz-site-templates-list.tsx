@@ -14,7 +14,7 @@ import {
   type PapelizSiteTemplateCategoryTag,
   type PapelizSiteTemplatesSnapshot,
 } from '@/lib/papeliz-site-templates'
-import { isPapelizSiteTemplatesOpen } from '@/lib/papeliz-site-config'
+import { isPapelizSiteTemplatesWorkerSwitchedOn } from '@/lib/papeliz-site-config'
 import { PapelizSiteTemplateCategoryBadge, PapelizSiteTemplateLetterTile, PapelizSiteTemplateStatusBadges } from './papeliz-site-template-badges'
 
 type PapelizSiteTemplatesListProps = {
@@ -33,14 +33,14 @@ const papelizSiteTemplatesCategoryChipClassName = 'inline-flex min-h-9 items-cen
 // then a row per template, Featured first. Once on the
 // page it reads the same hourly list the app reads, from this site's own address, so the counts and
 // any template listed since the build show without a new build. If that read fails, the build's list
-// stays. While Templates are closed, it reads nothing, and each row shows a grey Coming soon in place of
-// Open in Papeliz.
+// stays. While the Templates Worker is switched off, the build's list is the static list: the page reads
+// nothing more, and rows show no vote counts, since nobody can vote yet.
 export function PapelizSiteTemplatesList({ papelizSiteTemplatesBuildSnapshot, papelizSiteTemplateIdsWithPages }: PapelizSiteTemplatesListProps) {
   const [papelizSiteTemplatesSnapshot, setPapelizSiteTemplatesSnapshot] = useState(papelizSiteTemplatesBuildSnapshot)
   const [papelizSiteTemplatesCategoryChoice, setPapelizSiteTemplatesCategoryChoice] = useState<PapelizSiteTemplatesCategoryChoice>('all')
 
   useEffect(() => {
-    if (!isPapelizSiteTemplatesOpen) return
+    if (!isPapelizSiteTemplatesWorkerSwitchedOn) return
     const snapshotReadController = new AbortController()
     void (async () => {
       try {
@@ -94,7 +94,7 @@ export function PapelizSiteTemplatesList({ papelizSiteTemplatesBuildSnapshot, pa
         <ul className="mt-8 grid gap-3">
           {papelizSiteTemplatesShown.map((papelizSiteTemplateRow) => {
             const papelizSiteTemplateHasPage = papelizSiteTemplateIdsWithPagesSet.has(papelizSiteTemplateRow.papelizTemplateGalleryId)
-            const papelizSiteTemplateOpenInPapelizHref = isPapelizSiteTemplatesOpen ? createPapelizSiteTemplateOpenInPapelizHref(papelizSiteTemplateRow) : null
+            const papelizSiteTemplateOpenInPapelizHref = createPapelizSiteTemplateOpenInPapelizHref(papelizSiteTemplateRow)
             return (
               <li
                 key={papelizSiteTemplateRow.papelizTemplateGalleryId}
@@ -129,18 +129,20 @@ export function PapelizSiteTemplatesList({ papelizSiteTemplatesBuildSnapshot, pa
                     <p className="mt-2 line-clamp-2 text-[15px] leading-relaxed text-papeliz-ink-muted break-words">{papelizSiteTemplateRow.templateDescription}</p>
                     <div className="mt-3 flex flex-wrap items-center gap-2">
                       <PapelizSiteTemplateCategoryBadge papelizSiteTemplateRow={papelizSiteTemplateRow} />
-                      <span className="inline-flex items-center gap-3 text-sm text-papeliz-ink-muted">
-                        <span className="inline-flex items-center gap-1">
-                          <ThumbsUp className="size-3.5" aria-hidden="true" />
-                          <span className="sr-only">Up votes:</span>
-                          {papelizSiteTemplateRow.templateUpVoteCount.toLocaleString('en-US')}
+                      {isPapelizSiteTemplatesWorkerSwitchedOn && (
+                        <span className="inline-flex items-center gap-3 text-sm text-papeliz-ink-muted">
+                          <span className="inline-flex items-center gap-1">
+                            <ThumbsUp className="size-3.5" aria-hidden="true" />
+                            <span className="sr-only">Up votes:</span>
+                            {papelizSiteTemplateRow.templateUpVoteCount.toLocaleString('en-US')}
+                          </span>
+                          <span className="inline-flex items-center gap-1">
+                            <ThumbsDown className="size-3.5" aria-hidden="true" />
+                            <span className="sr-only">Down votes:</span>
+                            {papelizSiteTemplateRow.templateDownVoteCount.toLocaleString('en-US')}
+                          </span>
                         </span>
-                        <span className="inline-flex items-center gap-1">
-                          <ThumbsDown className="size-3.5" aria-hidden="true" />
-                          <span className="sr-only">Down votes:</span>
-                          {papelizSiteTemplateRow.templateDownVoteCount.toLocaleString('en-US')}
-                        </span>
-                      </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -152,14 +154,6 @@ export function PapelizSiteTemplatesList({ papelizSiteTemplatesBuildSnapshot, pa
                   >
                     Open in Papeliz
                   </a>
-                )}
-                {!isPapelizSiteTemplatesOpen && (
-                  <span
-                    aria-disabled="true"
-                    className="inline-flex min-h-11 shrink-0 items-center justify-center self-start rounded-full border border-dashed border-papeliz-line-strong bg-papeliz-surface-gray px-5 text-[15px] font-medium text-papeliz-ink-subtle sm:self-center"
-                  >
-                    Coming soon
-                  </span>
                 )}
               </li>
             )

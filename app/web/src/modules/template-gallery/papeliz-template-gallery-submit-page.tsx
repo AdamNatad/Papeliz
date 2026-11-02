@@ -6,10 +6,17 @@ import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { usePapelizFooterEqualButtonWidthRef } from '../ui/papeliz-footer-equal-button-width'
 import { newVaultFormFooterActionButtonColorClassName, newVaultFormFooterButtonClassName, newVaultFormFooterCancelButtonColorClassName } from '../workspace/papeliz-new-vault-form'
 import type { PapelizTemplateCheckRunState } from './papeliz-template-gallery-contract'
-import { describeTemplateFileReadProgress, PapelizTemplateGalleryCheckResultList } from './papeliz-template-gallery-page-parts'
+import {
+  describeTemplateFileReadProgress,
+  isPapelizTemplateGalleryWorkerFeatureComingSoon,
+  PapelizTemplateGalleryCheckResultList,
+  PapelizTemplateGalleryComingSoonPill,
+} from './papeliz-template-gallery-page-parts'
 
 // Submitting comes with the Templates server and a free Papeliz account.
 const papelizTemplateGallerySubmitOffText = 'Submitting opens with the Templates server, with a free Papeliz account. Every check passed, so this repository is ready for then.'
+// While the Templates Worker is switched off, Submit is greyed, Coming Soon, and a passed Check says so.
+const papelizTemplateGallerySubmitComingSoonText = 'Every check passed, so this repository is ready for when submitting opens.'
 
 interface PapelizTemplateGallerySubmitPageProps {
   templateGalleryPageHeadingId: string
@@ -115,6 +122,11 @@ export function PapelizTemplateGallerySubmitPage({
               <PapelizTemplateGalleryCheckResultList templateCheckResults={templateCheckRunState.templateCheckReport.templateCheckResults} />
             </div>
             {!isEveryTemplateCheckPassed && <PapelizSyncFailureLine className="px-0.5">Fix what failed, push the change, and press Check again.</PapelizSyncFailureLine>}
+            {isEveryTemplateCheckPassed && isPapelizTemplateGalleryWorkerFeatureComingSoon && (
+              <p role="status" className="px-0.5 text-[12px] leading-[1.45] text-papeliz-ink-muted">
+                {papelizTemplateGallerySubmitComingSoonText}
+              </p>
+            )}
           </>
         )}
         {isSubmitTemplateWordsShown && (
@@ -131,14 +143,26 @@ export function PapelizTemplateGallerySubmitPage({
         <button type="button" onClick={onSubmitTemplatePageClose} className={joinPapelizClassNames(newVaultFormFooterButtonClassName, newVaultFormFooterCancelButtonColorClassName)}>
           Cancel
         </button>
-        <button
-          type="button"
-          disabled={!isEveryTemplateCheckPassed}
-          onClick={() => setSubmitTemplateWordsShown(true)}
-          className={joinPapelizClassNames(newVaultFormFooterButtonClassName, newVaultFormFooterActionButtonColorClassName)}
-        >
-          Submit
-        </button>
+        {isPapelizTemplateGalleryWorkerFeatureComingSoon ? (
+          <button
+            type="button"
+            aria-disabled="true"
+            title="Submit is Coming Soon"
+            className={joinPapelizClassNames(newVaultFormFooterButtonClassName, 'cursor-not-allowed bg-papeliz-surface-gray text-papeliz-ink-subtle active:scale-100')}
+          >
+            Submit
+            <PapelizTemplateGalleryComingSoonPill />
+          </button>
+        ) : (
+          <button
+            type="button"
+            disabled={!isEveryTemplateCheckPassed}
+            onClick={() => setSubmitTemplateWordsShown(true)}
+            className={joinPapelizClassNames(newVaultFormFooterButtonClassName, newVaultFormFooterActionButtonColorClassName)}
+          >
+            Submit
+          </button>
+        )}
       </div>
     </div>
   )

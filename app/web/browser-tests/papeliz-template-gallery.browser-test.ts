@@ -10,12 +10,13 @@ import {
 } from '../src/modules/template-gallery/papeliz-template-gallery-fixtures.test-support'
 
 // Templates in a real browser, with GitHub, jsDelivr, raw files, GitHub's picture hosts and the
-// Templates server stubbed: the gallery lists a made-up template, its page renders its first note and
+// Templates server stubbed. The gallery opens on the built-in static list (P1-Workflow), with New, Top
+// 100, votes, Report, Recheck and Submit marked Coming Soon, and the website's Open in Papeliz address
+// opens a template's page. With a made-up template in its place, its page renders its first note and
 // what's inside, Preview shows a note picked in its file tree, and Use Template makes a browser vault
 // from it that opens on the first note. Each row and page shows the author's GitHub picture, or the
 // name alone when it fails, and a template's notes show pictures only from jsDelivr and GitHub. Submit
-// Template's Check names each check, and Submit stays off when one fails. Nothing reaches the network,
-// and nothing asks the Templates server.
+// Template's Check names each check. Nothing reaches the network, and nothing asks the Templates server.
 
 const gardenJournalTemplateFiles = createGardenJournalTemplateFiles()
 // The same template with a script tag in a note, for the check that fails.
@@ -124,17 +125,69 @@ async function stubTemplateNetwork(page: Page): Promise<{ templatesServerRequest
   return { templatesServerRequestUrls, otherSiteRequestUrls, gitHubPictureRequestUrls }
 }
 
+// The gallery reads its list once it has drawn, which can land after a seed and put the built-in list
+// back, so the seed is put in again until its first row shows.
 async function seedTemplateGalleryRows(page: Page, seededTemplateGalleryRows: PapelizTemplateGalleryRow[]) {
-  await page.evaluate(async (templateGalleryRowsToSeed) => {
-    const { setPapelizTemplateGalleryRowsForTests } = await import('/src/modules/template-gallery/papeliz-template-gallery-store.ts')
-    setPapelizTemplateGalleryRowsForTests(templateGalleryRowsToSeed)
-  }, seededTemplateGalleryRows)
+  const firstSeededTemplateName = seededTemplateGalleryRows[0]?.templateName ?? ''
+  await expect(async () => {
+    await page.evaluate(async (templateGalleryRowsToSeed) => {
+      const { setPapelizTemplateGalleryRowsForTests } = await import('/src/modules/template-gallery/papeliz-template-gallery-store.ts')
+      setPapelizTemplateGalleryRowsForTests(templateGalleryRowsToSeed)
+    }, seededTemplateGalleryRows)
+    await expect(page.getByRole('button', { name: new RegExp(`^${firstSeededTemplateName}`) }).first()).toBeVisible({ timeout: 1000 })
+  }).toPass()
 }
 
 async function openTemplates(page: Page) {
   await page.getByRole('region', { name: 'Start' }).getByRole('button', { name: /^Templates/ }).click()
   await expect(page.getByRole('heading', { name: 'Templates', exact: true })).toBeVisible()
 }
+
+test('Templates opens on the built-in P1-Workflow, with everything the Templates server brings Coming Soon', async ({ page }) => {
+  const { templatesServerRequestUrls } = await stubTemplateNetwork(page)
+  await page.goto('/')
+  await openTemplates(page)
+  await expect(page.getByRole('region', { name: 'Start' }).getByRole('button', { name: /^Templates/ })).toHaveAttribute('aria-current', 'true')
+
+  // Featured lists the static list's template; its row carries no vote count, and there is nothing to
+  // refresh.
+  const p1WorkflowRowButton = page.getByRole('button', { name: /^P1-Workflow/ })
+  await expect(p1WorkflowRowButton).toContainText('AdamNatad · MIT · 67 files')
+  await expect(page.getByRole('group', { name: /^Votes for/ })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Refresh' })).toHaveCount(0)
+  // New and Top 100 are Coming Soon.
+  await page.getByRole('tab', { name: 'New' }).click()
+  await expect(page.getByText('New is Coming Soon')).toBeVisible()
+  await page.getByRole('tab', { name: 'Top 100' }).click()
+  await expect(page.getByText('Top 100 is Coming Soon')).toBeVisible()
+  await page.getByRole('button', { name: 'See Featured' }).click()
+
+  // Its page: Recheck, the votes and Report stay in place, greyed, beside Coming Soon.
+  await p1WorkflowRowButton.click()
+  await expect(page.getByRole('heading', { name: 'P1-Workflow', exact: true })).toBeVisible()
+  await expect(page.getByText(/^Checked .+ · commit 64bf461$/)).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Recheck' })).toHaveAttribute('aria-disabled', 'true')
+  await expect(page.getByRole('group', { name: 'Votes for P1-Workflow: Coming Soon' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Report' })).toHaveAttribute('aria-disabled', 'true')
+  await expect(page.getByText('Coming Soon', { exact: true })).toHaveCount(2)
+  await page.getByRole('button', { name: 'Recheck' }).click({ force: true })
+  await expect(page.getByText('Rechecking…')).toHaveCount(0)
+  expect(templatesServerRequestUrls).toEqual([])
+})
+
+test('The website’s Open in Papeliz address opens Templates on that template’s page, once', async ({ page }) => {
+  const { templatesServerRequestUrls } = await stubTemplateNetwork(page)
+  await page.goto('/?papelizTemplateGalleryId=AdamNatad%2FP1-Workflow')
+  await expect(page.getByRole('heading', { name: 'P1-Workflow', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Use Template' })).toBeVisible()
+  // The address lets go of it, so a reload opens the start screen as usual.
+  expect(new URL(page.url()).search).toBe('')
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Templates', exact: true })).toBeVisible()
+  await page.reload()
+  await expect(page.getByRole('heading', { name: 'P1-Workflow', exact: true })).toHaveCount(0)
+  expect(templatesServerRequestUrls).toEqual([])
+})
 
 test('Templates lists a template, shows its page and Preview, and makes a browser vault from it', async ({ page }) => {
   const { templatesServerRequestUrls } = await stubTemplateNetwork(page)
@@ -143,11 +196,6 @@ test('Templates lists a template, shows its page and Preview, and makes a browse
   test.skip(!isBrowserStorageOn, 'This browser refuses its private storage (Playwright’s WebKit for Windows does), so it keeps no browser vaults.')
 
   await openTemplates(page)
-  await expect(page.getByRole('region', { name: 'Start' }).getByRole('button', { name: /^Templates/ })).toHaveAttribute('aria-current', 'true')
-  // New and Top 100 wait for the Templates server.
-  await page.getByRole('tab', { name: 'Top 100' }).click()
-  await expect(page.getByText('Top 100 isn’t available yet')).toBeVisible()
-  await page.getByRole('tab', { name: 'Featured' }).click()
 
   // The template, as the built-in Featured list would carry it.
   await seedTemplateGalleryRows(page, [await buildGardenJournalTemplateGalleryRow()])
@@ -243,29 +291,29 @@ test('Templates shows each author’s GitHub picture, or the name alone, and a t
   expect(templatesServerRequestUrls).toEqual([])
 })
 
-test('Submit Template checks a repository and keeps Submit off while a check fails', async ({ page }) => {
+test('Submit Template checks a repository, and Submit stays Coming Soon', async ({ page }) => {
   const { templatesServerRequestUrls } = await stubTemplateNetwork(page)
   await page.goto('/')
   await openTemplates(page)
   await page.getByRole('button', { name: 'Submit Template' }).click()
   await expect(page.getByRole('heading', { name: 'Submit Template' })).toBeVisible()
   const repositoryLinkField = page.getByRole('textbox', { name: 'Repository link' })
-  const submitButton = page.getByRole('button', { name: 'Submit', exact: true })
+  const submitButton = page.getByRole('button', { name: /^Submit/ }).filter({ hasText: 'Coming Soon' })
+  await expect(submitButton).toHaveAttribute('aria-disabled', 'true')
 
   await repositoryLinkField.fill('https://github.com/garden-notes/Garden-Journal')
   await page.getByRole('button', { name: 'Check', exact: true }).click()
   const templateCheckList = page.getByRole('list', { name: 'Checks' })
   await expect(templateCheckList).toContainText('Its license is MIT.')
-  await expect(submitButton).toBeEnabled()
-  await submitButton.click()
-  await expect(page.getByRole('status').filter({ hasText: 'Submitting opens with the Templates server' })).toBeVisible()
+  await expect(page.getByRole('status').filter({ hasText: 'Every check passed, so this repository is ready for when submitting opens.' })).toBeVisible()
+  await submitButton.click({ force: true })
+  await expect(submitButton).toHaveAttribute('aria-disabled', 'true')
 
   await repositoryLinkField.fill('garden-notes/Scripted-Journal')
   await expect(templateCheckList).toHaveCount(0)
   await page.getByRole('button', { name: 'Check', exact: true }).click()
   await expect(templateCheckList.getByRole('listitem').filter({ hasText: /^Failed: Notes/ })).toBeVisible()
   await expect(page.getByText('Fix what failed, push the change, and press Check again.')).toBeVisible()
-  await expect(submitButton).toBeDisabled()
   expect(templatesServerRequestUrls).toEqual([])
 })
 

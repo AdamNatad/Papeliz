@@ -18,6 +18,7 @@ import {
 } from './papeliz-template-gallery-contract'
 import { describePapelizTemplateLicenseName } from './papeliz-template-export-licenses'
 import { isPapelizTemplatePictureUrlAllowed } from './papeliz-template-gallery-picture-hosts'
+import { isPapelizTemplateGalleryWorkerSwitchedOn } from './papeliz-template-gallery-worker-switch'
 
 // The pieces the Templates pages share: a template's thumbnail, author, tags and votes, Recheck, the
 // checks' results and the file tree.
@@ -233,9 +234,24 @@ export function PapelizTemplateGalleryLicenseTag({ templateLicenseId }: { templa
   return <span className={joinPapelizClassNames(papelizTemplateGalleryTagClassName, 'bg-papeliz-surface-gray text-papeliz-ink-muted')}>{describeTemplateGalleryLicense(templateLicenseId)}</span>
 }
 
-// Voting comes with the Templates server and a free Papeliz account; until then the pill shows the
-// counts and its arrows say why they're off.
-const papelizTemplateGalleryVotingOffText = 'Voting opens with the Templates server, with a free Papeliz account.'
+// What needs the Templates Worker (Submit, votes, Report and Recheck) stays in its place while the Worker
+// is switched off (papeliz-template-gallery-worker-switch.ts), greyed, beside this small blue pill.
+export const isPapelizTemplateGalleryWorkerFeatureComingSoon = !isPapelizTemplateGalleryWorkerSwitchedOn
+
+export function PapelizTemplateGalleryComingSoonPill() {
+  return (
+    <span className="inline-flex h-[18px] flex-none items-center rounded-full border border-papeliz-blue-line bg-papeliz-blue-soft px-[7px] text-[10.5px] font-semibold whitespace-nowrap text-papeliz-blue">
+      Coming Soon
+    </span>
+  )
+}
+
+// Voting comes with the Templates server and a free Papeliz account; until then the pill's arrows are
+// greyed and say why they're off. While the Worker is switched off it shows no score, since nobody can
+// vote yet.
+const papelizTemplateGalleryVotingOffText = isPapelizTemplateGalleryWorkerFeatureComingSoon
+  ? 'Votes are Coming Soon, with a free Papeliz account.'
+  : 'Voting opens with the Templates server, with a free Papeliz account.'
 
 // The vote pill: up, the score (up less down), down.
 export function PapelizTemplateGalleryVotePill({ templateGalleryRow, votePillSize = 'row' }: { templateGalleryRow: PapelizTemplateGalleryRow; votePillSize?: 'row' | 'page' }) {
@@ -244,16 +260,21 @@ export function PapelizTemplateGalleryVotePill({ templateGalleryRow, votePillSiz
   return (
     <span
       role="group"
-      aria-label={`Votes for ${templateGalleryRow.templateName}: ${templateGalleryRow.templateUpVoteCount} up, ${templateGalleryRow.templateDownVoteCount} down`}
+      aria-label={
+        isPapelizTemplateGalleryWorkerFeatureComingSoon
+          ? `Votes for ${templateGalleryRow.templateName}: Coming Soon`
+          : `Votes for ${templateGalleryRow.templateName}: ${templateGalleryRow.templateUpVoteCount} up, ${templateGalleryRow.templateDownVoteCount} down`
+      }
       className={joinPapelizClassNames(
         'inline-flex flex-none items-center gap-0.5 rounded-full border border-papeliz-line bg-papeliz-surface px-1 text-[12px] font-semibold text-papeliz-ink-muted tabular-nums',
         votePillSize === 'row' ? 'h-7 pointer-coarse:h-10' : 'h-8 pointer-coarse:h-10',
+        isPapelizTemplateGalleryWorkerFeatureComingSoon && 'opacity-55',
       )}
     >
       <button type="button" aria-label="Vote Up" aria-disabled="true" title={papelizTemplateGalleryVotingOffText} className={templateVoteArrowClassName}>
         <ArrowBigUp className="size-[15px]" aria-hidden="true" />
       </button>
-      <span className="min-w-5 px-0.5 text-center">{templateVoteScore.toLocaleString('en-US')}</span>
+      {!isPapelizTemplateGalleryWorkerFeatureComingSoon && <span className="min-w-5 px-0.5 text-center">{templateVoteScore.toLocaleString('en-US')}</span>}
       <button type="button" aria-label="Vote Down" aria-disabled="true" title={papelizTemplateGalleryVotingOffText} className={templateVoteArrowClassName}>
         <ArrowBigDown className="size-[15px]" aria-hidden="true" />
       </button>
@@ -302,7 +323,8 @@ function findThisTemplateRecheckState(templateRecheckState: PapelizTemplateReche
 }
 
 // Recheck: asks GitHub for a newer version, and checks it. At a template page's top right it is the
-// votes' height.
+// votes' height. While the Templates Worker is switched off it is greyed, Coming Soon: a template stays
+// on the commit the static list pins.
 export function PapelizTemplateGalleryRecheckButton({
   templateGalleryRow,
   templateRecheckState,
@@ -315,6 +337,22 @@ export function PapelizTemplateGalleryRecheckButton({
   recheckButtonSize?: 'line' | 'page'
 }) {
   const isTemplateRechecking = findThisTemplateRecheckState(templateRecheckState, templateGalleryRow).templateRecheckStage === 'rechecking'
+  if (isPapelizTemplateGalleryWorkerFeatureComingSoon) {
+    return (
+      <button
+        type="button"
+        aria-disabled="true"
+        title="Recheck is Coming Soon"
+        className={joinPapelizClassNames(
+          'inline-flex flex-none cursor-not-allowed items-center gap-1 rounded-full border border-papeliz-line font-semibold text-papeliz-ink-muted opacity-55 pointer-coarse:px-3',
+          recheckButtonSize === 'line' ? 'h-6 px-2 text-[11.5px] pointer-coarse:h-9' : 'h-8 gap-1.5 px-3 text-[12.5px] pointer-coarse:h-10',
+        )}
+      >
+        <RefreshCw className={recheckButtonSize === 'line' ? 'size-3' : 'size-3.5'} aria-hidden="true" />
+        Recheck
+      </button>
+    )
+  }
   return (
     <button
       type="button"

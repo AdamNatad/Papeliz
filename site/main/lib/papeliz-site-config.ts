@@ -21,15 +21,15 @@ export const papelizSiteAppUrl: string | null = '/app/'
 export const papelizSiteDownloadUrl: string | null = '/download/'
 // My Account opens the sign-in and account page (app/account/), live with Papeliz Sync.
 export const papelizSiteAccountUrl: string | null = '/account/'
-// The Templates pages (app/templates/), which ship with the Templates Worker. While null, the header
-// leaves the Templates link out; the pages are still built.
+// The Templates pages (app/templates/). While null, the header leaves the Templates link out; the pages
+// are still built.
 export const papelizSiteTemplatesUrl: string | null = '/templates/'
-// Templates need the Templates Worker, which opens with Papeliz Sync. While this is false, every build
-// shows the Templates pages ready but closed: only the build's stand-in list, a grey Coming soon in place
-// of Open in Papeliz, and no read of the Worker's list. The dev server keeps them open. Opening Templates
-// in builds is this one line.
-const isPapelizSiteTemplatesSwitchedOnInBuilds = false
-export const isPapelizSiteTemplatesOpen = isPapelizSiteTemplatesSwitchedOnInBuilds || process.env.NODE_ENV === 'development'
+// Whether the Templates pages read the Templates Worker's hourly list (papeliz.com/api/templates/gallery).
+// While false, the build and every page show only the templates built into Papeliz (the app's static
+// list), Open in Papeliz works, no vote counts show, and one line says more templates, submitting and
+// votes are Coming Soon; no page asks /api/templates/. Switched on, the build reads the Worker's list,
+// keeping the static list for when it can't be reached, and the list page refreshes from it.
+export const isPapelizSiteTemplatesWorkerSwitchedOn = false
 export const papelizSiteGitHubRepositoryUrl: string | null = 'https://github.com/AdamNatad/Papeliz'
 // GitHub's Discussions and Issues for the repository. Discussions are turned off on the repository
 // for now, so their link shows "Coming soon" until they are turned on.
