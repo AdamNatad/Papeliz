@@ -24,6 +24,20 @@ export default function PapelizSitePrivacyPage() {
         </p>
       </PapelizLegalDocumentSection>
 
+      <PapelizLegalDocumentSection papelizLegalSectionTitle="Pictures and video in your notes">
+        <p>
+          Pictures and videos stored in your vault are read from it in your browser, and showing them sends
+          them nowhere. A picture or video with a web address loads from that address when the note shows
+          it. That site sees the request, as any website does, but never which note it is in.
+        </p>
+        <p>
+          A YouTube video in a note shows as a poster drawn by Papeliz, so nothing is sent to YouTube while
+          you read. When you press play, the video loads from YouTube’s privacy-enhanced player
+          (youtube-nocookie.com), and from then on YouTube sees your visit, as it would on its own site. It
+          is told that the video is playing on papeliz.com, never which note it is in.
+        </p>
+      </PapelizLegalDocumentSection>
+
       <PapelizLegalDocumentSection papelizLegalSectionTitle="Templates">
         <p>
           Papeliz contacts other services for templates only when you open Templates. The list of templates

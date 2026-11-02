@@ -48,7 +48,7 @@ export const papelizHelpWritingArticles: readonly PapelizHelpArticle[] = [
     articleSections: [
       helpSection('Rendered as you write', [
         helpParagraph(
-          'MD View shows the note rendered: headings, lists, links, tags and cards look the way they read. It is still the same Markdown text underneath. On the lines your cursor is on, the raw Markdown shows so you can edit it; the rest stays rendered.',
+          'MD View shows the note rendered: headings, lists, links, pictures, tags and cards look the way they read. It is still the same Markdown text underneath. On the lines your cursor is on, the raw Markdown shows so you can edit it; the rest stays rendered.',
         ),
       ]),
       helpSection('Links and checkboxes', [
@@ -58,6 +58,18 @@ export const papelizHelpWritingArticles: readonly PapelizHelpArticle[] = [
           '`Ctrl`+click a web link to open it in a new tab. A plain click places the cursor.',
           'Click a task’s checkbox to tick it or clear it.',
         ]),
+      ]),
+      helpSection('Pictures and video', [
+        helpBulletList([
+          '**Pictures:** write `![A description](pictures/plan.png)` or `![[plan.png]]`. A picture can be a file in your vault, beside the note or anywhere in the vault by its name, or a web address that starts with `https://`. `![[plan.png|300]]` shows it 300 pixels wide, and `![[plan.png|300x200]]` 300 wide and 200 high.',
+          '**A picture that links somewhere:** `[![A description](plan.png)](https://example.com)`. On a locked note, click it to open the link. While editing, `Ctrl`+click it (`Cmd`+click on a Mac).',
+          '**Video files:** `![A description](clips/demo.mp4)` or `![[demo.webm]]` shows an `.mp4` or `.webm` video from your vault or an `https://` address, with its controls. It never plays by itself.',
+          '**YouTube:** put a YouTube link on a line of its own, with a blank line before and after it: `[Garden tour](https://www.youtube.com/watch?v=…)`, or just the address. It shows as a poster. Press play to watch it here, or **Open on YouTube** to watch it there. Nothing loads from YouTube until you press play.',
+          '**Editing:** the line your cursor is on shows its Markdown, so you can change the address or the description. Click a picture to put the cursor there.',
+        ]),
+        helpNote(
+          'A picture at any other address, such as one that starts with `http://`, isn’t loaded: its description shows in its place. A vault file Papeliz can’t find shows as **Picture not found**. See [[where-your-notes-live]] for what a picture or video sends.',
+        ),
       ]),
       helpSection('Properties', [
         helpParagraph(

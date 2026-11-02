@@ -91,7 +91,7 @@ export const papelizHelpReferenceArticles: readonly PapelizHelpArticle[] = [
     articleSections: [
       helpSection('Standard Markdown', [
         helpBulletList([
-          'CommonMark: headings, emphasis, lists, quotes, inline code, code blocks, links and horizontal rules.',
+          'CommonMark: headings, emphasis, lists, quotes, inline code, code blocks, links, pictures and horizontal rules.',
           'GitHub-flavored additions: tables, task lists, strikethrough and links written as plain addresses.',
         ]),
       ]),
@@ -104,6 +104,7 @@ export const papelizHelpReferenceArticles: readonly PapelizHelpArticle[] = [
           'Colored and resized text, in one checked `<span>` form. See [[format-text]].',
           'Diagrams: a code block marked `mermaid` shows as a Mermaid diagram in MD View, such as a flowchart or a sequence diagram. Click it to edit its source.',
           'Wikilinks with a label inside a table cell: `[[Note|label]]` stays one cell.',
+          'Pictures from your vault, `![[picture.png]]` embeds, `.mp4` and `.webm` videos, and YouTube links shown as posters. See [[md-view]].',
         ]),
       ]),
       helpSection('An example', [
@@ -123,7 +124,7 @@ Three raised beds this year. See [[Reading list]] #garden
       helpSection('Not yet', [
         helpBulletList([
           'Math and code highlighting in the rendered page.',
-          'Embeds with `![[ ]]` and attachments.',
+          '`![[ ]]` embeds of notes, PDFs and other files that aren’t pictures or videos.',
           'Raw HTML, which isn’t rendered for your safety. See [[safe-rendering]].',
         ]),
       ]),

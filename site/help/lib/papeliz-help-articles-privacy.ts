@@ -31,6 +31,14 @@ export const papelizHelpPrivacyArticles: readonly PapelizHelpArticle[] = [
           'Papeliz Sync, the optional add-on, uploads only the vaults you turn it on for, encrypted on your device first. In a Standard vault, Papeliz keeps the vault’s key, so it could read the vault. An End-to-end vault has its own passphrase, which Papeliz never receives, so Papeliz can’t read it. Vault and device names aren’t encrypted. See [[sync-your-vaults]].',
         ),
       ]),
+      helpSection('When a note shows a picture or video', [
+        helpParagraph(
+          'Pictures and videos stored in your vault are read from it in your browser, and showing them sends them nowhere. One with a web address loads from that address when the note shows it; that site sees the request, but not which note it is in.',
+        ),
+        helpParagraph(
+          'A YouTube video shows as a poster Papeliz draws, so nothing reaches YouTube while you read. When you press play, it loads from YouTube’s privacy-enhanced player at youtube-nocookie.com, and from then on YouTube sees your visit, as it would on its own site. It is told the video plays on papeliz.com, never which note it is in. See [[md-view]].',
+        ),
+      ]),
       helpSection('When you open Templates', [
         helpParagraph(
           'Papeliz contacts other services for templates only when you open **Templates**: jsDelivr or GitHub for a template’s files and pictures. The list of templates is built into Papeliz. **Check**, in **Submit Template**, asks GitHub and jsDelivr about the repository you paste. None of them receives your notes or your key. **New**, **Top 100**, votes, **Report** and **Recheck** are Coming Soon, with Papeliz’s Templates server.',
@@ -89,6 +97,7 @@ export const papelizHelpPrivacyArticles: readonly PapelizHelpArticle[] = [
           'Raw HTML in a note isn’t rendered, except one checked form for colored and resized text. See [[format-text]].',
           'Every rendered note goes through a sanitizer built on GitHub’s safe list, which removes anything that could run script, such as `<script>` tags, `on…` attributes and `javascript:` links.',
           'Web links open in a new tab, apart from Papeliz.',
+          'A YouTube video plays in a frame of its own, kept apart from Papeliz, and only after you press play.',
         ]),
       ]),
       helpSection('Notes from anywhere', [
