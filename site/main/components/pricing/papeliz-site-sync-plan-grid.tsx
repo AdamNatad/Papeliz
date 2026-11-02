@@ -11,6 +11,7 @@ import {
   papelizSiteSyncFreePlan,
   papelizSiteSyncFreeSignUpHref,
   papelizSiteSyncPlans,
+  papelizSiteSyncPreselectedBillingPeriod,
   readPapelizSiteSyncPlanMonthlyRateUsd,
   type PapelizSiteSyncBillingPeriod,
   type PapelizSiteSyncFreePlanId,
@@ -148,7 +149,7 @@ function PapelizSiteSyncPaidPlanCard({
 // Papeliz Sync under the Monthly / Yearly switch. Yearly is chosen first; its badge counts the
 // saving in months, and its info mark opens the table behind it.
 export function PapelizSiteSyncPlanGrid({ papelizSiteSyncPlanGridShows }: PapelizSiteSyncPlanGridProps) {
-  const [papelizSiteChosenSyncBillingPeriod, setPapelizSiteChosenSyncBillingPeriod] = useState<PapelizSiteSyncBillingPeriod>('yearly')
+  const [papelizSiteChosenSyncBillingPeriod, setPapelizSiteChosenSyncBillingPeriod] = useState<PapelizSiteSyncBillingPeriod>(papelizSiteSyncPreselectedBillingPeriod)
   return (
     <>
       <div className="mt-6 mb-8">

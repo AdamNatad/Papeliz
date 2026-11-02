@@ -7,6 +7,10 @@ import { papelizSiteAccountUrl } from './papeliz-site-config'
 export type PapelizSiteSyncPlanId = 'standard' | 'plus' | 'pro'
 export type PapelizSiteSyncBillingPeriod = 'monthly' | 'yearly'
 
+// Yearly is chosen first wherever a paid plan is offered, with Monthly one click away (Adam,
+// 2026-11-02): the Monthly / Yearly switches, the paid plans' Sign up and a plan chosen in an address.
+export const papelizSiteSyncPreselectedBillingPeriod: PapelizSiteSyncBillingPeriod = 'yearly'
+
 export type PapelizSiteSyncPlan = {
   papelizSiteSyncPlanId: PapelizSiteSyncPlanId
   papelizSiteSyncPlanName: string
@@ -100,20 +104,22 @@ export interface PapelizSiteSyncChosenPlan {
   chosenSyncBillingPeriod: PapelizSiteSyncBillingPeriod
 }
 
-// The plan and period an address chose, or null when it chose none or one that isn't sold.
+// The plan and period an address chose, or null when it chose none or one that isn't sold. A plan
+// with no period starts on the preselected one.
 export function readPapelizSiteSyncChosenPlan(papelizSiteAddressParameters: URLSearchParams): PapelizSiteSyncChosenPlan | null {
   const chosenSyncPlanId = papelizSiteAddressParameters.get(papelizSiteSyncPlanAddressParameterName)
-  const chosenSyncBillingPeriod = papelizSiteAddressParameters.get(papelizSiteSyncBillingPeriodAddressParameterName)
+  const chosenSyncBillingPeriod = papelizSiteAddressParameters.get(papelizSiteSyncBillingPeriodAddressParameterName) ?? papelizSiteSyncPreselectedBillingPeriod
   const isChosenSyncPlanSold = papelizSiteSyncPlans.some((papelizSiteSyncPlan) => papelizSiteSyncPlan.papelizSiteSyncPlanId === chosenSyncPlanId)
   if (!isChosenSyncPlanSold || (chosenSyncBillingPeriod !== 'monthly' && chosenSyncBillingPeriod !== 'yearly')) return null
   return { chosenSyncPlanId: chosenSyncPlanId as PapelizSiteSyncPlanId, chosenSyncBillingPeriod }
 }
 
 // Sign up's address: the account page, where the visitor signs in and checks out with this plan and
-// period chosen. Null while the account page has no address, and Sign up is then left out.
+// period chosen, yearly unless Monthly was chosen. Null while the account page has no address, and
+// Sign up is then left out.
 export function createPapelizSiteSyncSignUpHref(
   papelizSiteSyncPlanId: PapelizSiteSyncPlanId,
-  papelizSiteSyncBillingPeriod: PapelizSiteSyncBillingPeriod,
+  papelizSiteSyncBillingPeriod: PapelizSiteSyncBillingPeriod = papelizSiteSyncPreselectedBillingPeriod,
 ): string | null {
   if (!papelizSiteAccountUrl) return null
   const papelizSiteSyncSignUpAddressParameters = new URLSearchParams({

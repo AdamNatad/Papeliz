@@ -15,6 +15,8 @@
 //   inline handler (scripts/papeliz-site-page-script-policy.mjs), and the /account/* policy in
 //   _headers hashes the account page's inline scripts in place of 'unsafe-inline' (the root
 //   `pnpm site:build` writes it);
+// - the Pricing and Sync pages open on yearly billing: the Yearly choice is the pressed one and every
+//   paid plan's Sign up starts checkout on yearly;
 // - every short address in _redirects (app/%5Fredirects/route.ts), a short name or the repository's
 //   own spelling, with and without the trailing slash, is a permanent redirect from a /templates/
 //   address that has no page of its own and is no owner's to a page in the export whose canonical
@@ -186,6 +188,31 @@ if (existsSync(papelizSiteLicensePagePath)) {
   }
 }
 
+// Yearly billing chosen first (papelizSiteSyncPreselectedBillingPeriod in lib/papeliz-site-sync-plans.ts).
+// The address parameters are the same as papelizSiteSyncPlanAddressParameterName and
+// papelizSiteSyncBillingPeriodAddressParameterName there; Free's Sign up names no plan, so it is not counted.
+for (const papelizSiteSyncPlansPagePath of ['/pricing/', '/sync/']) {
+  const papelizSiteSyncPlansPageFile = exportFileForSitePath(papelizSiteSyncPlansPagePath)
+  if (!existsSync(papelizSiteSyncPlansPageFile)) continue
+  const papelizSiteSyncPlansPageName = path.relative(papelizSiteExportDirectory, papelizSiteSyncPlansPageFile).split(path.sep).join('/')
+  const papelizSiteSyncPlansPageHtml = readFileSync(papelizSiteSyncPlansPageFile, 'utf8')
+  const papelizSiteSyncPressedChoiceTexts = [...papelizSiteSyncPlansPageHtml.matchAll(/<button[^>]*aria-pressed="true"[^>]*>([\s\S]*?)<\/button>/g)].map(
+    (papelizSiteSyncPressedChoiceMatch) => visibleTextOfHtml(papelizSiteSyncPressedChoiceMatch[1]),
+  )
+  if (!papelizSiteSyncPressedChoiceTexts.some((papelizSiteSyncPressedChoiceText) => papelizSiteSyncPressedChoiceText.startsWith('Yearly'))) {
+    papelizSiteExportProblems.push(`${papelizSiteSyncPlansPageName}: the Monthly / Yearly switch does not open on Yearly`)
+  }
+  const papelizSiteSyncPaidSignUpHrefs = [...papelizSiteSyncPlansPageHtml.matchAll(/href="([^"]*[?&](?:amp;)?papeliz-sync-plan=[^"]*)"/g)].map((papelizSiteSyncPaidSignUpMatch) =>
+    decodeHtmlEntities(papelizSiteSyncPaidSignUpMatch[1]),
+  )
+  if (papelizSiteSyncPaidSignUpHrefs.length === 0) papelizSiteExportProblems.push(`${papelizSiteSyncPlansPageName}: has no paid plan Sign up`)
+  for (const papelizSiteSyncPaidSignUpHref of papelizSiteSyncPaidSignUpHrefs) {
+    if (new URL(papelizSiteSyncPaidSignUpHref, 'https://papeliz.test').searchParams.get('papeliz-sync-billing-period') !== 'yearly') {
+      papelizSiteExportProblems.push(`${papelizSiteSyncPlansPageName}: Sign up ${papelizSiteSyncPaidSignUpHref} does not start checkout on yearly`)
+    }
+  }
+}
+
 // The account page's header policy: every inline script hashed, and no 'unsafe-inline' left.
 const papelizSiteAccountPagePath = exportFileForSitePath('/account/')
 const papelizSiteExportHeadersPath = path.join(papelizSiteExportDirectory, '_headers')
@@ -282,5 +309,5 @@ if (papelizSiteExportProblems.length > 0) {
 }
 
 console.log(
-  ` [ok] Site export checked: ${papelizSiteExpectedPagePaths.length} pages, ${papelizSiteExportHtmlPaths.length} HTML files, links, license text, wording, script policies and ${papelizSiteTemplateShortAddressCount} template short address line(s).`,
+  ` [ok] Site export checked: ${papelizSiteExpectedPagePaths.length} pages, ${papelizSiteExportHtmlPaths.length} HTML files, links, license text, wording, yearly billing first, script policies and ${papelizSiteTemplateShortAddressCount} template short address line(s).`,
 )

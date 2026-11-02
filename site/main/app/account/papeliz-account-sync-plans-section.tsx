@@ -9,6 +9,7 @@ import {
   formatPapelizSiteSyncUsd,
   papelizSiteSyncFreePlan,
   papelizSiteSyncPlans,
+  papelizSiteSyncPreselectedBillingPeriod,
   readPapelizSiteSyncPlanMonthlyRateUsd,
   type PapelizSiteSyncBillingPeriod,
   type PapelizSiteSyncChosenPlan,
@@ -45,7 +46,7 @@ export function PapelizAccountSyncPlansSection({
   papelizAccountSyncChosenPlan: PapelizSiteSyncChosenPlan | null
 }) {
   const [chosenPapelizAccountSyncBillingPeriod, setChosenPapelizAccountSyncBillingPeriod] = useState<PapelizSiteSyncBillingPeriod>(
-    papelizAccountSyncChosenPlan?.chosenSyncBillingPeriod ?? 'yearly',
+    papelizAccountSyncChosenPlan?.chosenSyncBillingPeriod ?? papelizSiteSyncPreselectedBillingPeriod,
   )
   const [isChosenPlanPromptDismissed, setIsChosenPlanPromptDismissed] = useState(false)
   const { syncBillingStage, syncCheckoutStage, syncBillingPortalFailureMessage, startPapelizAccountSyncCheckout, openPapelizAccountSyncBillingPortal, loadPapelizAccountSyncBilling } =
