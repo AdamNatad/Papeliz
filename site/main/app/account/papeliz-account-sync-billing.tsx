@@ -4,7 +4,7 @@ import { useAuth } from '@clerk/react'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { papelizSiteSyncFreePlan, papelizSiteSyncPlans, type PapelizSiteSyncBillingPeriod, type PapelizSiteSyncPlanId } from '@/lib/papeliz-site-sync-plans'
 import { papelizAccountCompactPrimaryButtonClassName, papelizAccountSecondaryButtonClassName } from './papeliz-account-card-frame'
-import { papelizAccountStoragePlaceLabels, readPapelizAccountNearestStoragePlace } from './papeliz-account-config'
+import { papelizAccountNearestStoragePlaceBadgeClassName, papelizAccountStoragePlaceLabels, readPapelizAccountNearestStoragePlace } from './papeliz-account-config'
 import { papelizAccountSyncUnreachableMessage } from './papeliz-account-devices-section'
 import { PapelizAccountDialog } from './papeliz-account-dialog'
 import { papelizSyncStoragePlaces, type PapelizSyncStoragePlace } from './papeliz-account-sync-hand-over'
@@ -324,9 +324,11 @@ export function PapelizAccountSyncStoragePlaceDialog({ papelizAccountSyncBilling
             />
             <span className="min-w-0 flex-1">
               <span className="block text-sm font-semibold text-papeliz-ink">{papelizAccountStoragePlaceLabels[papelizSyncStoragePlace].storagePlaceName}</span>
-              <span className="block text-xs text-papeliz-ink-muted">{papelizAccountStoragePlaceLabels[papelizSyncStoragePlace].storagePlaceWhereStoredLine}</span>
+              {papelizAccountStoragePlaceLabels[papelizSyncStoragePlace].storagePlaceJurisdictionLine && (
+                <span className="block text-xs text-papeliz-ink-muted">{papelizAccountStoragePlaceLabels[papelizSyncStoragePlace].storagePlaceJurisdictionLine}</span>
+              )}
             </span>
-            {papelizSyncStoragePlace === nearestPapelizSyncStoragePlace && <span className="text-[11px] font-bold text-papeliz-blue">Nearest</span>}
+            {papelizSyncStoragePlace === nearestPapelizSyncStoragePlace && <span className={papelizAccountNearestStoragePlaceBadgeClassName}>Nearest You</span>}
           </label>
         ))}
       </fieldset>

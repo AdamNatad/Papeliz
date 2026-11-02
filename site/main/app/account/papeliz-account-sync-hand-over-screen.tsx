@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { PapelizAccountCardFrame, PapelizAccountCardMark, papelizAccountPrimaryButtonClassName, papelizAccountTextLinkClassName } from './papeliz-account-card-frame'
 import {
   papelizAccountAppPath,
+  papelizAccountNearestStoragePlaceBadgeClassName,
   papelizAccountSignInWayStorageKey,
   papelizAccountStoragePlaceLabels,
   readPapelizAccountNearestStoragePlace,
@@ -155,9 +156,11 @@ export function PapelizAccountSyncHandOverScreen({ papelizSyncSignInPageParamete
                   />
                   <span className="min-w-0 flex-1">
                     <span className="block text-sm font-semibold">{papelizAccountStoragePlaceLabels[papelizSyncStoragePlace].storagePlaceName}</span>
-                    <span className="block text-xs text-papeliz-ink-muted">{papelizAccountStoragePlaceLabels[papelizSyncStoragePlace].storagePlaceWhereStoredLine}</span>
+                    {papelizAccountStoragePlaceLabels[papelizSyncStoragePlace].storagePlaceJurisdictionLine && (
+                      <span className="block text-xs text-papeliz-ink-muted">{papelizAccountStoragePlaceLabels[papelizSyncStoragePlace].storagePlaceJurisdictionLine}</span>
+                    )}
                   </span>
-                  {papelizSyncStoragePlace === nearestPapelizSyncStoragePlace && <span className="text-[11px] font-bold text-papeliz-blue">Nearest</span>}
+                  {papelizSyncStoragePlace === nearestPapelizSyncStoragePlace && <span className={papelizAccountNearestStoragePlaceBadgeClassName}>Nearest You</span>}
                 </label>
               ))}
             </fieldset>

@@ -60,13 +60,17 @@ export function readPapelizAccountPasskeysAreOn(papelizAccountClerk: object): bo
   return (papelizAccountClerk as PapelizAccountClerkWithInstanceSettings).__internal_environment?.userSettings?.attributes?.passkey?.enabled === true
 }
 
-export const papelizAccountStoragePlaceLabels: Record<PapelizSyncStoragePlace, { storagePlaceName: string; storagePlaceWhereStoredLine: string }> = {
-  enam: { storagePlaceName: 'Eastern North America', storagePlaceWhereStoredLine: 'Stored in eastern North America.' },
-  wnam: { storagePlaceName: 'Western North America', storagePlaceWhereStoredLine: 'Stored in western North America.' },
-  eu: { storagePlaceName: 'Europe', storagePlaceWhereStoredLine: 'Stored in the EU.' },
-  apac: { storagePlaceName: 'Asia-Pacific', storagePlaceWhereStoredLine: 'Stored in Asia-Pacific.' },
-  oc: { storagePlaceName: 'Oceania', storagePlaceWhereStoredLine: 'Stored in Oceania.' },
+// As in the app: only Europe has a second line, which says where its notes are stored.
+export const papelizAccountStoragePlaceLabels: Record<PapelizSyncStoragePlace, { storagePlaceName: string; storagePlaceJurisdictionLine?: string }> = {
+  enam: { storagePlaceName: 'Eastern North America' },
+  wnam: { storagePlaceName: 'Western North America' },
+  eu: { storagePlaceName: 'Europe', storagePlaceJurisdictionLine: 'Stored in the EU' },
+  apac: { storagePlaceName: 'Asia-Pacific' },
+  oc: { storagePlaceName: 'Oceania' },
 }
+
+export const papelizAccountNearestStoragePlaceBadgeClassName =
+  'flex-none rounded-full bg-papeliz-blue px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap text-papeliz-on-blue'
 
 // The nearest place from the browser's time zone, without a request.
 export function readPapelizAccountNearestStoragePlace(): PapelizSyncStoragePlace {

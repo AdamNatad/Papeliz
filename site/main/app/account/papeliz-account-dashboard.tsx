@@ -215,7 +215,8 @@ function PapelizAccountSignInWayLine({
 }) {
   return (
     <li className="flex items-center gap-3 border-t border-papeliz-line py-2.5 first:border-t-0 md:py-3">
-      <span className="grid size-8 shrink-0 place-items-center rounded-lg border border-papeliz-line bg-papeliz-surface-soft">{signInWayIcon}</span>
+      {/* White behind the provider marks, not the page's gray (Adam, 2026-11-03: "look at the bg its not white enough"). */}
+      <span className="grid size-8 shrink-0 place-items-center rounded-lg border border-papeliz-line bg-papeliz-surface">{signInWayIcon}</span>
       <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold">{signInWayName}</p>
         <p aria-live={signInWayDetailIsAnnounced ? 'polite' : undefined} className="text-[13px] text-pretty [overflow-wrap:anywhere] text-papeliz-ink-muted">

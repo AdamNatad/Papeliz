@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { PapelizSiteBillingPeriodSwitch } from '@/components/pricing/papeliz-site-billing-period-switch'
 import { createPapelizSiteYearlySavingsBadgeInfo, papelizSiteSyncYearlyMonthsSaved } from '@/components/pricing/papeliz-site-yearly-savings-info'
 import {
@@ -14,30 +14,81 @@ import {
   type PapelizSiteSyncBillingPeriod,
   type PapelizSiteSyncChosenPlan,
 } from '@/lib/papeliz-site-sync-plans'
-import { papelizAccountCompactPrimaryButtonClassName, papelizAccountSecondaryButtonClassName, papelizAccountTextLinkClassName } from './papeliz-account-card-frame'
+import {
+  papelizAccountCompactPrimaryButtonClassName,
+  papelizAccountRowActionWidthClassName,
+  papelizAccountSecondaryButtonClassName,
+  papelizAccountTextLinkClassName,
+} from './papeliz-account-card-frame'
 import { PapelizAccountSyncSubscriptionNotice, readPapelizAccountSyncPlanName, type PapelizAccountSyncBillingState } from './papeliz-account-sync-billing'
-import { isPapelizAccountSyncOnFreePlan, isPapelizAccountSyncPaidSubscriptionLive } from './papeliz-account-sync-service'
+import { PapelizAccountSyncPlanInfoTip } from './papeliz-account-sync-plan-info-tip'
+import { isPapelizAccountSyncPaidSubscriptionLive } from './papeliz-account-sync-service'
 
-// A plan card's lines, as dots.
-function PapelizAccountSyncPlanLimitLines({ papelizAccountSyncPlanLimitLines }: { papelizAccountSyncPlanLimitLines: string[] }) {
+// A plan row's short line, the app's words: "5 Vaults · Version History".
+function describePapelizAccountSyncPlanShortLine(syncedVaultLimit: number): string {
+  return `${syncedVaultLimit.toLocaleString('en-US')} ${syncedVaultLimit === 1 ? 'Vault' : 'Vaults'} · Version History`
+}
+
+// One plan as the app's Plans tab draws it: the name with an info icon whose tip holds the plan's
+// limits, the price line and the short line, and the plan's button on the right.
+function PapelizAccountSyncPlanRow({
+  syncPlanRowPlanId,
+  syncPlanRowName,
+  syncPlanRowPriceLine,
+  syncPlanRowShortLine,
+  syncPlanRowLimitLines,
+  isSyncPlanRowHighlighted,
+  syncPlanRowAction,
+}: {
+  syncPlanRowPlanId: string
+  syncPlanRowName: string
+  syncPlanRowPriceLine: string
+  syncPlanRowShortLine: string
+  syncPlanRowLimitLines: readonly string[]
+  isSyncPlanRowHighlighted: boolean
+  syncPlanRowAction: ReactNode
+}) {
   return (
-    <ul className="mt-4 grid gap-0.5 text-[13px] leading-normal">
-      {papelizAccountSyncPlanLimitLines.map((papelizAccountSyncPlanLimitLine) => (
-        <li key={papelizAccountSyncPlanLimitLine} className="flex items-start gap-2 before:shrink-0 before:text-papeliz-ink-subtle before:content-['•']">
-          {papelizAccountSyncPlanLimitLine}
-        </li>
-      ))}
-    </ul>
+    <li
+      data-papeliz-account-sync-plan={syncPlanRowPlanId}
+      className={`flex min-w-0 items-center gap-3 rounded-xl border px-3.5 py-2.5 ${isSyncPlanRowHighlighted ? 'border-papeliz-blue bg-papeliz-blue-soft/60' : 'border-papeliz-line bg-papeliz-surface'}`}
+    >
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center">
+          <h2 className="text-[15px] leading-tight font-semibold">{syncPlanRowName}</h2>
+          <PapelizAccountSyncPlanInfoTip
+            syncPlanInfoTipButtonLabel={`About ${syncPlanRowName}`}
+            syncPlanInfoTipTitle={`${syncPlanRowName} plan`}
+            syncPlanInfoTipLines={syncPlanRowLimitLines}
+          />
+        </div>
+        <p className="text-[13px] text-papeliz-ink-muted">{syncPlanRowPriceLine}</p>
+        <p className="mt-0.5 text-xs text-papeliz-ink-subtle">{syncPlanRowShortLine}</p>
+      </div>
+      {syncPlanRowAction}
+    </li>
+  )
+}
+
+// The current plan's mark in place of a button: a solid blue "Current", as wide as the buttons beside it.
+function PapelizAccountSyncCurrentPlanMark() {
+  return (
+    <span className={`inline-flex shrink-0 justify-center ${papelizAccountRowActionWidthClassName}`}>
+      <span className="rounded-full bg-papeliz-blue px-2.5 py-1 text-xs font-semibold whitespace-nowrap text-papeliz-on-blue">Current</span>
+    </span>
   )
 }
 
 // The account page's Sync section: what Sync is, the Monthly / Yearly switch, then Free and the three
-// paid plans, each paid plan with its own Subscribe (Adam, 2026-10-31). Free has no checkout: an
-// account the Account Worker reports on Free sees it as Current Plan, and any other sees that it
-// comes with every account. Subscribe opens checkout here, after asking a new
-// account where Sync keeps its notes. With a live subscription its plan reads Current Plan and the
-// others Change Plan, which opens the subscription's own page; a failed payment or an ended
-// subscription shows above the plans. The storage place dialog is the dashboard's, once for both layouts.
+// paid plans (Adam, 2026-10-31). The plans are rows like the app's Plans tab, each plan's limits in its
+// info tip (Adam, 2026-11-03: "make it like our webapp and those list make it a hover tool tip"). The
+// blue row is the account's own plan, marked Current: its live paid plan, or else Free, which every
+// account has without a checkout; the other plans read Upgrade (Adam, 2026-11-03: "show free as blue
+// selected and make it call it Current … then the other options are Upgrade"). Upgrade opens checkout
+// here, after asking a new account where Sync keeps its notes. With a live paid plan the others read
+// Change Plan, which opens the subscription's own page, and Free that it comes with every account; a
+// failed payment or an ended subscription shows above the plans. The storage place dialog is the
+// dashboard's, once for both layouts.
 export function PapelizAccountSyncPlansSection({
   papelizAccountSyncBillingState,
   papelizAccountSyncChosenPlan,
@@ -53,7 +104,8 @@ export function PapelizAccountSyncPlansSection({
     papelizAccountSyncBillingState
   const syncBilling = syncBillingStage.syncBillingStageKind === 'read' ? syncBillingStage.syncBilling : null
   const isSyncSubscriptionLive = syncBilling !== null && isPapelizAccountSyncPaidSubscriptionLive(syncBilling)
-  const isSyncOnFreePlan = syncBilling !== null && isPapelizAccountSyncOnFreePlan(syncBilling)
+  // Free is the account's plan whenever no paid plan is live, a new account's included.
+  const isSyncOnFreePlan = syncBilling !== null && !isSyncSubscriptionLive
   const isSyncCheckoutOpening = syncCheckoutStage.syncCheckoutStageKind === 'opening'
   const isChosenPlanPromptShown = papelizAccountSyncChosenPlan !== null && !isChosenPlanPromptDismissed && syncBilling !== null && !isSyncSubscriptionLive
 
@@ -120,70 +172,63 @@ export function PapelizAccountSyncPlansSection({
           </button>
         </p>
       )}
-      <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
-        <article
-          data-papeliz-account-sync-plan={papelizSiteSyncFreePlan.papelizSiteSyncFreePlanId}
-          className={`flex min-w-0 flex-col rounded-xl border bg-papeliz-surface p-4 ${isSyncOnFreePlan ? 'border-papeliz-blue' : 'border-papeliz-line'}`}
-        >
-          <h2 className="text-[15px] font-semibold">{papelizSiteSyncFreePlan.papelizSiteSyncFreePlanName}</h2>
-          <p className="mt-0.5 text-[26px] leading-[1.35] font-semibold tracking-[-0.02em]">
-            {formatPapelizSiteSyncUsd(0)} <span className="text-sm font-normal tracking-normal text-papeliz-ink-muted">USD</span>
-          </p>
-          <p className="mt-0.5 text-[13px] text-papeliz-ink-muted">No card needed</p>
-          {isSyncOnFreePlan ? (
-            <button type="button" disabled className={`${papelizAccountSecondaryButtonClassName} mt-4 w-full`}>
-              Current Plan
-            </button>
-          ) : (
-            <p className="mt-4 flex min-h-[38px] items-center justify-center text-center text-[13px] text-papeliz-ink-muted">Comes with every account</p>
-          )}
-          <PapelizAccountSyncPlanLimitLines papelizAccountSyncPlanLimitLines={describePapelizSiteSyncFreePlanLimits()} />
-        </article>
+      <ul className="flex max-w-[560px] min-w-0 flex-col gap-1.5">
+        <PapelizAccountSyncPlanRow
+          syncPlanRowPlanId={papelizSiteSyncFreePlan.papelizSiteSyncFreePlanId}
+          syncPlanRowName={papelizSiteSyncFreePlan.papelizSiteSyncFreePlanName}
+          syncPlanRowPriceLine="No card needed"
+          syncPlanRowShortLine={describePapelizAccountSyncPlanShortLine(papelizSiteSyncFreePlan.papelizSiteSyncFreePlanVaultLimit)}
+          syncPlanRowLimitLines={describePapelizSiteSyncFreePlanLimits()}
+          isSyncPlanRowHighlighted={isSyncOnFreePlan}
+          syncPlanRowAction={
+            isSyncOnFreePlan ? (
+              <PapelizAccountSyncCurrentPlanMark />
+            ) : (
+              <p className="max-w-[9rem] shrink-0 text-right text-xs text-papeliz-ink-muted">Comes with every account</p>
+            )
+          }
+        />
         {papelizSiteSyncPlans.map((papelizSiteSyncPlan) => {
           const isCurrentSyncPlan = isSyncSubscriptionLive && syncBilling?.syncPlanName === papelizSiteSyncPlan.papelizSiteSyncPlanId
           const isThisPlanCheckoutOpening = isSyncCheckoutOpening && syncCheckoutStage.chosenSyncPlanId === papelizSiteSyncPlan.papelizSiteSyncPlanId
+          const syncPlanMonthlyRate = formatPapelizSiteSyncUsd(readPapelizSiteSyncPlanMonthlyRateUsd(papelizSiteSyncPlan, chosenPapelizAccountSyncBillingPeriod))
           return (
-            <article
+            <PapelizAccountSyncPlanRow
               key={papelizSiteSyncPlan.papelizSiteSyncPlanId}
-              data-papeliz-account-sync-plan={papelizSiteSyncPlan.papelizSiteSyncPlanId}
-              className={`flex min-w-0 flex-col rounded-xl border bg-papeliz-surface p-4 ${isCurrentSyncPlan ? 'border-papeliz-blue' : 'border-papeliz-line'}`}
-            >
-              <h2 className="text-[15px] font-semibold">{papelizSiteSyncPlan.papelizSiteSyncPlanName}</h2>
-              <p className="mt-0.5 text-[26px] leading-[1.35] font-semibold tracking-[-0.02em]">
-                {formatPapelizSiteSyncUsd(readPapelizSiteSyncPlanMonthlyRateUsd(papelizSiteSyncPlan, chosenPapelizAccountSyncBillingPeriod))}{' '}
-                <span className="text-sm font-normal tracking-normal text-papeliz-ink-muted">USD</span>
-              </p>
-              {/* "USD" alone beside the price, as on the Pricing and Sync pages; this line says it is a month's price. */}
-              <p className="mt-0.5 text-[13px] text-papeliz-ink-muted">{chosenPapelizAccountSyncBillingPeriod === 'yearly' ? 'Per month, billed yearly' : 'Billed monthly'}</p>
-              {isCurrentSyncPlan ? (
-                <button type="button" disabled className={`${papelizAccountSecondaryButtonClassName} mt-4 w-full`}>
-                  Current Plan
-                </button>
-              ) : isSyncSubscriptionLive ? (
-                <button
-                  type="button"
-                  onClick={openPapelizAccountSyncBillingPortal}
-                  aria-label={`Change to ${papelizSiteSyncPlan.papelizSiteSyncPlanName}`}
-                  className={`${papelizAccountSecondaryButtonClassName} mt-4 w-full`}
-                >
-                  Change Plan
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  disabled={syncBilling === null || isSyncCheckoutOpening}
-                  onClick={() => startPapelizAccountSyncCheckout(papelizSiteSyncPlan.papelizSiteSyncPlanId, chosenPapelizAccountSyncBillingPeriod, null)}
-                  aria-label={`Subscribe to ${papelizSiteSyncPlan.papelizSiteSyncPlanName}`}
-                  className={`${papelizAccountCompactPrimaryButtonClassName} mt-4 w-full`}
-                >
-                  {isThisPlanCheckoutOpening ? 'Opening Checkout…' : 'Subscribe'}
-                </button>
-              )}
-              <PapelizAccountSyncPlanLimitLines papelizAccountSyncPlanLimitLines={describePapelizSiteSyncPlanLimits(papelizSiteSyncPlan)} />
-            </article>
+              syncPlanRowPlanId={papelizSiteSyncPlan.papelizSiteSyncPlanId}
+              syncPlanRowName={papelizSiteSyncPlan.papelizSiteSyncPlanName}
+              syncPlanRowPriceLine={chosenPapelizAccountSyncBillingPeriod === 'yearly' ? `${syncPlanMonthlyRate} a month, billed yearly` : `${syncPlanMonthlyRate} a month`}
+              syncPlanRowShortLine={describePapelizAccountSyncPlanShortLine(papelizSiteSyncPlan.papelizSiteSyncPlanVaultLimit)}
+              syncPlanRowLimitLines={describePapelizSiteSyncPlanLimits(papelizSiteSyncPlan)}
+              isSyncPlanRowHighlighted={isCurrentSyncPlan}
+              syncPlanRowAction={
+                isCurrentSyncPlan ? (
+                  <PapelizAccountSyncCurrentPlanMark />
+                ) : isSyncSubscriptionLive ? (
+                  <button
+                    type="button"
+                    onClick={openPapelizAccountSyncBillingPortal}
+                    aria-label={`Change to ${papelizSiteSyncPlan.papelizSiteSyncPlanName}`}
+                    className={`${papelizAccountSecondaryButtonClassName} ${papelizAccountRowActionWidthClassName}`}
+                  >
+                    Change Plan
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={syncBilling === null || isSyncCheckoutOpening}
+                    onClick={() => startPapelizAccountSyncCheckout(papelizSiteSyncPlan.papelizSiteSyncPlanId, chosenPapelizAccountSyncBillingPeriod, null)}
+                    aria-label={`Upgrade to ${papelizSiteSyncPlan.papelizSiteSyncPlanName}`}
+                    className={`${papelizAccountSecondaryButtonClassName} ${papelizAccountRowActionWidthClassName}`}
+                  >
+                    {isThisPlanCheckoutOpening ? 'Opening Checkout…' : 'Upgrade'}
+                  </button>
+                )
+              }
+            />
           )
         })}
-      </div>
+      </ul>
     </>
   )
 }
