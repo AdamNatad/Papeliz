@@ -10,6 +10,8 @@ import {
   type PapelizTemplateCheckResult,
   type PapelizTemplateFileList,
   type PapelizTemplateFileListEntry,
+  type PapelizTemplateFilesChoice,
+  type PapelizTemplateFilesChoices,
   type PapelizTemplateLicenseId,
   type PapelizTemplateManifest,
   type PapelizTemplateRunCommand,
@@ -56,6 +58,7 @@ const papelizTemplateManifestFieldNames: ReadonlySet<string> = new Set([
   'templateFirstNotePath',
   'templateIncludedPaths',
   'templateExcludedPaths',
+  'templateOptionalPaths',
   'templateThumbnailPicturePath',
 ])
 
@@ -333,9 +336,11 @@ export function parsePapelizTemplateManifest(templateManifestText: string): Pape
   }
   const templateIncludedPaths = manifestFields['templateIncludedPaths'] ?? ['**']
   const templateExcludedPaths = manifestFields['templateExcludedPaths'] ?? []
+  const templateOptionalPaths = manifestFields['templateOptionalPaths'] ?? []
   for (const [pathPatternFieldName, pathPatterns] of [
     ['templateIncludedPaths', templateIncludedPaths],
     ['templateExcludedPaths', templateExcludedPaths],
+    ['templateOptionalPaths', templateOptionalPaths],
   ] as const) {
     if (!Array.isArray(pathPatterns) || pathPatterns.length > papelizTemplateMostPathPatternCount || pathPatterns.some(findTemplatePathPatternProblem)) {
       return manifestProblem(`The manifest’s ${pathPatternFieldName} must be a list of up to ${papelizTemplateMostPathPatternCount} paths from the repository’s root, such as ".github/**".`)
@@ -354,6 +359,7 @@ export function parsePapelizTemplateManifest(templateManifestText: string): Pape
       templateFirstNotePath: templateFirstNotePath as string,
       templateIncludedPaths: templateIncludedPaths as string[],
       templateExcludedPaths: templateExcludedPaths as string[],
+      templateOptionalPaths: templateOptionalPaths as string[],
       templateThumbnailPicturePath: templateThumbnailPicturePath as string | null,
     },
     templateManifestProblemSentence: null,
@@ -500,6 +506,64 @@ export function selectPapelizTemplateIncludedFileListEntries(
   } catch (templatePathMatchingError) {
     if (templatePathMatchingError instanceof PapelizTemplatePathMatchingTooLongError) return null
     throw templatePathMatchingError
+  }
+}
+
+// ---------------------------------------------------------------- Recommended or All
+
+export const papelizTemplateOptionalPathPatternsTooSlowSentence =
+  'The manifest’s templateOptionalPaths take too long to match this template’s files. Use fewer, simpler patterns, such as ".gemini/**".'
+
+// The included files the manifest's optional paths match, in the order given; null when matching would
+// take too long, which fails the manifest. The license file and the first note always come, so they
+// are never optional.
+export function findPapelizTemplateOptionalFileRelativePaths(includedTemplateFileRelativePaths: readonly string[], templateManifest: PapelizTemplateManifest): string[] | null {
+  if (templateManifest.templateOptionalPaths.length === 0) return []
+  const optionalPathPatterns = templateManifest.templateOptionalPaths.map(splitTemplatePathPattern)
+  const templatePathMatchingSteps: PapelizTemplatePathMatchingSteps = { remainingMatchingStepCount: papelizTemplatePathMatchingMostStepCount }
+  try {
+    return includedTemplateFileRelativePaths.filter((includedRelativePath) => {
+      if (includedRelativePath === templateManifest.templateFirstNotePath) return false
+      if (!includedRelativePath.includes('/') && papelizTemplateLicenseFileNamePattern.test(includedRelativePath)) return false
+      const includedPathNameCharacters = splitTemplatePathIntoNameCharacters(includedRelativePath)
+      return optionalPathPatterns.some((optionalPathPattern) => matchSplitTemplatePathPattern(optionalPathPattern, includedPathNameCharacters, templatePathMatchingSteps))
+    })
+  } catch (templatePathMatchingError) {
+    if (templatePathMatchingError instanceof PapelizTemplatePathMatchingTooLongError) return null
+    throw templatePathMatchingError
+  }
+}
+
+// Recommended when the manifest has optional paths, All when it has none.
+export function findPapelizTemplateDefaultFilesChoice(templateManifest: PapelizTemplateManifest): PapelizTemplateFilesChoice {
+  return templateManifest.templateOptionalPaths.length > 0 ? 'recommended' : 'all'
+}
+
+// The included files a choice keeps, in the order given: every one for All, and for Recommended all
+// but the optional ones. Patterns too slow to match, which the checks refuse, leave nothing out.
+export function selectPapelizTemplateChosenFileRelativePaths(
+  includedTemplateFileRelativePaths: readonly string[],
+  templateManifest: PapelizTemplateManifest,
+  templateFilesChoice: PapelizTemplateFilesChoice,
+): string[] {
+  if (templateFilesChoice === 'all') return [...includedTemplateFileRelativePaths]
+  const optionalFileRelativePaths = new Set(findPapelizTemplateOptionalFileRelativePaths(includedTemplateFileRelativePaths, templateManifest) ?? [])
+  return includedTemplateFileRelativePaths.filter((includedRelativePath) => !optionalFileRelativePaths.has(includedRelativePath))
+}
+
+// Both choices for the screens: the default, each one's file count, and what only All brings.
+export function describePapelizTemplateFilesChoices(includedTemplateFileRelativePaths: readonly string[], templateManifest: PapelizTemplateManifest): PapelizTemplateFilesChoices {
+  const templateOptionalFileRelativePaths = [...(findPapelizTemplateOptionalFileRelativePaths(includedTemplateFileRelativePaths, templateManifest) ?? [])].sort((firstRelativePath, secondRelativePath) =>
+    firstRelativePath < secondRelativePath ? -1 : firstRelativePath > secondRelativePath ? 1 : 0,
+  )
+  const templateOptionalTopEntryNames = [...new Set(templateOptionalFileRelativePaths.map((optionalRelativePath) => optionalRelativePath.split('/')[0] ?? optionalRelativePath))]
+  return {
+    defaultTemplateFilesChoice: findPapelizTemplateDefaultFilesChoice(templateManifest),
+    hasTemplateOptionalFiles: templateOptionalFileRelativePaths.length > 0,
+    recommendedTemplateFileCount: includedTemplateFileRelativePaths.length - templateOptionalFileRelativePaths.length,
+    allTemplateFileCount: includedTemplateFileRelativePaths.length,
+    templateOptionalFileRelativePaths,
+    templateOptionalTopEntryNames,
   }
 }
 
@@ -761,6 +825,17 @@ export function listPapelizTemplateRunCommands(includedTemplateFileBytesByRelati
   return templateRunCommands
 }
 
+// The commands a choice's files bring, for Use Template's confirmation: only those listed from files
+// it keeps (`selectPapelizTemplateChosenFileRelativePaths`). A template's page shows the check
+// report's full list.
+export function listPapelizTemplateChosenRunCommands(
+  templateRunCommands: readonly PapelizTemplateRunCommand[],
+  chosenTemplateFileRelativePaths: readonly string[],
+): PapelizTemplateRunCommand[] {
+  const chosenFileRelativePaths = new Set(chosenTemplateFileRelativePaths)
+  return templateRunCommands.filter((templateRunCommand) => chosenFileRelativePaths.has(templateRunCommand.templateRunCommandSourceRelativePath))
+}
+
 // ---------------------------------------------------------------- the license
 
 // The MIT License's three paragraphs, as the license check compares them: lower case, one space for
@@ -865,10 +940,23 @@ export async function runPapelizTemplateChecks(templateCheckInput: PapelizTempla
     templateManifestParseResult = parsePapelizTemplateManifest(decodeTemplateText(templateManifestBytes) ?? '')
   }
   const { templateManifest } = templateManifestParseResult
-  // What's included, by the manifest's patterns; patterns too slow to match fail the manifest.
+  // What's included, by the manifest's patterns, and which of it is optional; patterns too slow to
+  // match fail the manifest.
   const includedFileListEntries = templateManifest === null ? null : selectPapelizTemplateIncludedFileListEntries(templateFileList, templateManifest)
-  if (templateManifest === null || includedFileListEntries === null) {
-    addCheckResult('manifest-valid', 'failed', templateManifestParseResult.templateManifestProblemSentence ?? papelizTemplatePathPatternsTooSlowSentence)
+  const optionalFileRelativePaths =
+    templateManifest === null || includedFileListEntries === null
+      ? null
+      : findPapelizTemplateOptionalFileRelativePaths(
+          includedFileListEntries.map((includedFileListEntry) => includedFileListEntry.templateFileRelativePath),
+          templateManifest,
+        )
+  if (templateManifest === null || includedFileListEntries === null || optionalFileRelativePaths === null) {
+    addCheckResult(
+      'manifest-valid',
+      'failed',
+      templateManifestParseResult.templateManifestProblemSentence ??
+        (includedFileListEntries === null ? papelizTemplatePathPatternsTooSlowSentence : papelizTemplateOptionalPathPatternsTooSlowSentence),
+    )
     for (const notCheckedCheckId of Object.keys(papelizTemplateCheckLabels) as PapelizTemplateCheckId[]) {
       if (!templateCheckResults.some((templateCheckResult) => templateCheckResult.templateCheckId === notCheckedCheckId)) addCheckResult(notCheckedCheckId, 'not-checked', papelizTemplateEarlierCheckFailedSentence)
     }

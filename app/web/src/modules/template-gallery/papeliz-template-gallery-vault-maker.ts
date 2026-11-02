@@ -11,21 +11,37 @@ import {
 } from '../vault/papeliz-open-vault'
 import { writePapelizVaultImportFiles, type PapelizVaultImportFile } from '../vault/papeliz-vault-folder-import'
 import { isVaultFileRelativePathSyncable, papelizVaultSettingsFolderName } from '../vault/papeliz-vault-relative-paths'
-import { papelizTemplateSourceFileName, type PapelizTemplateSourceFile } from './papeliz-template-gallery-contract'
+import { findPapelizTemplateDefaultFilesChoice, selectPapelizTemplateChosenFileRelativePaths } from './papeliz-template-gallery-checks'
+import {
+  papelizTemplateSourceFileName,
+  type PapelizTemplateFilesChoice,
+  type PapelizTemplateManifest,
+  type PapelizTemplateSourceFile,
+} from './papeliz-template-gallery-contract'
 import { findPapelizTemplatePictureFormatByName, stripPapelizTemplatePictureMetadata } from './papeliz-template-gallery-picture-metadata'
 
 // Makes a new vault from a template's checked files, through New Vault's own steps: a browser vault
 // is made and filled as an import is (taken back whole if it can't be finished), and a folder vault
-// is a new folder, named after the vault, inside the folder picked. Every picture is stripped of its
-// metadata on the way; a picture that can't be is left out. The vault also gets
-// `.papeliz/template-source.json`, which says which template and commit it came from.
+// is a new folder, named after the vault, inside the folder picked. Only the files of the person's
+// choice go in, Recommended or All. Every picture is stripped of its metadata on the way; a picture
+// that can't be is left out. The vault also gets `.papeliz/template-source.json`, which says which
+// template, commit and choice it came from.
 
 export interface PapelizTemplateVaultFile {
   templateFileRelativePath: string
   templateFileBytes: Uint8Array
 }
 
+// Which of the included files a vault gets: the manifest's optional paths, and the choice, which is
+// the manifest's default (`findPapelizTemplateDefaultFilesChoice`) when left out.
+export interface PapelizTemplateVaultFilesChoiceSelection {
+  templateManifest: PapelizTemplateManifest
+  templateFilesChoice?: PapelizTemplateFilesChoice
+}
+
 export interface PapelizPreparedTemplateVaultFiles {
+  // The choice the files follow: All when no manifest was given.
+  templateFilesChoice: PapelizTemplateFilesChoice
   // What goes into the vault, pictures stripped.
   preparedTemplateVaultFiles: PapelizTemplateVaultFile[]
   templateLeftOutPictureRelativePaths: string[]
@@ -43,12 +59,26 @@ export interface PapelizTemplateVaultMakeOptions {
   folderVaultFileContentsWriter?: PapelizVaultFileContentsWriter
 }
 
-// The template's included files as they go into a vault, in path order: pictures stripped, or left
-// out when they can't be.
-export function preparePapelizTemplateVaultFiles(includedTemplateFileBytesByRelativePath: ReadonlyMap<string, Uint8Array>): PapelizPreparedTemplateVaultFiles {
+// The template's included files of one choice as they go into a vault, in path order: pictures
+// stripped, or left out when they can't be. Without a choice selection, every included file.
+export function preparePapelizTemplateVaultFiles(
+  includedTemplateFileBytesByRelativePath: ReadonlyMap<string, Uint8Array>,
+  templateVaultFilesChoiceSelection?: PapelizTemplateVaultFilesChoiceSelection,
+): PapelizPreparedTemplateVaultFiles {
   const preparedTemplateVaultFiles: PapelizTemplateVaultFile[] = []
   const templateLeftOutPictureRelativePaths: string[] = []
-  const includedTemplateFiles = [...includedTemplateFileBytesByRelativePath].sort(([firstRelativePath], [secondRelativePath]) => (firstRelativePath < secondRelativePath ? -1 : 1))
+  const templateFilesChoice: PapelizTemplateFilesChoice =
+    templateVaultFilesChoiceSelection === undefined
+      ? 'all'
+      : (templateVaultFilesChoiceSelection.templateFilesChoice ?? findPapelizTemplateDefaultFilesChoice(templateVaultFilesChoiceSelection.templateManifest))
+  const chosenTemplateFileRelativePaths = new Set(
+    templateVaultFilesChoiceSelection === undefined
+      ? includedTemplateFileBytesByRelativePath.keys()
+      : selectPapelizTemplateChosenFileRelativePaths([...includedTemplateFileBytesByRelativePath.keys()], templateVaultFilesChoiceSelection.templateManifest, templateFilesChoice),
+  )
+  const includedTemplateFiles = [...includedTemplateFileBytesByRelativePath]
+    .filter(([templateFileRelativePath]) => chosenTemplateFileRelativePaths.has(templateFileRelativePath))
+    .sort(([firstRelativePath], [secondRelativePath]) => (firstRelativePath < secondRelativePath ? -1 : 1))
   for (const [templateFileRelativePath, templateFileBytes] of includedTemplateFiles) {
     const pictureFormat = findPapelizTemplatePictureFormatByName(templateFileRelativePath)
     if (pictureFormat === null) {
@@ -62,6 +92,7 @@ export function preparePapelizTemplateVaultFiles(includedTemplateFileBytesByRela
     }
   }
   return {
+    templateFilesChoice,
     preparedTemplateVaultFiles,
     templateLeftOutPictureRelativePaths,
     templateHiddenFileRelativePaths: includedTemplateFiles
@@ -70,7 +101,7 @@ export function preparePapelizTemplateVaultFiles(includedTemplateFileBytesByRela
   }
 }
 
-// `.papeliz/template-source.json`, which says which template and commit the vault came from.
+// `.papeliz/template-source.json`, which says which template, commit and choice the vault came from.
 export function createPapelizTemplateSourceVaultFile(templateSourceFile: PapelizTemplateSourceFile): PapelizTemplateVaultFile {
   return {
     templateFileRelativePath: `${papelizVaultSettingsFolderName}/${papelizTemplateSourceFileName}`,

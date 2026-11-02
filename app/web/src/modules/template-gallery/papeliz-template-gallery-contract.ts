@@ -37,8 +37,31 @@ export interface PapelizTemplateManifest {
   // ["**"] and [].
   templateIncludedPaths: string[]
   templateExcludedPaths: string[]
+  // Included files a person may leave out: they come only with All, not with Recommended. The same
+  // pattern rules, up to 30; missing, it is []. The checks and the fingerprint still cover them.
+  templateOptionalPaths: string[]
   // A picture in the repository to show instead of the README's first one; null for the README's.
   templateThumbnailPicturePath: string | null
+}
+
+// Which of a template's included files a vault made or imported from it gets:
+// - `recommended`: all but the ones `templateOptionalPaths` matches;
+// - `all`: every included file.
+export type PapelizTemplateFilesChoice = 'recommended' | 'all'
+
+// What Use Template and Import into This Vault show for the choice, for one template's included files.
+export interface PapelizTemplateFilesChoices {
+  // Recommended when the manifest has optional paths, All when it has none.
+  defaultTemplateFilesChoice: PapelizTemplateFilesChoice
+  // The optional paths match at least one included file, so the two choices differ.
+  hasTemplateOptionalFiles: boolean
+  recommendedTemplateFileCount: number
+  allTemplateFileCount: number
+  // The included files only All brings, in path order.
+  templateOptionalFileRelativePaths: string[]
+  // Their top folders and top-level files, once each, in path order: [".gemini", ".grok",
+  // "opencode.json"].
+  templateOptionalTopEntryNames: string[]
 }
 
 // The licenses a template may have, by their SPDX ids.
@@ -250,6 +273,8 @@ export interface PapelizTemplateSourceFile {
   templateSourceLicenseId: PapelizTemplateLicenseId
   // ISO time: "2026-11-02T09:30:00.000Z".
   templateSourceVaultMadeAt: string
+  // Which files the vault got. Missing in vaults made before the choice existed, which got all.
+  templateSourceFilesChoice?: PapelizTemplateFilesChoice
 }
 
 // ---------------------------------------------------------------- the gallery store
@@ -305,7 +330,9 @@ export type PapelizTemplateRecheckState =
 // Use Template, from New Vault's form.
 // - `preparing`: reading the template's files at its commit and checking them again on these bytes.
 // - `ready`: every check passed; the form can make the vault. When `templateRunCommands` isn't empty,
-//   the person ticks "I've read these commands" first (`isTemplateRunCommandsAcknowledged`).
+//   the person ticks "I've read these commands" first (`isTemplateRunCommandsAcknowledged`). Those are
+//   the commands of the chosen files, Recommended or All (`chooseTemplateFilesChoice`); the check
+//   report keeps every included file's.
 // - `picking-folder`: a folder vault waits for the browser's folder window, which is open.
 // - `making-vault`: the vault's files are being written.
 // - `made`: the vault is made; `makePapelizTemplateVault`'s result opens it.
@@ -327,6 +354,11 @@ export type PapelizTemplateUseState =
       templateHiddenFileRelativePaths: string[]
       // Pictures whose metadata couldn't be removed: they are left out of the vault.
       templateLeftOutPictureRelativePaths: string[]
+      // Recommended or All, and both choices' counts; the hidden files, left-out pictures and commands
+      // above are the chosen files'. The store always gives them; they are optional only so made-up
+      // screens built before the choice still describe a ready state, which then means All.
+      templateFilesChoice?: PapelizTemplateFilesChoice
+      templateFilesChoices?: PapelizTemplateFilesChoices
     }
   | { templateUseStage: 'picking-folder'; templateGalleryRow: PapelizTemplateGalleryRow }
   | { templateUseStage: 'making-vault'; templateGalleryRow: PapelizTemplateGalleryRow; templateWrittenFileCount: number; templateFileCount: number }
@@ -395,6 +427,10 @@ export interface PapelizTemplateGalleryActions {
   // Use Template pressed: reads and checks the template, ending `ready` or `failed`.
   prepareTemplateUse: (templateGalleryRow: PapelizTemplateGalleryRow) => Promise<void>
   acknowledgeTemplateRunCommands: (isTemplateRunCommandsAcknowledged: boolean) => void
+  // Recommended or All, while ready: only that choice's files are made or imported, and its choice is
+  // recorded. A choice that brings commands not yet ticked asks for the tick again. The store always
+  // has it; it is optional only so made-up screens can leave it out.
+  chooseTemplateFilesChoice?: (templateFilesChoice: PapelizTemplateFilesChoice) => void
   // New Vault's form confirmed, with the name and place it already checked. Must run from the click,
   // since a folder vault shows the browser's folder window first.
   makePapelizTemplateVault: (typedNewVaultName: string, chosenNewVaultPlace: PapelizTemplateNewVaultPlace) => Promise<PapelizTemplateVaultMakeResult>

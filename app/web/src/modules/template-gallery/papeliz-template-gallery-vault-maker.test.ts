@@ -2,8 +2,16 @@ import { describe, expect, it } from 'vitest'
 import { createPapelizFakeBrowserVaultEnvironment, getPapelizFakeBrowserVaultFolder } from '../vault/papeliz-fake-browser-vault-environment.test-support'
 import { PapelizFakeDirectoryHandle, addPapelizFakeVaultFiles } from '../vault/papeliz-fake-file-system-access.test-support'
 import { createPapelizBrowserVault } from '../vault/papeliz-browser-vaults'
-import type { PapelizTemplateSourceFile } from './papeliz-template-gallery-contract'
-import { createJpegPictureWithMetadata, createJpegPictureWithoutMetadata, createPngPictureWithMetadata, createPngPictureWithoutMetadata } from './papeliz-template-gallery-fixtures.test-support'
+import { parsePapelizTemplateManifest } from './papeliz-template-gallery-checks'
+import type { PapelizTemplateManifest, PapelizTemplateSourceFile } from './papeliz-template-gallery-contract'
+import {
+  agentWorkflowManifest,
+  createAgentWorkflowTemplateFiles,
+  createJpegPictureWithMetadata,
+  createJpegPictureWithoutMetadata,
+  createPngPictureWithMetadata,
+  createPngPictureWithoutMetadata,
+} from './papeliz-template-gallery-fixtures.test-support'
 import {
   createPapelizTemplateSourceVaultFile,
   makePapelizTemplateBrowserVault,
@@ -143,5 +151,64 @@ describe('template vault maker', () => {
       openVaultOutcome: 'failed',
       openVaultFailureMessage: 'Couldn’t finish “My Garden”. The disk is full. Free some space, then try again. The 2 files written so far stay in its folder.',
     })
+  })
+})
+
+describe('template vault maker, Recommended or All', () => {
+  // The workflow template's included files: everything but its manifest.
+  function createAgentWorkflowIncludedFiles(): Map<string, Uint8Array> {
+    return new Map(
+      Object.entries(createAgentWorkflowTemplateFiles())
+        .filter(([fixtureRelativePath]) => fixtureRelativePath !== 'papeliz-template.json')
+        .map(([fixtureRelativePath, fixtureFileContents]) => [fixtureRelativePath, typeof fixtureFileContents === 'string' ? new TextEncoder().encode(fixtureFileContents) : fixtureFileContents]),
+    )
+  }
+  const agentWorkflowParsedManifest = parsePapelizTemplateManifest(JSON.stringify(agentWorkflowManifest)).templateManifest as PapelizTemplateManifest
+  const agentWorkflowOptionalRelativePaths = ['.agents/hooks.json', '.aider.conf.yml', '.gemini/settings.json', '.qwen/settings.json', 'opencode.json']
+  const listPreparedRelativePaths = (preparedTemplateVaultFiles: ReturnType<typeof preparePapelizTemplateVaultFiles>) =>
+    preparedTemplateVaultFiles.preparedTemplateVaultFiles.map(({ templateFileRelativePath }) => templateFileRelativePath)
+
+  it('writes only Recommended’s files, by default when the template has optional paths, and every file for All', () => {
+    const allIncludedRelativePaths = [...createAgentWorkflowIncludedFiles().keys()].sort((firstRelativePath, secondRelativePath) => (firstRelativePath < secondRelativePath ? -1 : 1))
+    const defaultPreparedFiles = preparePapelizTemplateVaultFiles(createAgentWorkflowIncludedFiles(), { templateManifest: agentWorkflowParsedManifest })
+    expect(defaultPreparedFiles.templateFilesChoice).toBe('recommended')
+    expect(listPreparedRelativePaths(defaultPreparedFiles)).toEqual(allIncludedRelativePaths.filter((includedRelativePath) => !agentWorkflowOptionalRelativePaths.includes(includedRelativePath)))
+    // Hidden files Sync won't carry are those of the chosen set only.
+    expect(defaultPreparedFiles.templateHiddenFileRelativePaths).not.toContain('.gemini/settings.json')
+
+    const allPreparedFiles = preparePapelizTemplateVaultFiles(createAgentWorkflowIncludedFiles(), { templateManifest: agentWorkflowParsedManifest, templateFilesChoice: 'all' })
+    expect(allPreparedFiles.templateFilesChoice).toBe('all')
+    expect(listPreparedRelativePaths(allPreparedFiles)).toEqual(allIncludedRelativePaths)
+    expect(allPreparedFiles.templateHiddenFileRelativePaths).toContain('.gemini/settings.json')
+
+    // Without the manifest, every included file, as before the choice existed; without optional paths, All.
+    expect(preparePapelizTemplateVaultFiles(createAgentWorkflowIncludedFiles())).toMatchObject({ templateFilesChoice: 'all' })
+    const noOptionalPathsPreparedFiles = preparePapelizTemplateVaultFiles(createAgentWorkflowIncludedFiles(), { templateManifest: { ...agentWorkflowParsedManifest, templateOptionalPaths: [] } })
+    expect(noOptionalPathsPreparedFiles.templateFilesChoice).toBe('all')
+    expect(listPreparedRelativePaths(noOptionalPathsPreparedFiles)).toEqual(allIncludedRelativePaths)
+  })
+
+  it('makes a vault with Recommended’s files and records the choice in its source file', async () => {
+    const { browserVaultEnvironment, fakeOriginPrivateFileSystemRoot } = createPapelizFakeBrowserVaultEnvironment()
+    const recommendedPreparedFiles = preparePapelizTemplateVaultFiles(createAgentWorkflowIncludedFiles(), { templateManifest: agentWorkflowParsedManifest, templateFilesChoice: 'recommended' })
+    const agentWorkflowSourceFile: PapelizTemplateSourceFile = {
+      ...gardenJournalSourceFile,
+      papelizTemplateGalleryId: 'workflow-notes/Agent-Workflow',
+      templateSourceName: 'Agent Workflow',
+      templateSourceAuthor: 'workflow-notes',
+      templateSourceFilesChoice: recommendedPreparedFiles.templateFilesChoice,
+    }
+    const openVaultResult = await makePapelizTemplateBrowserVault(
+      'My Workflow',
+      [...recommendedPreparedFiles.preparedTemplateVaultFiles, createPapelizTemplateSourceVaultFile(agentWorkflowSourceFile)],
+      { browserVaultEnvironment },
+    )
+    if (openVaultResult.openVaultOutcome !== 'opened') throw new Error(`The vault wasn’t opened: ${JSON.stringify(openVaultResult)}`)
+    const madeVaultFiles = await readFakeFolderFileBytes(await getPapelizFakeBrowserVaultFolder(fakeOriginPrivateFileSystemRoot, openVaultResult.papelizOpenVault.papelizVaultId))
+    for (const optionalRelativePath of agentWorkflowOptionalRelativePaths) expect(madeVaultFiles.has(optionalRelativePath), optionalRelativePath).toBe(false)
+    expect(madeVaultFiles.has('.agents/hooks/guard.mjs')).toBe(true)
+    expect(madeVaultFiles.has('.claude/settings.json')).toBe(true)
+    expect(JSON.parse(new TextDecoder().decode(madeVaultFiles.get('.papeliz/template-source.json')))).toMatchObject({ templateSourceFilesChoice: 'recommended' })
+    openVaultResult.papelizOpenVault.papelizVaultAdapter.closeVaultAdapter?.()
   })
 })

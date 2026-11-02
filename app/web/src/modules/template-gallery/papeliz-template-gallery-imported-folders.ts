@@ -1,4 +1,4 @@
-import type { PapelizTemplateLicenseId } from './papeliz-template-gallery-contract'
+import type { PapelizTemplateFilesChoice, PapelizTemplateLicenseId } from './papeliz-template-gallery-contract'
 
 // Where each folder Import from Template made in a vault came from, in the vault's
 // `.papeliz/imported-template-folders.json`, one entry per import, added to and never rewritten. A
@@ -16,6 +16,9 @@ export interface PapelizImportedTemplateFolderSource {
   // The repository's owner on GitHub.
   templateSourceAuthor: string
   templateSourceLicenseId: PapelizTemplateLicenseId
+  // Which files the folder got, Recommended or All. Missing in entries from before the choice
+  // existed, which got all.
+  templateSourceFilesChoice?: PapelizTemplateFilesChoice
 }
 
 export interface PapelizImportedTemplateFolder extends PapelizImportedTemplateFolderSource {

@@ -19,4 +19,16 @@ describe('imported template folders', () => {
     expect(JSON.parse(addPapelizImportedTemplateFolder(firstFileText, secondImportedFolder)).importedTemplateFolders).toEqual([p1WorkflowImportedFolder, secondImportedFolder])
     expect(JSON.parse(addPapelizImportedTemplateFolder('{ damaged', secondImportedFolder)).importedTemplateFolders).toEqual([secondImportedFolder])
   })
+
+  it('records which files each import got, beside entries from before the choice existed', () => {
+    const entryWithoutChoiceText = addPapelizImportedTemplateFolder(null, p1WorkflowImportedFolder)
+    const recommendedImportedFolder: PapelizImportedTemplateFolder = { ...p1WorkflowImportedFolder, importedTemplateFolderRelativePath: 'P1-Workflow 2', templateSourceFilesChoice: 'recommended' }
+    const allImportedFolder: PapelizImportedTemplateFolder = { ...p1WorkflowImportedFolder, importedTemplateFolderRelativePath: 'P1-Workflow 3', templateSourceFilesChoice: 'all' }
+    const foldersFileText = addPapelizImportedTemplateFolder(addPapelizImportedTemplateFolder(entryWithoutChoiceText, recommendedImportedFolder), allImportedFolder)
+    expect(JSON.parse(foldersFileText).importedTemplateFolders.map((importedTemplateFolder: PapelizImportedTemplateFolder) => importedTemplateFolder.templateSourceFilesChoice)).toEqual([
+      undefined,
+      'recommended',
+      'all',
+    ])
+  })
 })

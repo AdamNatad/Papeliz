@@ -156,6 +156,49 @@ export const gardenJournalManifest = {
   templateExcludedPaths: ['drafts/**'],
 }
 
+// A workflow template that brings several coding agents' settings: its notes and the guard every
+// agent's hook runs always come, some agents' settings are Recommended, and the rest come only with
+// All. One optional pattern matches nothing.
+export const agentWorkflowManifest = {
+  papelizTemplateManifestVersion: 1,
+  templateName: 'Agent Workflow',
+  templateDescription: 'The plan, the tasks and the rules several coding agents follow.',
+  templateTags: ['coding', 'project-workflow', 'ai-agents'],
+  templateFirstNotePath: 'README.md',
+  templateIncludedPaths: ['**'],
+  templateExcludedPaths: [],
+  templateOptionalPaths: ['.gemini/**', '.qwen/**', '.agents/hooks.json', 'opencode.json', '.aider.conf.yml', '.unused-agent/**'],
+}
+
+function writeAgentWorkflowGuardHookSettings(guardedAgentName: string): string {
+  return JSON.stringify({ hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: `node .agents/hooks/guard.mjs ${guardedAgentName}` }] }] } }, null, 2)
+}
+
+export function createAgentWorkflowTemplateFiles(): PapelizFixtureTemplateFiles {
+  return {
+    'papeliz-template.json': JSON.stringify(agentWorkflowManifest, null, 2),
+    'README.md': '# Agent Workflow\n\nStart with AGENTS.md.\n',
+    'AGENTS.md': '# The rules every agent follows\n',
+    'workflow/START.md': '# Start\n',
+    'workflow/TASKS.md': '# Tasks\n',
+    '.gitignore': 'node_modules/\n',
+    LICENSE: gardenJournalMitLicenseText,
+    // Always: the guard every hook runs.
+    '.agents/hooks/guard.mjs': 'process.exit(0)\n',
+    // Recommended: these agents' hooks.
+    '.claude/settings.json': writeAgentWorkflowGuardHookSettings('claude'),
+    '.codex/hooks.json': writeAgentWorkflowGuardHookSettings('codex'),
+    '.example-agent/hooks.json': writeAgentWorkflowGuardHookSettings('example-agent'),
+    '.github/hooks/guard.json': JSON.stringify({ version: 1, hooks: { preToolUse: [{ type: 'command', bash: 'node .agents/hooks/guard.mjs copilot' }] } }, null, 2),
+    // All only.
+    '.agents/hooks.json': JSON.stringify({ guard: { PreToolUse: [{ matcher: 'run_command', hooks: [{ type: 'command', command: 'node .agents/hooks/guard.mjs antigravity' }] }] } }, null, 2),
+    '.gemini/settings.json': writeAgentWorkflowGuardHookSettings('gemini'),
+    '.qwen/settings.json': writeAgentWorkflowGuardHookSettings('qwen'),
+    'opencode.json': JSON.stringify({ permission: { bash: { '*': 'allow', 'rm *': 'deny' } } }, null, 2),
+    '.aider.conf.yml': 'read: [AGENTS.md]\n',
+  }
+}
+
 // The good template: notes, a picture, a hidden settings file that runs nothing, and its license.
 export function createGardenJournalTemplateFiles(): PapelizFixtureTemplateFiles {
   return {

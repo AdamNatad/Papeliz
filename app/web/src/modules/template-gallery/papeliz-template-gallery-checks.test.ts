@@ -3,18 +3,25 @@ import {
   computePapelizTemplateFileGitBlobSha1Hex,
   computePapelizTemplateFileSha256Base64,
   computePapelizTemplateIncludedFileListDigest,
+  describePapelizTemplateFilesChoices,
   describePapelizTemplateHiddenCharacter,
   detectPapelizTemplateLicenseId,
+  findPapelizTemplateDefaultFilesChoice,
+  findPapelizTemplateOptionalFileRelativePaths,
   hasNoFailedPapelizTemplateCheck,
+  listPapelizTemplateChosenRunCommands,
   listPapelizTemplateFirstLookRelativePaths,
   matchPapelizTemplatePathPattern,
   parsePapelizTemplateManifest,
   runPapelizTemplateChecks,
+  selectPapelizTemplateChosenFileRelativePaths,
   selectPapelizTemplateIncludedFileListEntries,
   splitPapelizTemplateTextAtHiddenCharacters,
 } from './papeliz-template-gallery-checks'
 import type { PapelizTemplateCheckId, PapelizTemplateCheckReport, PapelizTemplateFileList, PapelizTemplateManifest, PapelizTemplateRunCommand } from './papeliz-template-gallery-contract'
 import {
+  agentWorkflowManifest,
+  createAgentWorkflowTemplateFiles,
   createGardenJournalTemplateFiles,
   gardenJournalCc0LicenseText,
   gardenJournalCcByLicenseText,
@@ -638,6 +645,123 @@ describe('template checks against a template that hides what it does', () => {
     const turnedNameReport = await checkTemplateFixture({ ...createGardenJournalTemplateFiles(), 'scripts/evil‮gpj.sh': 'echo\n' })
     expect(findCheckResult(turnedNameReport, 'file-paths').templateCheckSentence).toBe(
       '“scripts/evil‮gpj.sh” has a hidden character that turns its name around. Rename them, then check again.',
+    )
+  })
+})
+
+// Recommended or All: the manifest's optional paths, the files each choice keeps, and the commands
+// those files bring. The checks themselves cover every included file whatever the choice.
+describe('a template’s optional paths, for Recommended or All', () => {
+  const agentWorkflowIncludedRelativePaths = [
+    '.agents/hooks.json',
+    '.agents/hooks/guard.mjs',
+    '.aider.conf.yml',
+    '.claude/settings.json',
+    '.codex/hooks.json',
+    '.example-agent/hooks.json',
+    '.gemini/settings.json',
+    '.github/hooks/guard.json',
+    '.gitignore',
+    '.qwen/settings.json',
+    'AGENTS.md',
+    'LICENSE',
+    'README.md',
+    'opencode.json',
+    'workflow/START.md',
+    'workflow/TASKS.md',
+  ]
+  const agentWorkflowOptionalRelativePaths = ['.agents/hooks.json', '.aider.conf.yml', '.gemini/settings.json', '.qwen/settings.json', 'opencode.json']
+  const parsedAgentWorkflowManifest = parsePapelizTemplateManifest(JSON.stringify(agentWorkflowManifest)).templateManifest as PapelizTemplateManifest
+
+  it('reads the field strictly, as the other path lists, and takes it as [] when it’s missing', () => {
+    expect(parsedAgentWorkflowManifest.templateOptionalPaths).toEqual(agentWorkflowManifest.templateOptionalPaths)
+    expect(parsePapelizTemplateManifest(JSON.stringify(gardenJournalManifest)).templateManifest?.templateOptionalPaths).toEqual([])
+    const badOptionalPathLists: unknown[] = [['/abs/**'], ['a/../b'], ['a\\b'], [''], 'drafts/**', [3], Array.from({ length: 31 }, (_unused, patternIndex) => `Notes/${patternIndex}/**`)]
+    for (const badOptionalPaths of badOptionalPathLists) {
+      expect(parsePapelizTemplateManifest(JSON.stringify({ ...gardenJournalManifest, templateOptionalPaths: badOptionalPaths })).templateManifestProblemSentence, JSON.stringify(badOptionalPaths)).toBe(
+        'The manifest’s templateOptionalPaths must be a list of up to 30 paths from the repository’s root, such as ".github/**".',
+      )
+    }
+  })
+
+  it('checks and fingerprints every included file, optional or not', async () => {
+    const templateCheckReport = await checkTemplateFixture(createAgentWorkflowTemplateFiles())
+    expect(listFailedCheckIds(templateCheckReport)).toEqual([])
+    expect(templateCheckReport.templateIncludedFileRelativePaths).toEqual(agentWorkflowIncludedRelativePaths)
+    // The same files without the field give the same fingerprint: the choice never changes what was checked.
+    const { templateOptionalPaths: _optionalPaths, ...manifestWithoutOptionalPaths } = agentWorkflowManifest
+    const withoutOptionalPathsReport = await checkTemplateFixture({ ...createAgentWorkflowTemplateFiles(), 'papeliz-template.json': JSON.stringify(manifestWithoutOptionalPaths) })
+    expect(withoutOptionalPathsReport.templateIncludedFileListDigest).toBe(templateCheckReport.templateIncludedFileListDigest)
+  })
+
+  it('gives each choice’s files and counts, and what only All brings', () => {
+    expect(findPapelizTemplateOptionalFileRelativePaths(agentWorkflowIncludedRelativePaths, parsedAgentWorkflowManifest)).toEqual(agentWorkflowOptionalRelativePaths)
+    expect(describePapelizTemplateFilesChoices(agentWorkflowIncludedRelativePaths, parsedAgentWorkflowManifest)).toEqual({
+      defaultTemplateFilesChoice: 'recommended',
+      hasTemplateOptionalFiles: true,
+      recommendedTemplateFileCount: 11,
+      allTemplateFileCount: 16,
+      templateOptionalFileRelativePaths: agentWorkflowOptionalRelativePaths,
+      templateOptionalTopEntryNames: ['.agents', '.aider.conf.yml', '.gemini', '.qwen', 'opencode.json'],
+    })
+    expect(selectPapelizTemplateChosenFileRelativePaths(agentWorkflowIncludedRelativePaths, parsedAgentWorkflowManifest, 'all')).toEqual(agentWorkflowIncludedRelativePaths)
+    expect(selectPapelizTemplateChosenFileRelativePaths(agentWorkflowIncludedRelativePaths, parsedAgentWorkflowManifest, 'recommended')).toEqual(
+      agentWorkflowIncludedRelativePaths.filter((includedRelativePath) => !agentWorkflowOptionalRelativePaths.includes(includedRelativePath)),
+    )
+  })
+
+  it('defaults to All, with nothing to choose, for a template without optional paths', () => {
+    const gardenJournalParsedManifest = parsePapelizTemplateManifest(JSON.stringify(gardenJournalManifest)).templateManifest as PapelizTemplateManifest
+    expect(findPapelizTemplateDefaultFilesChoice(gardenJournalParsedManifest)).toBe('all')
+    expect(describePapelizTemplateFilesChoices(['README.md', 'Start here.md'], gardenJournalParsedManifest)).toMatchObject({
+      defaultTemplateFilesChoice: 'all',
+      hasTemplateOptionalFiles: false,
+      recommendedTemplateFileCount: 2,
+      allTemplateFileCount: 2,
+    })
+    expect(selectPapelizTemplateChosenFileRelativePaths(['README.md', 'Start here.md'], gardenJournalParsedManifest, 'recommended')).toEqual(['README.md', 'Start here.md'])
+  })
+
+  it('never makes the license file or the first note optional', () => {
+    const everythingOptionalManifest = { ...parsedAgentWorkflowManifest, templateOptionalPaths: ['**'] }
+    expect(selectPapelizTemplateChosenFileRelativePaths(agentWorkflowIncludedRelativePaths, everythingOptionalManifest, 'recommended')).toEqual(['LICENSE', 'README.md'])
+  })
+
+  it('lists only the chosen files’ commands for Recommended, and every one for All', async () => {
+    const { templateRunCommands } = await checkTemplateFixture(createAgentWorkflowTemplateFiles())
+    expect(templateRunCommands.map(({ templateRunCommandSourceRelativePath }) => templateRunCommandSourceRelativePath)).toEqual([
+      '.agents/hooks.json',
+      '.agents/hooks/guard.mjs',
+      '.aider.conf.yml',
+      '.claude/settings.json',
+      '.codex/hooks.json',
+      '.example-agent/hooks.json',
+      '.gemini/settings.json',
+      '.github/hooks/guard.json',
+      '.qwen/settings.json',
+      'opencode.json',
+    ])
+    const recommendedRelativePaths = selectPapelizTemplateChosenFileRelativePaths(agentWorkflowIncludedRelativePaths, parsedAgentWorkflowManifest, 'recommended')
+    expect(listPapelizTemplateChosenRunCommands(templateRunCommands, recommendedRelativePaths)).toEqual([
+      expectedRunCommand('script-file', '.agents/hooks/guard.mjs', 'guard.mjs'),
+      expectedRunCommand('agent-setting-command', '.claude/settings.json', 'node .agents/hooks/guard.mjs claude'),
+      expectedRunCommand('agent-setting-command', '.codex/hooks.json', 'node .agents/hooks/guard.mjs codex'),
+      expectedRunCommand('agent-setting-command', '.example-agent/hooks.json', 'node .agents/hooks/guard.mjs example-agent'),
+      expectedRunCommand('agent-setting-command', '.github/hooks/guard.json', 'node .agents/hooks/guard.mjs copilot'),
+    ])
+    const allRelativePaths = selectPapelizTemplateChosenFileRelativePaths(agentWorkflowIncludedRelativePaths, parsedAgentWorkflowManifest, 'all')
+    expect(listPapelizTemplateChosenRunCommands(templateRunCommands, allRelativePaths)).toEqual(templateRunCommands)
+  })
+
+  it('fails the manifest when its optional paths take too long to match (T3)', async () => {
+    const slowOptionalManifestText = JSON.stringify({ ...gardenJournalManifest, templateOptionalPaths: Array.from({ length: 30 }, (_unused, patternIndex) => `*${'a'.repeat(190)}${patternIndex}`) })
+    const longNamedFiles = Object.fromEntries(Array.from({ length: 60 }, (_unused, fileIndex) => [`${'a'.repeat(400)}${fileIndex}.md`, '# long']))
+    const checkingStartedAt = performance.now()
+    const slowOptionalReport = await checkTemplateFixture({ ...createGardenJournalTemplateFiles(), ...longNamedFiles, 'papeliz-template.json': slowOptionalManifestText })
+    expect(performance.now() - checkingStartedAt).toBeLessThan(5000)
+    expect(listFailedCheckIds(slowOptionalReport)).toEqual(['manifest-valid'])
+    expect(findCheckResult(slowOptionalReport, 'manifest-valid').templateCheckSentence).toBe(
+      'The manifest’s templateOptionalPaths take too long to match this template’s files. Use fewer, simpler patterns, such as ".gemini/**".',
     )
   })
 })

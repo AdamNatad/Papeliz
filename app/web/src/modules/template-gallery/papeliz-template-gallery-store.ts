@@ -4,11 +4,14 @@ import type { PapelizVaultFileContentsWriter } from '../vault/papeliz-directory-
 import type { PapelizVaultFolderPickResult } from '../vault/papeliz-open-vault'
 import {
   computePapelizTemplateIncludedFileListDigest,
+  describePapelizTemplateFilesChoices,
   hasNoFailedPapelizTemplateCheck,
+  listPapelizTemplateChosenRunCommands,
   listPapelizTemplateFirstLookRelativePaths,
   papelizTemplatePathPatternsTooSlowSentence,
   parsePapelizTemplateManifest,
   runPapelizTemplateChecks,
+  selectPapelizTemplateChosenFileRelativePaths,
   selectPapelizTemplateIncludedFileListEntries,
 } from './papeliz-template-gallery-checks'
 import {
@@ -17,9 +20,12 @@ import {
   type PapelizTemplateFileList,
   type PapelizTemplateFileListEntry,
   type PapelizTemplateFileReadProgress,
+  type PapelizTemplateFilesChoice,
   type PapelizTemplateGalleryActions,
   type PapelizTemplateGalleryRow,
   type PapelizTemplateGalleryState,
+  type PapelizTemplateManifest,
+  type PapelizTemplateRunCommand,
   type PapelizTemplateVaultFolderImportResult,
 } from './papeliz-template-gallery-contract'
 import { readPapelizTemplateRepositoryNewestCommit } from './papeliz-template-gallery-github-reader'
@@ -38,6 +44,7 @@ import {
   makePapelizTemplateBrowserVault,
   makePapelizTemplateFolderVault,
   preparePapelizTemplateVaultFiles,
+  type PapelizPreparedTemplateVaultFiles,
   type PapelizTemplateVaultFile,
 } from './papeliz-template-gallery-vault-maker'
 import { describePapelizFailureMessage } from '../vault/papeliz-failure-code-words'
@@ -75,13 +82,32 @@ function readTemplateGalleryCurrentTime(): number {
 // again. The Worker's snapshot carries them for everyone once it exists.
 const recheckedTemplateGalleryRowsById = new Map<string, PapelizTemplateGalleryRow>()
 
-// The files Use Template read and checked, ready to write once New Vault's form is confirmed.
+// The files Use Template read and checked, ready to write once New Vault's form is confirmed: every
+// included file and the manifest, so the choice can change, and the chosen files, prepared.
 interface PapelizPreparedTemplateUse {
   templateGalleryRow: PapelizTemplateGalleryRow
+  templateCheckReport: PapelizTemplateCheckReport
+  templateManifest: PapelizTemplateManifest
+  includedTemplateFileBytesByRelativePath: ReadonlyMap<string, Uint8Array>
+  templateFilesChoice: PapelizTemplateFilesChoice
   preparedTemplateVaultFiles: PapelizTemplateVaultFile[]
   templateFirstNotePath: string
 }
 let preparedTemplateUse: PapelizPreparedTemplateUse | null = null
+
+// One choice's files as they go into the vault, and the commands those files bring.
+function prepareTemplateUseFilesChoice(
+  templateCheckReport: PapelizTemplateCheckReport,
+  templateManifest: PapelizTemplateManifest,
+  includedTemplateFileBytesByRelativePath: ReadonlyMap<string, Uint8Array>,
+  templateFilesChoice: PapelizTemplateFilesChoice,
+): { preparedTemplateVaultFiles: PapelizPreparedTemplateVaultFiles; templateRunCommands: PapelizTemplateRunCommand[] } {
+  const chosenTemplateFileRelativePaths = selectPapelizTemplateChosenFileRelativePaths(templateCheckReport.templateIncludedFileRelativePaths, templateManifest, templateFilesChoice)
+  return {
+    preparedTemplateVaultFiles: preparePapelizTemplateVaultFiles(includedTemplateFileBytesByRelativePath, { templateManifest, templateFilesChoice }),
+    templateRunCommands: listPapelizTemplateChosenRunCommands(templateCheckReport.templateRunCommands, chosenTemplateFileRelativePaths),
+  }
+}
 
 // Each read under way, so a new one (or Cancel) stops the last.
 let templateCheckRunAbortController: AbortController | null = null
@@ -468,9 +494,21 @@ export const usePapelizTemplateGalleryStore = create<PapelizTemplateGalleryState
           })
           return
         }
-        const preparedTemplateVaultFiles = preparePapelizTemplateVaultFiles(includedTemplateFileBytesByRelativePath)
+        // Recommended when the manifest has optional paths, All when it has none.
+        const templateFilesChoices = describePapelizTemplateFilesChoices(templateCheckReport.templateIncludedFileRelativePaths, templateManifest)
+        const templateFilesChoice = templateFilesChoices.defaultTemplateFilesChoice
+        const { preparedTemplateVaultFiles, templateRunCommands } = prepareTemplateUseFilesChoice(
+          templateCheckReport,
+          templateManifest,
+          includedTemplateFileBytesByRelativePath,
+          templateFilesChoice,
+        )
         preparedTemplateUse = {
           templateGalleryRow,
+          templateCheckReport,
+          templateManifest,
+          includedTemplateFileBytesByRelativePath,
+          templateFilesChoice,
           preparedTemplateVaultFiles: preparedTemplateVaultFiles.preparedTemplateVaultFiles,
           templateFirstNotePath: templateManifest.templateFirstNotePath,
         }
@@ -479,10 +517,12 @@ export const usePapelizTemplateGalleryStore = create<PapelizTemplateGalleryState
             templateUseStage: 'ready',
             templateGalleryRow,
             templateCheckReport,
-            templateRunCommands: templateCheckReport.templateRunCommands,
+            templateRunCommands,
             isTemplateRunCommandsAcknowledged: false,
             templateHiddenFileRelativePaths: preparedTemplateVaultFiles.templateHiddenFileRelativePaths,
             templateLeftOutPictureRelativePaths: preparedTemplateVaultFiles.templateLeftOutPictureRelativePaths,
+            templateFilesChoice,
+            templateFilesChoices,
           },
         })
       } catch (templateUseReadError) {
@@ -498,6 +538,33 @@ export const usePapelizTemplateGalleryStore = create<PapelizTemplateGalleryState
     acknowledgeTemplateRunCommands: (isTemplateRunCommandsAcknowledged) => {
       const { templateUseState } = get()
       if (templateUseState.templateUseStage === 'ready') set({ templateUseState: { ...templateUseState, isTemplateRunCommandsAcknowledged } })
+    },
+
+    chooseTemplateFilesChoice: (templateFilesChoice) => {
+      const { templateUseState } = get()
+      const templateUseToChange = preparedTemplateUse
+      if (templateUseState.templateUseStage !== 'ready' || templateUseToChange === null || templateUseToChange.templateFilesChoice === templateFilesChoice) return
+      const { preparedTemplateVaultFiles, templateRunCommands } = prepareTemplateUseFilesChoice(
+        templateUseToChange.templateCheckReport,
+        templateUseToChange.templateManifest,
+        templateUseToChange.includedTemplateFileBytesByRelativePath,
+        templateFilesChoice,
+      )
+      preparedTemplateUse = { ...templateUseToChange, templateFilesChoice, preparedTemplateVaultFiles: preparedTemplateVaultFiles.preparedTemplateVaultFiles }
+      // A tick covers the commands it was given (both lists hold the check report's own entries): a
+      // choice with fewer keeps it, one that brings another asks again.
+      const isEveryRunCommandAcknowledged =
+        templateUseState.isTemplateRunCommandsAcknowledged && templateRunCommands.every((templateRunCommand) => templateUseState.templateRunCommands.includes(templateRunCommand))
+      set({
+        templateUseState: {
+          ...templateUseState,
+          templateRunCommands,
+          isTemplateRunCommandsAcknowledged: isEveryRunCommandAcknowledged,
+          templateHiddenFileRelativePaths: preparedTemplateVaultFiles.templateHiddenFileRelativePaths,
+          templateLeftOutPictureRelativePaths: preparedTemplateVaultFiles.templateLeftOutPictureRelativePaths,
+          templateFilesChoice,
+        },
+      })
     },
 
     makePapelizTemplateVault: async (typedNewVaultName, chosenNewVaultPlace) => {
@@ -520,6 +587,7 @@ export const usePapelizTemplateGalleryStore = create<PapelizTemplateGalleryState
           templateSourceAuthor: templateGalleryRow.templateRepositoryOwner,
           templateSourceLicenseId: templateGalleryRow.templateLicenseId,
           templateSourceVaultMadeAt: new Date(readTemplateGalleryCurrentTime()).toISOString(),
+          templateSourceFilesChoice: templateUseToMake.templateFilesChoice,
         }),
       ]
       const showTemplateVaultWriteProgress = (templateWrittenFileCount: number, templateFileCount: number) => {
@@ -587,6 +655,7 @@ export const usePapelizTemplateGalleryStore = create<PapelizTemplateGalleryState
           templateSourceName: templateGalleryRow.templateName,
           templateSourceAuthor: templateGalleryRow.templateRepositoryOwner,
           templateSourceLicenseId: templateGalleryRow.templateLicenseId,
+          templateSourceFilesChoice: templateUseToImport.templateFilesChoice,
         },
       })
       if (preparedTemplateUse !== templateUseToImport) return { ...vaultFolderImportResult, templateFirstNotePath: null }

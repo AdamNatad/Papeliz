@@ -6,6 +6,7 @@ import type { PapelizVaultFolderImportOptions, PapelizVaultFolderImportPlan } fr
 import type { PapelizTemplateGalleryRow, PapelizTemplateGalleryState, PapelizTemplateVaultFolderImporter } from './papeliz-template-gallery-contract'
 import { createPapelizFakeTemplateNetwork, type PapelizFakeTemplateNetworkOptions, type PapelizFakeTemplateRepository } from './papeliz-template-gallery-fake-network.test-support'
 import {
+  createAgentWorkflowTemplateFiles,
   createGardenJournalTemplateFiles,
   gardenJournalOtherLicenseText,
   gardenJournalRepositoryName,
@@ -247,6 +248,8 @@ describe('template gallery store', () => {
       templateSourceAuthor: 'garden-notes',
       templateSourceLicenseId: 'MIT',
       templateSourceVaultMadeAt: '2026-11-02T09:30:00.000Z',
+      // Garden Journal has no optional paths, so every file came.
+      templateSourceFilesChoice: 'all',
     })
     madeResult.papelizOpenVault.papelizVaultAdapter.closeVaultAdapter?.()
   })
@@ -393,6 +396,7 @@ describe('template gallery store', () => {
       templateSourceName: 'Garden Journal',
       templateSourceAuthor: 'garden-notes',
       templateSourceLicenseId: 'MIT',
+      templateSourceFilesChoice: 'all',
     })
     expect(usePapelizTemplateGalleryStore.getState().templateUseState).toMatchObject({ templateUseStage: 'imported-into-vault', importedVaultFolderRelativePath: 'Garden Journal 2' })
   })
@@ -415,5 +419,117 @@ describe('template gallery store', () => {
     usePapelizTemplateGalleryStore.getState().cancelTemplateUse()
     await preparing
     expect(usePapelizTemplateGalleryStore.getState().templateUseState).toEqual({ templateUseStage: 'idle' })
+  })
+})
+
+describe('template gallery store, Recommended or All', () => {
+  const agentWorkflowRepositoryName = { templateRepositoryOwner: 'workflow-notes', templateRepositoryName: 'Agent-Workflow' }
+  const agentWorkflowTemplateCommitSha = 'c3d4e5f60718293a4b5c6d7e8f9012345678abcd'
+  const agentWorkflowRecommendedRunCommandSourcePaths = ['.agents/hooks/guard.mjs', '.claude/settings.json', '.codex/hooks.json', '.example-agent/hooks.json', '.github/hooks/guard.json']
+
+  function createAgentWorkflowRepository(): PapelizFakeTemplateRepository {
+    return { ...agentWorkflowRepositoryName, templateFilesByCommitSha: { [agentWorkflowTemplateCommitSha]: createAgentWorkflowTemplateFiles() }, newestTemplateCommitSha: agentWorkflowTemplateCommitSha }
+  }
+
+  // The listed row for Agent Workflow, from its own Check.
+  async function listAgentWorkflowRow(): Promise<PapelizTemplateGalleryRow> {
+    await usePapelizTemplateGalleryStore.getState().checkTemplateRepositoryLink('workflow-notes/Agent-Workflow')
+    const { templateCheckRunState } = usePapelizTemplateGalleryStore.getState()
+    if (templateCheckRunState.templateCheckRunStage !== 'checked') throw new Error(`The check didn’t finish: ${JSON.stringify(templateCheckRunState)}`)
+    usePapelizTemplateGalleryStore.getState().resetTemplateCheckRun()
+    const { templateCheckReport } = templateCheckRunState
+    if (templateCheckReport.templateManifest === null) throw new Error('Agent Workflow’s manifest didn’t read.')
+    const agentWorkflowRow: PapelizTemplateGalleryRow = {
+      papelizTemplateGalleryId: 'workflow-notes/Agent-Workflow',
+      ...agentWorkflowRepositoryName,
+      templateCommitSha: agentWorkflowTemplateCommitSha,
+      templateIncludedFileListDigest: templateCheckReport.templateIncludedFileListDigest ?? '',
+      templateName: templateCheckReport.templateManifest.templateName,
+      templateDescription: templateCheckReport.templateManifest.templateDescription,
+      templateTags: templateCheckReport.templateManifest.templateTags,
+      templateFirstNotePath: templateCheckReport.templateManifest.templateFirstNotePath,
+      templateLicenseId: 'MIT',
+      templateThumbnailPictureUrl: null,
+      templateIncludedFileCount: templateCheckReport.templateIncludedFileRelativePaths.length,
+      templateIncludedByteCount: templateCheckReport.templateIncludedByteCount,
+      isTemplateRunningCommands: templateCheckReport.templateRunCommands.length > 0,
+      isTemplateFeatured: true,
+      templateListedAt: null,
+      templateCheckedAt: null,
+      templateUpVoteCount: 0,
+      templateDownVoteCount: 0,
+      templateTopRank: null,
+    }
+    setPapelizTemplateGalleryRowsForTests([agentWorkflowRow])
+    return agentWorkflowRow
+  }
+
+  function readReadyTemplateUseState() {
+    const { templateUseState } = usePapelizTemplateGalleryStore.getState()
+    if (templateUseState.templateUseStage !== 'ready') throw new Error(`Use Template isn’t ready: ${JSON.stringify(templateUseState.templateUseStage)}`)
+    return templateUseState
+  }
+
+  it('starts on Recommended, lists only its commands, and asks for the tick again when All brings more', async () => {
+    useFakeTemplateNetwork([createAgentWorkflowRepository()])
+    await usePapelizTemplateGalleryStore.getState().prepareTemplateUse(await listAgentWorkflowRow())
+    const recommendedState = readReadyTemplateUseState()
+    expect(recommendedState.templateFilesChoice).toBe('recommended')
+    expect(recommendedState.templateFilesChoices).toMatchObject({
+      defaultTemplateFilesChoice: 'recommended',
+      hasTemplateOptionalFiles: true,
+      recommendedTemplateFileCount: 11,
+      allTemplateFileCount: 16,
+      templateOptionalTopEntryNames: ['.agents', '.aider.conf.yml', '.gemini', '.qwen', 'opencode.json'],
+    })
+    expect(recommendedState.templateRunCommands.map(({ templateRunCommandSourceRelativePath }) => templateRunCommandSourceRelativePath)).toEqual(agentWorkflowRecommendedRunCommandSourcePaths)
+    // The template's page keeps every included file's commands.
+    expect(recommendedState.templateCheckReport.templateRunCommands).toHaveLength(10)
+    expect(recommendedState.templateHiddenFileRelativePaths).not.toContain('.gemini/settings.json')
+
+    usePapelizTemplateGalleryStore.getState().acknowledgeTemplateRunCommands(true)
+    usePapelizTemplateGalleryStore.getState().chooseTemplateFilesChoice?.('all')
+    const allState = readReadyTemplateUseState()
+    expect(allState).toMatchObject({ templateFilesChoice: 'all', isTemplateRunCommandsAcknowledged: false })
+    expect(allState.templateRunCommands).toEqual(allState.templateCheckReport.templateRunCommands)
+    expect(allState.templateHiddenFileRelativePaths).toContain('.gemini/settings.json')
+
+    // Back to fewer commands, all of them ticked: the tick stays.
+    usePapelizTemplateGalleryStore.getState().acknowledgeTemplateRunCommands(true)
+    usePapelizTemplateGalleryStore.getState().chooseTemplateFilesChoice?.('recommended')
+    expect(readReadyTemplateUseState()).toMatchObject({ templateFilesChoice: 'recommended', isTemplateRunCommandsAcknowledged: true })
+  })
+
+  it('makes a vault with Recommended’s files only, and records the choice', async () => {
+    const { fakeOriginPrivateFileSystemRoot } = useFakeTemplateNetwork([createAgentWorkflowRepository()])
+    await usePapelizTemplateGalleryStore.getState().prepareTemplateUse(await listAgentWorkflowRow())
+    usePapelizTemplateGalleryStore.getState().acknowledgeTemplateRunCommands(true)
+    const madeResult = await usePapelizTemplateGalleryStore.getState().makePapelizTemplateVault('My Workflow', 'browser-vault-in-opfs')
+    if (madeResult.openVaultOutcome !== 'opened') throw new Error(`The vault wasn’t made: ${JSON.stringify(madeResult)}`)
+    expect(madeResult.templateFirstNotePath).toBe('README.md')
+    const madeVaultFolder = await getPapelizFakeBrowserVaultFolder(fakeOriginPrivateFileSystemRoot, madeResult.papelizOpenVault.papelizVaultId)
+    const madeTopEntryNames = [...madeVaultFolder.fakeChildHandles.keys()].sort()
+    expect(madeTopEntryNames).toEqual(['.agents', '.claude', '.codex', '.example-agent', '.github', '.gitignore', '.papeliz', 'AGENTS.md', 'LICENSE', 'README.md', 'workflow'])
+    // `.agents/` holds the guard, which always comes, but not the optional `.agents/hooks.json`.
+    expect([...(await madeVaultFolder.getDirectoryHandle('.agents')).fakeChildHandles.keys()]).toEqual(['hooks'])
+    const templateSourceFile = await (await (await madeVaultFolder.getDirectoryHandle('.papeliz')).getFileHandle('template-source.json')).getFile()
+    expect(JSON.parse(await templateSourceFile.text())).toMatchObject({ papelizTemplateGalleryId: 'workflow-notes/Agent-Workflow', templateSourceFilesChoice: 'recommended' })
+    madeResult.papelizOpenVault.papelizVaultAdapter.closeVaultAdapter?.()
+  })
+
+  it('imports All’s files into a folder, and records the choice', async () => {
+    useFakeTemplateNetwork([createAgentWorkflowRepository()])
+    await usePapelizTemplateGalleryStore.getState().prepareTemplateUse(await listAgentWorkflowRow())
+    usePapelizTemplateGalleryStore.getState().chooseTemplateFilesChoice?.('all')
+    usePapelizTemplateGalleryStore.getState().acknowledgeTemplateRunCommands(true)
+    const receivedImports: Array<{ vaultFolderImportPlan: PapelizVaultFolderImportPlan; vaultFolderImportOptions: PapelizVaultFolderImportOptions }> = []
+    const templateImportResult = await usePapelizTemplateGalleryStore.getState().importPapelizTemplateIntoVault(async (vaultFolderImportPlan, vaultFolderImportOptions) => {
+      receivedImports.push({ vaultFolderImportPlan, vaultFolderImportOptions })
+      return { vaultFolderImportOutcome: 'imported', importedVaultFolderRelativePath: 'Agent Workflow', importedFileCount: vaultFolderImportPlan.importFileCount }
+    })
+    expect(templateImportResult).toMatchObject({ vaultFolderImportOutcome: 'imported', importedFileCount: 16, templateFirstNotePath: 'Agent Workflow/README.md' })
+    const [{ vaultFolderImportPlan, vaultFolderImportOptions }] = receivedImports as [(typeof receivedImports)[number]]
+    expect(vaultFolderImportPlan.vaultFolderImportFiles.map((importFile) => importFile.importFileRelativePath)).toContain('.gemini/settings.json')
+    expect(vaultFolderImportOptions.importedTemplateFolderSource).toMatchObject({ papelizTemplateGalleryId: 'workflow-notes/Agent-Workflow', templateSourceFilesChoice: 'all' })
   })
 })
