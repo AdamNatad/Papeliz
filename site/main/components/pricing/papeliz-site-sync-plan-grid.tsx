@@ -72,8 +72,8 @@ function PapelizSiteSyncPlanCard({
 }
 
 // Papeliz Sync's plans, the same block on the Pricing and Sync pages (Adam, 2026-11-02: "A · Four
-// cards"): the Yearly / Monthly switch, then Free and the three paid plans, each with every limit.
-// Yearly is chosen first; its badge counts the saving in months, and its info mark opens the table
+// cards"): the Monthly / Yearly switch, then Free and the three paid plans, each with every limit.
+// Yearly is chosen on load; its badge counts the saving in months, and its info mark opens the table
 // behind it.
 export function PapelizSiteSyncPlanGrid() {
   const [papelizSiteChosenSyncBillingPeriod, setPapelizSiteChosenSyncBillingPeriod] = useState<PapelizSiteSyncBillingPeriod>(papelizSiteSyncPreselectedBillingPeriod)
@@ -84,14 +84,14 @@ export function PapelizSiteSyncPlanGrid() {
           papelizSiteBillingPeriodSwitchLabel="Billing period"
           papelizSiteChosenBillingPeriod={papelizSiteChosenSyncBillingPeriod}
           onPapelizSiteBillingPeriodChoose={setPapelizSiteChosenSyncBillingPeriod}
-          // Yearly first, then Monthly, as in the app's Settings › Sync.
+          // Monthly on the left, Yearly on the right and chosen (Adam, 2026-11-02), as on the account page.
           papelizSiteBillingPeriodChoices={[
+            { papelizSiteBillingPeriodChoiceValue: 'monthly', papelizSiteBillingPeriodChoiceLabel: 'Monthly' },
             {
               papelizSiteBillingPeriodChoiceValue: 'yearly',
               papelizSiteBillingPeriodChoiceLabel: 'Yearly',
               papelizSiteBillingPeriodChoiceBadge: `Save ${papelizSiteSyncYearlyMonthsSaved} Months`,
             },
-            { papelizSiteBillingPeriodChoiceValue: 'monthly', papelizSiteBillingPeriodChoiceLabel: 'Monthly' },
           ]}
           papelizSiteBillingPeriodBadgeInfo={createPapelizSiteYearlySavingsBadgeInfo()}
         />

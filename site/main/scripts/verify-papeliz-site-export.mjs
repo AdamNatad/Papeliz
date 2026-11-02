@@ -188,7 +188,8 @@ if (existsSync(papelizSiteLicensePagePath)) {
   }
 }
 
-// Yearly billing chosen first (papelizSiteSyncPreselectedBillingPeriod in lib/papeliz-site-sync-plans.ts).
+// Yearly billing chosen by default (papelizSiteSyncPreselectedBillingPeriod in lib/papeliz-site-sync-plans.ts):
+// the pressed choice is checked, not its place, since Yearly sits on the right of Monthly.
 // The address parameters are the same as papelizSiteSyncPlanAddressParameterName and
 // papelizSiteSyncBillingPeriodAddressParameterName there; Free's Sign up names no plan, so it is not counted.
 for (const papelizSiteSyncPlansPagePath of ['/pricing/', '/sync/']) {
@@ -309,5 +310,5 @@ if (papelizSiteExportProblems.length > 0) {
 }
 
 console.log(
-  ` [ok] Site export checked: ${papelizSiteExpectedPagePaths.length} pages, ${papelizSiteExportHtmlPaths.length} HTML files, links, license text, wording, yearly billing first, script policies and ${papelizSiteTemplateShortAddressCount} template short address line(s).`,
+  ` [ok] Site export checked: ${papelizSiteExpectedPagePaths.length} pages, ${papelizSiteExportHtmlPaths.length} HTML files, links, license text, wording, yearly billing by default, script policies and ${papelizSiteTemplateShortAddressCount} template short address line(s).`,
 )
