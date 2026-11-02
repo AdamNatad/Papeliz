@@ -7,6 +7,7 @@ import {
   isPapelizSiteTemplateNew,
   orderPapelizSiteTemplatesForList,
   readPapelizSiteTemplateCategoryNames,
+  describePapelizSiteTemplateLicenseName,
   listPapelizSiteTemplateCategoryTags,
   readPapelizSiteTemplatesSnapshot,
 } from './papeliz-site-templates'
@@ -67,7 +68,7 @@ describe('the website Templates list', () => {
         { ...papelizSiteTestTemplateRow, papelizTemplateGalleryId: 'bad--owner/Notes', templateRepositoryOwner: 'bad--owner', templateRepositoryName: 'Notes' },
         { ...papelizSiteTestTemplateRow, papelizTemplateGalleryId: 'other/Notes', templateRepositoryOwner: 'other', templateRepositoryName: 'Notes', templateTags: ['cooking', 'a', 'b', 'c'] },
         { ...papelizSiteTestTemplateRow, papelizTemplateGalleryId: 'other/Sha', templateRepositoryOwner: 'other', templateRepositoryName: 'Sha', templateCommitSha: 'main' },
-        { ...papelizSiteTestTemplateRow, papelizTemplateGalleryId: 'other/Name', templateRepositoryOwner: 'other', templateRepositoryName: 'Name', templateLicenseId: 'GPL-3.0' },
+        { ...papelizSiteTestTemplateRow, papelizTemplateGalleryId: 'other/Name', templateRepositoryOwner: 'other', templateRepositoryName: 'Name', templateLicenseId: 'not a license id' },
         { ...papelizSiteTestTemplateRow, papelizTemplateGalleryId: 'someone/else', templateRepositoryOwner: 'other', templateRepositoryName: 'else' },
       ]),
     )
@@ -84,6 +85,19 @@ describe('the website Templates list', () => {
     )
     expect(papelizSiteTemplatesSnapshot?.templateGallerySnapshotRows.map((snapshotRow) => snapshotRow.papelizTemplateGalleryId)).toContain('other/Garden')
     expect(listPapelizSiteTemplateCategoryTags(papelizSiteTemplatesSnapshot?.templateGallerySnapshotRows ?? [])).toEqual(['coding', 'education', 'research', 'baking', 'gardening'])
+  })
+
+  it('keeps a template under any license and names it, an author’s own as Custom License', () => {
+    const papelizSiteTemplatesSnapshot = readPapelizSiteTemplatesSnapshot(
+      createPapelizSiteTestSnapshot([
+        { ...papelizSiteTestTemplateRow, templateLicenseId: 'GPL-3.0' },
+        { ...papelizSiteTestTemplateRow, papelizTemplateGalleryId: 'other/Own', templateRepositoryOwner: 'other', templateRepositoryName: 'Own', templateLicenseId: 'LicenseRef-Custom' },
+      ]),
+    )
+    expect(papelizSiteTemplatesSnapshot?.templateGallerySnapshotRows.map((snapshotRow) => describePapelizSiteTemplateLicenseName(snapshotRow.templateLicenseId))).toEqual([
+      'GNU GPL 3.0',
+      'Custom License',
+    ])
   })
 
   it('lists Featured first, in their order, then the rest newest first', () => {

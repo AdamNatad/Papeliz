@@ -1,6 +1,9 @@
-// The licenses Template Settings offers, each with a sentence on what it lets others do, for its
-// tooltip. A person can also type a license of their own. Only MIT's text comes in the .zip; for any
-// other, the person adds its LICENSE file.
+import { papelizTemplateCustomLicenseId } from './papeliz-template-gallery-contract'
+
+// The well-known licenses: Template Settings offers them, each with a sentence on what it lets others
+// do, for its tooltip, and the gallery names a template's license with them. A person can also type a
+// license of their own. Only MIT's text comes in an exported .zip; for any other, the person adds its
+// LICENSE file.
 
 export interface PapelizTemplateExportLicensePreset {
   // The SPDX id, as GitHub and the license files name it.
@@ -80,4 +83,11 @@ export function filterPapelizTemplateExportLicensePresets(typedTemplateLicenseTe
   return papelizTemplateExportLicensePresets.filter(
     (licensePreset) => licensePreset.templateLicenseDisplayName.toLowerCase().includes(lowerCaseLicenseText) || licensePreset.templateLicenseSpdxId.toLowerCase().includes(lowerCaseLicenseText),
   )
+}
+
+// A license's name as the gallery shows it: "MIT", "Apache 2.0", "Custom License" for an author's
+// own, and the id itself for one this list doesn't know.
+export function describePapelizTemplateLicenseName(templateLicenseId: string): string {
+  if (templateLicenseId === papelizTemplateCustomLicenseId) return 'Custom License'
+  return papelizTemplateExportLicensePresets.find((licensePreset) => licensePreset.templateLicenseSpdxId === templateLicenseId)?.templateLicenseDisplayName ?? templateLicenseId
 }

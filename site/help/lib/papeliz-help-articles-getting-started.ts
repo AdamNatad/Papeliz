@@ -339,10 +339,10 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
       ]),
       helpSection('Export as a template', [
         helpParagraph(
-          'Press the gear on **Template**’s row to open **Template Settings**. **Details** holds the template’s name, a short description, up to three **Tags** (its category, which can be any word, then a subcategory and a label), the note it opens first and its license. **Files** marks each ticked note **Recommended** or **Optional**: Recommended notes always come, and Optional ones come only when someone chooses All or ticks them. Pictures and files a note links to come with it.',
+          'Press the gear on **Template**’s row to open **Template Settings**. **Details** holds the template’s name, a short description, up to three **Tags** (its category, which can be any word, then a subcategory and a label), the note it opens first and its **License**: pick one of the well-known licenses (hover one to read what it allows) or type your own. **Files** marks each ticked note **Recommended** or **Optional**: Recommended notes always come, and Optional ones come only when someone chooses All or ticks them. Pictures and files a note links to come with it.',
         ),
         helpParagraph(
-          'Export downloads one `.zip` with the notes in their folders, a `papeliz-template.json` written from the settings and, for MIT, a `LICENSE`. For CC0 1.0 or CC BY 4.0, add that license as a file named `LICENSE` on GitHub. Put the files in a public GitHub repository, then share it with **Submit Template**. Papeliz keeps the settings for each vault.',
+          'Export downloads one `.zip` with the notes in their folders, a `papeliz-template.json` written from the settings and, for MIT, a `LICENSE`. For any other license, add its text as a file named `LICENSE`. Templates lists a template under any license, your own too. Put the files in a public GitHub repository, then share it with **Submit Template**. Papeliz keeps the settings for each vault.',
         ),
       ]),
       helpSection('On the start page', [

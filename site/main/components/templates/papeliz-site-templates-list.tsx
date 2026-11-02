@@ -8,7 +8,7 @@ import {
   formatPapelizSiteTemplateTagDisplayName,
   orderPapelizSiteTemplatesForList,
   listPapelizSiteTemplateCategoryTags,
-  papelizSiteTemplateLicenseDisplayNames,
+  describePapelizSiteTemplateLicenseName,
   papelizSiteTemplatesSnapshotPath,
   readPapelizSiteTemplatesSnapshot,
   type PapelizSiteTemplateCategoryTag,
@@ -119,7 +119,7 @@ export function PapelizSiteTemplatesList({ papelizSiteTemplatesBuildSnapshot, pa
                       />
                     </div>
                     <p className="mt-0.5 text-sm text-papeliz-ink-muted">
-                      by {papelizSiteTemplateRow.templateRepositoryOwner} · {papelizSiteTemplateLicenseDisplayNames[papelizSiteTemplateRow.templateLicenseId]}
+                      by {papelizSiteTemplateRow.templateRepositoryOwner} · {describePapelizSiteTemplateLicenseName(papelizSiteTemplateRow.templateLicenseId)}
                       {papelizSiteTemplateRow.templateIncludedFileCount !== null &&
                         ` · ${papelizSiteTemplateRow.templateIncludedFileCount.toLocaleString('en-US')} ${papelizSiteTemplateRow.templateIncludedFileCount === 1 ? 'file' : 'files'}`}
                     </p>

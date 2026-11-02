@@ -7,7 +7,6 @@ import { isVaultJsonFileName } from '../vault/papeliz-vault-text-files'
 import { getVaultEntryName, isVaultNoteFileName } from '../vault/papeliz-vault-relative-paths'
 import {
   papelizTemplateGalleryTagDisplayNames,
-  papelizTemplateLicenseDisplayNames,
   type PapelizTemplateCheckResult,
   type PapelizTemplateFileListEntry,
   type PapelizTemplateFileReadProgress,
@@ -17,6 +16,7 @@ import {
   type PapelizTemplateLicenseId,
   type PapelizTemplateRecheckState,
 } from './papeliz-template-gallery-contract'
+import { describePapelizTemplateLicenseName } from './papeliz-template-export-licenses'
 import { isPapelizTemplatePictureUrlAllowed } from './papeliz-template-gallery-picture-hosts'
 
 // The pieces the Templates pages share: a template's thumbnail, author, tags and votes, Recheck, the
@@ -28,7 +28,7 @@ import { isPapelizTemplatePictureUrlAllowed } from './papeliz-template-gallery-p
 export type PapelizTemplateGalleryScreenModel = PapelizTemplateGalleryState & PapelizTemplateGalleryActions
 
 export function describeTemplateGalleryLicense(templateLicenseId: PapelizTemplateLicenseId): string {
-  return papelizTemplateLicenseDisplayNames[templateLicenseId]
+  return describePapelizTemplateLicenseName(templateLicenseId)
 }
 
 // A tag as the chips and a template's page show it: its name from the tag list ("ai-agents" -> "AI

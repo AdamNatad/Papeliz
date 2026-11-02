@@ -13,7 +13,7 @@ import {
   createPapelizSiteTemplateOwnerGitHubHref,
   formatPapelizSiteTemplateByteCount,
   formatPapelizSiteTemplateDay,
-  papelizSiteTemplateLicenseDisplayNames,
+  describePapelizSiteTemplateLicenseName,
   readPapelizSiteTemplateCategoryNames,
   type PapelizSiteTemplatesSnapshotRow,
 } from '@/lib/papeliz-site-templates'
@@ -114,7 +114,7 @@ export function PapelizSiteTemplatePage({
           <PapelizSiteTemplateDetail papelizSiteTemplateDetailLabel="Tags">{templateExtraTagDisplayNames.join(', ')}</PapelizSiteTemplateDetail>
         )}
         <PapelizSiteTemplateDetail papelizSiteTemplateDetailLabel="License">
-          {papelizSiteTemplateLicenseDisplayNames[papelizSiteTemplateRow.templateLicenseId]}
+          {describePapelizSiteTemplateLicenseName(papelizSiteTemplateRow.templateLicenseId)}
         </PapelizSiteTemplateDetail>
         {papelizSiteTemplateRow.templateIncludedFileCount !== null && (
           <PapelizSiteTemplateDetail papelizSiteTemplateDetailLabel="What’s inside">

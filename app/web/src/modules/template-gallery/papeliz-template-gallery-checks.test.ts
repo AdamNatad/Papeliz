@@ -190,31 +190,40 @@ describe('template checks', () => {
     expect(findCheckResult(firstLookReport, 'file-types')).toMatchObject({ templateCheckOutcome: 'not-checked', templateCheckSentence: 'Checked once the files are read.' })
   })
 
-  it('reads the license from the LICENSE file, on a first look, and refuses one off the list', async () => {
+  it('reads the license from the LICENSE file, on a first look, and takes any license, an author’s own too', async () => {
     const otherLicenseReport = await checkTemplateFixtureFirstLook({ ...createGardenJournalTemplateFiles(), LICENSE: gardenJournalOtherLicenseText })
-    expect(listFailedCheckIds(otherLicenseReport)).toEqual(['license-allowed'])
-    expect(findCheckResult(otherLicenseReport, 'license-allowed').templateCheckSentence).toBe(
-      '“LICENSE” isn’t the text of CC0 1.0, CC BY 4.0 or MIT, the licenses a template can have. Put one of them in it, then check again.',
-    )
+    expect(listFailedCheckIds(otherLicenseReport)).toEqual([])
+    expect(findCheckResult(otherLicenseReport, 'license-allowed').templateCheckSentence).toBe('Its license is GNU GPL 3.0.')
+    expect(otherLicenseReport.templateLicenseId).toBe('GPL-3.0')
+    const ownLicenseReport = await checkTemplateFixtureFirstLook({ ...createGardenJournalTemplateFiles(), LICENSE: 'Garden Club License\n\nShare these notes with friends.\n' })
+    expect(findCheckResult(ownLicenseReport, 'license-allowed').templateCheckSentence).toBe('Its license is its author’s own, in “LICENSE”.')
+    expect(ownLicenseReport.templateLicenseId).toBe('LicenseRef-Custom')
+    const emptyLicenseReport = await checkTemplateFixtureFirstLook({ ...createGardenJournalTemplateFiles(), LICENSE: '  \n' })
+    expect(listFailedCheckIds(emptyLicenseReport)).toEqual(['license-allowed'])
+    expect(findCheckResult(emptyLicenseReport, 'license-allowed').templateCheckSentence).toBe('“LICENSE” is empty. Put your template’s license in it, then check again.')
     const { LICENSE: _license, ...filesWithoutLicense } = createGardenJournalTemplateFiles()
     const noLicenseReport = await checkTemplateFixture(filesWithoutLicense)
-    expect(findCheckResult(noLicenseReport, 'license-allowed').templateCheckSentence).toBe('There’s no LICENSE file at the repository’s root. Add one with the text of CC0 1.0, CC BY 4.0 or MIT.')
+    expect(findCheckResult(noLicenseReport, 'license-allowed').templateCheckSentence).toBe('There’s no LICENSE file at the repository’s root. Add one with your template’s license, such as MIT.')
     const ccByReport = await checkTemplateFixture({ ...filesWithoutLicense, 'LICENSE.md': gardenJournalCcByLicenseText })
     expect(findCheckResult(ccByReport, 'license-allowed').templateCheckSentence).toBe('Its license is CC BY 4.0.')
     expect(ccByReport.templateIncludedFileRelativePaths).toContain('LICENSE.md')
   })
 
-  it('knows the three licenses by their standard text', () => {
+  it('names the well-known licenses by their text, and calls any other an author’s own', () => {
     expect(detectPapelizTemplateLicenseId(gardenJournalMitLicenseText)).toBe('MIT')
     expect(detectPapelizTemplateLicenseId(`# MIT License\n\n${gardenJournalMitLicenseText.replace('MIT License', '')}`)).toBe('MIT')
     expect(detectPapelizTemplateLicenseId(gardenJournalMitLicenseText.replace('2026 Garden Notes', 'Garden Notes <notes@example.com> (https://example.com)'))).toBe('MIT')
     expect(detectPapelizTemplateLicenseId(gardenJournalCc0LicenseText)).toBe('CC0-1.0')
     expect(detectPapelizTemplateLicenseId(gardenJournalCcByLicenseText)).toBe('CC-BY-4.0')
-    expect(detectPapelizTemplateLicenseId(gardenJournalCcBySaLicenseText)).toBeNull()
-    expect(detectPapelizTemplateLicenseId(gardenJournalOtherLicenseText)).toBeNull()
-    // MIT with a clause added, or without its notice paragraph (MIT No Attribution), isn't MIT.
-    expect(detectPapelizTemplateLicenseId(`${gardenJournalMitLicenseText}\nThe Software may not be used for evil.\n`)).toBeNull()
-    expect(detectPapelizTemplateLicenseId(gardenJournalMitLicenseText.replace(/The above copyright notice[\s\S]*?Software\.\n/, ''))).toBeNull()
+    expect(detectPapelizTemplateLicenseId(gardenJournalCcBySaLicenseText)).toBe('CC-BY-SA-4.0')
+    expect(detectPapelizTemplateLicenseId(gardenJournalOtherLicenseText)).toBe('GPL-3.0')
+    expect(detectPapelizTemplateLicenseId('Apache License\nVersion 2.0, January 2004\nhttp://www.apache.org/licenses/\n')).toBe('Apache-2.0')
+    expect(detectPapelizTemplateLicenseId('GNU LESSER GENERAL PUBLIC LICENSE\nVersion 3, 29 June 2007\n')).toBe('LGPL-3.0')
+    expect(detectPapelizTemplateLicenseId('This is free and unencumbered software released into the public domain.\n')).toBe('Unlicense')
+    expect(detectPapelizTemplateLicenseId('Attribution-NonCommercial-ShareAlike 4.0 International\n')).toBe('CC-BY-NC-SA-4.0')
+    // MIT with a clause added, or without its notice paragraph (MIT No Attribution), isn't MIT: it is the author's own.
+    expect(detectPapelizTemplateLicenseId(`${gardenJournalMitLicenseText}\nThe Software may not be used for evil.\n`)).toBe('LicenseRef-Custom')
+    expect(detectPapelizTemplateLicenseId(gardenJournalMitLicenseText.replace(/The above copyright notice[\s\S]*?Software\.\n/, ''))).toBe('LicenseRef-Custom')
   })
 
   it('lists a hook command, an MCP server and script files under “Runs commands”, and still passes', async () => {

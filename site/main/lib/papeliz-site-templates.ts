@@ -11,11 +11,35 @@ export const papelizSiteTemplatesSnapshotPath = '/api/templates/gallery'
 const papelizSiteTemplateNewDayCount = 14
 const papelizSiteTemplateDayMilliseconds = 24 * 60 * 60 * 1000
 
-export type PapelizSiteTemplateLicenseId = 'CC0-1.0' | 'CC-BY-4.0' | 'MIT'
-export const papelizSiteTemplateLicenseDisplayNames: Readonly<Record<PapelizSiteTemplateLicenseId, string>> = {
+// A template's license, any one its author chose (Adam, 2026-11-02): the SPDX id of a well-known one,
+// or LicenseRef-Custom for an author's own, as the app's check names them.
+export type PapelizSiteTemplateLicenseId = string
+const papelizSiteTemplateCustomLicenseId = 'LicenseRef-Custom'
+const papelizSiteTemplateLicenseDisplayNames: Readonly<Record<string, string>> = {
+  MIT: 'MIT',
+  'Apache-2.0': 'Apache 2.0',
+  'BSD-2-Clause': 'BSD 2-Clause',
+  'BSD-3-Clause': 'BSD 3-Clause',
+  ISC: 'ISC',
+  'GPL-3.0': 'GNU GPL 3.0',
+  'LGPL-3.0': 'GNU LGPL 3.0',
+  'AGPL-3.0': 'GNU AGPL 3.0',
+  'MPL-2.0': 'Mozilla Public License 2.0',
+  Unlicense: 'The Unlicense',
   'CC0-1.0': 'CC0 1.0',
   'CC-BY-4.0': 'CC BY 4.0',
-  MIT: 'MIT',
+  'CC-BY-SA-4.0': 'CC BY-SA 4.0',
+  'CC-BY-NC-4.0': 'CC BY-NC 4.0',
+  'CC-BY-NC-SA-4.0': 'CC BY-NC-SA 4.0',
+  'CC-BY-ND-4.0': 'CC BY-ND 4.0',
+}
+// The shape of a license id: SPDX's letters, digits, dots, plus signs and hyphens.
+const papelizSiteTemplateLicenseIdPattern = /^[A-Za-z0-9.+-]{1,64}$/
+
+// A license's name as the site shows it: "MIT", "Apache 2.0", "Custom License", or the id itself.
+export function describePapelizSiteTemplateLicenseName(templateLicenseId: PapelizSiteTemplateLicenseId): string {
+  if (templateLicenseId === papelizSiteTemplateCustomLicenseId) return 'Custom License'
+  return papelizSiteTemplateLicenseDisplayNames[templateLicenseId] ?? templateLicenseId
 }
 
 // A template's first tag is its Category, any tag its author chose; the second is its subcategory and
@@ -118,7 +142,7 @@ export function readPapelizSiteTemplatesSnapshotRow(rowCandidate: unknown): Pape
   ) {
     return null
   }
-  if (typeof templateLicenseId !== 'string' || !Object.hasOwn(papelizSiteTemplateLicenseDisplayNames, templateLicenseId)) return null
+  if (typeof templateLicenseId !== 'string' || !papelizSiteTemplateLicenseIdPattern.test(templateLicenseId)) return null
   if (typeof row.isTemplateRunningCommands !== 'boolean' || typeof row.isTemplateFeatured !== 'boolean') return null
   if (
     !isPapelizSiteTemplateCountOrNull(row.templateIncludedFileCount) ||
@@ -139,7 +163,7 @@ export function readPapelizSiteTemplatesSnapshotRow(rowCandidate: unknown): Pape
     templateName: row.templateName,
     templateDescription: row.templateDescription,
     templateTags: templateTags as string[],
-    templateLicenseId: templateLicenseId as PapelizSiteTemplateLicenseId,
+    templateLicenseId,
     templateIncludedFileCount: row.templateIncludedFileCount,
     templateIncludedByteCount: row.templateIncludedByteCount,
     isTemplateRunningCommands: row.isTemplateRunningCommands,

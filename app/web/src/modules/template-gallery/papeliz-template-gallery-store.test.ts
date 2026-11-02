@@ -8,7 +8,6 @@ import { createPapelizFakeTemplateNetwork, type PapelizFakeTemplateNetworkOption
 import {
   createAgentWorkflowTemplateFiles,
   createGardenJournalTemplateFiles,
-  gardenJournalOtherLicenseText,
   gardenJournalRepositoryName,
   gardenJournalTemplateCommitSha,
   gardenJournalTemplateNewerCommitSha,
@@ -145,7 +144,8 @@ describe('template gallery store', () => {
 
   it('turns down a template on its first look without reading the rest of its files', async () => {
     const gardenJournalRepository = createGardenJournalRepository()
-    gardenJournalRepository.templateFilesByCommitSha[gardenJournalTemplateCommitSha] = { ...createGardenJournalTemplateFiles(), LICENSE: gardenJournalOtherLicenseText }
+    // An empty LICENSE fails the first look.
+    gardenJournalRepository.templateFilesByCommitSha[gardenJournalTemplateCommitSha] = { ...createGardenJournalTemplateFiles(), LICENSE: '\n' }
     const { fakeRequestedUrls } = useFakeTemplateNetwork([gardenJournalRepository])
     await usePapelizTemplateGalleryStore.getState().checkTemplateRepositoryLink('garden-notes/Garden-Journal')
     const { templateCheckRunState } = usePapelizTemplateGalleryStore.getState()

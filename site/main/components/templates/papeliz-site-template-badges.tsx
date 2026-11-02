@@ -1,7 +1,7 @@
 import { Star, Terminal } from 'lucide-react'
 import {
   isPapelizSiteTemplateNew,
-  papelizSiteTemplateLicenseDisplayNames,
+  describePapelizSiteTemplateLicenseName,
   readPapelizSiteTemplateCategoryNames,
   type PapelizSiteTemplatesSnapshotRow,
 } from '@/lib/papeliz-site-templates'
@@ -57,7 +57,7 @@ export function PapelizSiteTemplateStatusBadges({
 export function PapelizSiteTemplateLicenseBadge({ papelizSiteTemplateRow }: { papelizSiteTemplateRow: PapelizSiteTemplatesSnapshotRow }) {
   return (
     <span className={`${papelizSiteTemplateBadgeClassName} border border-papeliz-line text-papeliz-ink-muted`}>
-      {papelizSiteTemplateLicenseDisplayNames[papelizSiteTemplateRow.templateLicenseId]}
+      {describePapelizSiteTemplateLicenseName(papelizSiteTemplateRow.templateLicenseId)}
     </span>
   )
 }

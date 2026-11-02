@@ -1,5 +1,5 @@
 import {
-  papelizTemplateLicenseDisplayNames,
+  papelizTemplateCustomLicenseId,
   papelizTemplateManifestFileName,
   papelizTemplateTagPattern,
   type PapelizTemplateCheckId,
@@ -15,6 +15,7 @@ import {
   type PapelizTemplateRunCommand,
   type PapelizTemplateRunCommandKind,
 } from './papeliz-template-gallery-contract'
+import { describePapelizTemplateLicenseName } from './papeliz-template-export-licenses'
 import { detectPapelizTemplatePictureFormat, findPapelizTemplatePictureFormatByName } from './papeliz-template-gallery-picture-metadata'
 
 // Every check a template must pass before Papeliz lists it or makes a vault from it: the manifest,
@@ -865,31 +866,56 @@ function normalizeLicenseText(licenseText: string): string {
   return licenseText.toLowerCase().replace(/[“”]/g, '"').replace(/[‘’]/g, "'").replace(/\s+/g, ' ').trim()
 }
 
-// Which of the three licenses a LICENSE file's text is, or null for any other text. MIT must be its
-// standard text, with only its title and copyright lines before it; CC0 1.0 and CC BY 4.0 are known by
-// their legal code's own title and sections, and CC BY's variants (NonCommercial, ShareAlike,
-// NoDerivatives) are not CC BY.
-export function detectPapelizTemplateLicenseId(licenseText: string): PapelizTemplateLicenseId | null {
+// The well-known licenses besides MIT, CC0 and CC BY, by the words of their own title or opening, in
+// the order they are looked for (the narrower name first).
+const papelizTemplateLicenseTitleMarks: ReadonlyArray<{ templateLicenseId: PapelizTemplateLicenseId; templateLicenseTitleWords: readonly string[] }> = [
+  { templateLicenseId: 'CC-BY-NC-SA-4.0', templateLicenseTitleWords: ['attribution-noncommercial-sharealike 4.0 international'] },
+  { templateLicenseId: 'CC-BY-NC-4.0', templateLicenseTitleWords: ['attribution-noncommercial 4.0 international'] },
+  { templateLicenseId: 'CC-BY-ND-4.0', templateLicenseTitleWords: ['attribution-noderivatives 4.0 international'] },
+  { templateLicenseId: 'CC-BY-SA-4.0', templateLicenseTitleWords: ['attribution-sharealike 4.0 international'] },
+  { templateLicenseId: 'AGPL-3.0', templateLicenseTitleWords: ['gnu affero general public license', 'version 3'] },
+  { templateLicenseId: 'LGPL-3.0', templateLicenseTitleWords: ['gnu lesser general public license', 'version 3'] },
+  { templateLicenseId: 'GPL-3.0', templateLicenseTitleWords: ['gnu general public license', 'version 3'] },
+  { templateLicenseId: 'Apache-2.0', templateLicenseTitleWords: ['apache license', 'version 2.0'] },
+  { templateLicenseId: 'MPL-2.0', templateLicenseTitleWords: ['mozilla public license', '2.0'] },
+  { templateLicenseId: 'Unlicense', templateLicenseTitleWords: ['this is free and unencumbered software released into the public domain'] },
+  { templateLicenseId: 'ISC', templateLicenseTitleWords: ['permission to use, copy, modify, and/or distribute this software for any purpose with or without fee is hereby granted'] },
+  { templateLicenseId: 'BSD-3-Clause', templateLicenseTitleWords: ['redistribution and use in source and binary forms', 'neither the name of'] },
+  { templateLicenseId: 'BSD-2-Clause', templateLicenseTitleWords: ['redistribution and use in source and binary forms'] },
+]
+
+// Which license a LICENSE file's text is: the SPDX id of a well-known one, or the custom license id for
+// any other text, an author's own. MIT must be its standard text, with only its title and copyright
+// lines before it; CC0 1.0 and CC BY 4.0 are known by their legal code's own title and sections; the
+// others by their title's words.
+export function detectPapelizTemplateLicenseId(licenseText: string): PapelizTemplateLicenseId {
   const normalizedLicenseText = normalizeLicenseText(licenseText)
   if (normalizedLicenseText.includes('cc0 1.0 universal') && normalizedLicenseText.includes('statement of purpose') && normalizedLicenseText.includes('waiver')) return 'CC0-1.0'
   const isCreativeCommonsAttributionVariant = /noncommercial|sharealike|noderivatives|non-commercial|share-alike|no-derivatives/.test(normalizedLicenseText)
   if (normalizedLicenseText.includes('creative commons attribution 4.0 international public license') && normalizedLicenseText.includes('licensed rights') && !isCreativeCommonsAttributionVariant) {
     return 'CC-BY-4.0'
   }
+  return detectPapelizTemplateMitLicense(normalizedLicenseText)
+    ? 'MIT'
+    : (papelizTemplateLicenseTitleMarks.find((licenseTitleMark) => licenseTitleMark.templateLicenseTitleWords.every((titleWords) => normalizedLicenseText.includes(titleWords)))
+        ?.templateLicenseId ?? papelizTemplateCustomLicenseId)
+}
+
+function detectPapelizTemplateMitLicense(normalizedLicenseText: string): boolean {
   let licenseTextBeforeParagraphs: string | null = null
   let remainingLicenseText = normalizedLicenseText
   for (const mitLicenseParagraph of papelizMitLicenseParagraphs) {
     const paragraphIndex = remainingLicenseText.indexOf(mitLicenseParagraph)
-    if (paragraphIndex < 0) return null
+    if (paragraphIndex < 0) return false
     const licenseTextBetween = remainingLicenseText.slice(0, paragraphIndex).trim()
     if (licenseTextBeforeParagraphs === null) licenseTextBeforeParagraphs = licenseTextBetween
-    else if (licenseTextBetween.length > 0) return null
+    else if (licenseTextBetween.length > 0) return false
     remainingLicenseText = remainingLicenseText.slice(paragraphIndex + mitLicenseParagraph.length)
   }
-  if (remainingLicenseText.trim().length > 0) return null
+  if (remainingLicenseText.trim().length > 0) return false
   // Before the paragraphs: the title, and copyright lines with names and years.
   const isMitLicenseHeadingOnly = /^(?:#+ )?(?:the )?(?:mit license)?(?: \(mit\))? ?(?:copyright\b.{0,300})?$/.test(licenseTextBeforeParagraphs ?? '')
-  return isMitLicenseHeadingOnly ? 'MIT' : null
+  return isMitLicenseHeadingOnly
 }
 
 // LICENSE, LICENSE.md or LICENSE.txt at the repository's root, in that order; null when there is none.
@@ -910,8 +936,6 @@ export function listPapelizTemplateFirstLookRelativePaths(templateFileList: Pape
 
 // ---------------------------------------------------------------- the checks
 
-const papelizTemplateAllowedLicenseWords = 'CC0 1.0, CC BY 4.0 or MIT'
-
 export async function runPapelizTemplateChecks(templateCheckInput: PapelizTemplateCheckInput): Promise<PapelizTemplateCheckReport> {
   const { templateFileList, templateFileBytesByRelativePath, expectedTemplateIncludedFileListDigest } = templateCheckInput
   const templateCheckResults: PapelizTemplateCheckResult[] = []
@@ -928,19 +952,21 @@ export async function runPapelizTemplateChecks(templateCheckInput: PapelizTempla
   )
   const licenseFileRelativePath = findPapelizTemplateLicenseFileRelativePath(templateFileList)
   const licenseFileBytes = licenseFileRelativePath === null ? undefined : templateFileBytesByRelativePath.get(licenseFileRelativePath)
-  const templateLicenseId = licenseFileBytes === undefined ? null : detectPapelizTemplateLicenseId(decodeTemplateText(licenseFileBytes) ?? '')
+  // Any license passes, its author's own too; only a missing or empty LICENSE file fails.
+  const licenseFileText = licenseFileBytes === undefined ? null : (decodeTemplateText(licenseFileBytes) ?? '')
+  const templateLicenseId = licenseFileText === null || licenseFileText.trim().length === 0 ? null : detectPapelizTemplateLicenseId(licenseFileText)
   if (licenseFileRelativePath === null) {
-    addCheckResult('license-allowed', 'failed', `There’s no LICENSE file at the repository’s root. Add one with the text of ${papelizTemplateAllowedLicenseWords}.`)
+    addCheckResult('license-allowed', 'failed', 'There’s no LICENSE file at the repository’s root. Add one with your template’s license, such as MIT.')
   } else if (licenseFileBytes === undefined) {
     addCheckResult('license-allowed', 'not-checked', papelizTemplateFilesNotReadYetSentence)
   } else if (templateLicenseId === null) {
+    addCheckResult('license-allowed', 'failed', `“${licenseFileRelativePath}” is empty. Put your template’s license in it, then check again.`)
+  } else {
     addCheckResult(
       'license-allowed',
-      'failed',
-      `“${licenseFileRelativePath}” isn’t the text of ${papelizTemplateAllowedLicenseWords}, the licenses a template can have. Put one of them in it, then check again.`,
+      'passed',
+      templateLicenseId === papelizTemplateCustomLicenseId ? `Its license is its author’s own, in “${licenseFileRelativePath}”.` : `Its license is ${describePapelizTemplateLicenseName(templateLicenseId)}.`,
     )
-  } else {
-    addCheckResult('license-allowed', 'passed', `Its license is ${papelizTemplateLicenseDisplayNames[templateLicenseId]}.`)
   }
 
   // The manifest: without it nothing else can be checked.

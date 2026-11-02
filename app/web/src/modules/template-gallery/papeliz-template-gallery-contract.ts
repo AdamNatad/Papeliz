@@ -67,14 +67,11 @@ export interface PapelizTemplateFilesChoices {
   templateOptionalTopEntryNames: string[]
 }
 
-// The licenses a template may have, by their SPDX ids.
-export type PapelizTemplateLicenseId = 'CC0-1.0' | 'CC-BY-4.0' | 'MIT'
-export const papelizTemplateLicenseIds: readonly PapelizTemplateLicenseId[] = ['CC0-1.0', 'CC-BY-4.0', 'MIT']
-export const papelizTemplateLicenseDisplayNames: Readonly<Record<PapelizTemplateLicenseId, string>> = {
-  'CC0-1.0': 'CC0 1.0',
-  'CC-BY-4.0': 'CC BY 4.0',
-  MIT: 'MIT',
-}
+// A template's license, any one its author chose (Adam, 2026-11-02: the gallery accepts any): the
+// SPDX id of a well-known license, named from its LICENSE file's text ("MIT", "Apache-2.0",
+// "CC-BY-SA-4.0"), or `papelizTemplateCustomLicenseId` for any other text, the author's own.
+export type PapelizTemplateLicenseId = string
+export const papelizTemplateCustomLicenseId = 'LicenseRef-Custom'
 
 // A template's tags: the first is its main category, the second its subcategory, the third a label,
 // each any tag of the right shape ("project-workflow"), so authors make their own categories. These
