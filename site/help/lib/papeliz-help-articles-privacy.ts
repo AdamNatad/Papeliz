@@ -53,7 +53,7 @@ export const papelizHelpPrivacyArticles: readonly PapelizHelpArticle[] = [
         helpParagraph('Papeliz is built never to log the key or put it in a web address.'),
       ]),
       helpSection('Remove it', [
-        helpParagraph('Choose **Forget This Key** in **Provider Settings**, or clear this browser’s data for Papeliz.'),
+        helpParagraph('Choose **Forget This Key** on the gear’s **AI Assistant** page, or clear this browser’s data for Papeliz.'),
       ]),
       helpSection('On a shared computer', [
         helpNote(

@@ -103,19 +103,23 @@ async function playTestProvider(
   return { testProviderChatRequests, refusedOutsideRequestUrls }
 }
 
-// Settings for a Custom provider at the test provider's address, through the AI Assistant provider
-// dialog the panel's set-up button opens.
+// Settings for a Custom provider at the test provider's address, on the Settings panel's AI Assistant
+// page, which the panel's set-up button opens: the provider, address and key on Provider, the model on
+// Model, then Save, and Esc closes the panel.
 async function setUpTestProvider(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Choose a Provider' }).click()
-  const providerSettingsDialog = page.getByRole('dialog', { name: 'AI Assistant Provider' })
-  await expect(providerSettingsDialog).toBeVisible()
-  await providerSettingsDialog.getByRole('button', { name: /Provider/ }).click()
+  const settingsPanel = page.getByRole('dialog', { name: 'Settings' })
+  await expect(settingsPanel.getByRole('tab', { name: 'Provider' })).toHaveAttribute('aria-selected', 'true')
+  await settingsPanel.getByRole('button', { name: /Provider/ }).click()
   await page.getByRole('option', { name: /^Custom/ }).click()
-  await providerSettingsDialog.getByLabel('Base URL').fill(testProviderBaseUrl)
-  await providerSettingsDialog.getByLabel(/^API key/).fill(testProviderApiKey)
-  await providerSettingsDialog.getByLabel('Model', { exact: true }).fill(testProviderModelName)
-  await providerSettingsDialog.getByRole('button', { name: 'Save', exact: true }).click()
-  await expect(providerSettingsDialog).toBeHidden()
+  await settingsPanel.getByRole('textbox', { name: 'Base URL' }).fill(testProviderBaseUrl)
+  await settingsPanel.getByLabel(/^API key/).fill(testProviderApiKey)
+  await settingsPanel.getByRole('tab', { name: 'Model' }).click()
+  await settingsPanel.getByRole('combobox', { name: 'Model', exact: true }).or(settingsPanel.getByRole('textbox', { name: 'Model', exact: true })).fill(testProviderModelName)
+  await settingsPanel.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect(settingsPanel.getByText('Saved', { exact: true })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(settingsPanel).toBeHidden()
 }
 
 test('the assistant proposes an edit to a sample note, shows the diff, and changes the note only once it is accepted', async ({ page }) => {

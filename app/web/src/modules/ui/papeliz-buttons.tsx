@@ -69,7 +69,7 @@ export function PapelizPillButton({
     <button
       type={type}
       className={joinPapelizClassNames(
-        'inline-flex flex-none items-center justify-center rounded-full font-medium whitespace-nowrap transition-[background-color,filter,transform] duration-150 ease-out active:scale-[.97] disabled:opacity-50',
+        'inline-flex flex-none items-center justify-center rounded-full font-medium whitespace-nowrap transition-[background-color,filter,transform] duration-150 ease-out active:scale-[.99] disabled:opacity-50',
         papelizPillButtonVariantClassNames[pillButtonVariant],
         papelizPillButtonSizeClassNames[pillButtonSize],
         className,

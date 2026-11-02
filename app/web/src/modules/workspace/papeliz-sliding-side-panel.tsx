@@ -22,8 +22,8 @@ interface PapelizSlidingSidePanelProps {
 }
 
 // The file list and the Assistant: they slide open and shut. Docked, the panel's width grows from
-// nothing, so the note moves over as the panel slides in from the window's edge, and it slides back
-// out before it goes. On a phone it is a drawer that slides over the note, with a backdrop that
+// nothing, so the note moves over as the panel's edge uncovers it from the window's edge, and the
+// edge covers it again before it goes. On a phone it is a drawer that slides over the note, with a backdrop that
 // fades. Dragging the panel's edge resizes it at once, with no slide.
 export function PapelizSlidingSidePanel({
   isSidePanelShown,
@@ -81,9 +81,10 @@ export function PapelizSlidingSidePanel({
     )
   }
 
-  // Docked: the outer box's width slides; the contents keep their full width, pinned to the edge the
-  // panel slides from, so they move in and out rather than squeezing. Only a sliding panel clips its
-  // contents: an open one lets its resize handle reach past its edge.
+  // Docked: the outer box's width slides; the contents keep their full width and stay where they will
+  // sit, pinned to the window's edge, so the moving edge uncovers them (and covers them again when it
+  // shuts) rather than carrying them across. Only a sliding panel clips its contents: an open one lets
+  // its resize handle reach past its edge.
   return (
     <div
       className={joinPapelizClassNames(
@@ -97,7 +98,7 @@ export function PapelizSlidingSidePanel({
       <div
         className={joinPapelizClassNames(
           'absolute inset-y-0 bg-papeliz-surface',
-          sidePanelSide === 'left' ? 'right-0 border-r border-papeliz-line' : 'left-0 border-l border-papeliz-line',
+          sidePanelSide === 'left' ? 'left-0 border-r border-papeliz-line' : 'right-0 border-l border-papeliz-line',
         )}
         style={{ width: sidePanelContentWidth }}
       >

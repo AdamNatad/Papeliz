@@ -1,5 +1,5 @@
 import { Accessibility, ChevronLeft, ChevronRight, FolderX, Lock, LockOpen, Maximize2, Palette, RefreshCw, Settings, Share, User, WandSparkles, type LucideIcon } from 'lucide-react'
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { usePapelizAssistantPanelUiStore } from '../assistant/papeliz-assistant-panel-ui-store'
 import { takePapelizSyncPlanPickFromAddress, usePapelizSyncSettingsGearRequestStore } from '../sync/papeliz-sync-settings-gear-request-store'
@@ -18,7 +18,14 @@ import {
 import { PapelizTopbarFrostedSquareButton } from './papeliz-topbar-frosted-square-button'
 import { usePapelizWorkspaceStore } from './papeliz-workspace-store'
 
-type PapelizSettingsGearPage = 'account' | 'sync' | 'settings' | 'export' | 'appearance' | 'accessibility'
+type PapelizSettingsGearPage = 'account' | 'sync' | 'settings' | 'export' | 'appearance' | 'accessibility' | 'ai-assistant'
+
+// Settings › AI Assistant, loaded when it is opened, so the start page's gear carries none of it.
+const PapelizAssistantProviderSettingsPage = lazy(() =>
+  import('../assistant/papeliz-assistant-provider-settings-page').then((providerSettingsPageModule) => ({
+    default: providerSettingsPageModule.PapelizAssistantProviderSettingsPage,
+  })),
+)
 
 const papelizSettingsGearPageChoices: Record<PapelizSettingsGearPage, { settingsGearPageLabel: string; SettingsGearPageIcon: LucideIcon }> = {
   account: { settingsGearPageLabel: 'Account', SettingsGearPageIcon: User },
@@ -27,12 +34,17 @@ const papelizSettingsGearPageChoices: Record<PapelizSettingsGearPage, { settings
   export: { settingsGearPageLabel: 'Export', SettingsGearPageIcon: Share },
   appearance: { settingsGearPageLabel: 'Appearance', SettingsGearPageIcon: Palette },
   accessibility: { settingsGearPageLabel: 'Accessibility', SettingsGearPageIcon: Accessibility },
+  'ai-assistant': { settingsGearPageLabel: 'AI Assistant', SettingsGearPageIcon: WandSparkles },
 }
 
-// The list's groups, split by lines: Account | Sync, Settings, Export | Appearance, Accessibility (then
-// AI Assistant, the switches and Close Vault in the workspace). The start page has no vault, so no
-// Settings, Export or Accessibility (a note's text).
-const papelizSettingsGearWorkspacePageGroups: ReadonlyArray<ReadonlyArray<PapelizSettingsGearPage>> = [['account'], ['sync', 'settings', 'export'], ['appearance', 'accessibility']]
+// The list's groups, split by lines: Account | Sync, Settings, Export | Appearance, Accessibility, AI
+// Assistant (then the switches and Close Vault in the workspace). The start page has no vault, so no
+// Settings, Export, Accessibility (a note's text) or AI Assistant.
+const papelizSettingsGearWorkspacePageGroups: ReadonlyArray<ReadonlyArray<PapelizSettingsGearPage>> = [
+  ['account'],
+  ['sync', 'settings', 'export'],
+  ['appearance', 'accessibility', 'ai-assistant'],
+]
 const papelizSettingsGearStartPagePageGroups: ReadonlyArray<ReadonlyArray<PapelizSettingsGearPage>> = [['account'], ['sync'], ['appearance']]
 
 const papelizSettingsGearRowClassName =
@@ -67,6 +79,10 @@ function PapelizSettingsGearSwitchRow({ switchRowLabel, switchRowTitle, isSwitch
   )
 }
 
+// The panel's one height, whichever page shows: the whole list fits, and a longer page (Sync, Export)
+// scrolls inside it. A short window takes what room there is below the gear.
+const papelizSettingsGearPanelHeightPixels = 520
+
 // The panel hangs below the gear, its right edge in line with the gear's.
 function measureSettingsGearPanelAnchor(settingsGearButtonElement: HTMLElement): { anchorRight: number; anchorTop: number } {
   const settingsGearButtonRect = settingsGearButtonElement.getBoundingClientRect()
@@ -91,7 +107,6 @@ export function PapelizSettingsGearButton({ settingsGearPlace }: PapelizSettings
   const isFocusModeOn = usePapelizWorkspaceStore((workspaceState) => workspaceState.isFocusModeOn)
   const setFocusModeOn = usePapelizWorkspaceStore((workspaceState) => workspaceState.setFocusModeOn)
   const setVaultCloseConfirmationShown = usePapelizWorkspaceStore((workspaceState) => workspaceState.setVaultCloseConfirmationShown)
-  const setProviderSettingsDialogOpen = usePapelizAssistantPanelUiStore((panelUiState) => panelUiState.setProviderSettingsDialogOpen)
   const focusModeShortcutLabel = usePapelizKeyBindingShortcutLabel('focus-mode-toggle')
   const [settingsGearPanelAnchor, setSettingsGearPanelAnchor] = useState<{ anchorRight: number; anchorTop: number } | null>(null)
   const [chosenSettingsGearPage, setChosenSettingsGearPage] = useState<PapelizSettingsGearPage>('appearance')
@@ -131,6 +146,24 @@ export function PapelizSettingsGearButton({ settingsGearPlace }: PapelizSettings
   }, [])
 
   useEffect(() => {
+    if (!isWorkspaceSettingsGear) return
+    // Opens on AI Assistant when the Assistant asks for its provider settings (Choose a Provider, the
+    // model chip, an error's link), and takes the request back.
+    const openAssistantProviderSettingsPage = () => {
+      const settingsGearButtonElement = settingsGearButtonRef.current
+      if (settingsGearButtonElement === null) return
+      usePapelizAssistantPanelUiStore.getState().setProviderSettingsDialogOpen(false)
+      setChosenSettingsGearPage('ai-assistant')
+      setIsSettingsGearPageOpenOnPhone(true)
+      setSettingsGearPanelAnchor(measureSettingsGearPanelAnchor(settingsGearButtonElement))
+    }
+    if (usePapelizAssistantPanelUiStore.getState().isProviderSettingsDialogOpen) openAssistantProviderSettingsPage()
+    return usePapelizAssistantPanelUiStore.subscribe((panelUiState, previousPanelUiState) => {
+      if (panelUiState.isProviderSettingsDialogOpen && !previousPanelUiState.isProviderSettingsDialogOpen) openAssistantProviderSettingsPage()
+    })
+  }, [isWorkspaceSettingsGear])
+
+  useEffect(() => {
     if (!isSettingsGearPanelOpen) return
     const closeOnOutsidePointer = (pointerEvent: PointerEvent) => {
       const pointerTarget = pointerEvent.target as Node
@@ -165,6 +198,13 @@ export function PapelizSettingsGearButton({ settingsGearPlace }: PapelizSettings
     if (chosenSettingsGearPage === 'settings') return <PapelizSettingsGearSettingsPage />
     if (chosenSettingsGearPage === 'export') return <PapelizSettingsGearExportPage />
     if (chosenSettingsGearPage === 'accessibility') return <PapelizSettingsGearAccessibilityPage />
+    if (chosenSettingsGearPage === 'ai-assistant') {
+      return (
+        <Suspense fallback={null}>
+          <PapelizAssistantProviderSettingsPage />
+        </Suspense>
+      )
+    }
     return <PapelizSettingsGearAppearancePage isNoteTabsLayoutShown={isWorkspaceSettingsGear} />
   }
 
@@ -201,22 +241,6 @@ export function PapelizSettingsGearButton({ settingsGearPlace }: PapelizSettings
       ))}
       {isWorkspaceSettingsGear && (
         <>
-          {/* The assistant's provider and key: the same dialog as the gear in the assistant's panel. */}
-          <button
-            type="button"
-            aria-haspopup="dialog"
-            title="Choose the AI provider and add your key"
-            onClick={() => {
-              // Focus waits on the gear, so it comes back there when the dialog closes.
-              settingsGearButtonRef.current?.focus()
-              closeSettingsGearPanel()
-              setProviderSettingsDialogOpen(true)
-            }}
-            className={papelizSettingsGearRowClassName}
-          >
-            <WandSparkles className="size-4 flex-none text-papeliz-ink-muted" aria-hidden="true" />
-            <span className="min-w-0 flex-1 truncate">AI Assistant</span>
-          </button>
           <PapelizSettingsGearSwitchRow
             switchRowLabel="Lock All Notes"
             switchRowTitle={
@@ -290,13 +314,13 @@ export function PapelizSettingsGearButton({ settingsGearPlace }: PapelizSettings
             style={{
               right: Math.max(8, settingsGearPanelAnchor.anchorRight),
               top: settingsGearPanelAnchor.anchorTop,
-              maxHeight: `calc(100dvh - ${settingsGearPanelAnchor.anchorTop + 8}px)`,
+              height: `min(${papelizSettingsGearPanelHeightPixels}px, calc(100dvh - ${settingsGearPanelAnchor.anchorTop + 8}px))`,
             }}
           >
             {isSettingsGearSideBySide ? (
               <>
-                <div className="flex w-[184px] flex-none flex-col overflow-y-auto border-r border-papeliz-line bg-papeliz-surface-soft p-2 [scrollbar-width:thin]">{settingsGearList}</div>
-                <div className="min-w-0 flex-1 overflow-y-auto overscroll-contain p-3.5 [scrollbar-width:thin]">{renderSettingsGearPage()}</div>
+                <div className="flex w-[184px] flex-none flex-col overflow-y-auto border-r border-papeliz-line bg-papeliz-surface-soft p-2 papeliz-settings-gear-scroller">{settingsGearList}</div>
+                <div className="min-w-0 flex-1 overflow-y-auto overscroll-contain p-3.5 papeliz-settings-gear-scroller">{renderSettingsGearPage()}</div>
               </>
             ) : isPhonePageShown ? (
               <div className="flex min-w-0 flex-1 flex-col">
@@ -306,10 +330,10 @@ export function PapelizSettingsGearButton({ settingsGearPlace }: PapelizSettings
                   </PapelizIconButton>
                   <p className="text-[14px] font-semibold">{papelizSettingsGearPageChoices[chosenSettingsGearPage].settingsGearPageLabel}</p>
                 </div>
-                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3.5 [scrollbar-width:thin]">{renderSettingsGearPage()}</div>
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3.5 papeliz-settings-gear-scroller">{renderSettingsGearPage()}</div>
               </div>
             ) : (
-              <div className="min-w-0 flex-1 overflow-y-auto overscroll-contain p-2 [scrollbar-width:thin]">{settingsGearList}</div>
+              <div className="min-w-0 flex-1 overflow-y-auto overscroll-contain p-2 papeliz-settings-gear-scroller">{settingsGearList}</div>
             )}
           </div>,
           document.body,

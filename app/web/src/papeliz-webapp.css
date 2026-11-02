@@ -753,7 +753,37 @@ label:has(> input[type='search']:focus-visible) {
 
 .papeliz-note-view-switch-option[aria-pressed='false']:hover {
   color: #ffffff;
+}
+
+/* The hover fill is its own layer under the words (::after, since ::before widens the tap area on a
+   touch screen): when the pill leans toward the pressed view, the fill's nearest edge draws back by
+   the same 6px and timing, so the gap between them holds, and both spring back on release. */
+.papeliz-note-view-switch-option::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--papeliz-switch-lean-right);
+  right: var(--papeliz-switch-lean-left);
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  transition:
+    background-color 160ms ease,
+    left 260ms var(--papeliz-switch-ease),
+    right 260ms var(--papeliz-switch-ease);
+}
+
+.papeliz-note-view-switch-option[aria-pressed='false']:not([aria-disabled='true']):hover::after {
   background: rgb(255 255 255 / 0.1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .papeliz-note-view-switch-option::after {
+    left: 0;
+    right: 0;
+    transition: none;
+  }
 }
 
 /* MD View while a text file is in front: greyed out, and nothing moves when it is pressed. */
@@ -895,6 +925,50 @@ label:has(> input[type='search']:focus-visible) {
 
 .papeliz-sliding-choice-group[data-papeliz-sliding-choice-tone='solid-blue'] .papeliz-sliding-choice:hover {
   color: var(--color-papeliz-ink);
+}
+
+/* In every sliding switch, blue or white, a choice not picked shows a soft fill while hovered, as the
+   MD Code | MD View switch's do, so it reads as a button. The fill is its own layer under the words:
+   when the pill leans toward a pressed choice, the fill's nearest edge draws back by the same distance
+   and timing, so the gap between them holds, and both spring back on release. */
+.papeliz-sliding-choice-group .papeliz-sliding-choice::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  transition:
+    background-color 160ms ease,
+    left 260ms var(--papeliz-sliding-choice-ease),
+    right 260ms var(--papeliz-sliding-choice-ease);
+}
+
+/* A pressed choice right beside the chosen one meets the leaning pill, so its fill draws back on the
+   pill's side by the same 6px. A pressed choice further away doesn't: the pill never reaches it. */
+.papeliz-sliding-choice-group .papeliz-sliding-choice[data-papeliz-sliding-choice-chosen='true'] + .papeliz-sliding-choice:active::before {
+  left: var(--papeliz-sliding-choice-lean-right);
+}
+
+.papeliz-sliding-choice-group .papeliz-sliding-choice:active:has(+ .papeliz-sliding-choice[data-papeliz-sliding-choice-chosen='true'])::before {
+  right: var(--papeliz-sliding-choice-lean-left);
+}
+
+.papeliz-sliding-choice-group .papeliz-sliding-choice[data-papeliz-sliding-choice-chosen='false']:hover::before {
+  background: var(--color-papeliz-press);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .papeliz-sliding-choice-group .papeliz-sliding-choice::before,
+  .papeliz-sliding-choice-group .papeliz-sliding-choice[data-papeliz-sliding-choice-chosen='true'] + .papeliz-sliding-choice:active::before,
+  .papeliz-sliding-choice-group .papeliz-sliding-choice:active:has(+ .papeliz-sliding-choice[data-papeliz-sliding-choice-chosen='true'])::before {
+    left: 0;
+    right: 0;
+    transition: none;
+  }
 }
 
 /* The white words: a layer cut at the pill's left edge, holding a layer cut at its right edge, each
@@ -2108,6 +2182,32 @@ label:has(> input[type='search']:focus-visible) {
 
   .papeliz-note-tabs-scroller[data-papeliz-note-tabs-pointer-over='true'],
   .papeliz-note-tabs-scroller[data-papeliz-note-tabs-scrolling='true'] {
+    scrollbar-color: var(--color-papeliz-blue) transparent;
+  }
+}
+
+/* The Settings panel's list and page: a thin blue scrollbar, as under the note tabs, there only when
+   the page is longer than the panel. */
+.papeliz-settings-gear-scroller::-webkit-scrollbar {
+  width: 4px;
+}
+
+.papeliz-settings-gear-scroller::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.papeliz-settings-gear-scroller::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: var(--color-papeliz-blue);
+}
+
+.papeliz-settings-gear-scroller::-webkit-scrollbar-thumb:hover {
+  background: var(--color-papeliz-blue-hover);
+}
+
+@supports not selector(::-webkit-scrollbar) {
+  .papeliz-settings-gear-scroller {
+    scrollbar-width: thin;
     scrollbar-color: var(--color-papeliz-blue) transparent;
   }
 }

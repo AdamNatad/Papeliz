@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 
-// Which part of the AI Assistant panel shows, and whether provider settings are open.
+// Which part of the AI Assistant panel shows, and whether provider settings were asked for: the
+// workspace's Settings gear opens on its AI Assistant page then, and sets it back to false.
 export type PapelizAssistantPanelTab = 'chat' | 'sessions' | 'usage'
 
 interface PapelizAssistantPanelUiState {

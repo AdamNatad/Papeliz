@@ -18,6 +18,7 @@ import {
   PapelizTemplateGalleryAuthorPicture,
   PapelizTemplateGalleryFileTree,
   PapelizTemplateGalleryLicenseTag,
+  PapelizTemplateGalleryRecheckButton,
   PapelizTemplateGalleryRecheckLine,
   PapelizTemplateGalleryRowTags,
   PapelizTemplateGalleryThumbnail,
@@ -149,7 +150,16 @@ export function PapelizTemplateGalleryTemplatePage({
             )}
           </p>
         </div>
-        <PapelizTemplateGalleryVotePill templateGalleryRow={templateGalleryRow} votePillSize="page" />
+        {/* Recheck and the votes, together at the top right. */}
+        <div className="flex flex-none items-center gap-2">
+          <PapelizTemplateGalleryRecheckButton
+            templateGalleryRow={templateGalleryRow}
+            templateRecheckState={templateGalleryScreenModel.templateRecheckState}
+            onTemplateRecheck={() => void templateGalleryScreenModel.recheckTemplate(templateGalleryRow.papelizTemplateGalleryId)}
+            recheckButtonSize="page"
+          />
+          <PapelizTemplateGalleryVotePill templateGalleryRow={templateGalleryRow} votePillSize="page" />
+        </div>
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-3 pt-2 pb-3">
@@ -158,6 +168,7 @@ export function PapelizTemplateGalleryTemplatePage({
           templateRecheckState={templateGalleryScreenModel.templateRecheckState}
           templateGalleryOpenedAt={templateGalleryOpenedAt}
           onTemplateRecheck={() => void templateGalleryScreenModel.recheckTemplate(templateGalleryRow.papelizTemplateGalleryId)}
+          isTemplateRecheckButtonInLine={false}
         />
         {templateGalleryRow.isTemplateRunningCommands && (
           <p className="flex items-start gap-2 rounded-xl bg-papeliz-warning px-3 py-2 text-[12px] leading-[1.45] text-papeliz-warning-ink">

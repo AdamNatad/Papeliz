@@ -290,17 +290,59 @@ interface PapelizTemplateGalleryRecheckLineProps {
   templateRecheckState: PapelizTemplateRecheckState
   templateGalleryOpenedAt: number
   onTemplateRecheck: () => void
+  // The template's page and Preview put Recheck at their top right (beside the votes, on the page).
+  isTemplateRecheckButtonInLine?: boolean
+}
+
+// Only this template's Recheck counts on its page.
+function findThisTemplateRecheckState(templateRecheckState: PapelizTemplateRecheckState, templateGalleryRow: PapelizTemplateGalleryRow): PapelizTemplateRecheckState {
+  return templateRecheckState.templateRecheckStage !== 'idle' && templateRecheckState.papelizTemplateGalleryId === templateGalleryRow.papelizTemplateGalleryId
+    ? templateRecheckState
+    : { templateRecheckStage: 'idle' }
+}
+
+// Recheck: asks GitHub for a newer version, and checks it. At a template page's top right it is the
+// votes' height.
+export function PapelizTemplateGalleryRecheckButton({
+  templateGalleryRow,
+  templateRecheckState,
+  onTemplateRecheck,
+  recheckButtonSize = 'line',
+}: {
+  templateGalleryRow: PapelizTemplateGalleryRow
+  templateRecheckState: PapelizTemplateRecheckState
+  onTemplateRecheck: () => void
+  recheckButtonSize?: 'line' | 'page'
+}) {
+  const isTemplateRechecking = findThisTemplateRecheckState(templateRecheckState, templateGalleryRow).templateRecheckStage === 'rechecking'
+  return (
+    <button
+      type="button"
+      disabled={isTemplateRechecking}
+      aria-busy={isTemplateRechecking || undefined}
+      title="Ask GitHub for a newer version, and check it"
+      onClick={onTemplateRecheck}
+      className={joinPapelizClassNames(
+        'inline-flex flex-none items-center gap-1 rounded-full border border-papeliz-line font-semibold text-papeliz-ink-muted transition-colors enabled:hover:border-papeliz-blue-line enabled:hover:bg-papeliz-blue-soft enabled:hover:text-papeliz-blue disabled:opacity-70 pointer-coarse:px-3',
+        recheckButtonSize === 'line' ? 'h-6 px-2 text-[11.5px] pointer-coarse:h-9' : 'h-8 gap-1.5 px-3 text-[12.5px] pointer-coarse:h-10',
+      )}
+    >
+      <RefreshCw className={joinPapelizClassNames(recheckButtonSize === 'line' ? 'size-3' : 'size-3.5', isTemplateRechecking && 'animate-spin')} aria-hidden="true" />
+      {isTemplateRechecking ? 'Rechecking…' : 'Recheck'}
+    </button>
+  )
 }
 
 // "Checked 2 days ago · commit 1a2b3c4" and Recheck, which asks GitHub for a newer version and checks
 // it; what it found shows under them.
-export function PapelizTemplateGalleryRecheckLine({ templateGalleryRow, templateRecheckState, templateGalleryOpenedAt, onTemplateRecheck }: PapelizTemplateGalleryRecheckLineProps) {
-  // Only this template's Recheck shows here.
-  const thisTemplateRecheckState: PapelizTemplateRecheckState =
-    templateRecheckState.templateRecheckStage !== 'idle' && templateRecheckState.papelizTemplateGalleryId === templateGalleryRow.papelizTemplateGalleryId
-      ? templateRecheckState
-      : { templateRecheckStage: 'idle' }
-  const isTemplateRechecking = thisTemplateRecheckState.templateRecheckStage === 'rechecking'
+export function PapelizTemplateGalleryRecheckLine({
+  templateGalleryRow,
+  templateRecheckState,
+  templateGalleryOpenedAt,
+  onTemplateRecheck,
+  isTemplateRecheckButtonInLine = true,
+}: PapelizTemplateGalleryRecheckLineProps) {
+  const thisTemplateRecheckState = findThisTemplateRecheckState(templateRecheckState, templateGalleryRow)
   const templateRecheckSentence = describeTemplateRecheckState(thisTemplateRecheckState, templateGalleryRow, templateGalleryOpenedAt)
   const isTemplateRecheckBad =
     thisTemplateRecheckState.templateRecheckStage === 'newest-fails' ||
@@ -313,17 +355,9 @@ export function PapelizTemplateGalleryRecheckLine({ templateGalleryRow, template
           {templateGalleryRow.templateCheckedAt === null ? 'Commit' : `Checked ${describeTemplateGalleryDay(templateGalleryRow.templateCheckedAt, templateGalleryOpenedAt)} · commit`}{' '}
           {templateGalleryRow.templateCommitSha.slice(0, 7)}
         </span>
-        <button
-          type="button"
-          disabled={isTemplateRechecking}
-          aria-busy={isTemplateRechecking || undefined}
-          title="Ask GitHub for a newer version, and check it"
-          onClick={onTemplateRecheck}
-          className="inline-flex h-6 items-center gap-1 rounded-full border border-papeliz-line px-2 text-[11.5px] font-semibold text-papeliz-ink-muted transition-colors enabled:hover:border-papeliz-blue-line enabled:hover:bg-papeliz-blue-soft enabled:hover:text-papeliz-blue disabled:opacity-70 pointer-coarse:h-9 pointer-coarse:px-3"
-        >
-          <RefreshCw className={joinPapelizClassNames('size-3', isTemplateRechecking && 'animate-spin')} aria-hidden="true" />
-          {isTemplateRechecking ? 'Rechecking…' : 'Recheck'}
-        </button>
+        {isTemplateRecheckButtonInLine && (
+          <PapelizTemplateGalleryRecheckButton templateGalleryRow={templateGalleryRow} templateRecheckState={templateRecheckState} onTemplateRecheck={onTemplateRecheck} />
+        )}
         {thisTemplateRecheckState.templateRecheckStage === 'rechecking' && thisTemplateRecheckState.templateFileReadProgress !== null && (
           <span>{describeTemplateFileReadProgress(thisTemplateRecheckState.templateFileReadProgress)}</span>
         )}

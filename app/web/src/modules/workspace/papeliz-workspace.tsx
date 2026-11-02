@@ -4,8 +4,6 @@ import { usePapelizAssistantConversationStore } from '../assistant/papeliz-assis
 import { PapelizAssistantPanel } from '../assistant/papeliz-assistant-panel'
 import { PapelizAssistantProposalPreview } from '../assistant/papeliz-assistant-proposal-preview'
 import { usePapelizAssistantModelPricesStore } from '../assistant/papeliz-assistant-model-prices'
-import { usePapelizAssistantPanelUiStore } from '../assistant/papeliz-assistant-panel-ui-store'
-import { PapelizAssistantProviderSettingsDialog } from '../assistant/papeliz-assistant-provider-settings-dialog'
 import { usePapelizAssistantProviderSettingsStore } from '../assistant/papeliz-assistant-provider-settings-store'
 import { usePapelizAssistantRunOptionsStore } from '../assistant/papeliz-assistant-run-options-store'
 import { PapelizFocusModeAssistant } from '../assistant/papeliz-focus-mode-assistant'
@@ -61,8 +59,6 @@ export function PapelizWorkspace() {
   const setExplorerPanelOpen = usePapelizWorkspaceStore((workspaceState) => workspaceState.setExplorerPanelOpen)
   const setAssistantPanelOpen = usePapelizWorkspaceStore((workspaceState) => workspaceState.setAssistantPanelOpen)
   const isWideScreen = usePapelizMediaQuery('(min-width: 768px)')
-  const isProviderSettingsDialogOpen = usePapelizAssistantPanelUiStore((panelUiState) => panelUiState.isProviderSettingsDialogOpen)
-  const setProviderSettingsDialogOpen = usePapelizAssistantPanelUiStore((panelUiState) => panelUiState.setProviderSettingsDialogOpen)
   const explorerPanelWidth = usePapelizWorkspacePanelWidthsStore((panelWidthsState) => panelWidthsState.explorerPanelWidth)
   const assistantPanelWidth = usePapelizWorkspacePanelWidthsStore((panelWidthsState) => panelWidthsState.assistantPanelWidth)
   const setExplorerPanelWidth = usePapelizWorkspacePanelWidthsStore((panelWidthsState) => panelWidthsState.setExplorerPanelWidth)
@@ -243,7 +239,6 @@ export function PapelizWorkspace() {
           }}
         />
       )}
-      {isProviderSettingsDialogOpen && <PapelizAssistantProviderSettingsDialog onProviderSettingsDialogClose={() => setProviderSettingsDialogOpen(false)} />}
     </div>
   )
 }

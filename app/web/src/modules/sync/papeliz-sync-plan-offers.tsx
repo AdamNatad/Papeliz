@@ -6,7 +6,7 @@ import type { PapelizSyncBillingPeriod, PapelizSyncEngine, PapelizSyncEngineSnap
 import { choosePapelizSyncPlan } from './papeliz-sync-flow-store'
 import { PapelizSyncFailureLine, PapelizSyncLoadingLine, PapelizSyncPageSmallText, PapelizSyncTextButton } from './papeliz-sync-page-parts'
 import { describePapelizSyncActionFailureNow, describePapelizSyncPlanLimitLines, describePapelizSyncPlanPrice, papelizSyncPlanDisplayNames } from './papeliz-sync-screen-words'
-import { usePapelizSyncSettingsGearRequestStore } from './papeliz-sync-settings-gear-request-store'
+import { findPapelizSyncPlanOffersFirstBillingPeriod, usePapelizSyncSettingsGearRequestStore } from './papeliz-sync-settings-gear-request-store'
 
 // The plans in the gear (A): each with its limits, its price as the engine gives it, and Choose,
 // which goes on to checkout. The engine reads them from its own table, with no request, so they
@@ -31,7 +31,7 @@ export function PapelizSyncPlanOffersSection({ papelizSyncEngine, syncEngineSnap
   // Goes up with Try again, to read the plans once more.
   const [planOffersReadCount, setPlanOffersReadCount] = useState(0)
   const syncPlanPickedFromAddress = usePapelizSyncSettingsGearRequestStore((requestState) => requestState.syncPlanPickedFromAddress)
-  const [chosenSyncBillingPeriod, setChosenSyncBillingPeriod] = useState<PapelizSyncBillingPeriod>(syncPlanPickedFromAddress?.pickedSyncBillingPeriod ?? 'yearly')
+  const [chosenSyncBillingPeriod, setChosenSyncBillingPeriod] = useState<PapelizSyncBillingPeriod>(() => findPapelizSyncPlanOffersFirstBillingPeriod(syncPlanPickedFromAddress))
   const highlightedSyncPlanName = syncPlanPickedFromAddress?.pickedSyncPlanName ?? papelizSyncDefaultHighlightedPlanName
   const pickedSyncPlanOfferRef = useRef<HTMLLIElement>(null)
 

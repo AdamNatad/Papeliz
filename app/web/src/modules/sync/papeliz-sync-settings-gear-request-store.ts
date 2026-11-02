@@ -22,6 +22,12 @@ export interface PapelizSyncPlanPick {
   pickedSyncBillingPeriod: PapelizSyncBillingPeriod | null
 }
 
+// The billing period the plans open on: yearly, with monthly one click away, unless the address
+// picked one.
+export function findPapelizSyncPlanOffersFirstBillingPeriod(syncPlanPickedFromAddress: PapelizSyncPlanPick | null): PapelizSyncBillingPeriod {
+  return syncPlanPickedFromAddress?.pickedSyncBillingPeriod ?? 'yearly'
+}
+
 interface PapelizSyncSettingsGearRequestState {
   // Goes up each time something asks for the gear on Sync; the gear on screen opens on Sync then.
   settingsGearSyncPageRequestCount: number

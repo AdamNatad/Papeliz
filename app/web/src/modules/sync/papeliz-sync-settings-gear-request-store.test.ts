@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  findPapelizSyncPlanOffersFirstBillingPeriod,
   readPapelizSyncPlanPickFromAddressSearch,
   requestPapelizSettingsGearSyncPage,
   resetPapelizSyncSettingsGearRequestsForTests,
@@ -33,6 +34,14 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals()
+})
+
+describe('the billing period the plans open on', () => {
+  it('is yearly, unless the address picked a period', () => {
+    expect(findPapelizSyncPlanOffersFirstBillingPeriod(null)).toBe('yearly')
+    expect(findPapelizSyncPlanOffersFirstBillingPeriod({ pickedSyncPlanName: 'plus', pickedSyncBillingPeriod: null })).toBe('yearly')
+    expect(findPapelizSyncPlanOffersFirstBillingPeriod({ pickedSyncPlanName: null, pickedSyncBillingPeriod: 'monthly' })).toBe('monthly')
+  })
 })
 
 describe('a plan picked in the address', () => {

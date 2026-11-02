@@ -14,6 +14,7 @@ import {
   classifyTemplateGalleryFile,
   listTemplateGalleryFolderPathsTo,
   PapelizTemplateGalleryFileTree,
+  PapelizTemplateGalleryRecheckButton,
   PapelizTemplateGalleryRecheckLine,
   papelizTemplateGalleryNoteSizeClassName,
   type PapelizTemplateGalleryScreenModel,
@@ -183,10 +184,17 @@ export function PapelizTemplateGalleryPreviewPage({
       className="papeliz-welcome-enter flex min-h-0 flex-1 flex-col"
     >
       <div className="px-3 pt-[11px] pb-1">
-        <div className="flex min-w-0 items-center gap-2">
+        {/* The title, with Recheck at the top right, as on the template's page. */}
+        <div className="flex min-w-0 items-center justify-between gap-2">
           <h2 ref={templatePreviewHeadingRef} id={templateGalleryPageHeadingId} tabIndex={-1} className="min-w-0 truncate text-[18px] font-semibold tracking-[-0.01em] focus:outline-none">
             Preview · {templateGalleryRow.templateName}
           </h2>
+          <PapelizTemplateGalleryRecheckButton
+            templateGalleryRow={templateGalleryRow}
+            templateRecheckState={templateGalleryScreenModel.templateRecheckState}
+            onTemplateRecheck={() => void templateGalleryScreenModel.recheckTemplate(templateGalleryRow.papelizTemplateGalleryId)}
+            recheckButtonSize="page"
+          />
         </div>
         <p className="mt-0.5 mb-1 text-[12.5px] text-papeliz-ink-muted">Read-only. Nothing is saved until Use Template.</p>
         <PapelizTemplateGalleryRecheckLine
@@ -194,6 +202,7 @@ export function PapelizTemplateGalleryPreviewPage({
           templateRecheckState={templateGalleryScreenModel.templateRecheckState}
           templateGalleryOpenedAt={templateGalleryOpenedAt}
           onTemplateRecheck={() => void templateGalleryScreenModel.recheckTemplate(templateGalleryRow.papelizTemplateGalleryId)}
+          isTemplateRecheckButtonInLine={false}
         />
       </div>
 

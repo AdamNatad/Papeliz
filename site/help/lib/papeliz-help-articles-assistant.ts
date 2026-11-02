@@ -26,11 +26,11 @@ export const papelizHelpAssistantArticles: readonly PapelizHelpArticle[] = [
       ]),
       helpSection('Set it up', [
         helpNumberedSteps([
-          'Open the Assistant panel and choose **Choose a Provider**, or the **Provider Settings** button (the gear) at the top of the panel.',
-          'Pick a provider, and its base URL fills in. See [[choose-a-provider]].',
+          'Open the gear at the right end of the top bar and choose **AI Assistant**, or choose **Choose a Provider** in the Assistant panel. Both open the same page, with the tabs **Provider**, **Model** and **Price**.',
+          'On **Provider**, pick a provider, and its base URL fills in. See [[choose-a-provider]].',
           'Paste your API key. Servers running on your own computer usually don’t need one.',
-          'Choose **Load Models**, then pick a model from the provider’s list.',
-          'Choose **Test Connection**, beside the API key, to check that the key and model work, then **Save**.',
+          'On **Model**, choose **Load Models**, then pick a model from the provider’s list.',
+          'Back on **Provider**, choose **Test Connection**, beside the API key, to check that the key and model work, then **Save**. Save keeps what you set on every tab.',
         ]),
       ]),
       helpSection('Models come from the provider’s list', [
@@ -40,11 +40,11 @@ export const papelizHelpAssistantArticles: readonly PapelizHelpArticle[] = [
       ]),
       helpSection('Model price', [
         helpParagraph(
-          'Usage estimates what the assistant costs from each model’s listed price, taken from the provider’s price page. If you pay a different price, open **Model Price** in the same dialog and type yours, per million input and output tokens. Leave both boxes empty to use the listed price. Papeliz itself is free; your provider bills you.',
+          'Usage estimates what the assistant costs from each model’s listed price, taken from the provider’s price page. If you pay a different price, open the **Price** tab on the same page and type yours, per million input and output tokens. Leave both boxes empty to use the listed price. Papeliz itself is free; your provider bills you.',
         ),
       ]),
       helpSection('Change or remove a key', [
-        helpParagraph('Open **Provider Settings** again to switch provider or model. **Forget This Key** removes the key from this browser.'),
+        helpParagraph('Open the gear’s **AI Assistant** page again to switch provider or model. **Forget This Key** removes the key from this browser.'),
       ]),
     ],
     relatedArticleSlugs: [papelizHelpProviderArticleSlug, 'where-your-key-goes', 'chat-with-the-assistant'],
