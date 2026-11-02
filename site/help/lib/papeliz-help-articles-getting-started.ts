@@ -320,7 +320,7 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
           'Tick the notes you want. The open note comes ticked, and opening a folder lets you pick single notes inside it. Then pick a format and press **Export**. One note downloads as one file; several download as one `.zip`, folders kept.',
         ),
         helpParagraph(
-          'For Word and PDF, choose the paper from **Paper**, at the right of **Format**: Letter, A4 and the other sizes Google Docs offers, or **Custom** for your own width and height, from 3 to 22 inches a side (76.2 to 558.8 mm). Papeliz starts with your region’s paper and remembers the one you pick.',
+          'For Word and PDF, press the gear on the format’s row to choose the **Paper**: Letter, A4 and the other sizes Google Docs offers, or **Custom** for your own width and height, from 3 to 22 inches a side (76.2 to 558.8 mm). The row shows the paper you chose. Papeliz starts with your region’s paper and remembers the one you pick. HTML has no gear: it uses your font, text size and width from **Accessibility**.',
         ),
         helpBulletList([
           '**Word**: an editable `.docx` for each note, with its headings, lists, tables, callouts, footnotes, pictures and diagrams. In a `.zip`, a link to another exported note opens that note’s file once the `.zip` is unpacked.',
@@ -338,7 +338,7 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
       ]),
       helpSection('Export as a template', [
         helpParagraph(
-          'Pick **Template**, then **Template Settings**, at the right of **Format**. **Details** holds the template’s name, a short description, its category, the note it opens first and its license. **Files** marks each ticked note **Recommended** or **Optional**: Recommended notes always come, and Optional ones come only when someone chooses All or ticks them. Pictures and files a note links to come with it.',
+          'Press the gear on **Template**’s row to open **Template Settings**. **Details** holds the template’s name, a short description, its category, the note it opens first and its license. **Files** marks each ticked note **Recommended** or **Optional**: Recommended notes always come, and Optional ones come only when someone chooses All or ticks them. Pictures and files a note links to come with it.',
         ),
         helpParagraph(
           'Export downloads one `.zip` with the notes in their folders, a `papeliz-template.json` written from the settings and, for MIT, a `LICENSE`. For CC0 1.0 or CC BY 4.0, add that license as a file named `LICENSE` on GitHub. Put the files in a public GitHub repository, then share it with **Submit Template**. Papeliz keeps the settings for each vault.',

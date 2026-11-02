@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, Download, FilePen, FileText, Folder, Globe, LayoutTemplate, LoaderCircle, Printer, Search, Settings2 } from 'lucide-react'
+import { ChevronDown, ChevronRight, Download, FilePen, FileText, Folder, Globe, LayoutTemplate, LoaderCircle, Printer, Search, Settings } from 'lucide-react'
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import {
   choosePapelizExportDefaultPageSize,
@@ -20,12 +20,13 @@ import {
 import { findPapelizTemplateExportDetailsProblem } from '../template-gallery/papeliz-template-export-details'
 import { papelizTemplateCategoryTags, papelizTemplateLicenseIds } from '../template-gallery/papeliz-template-gallery-contract'
 import { PapelizPillButton } from '../ui/papeliz-buttons'
-import { PapelizListboxSelect, type PapelizListboxSelectOption } from '../ui/papeliz-listbox-select'
+import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { PapelizSlidingChoiceGroup } from '../ui/papeliz-sliding-choice-group'
 import { describePapelizErrorSentence } from '../vault/papeliz-failure-code-words'
 import { PapelizVaultOperationError } from '../vault/papeliz-vault-adapter'
 import { getVaultEntryParentFolderRelativePath } from '../vault/papeliz-vault-relative-paths'
 import { buildThenSavePapelizExportFile, type PapelizExportFileKind } from './papeliz-export-file-save'
+import { PapelizSettingsGearExportFormatSettingsDialog } from './papeliz-settings-gear-export-format-settings-dialog'
 import { PapelizSettingsGearExportTemplateSettings, type PapelizSettingsGearTemplateExportSettings } from './papeliz-settings-gear-export-template-settings'
 import { usePapelizNoteTypographyStore } from './papeliz-note-typography-store'
 import {
@@ -39,8 +40,8 @@ import {
 import { usePapelizWorkspaceStore } from './papeliz-workspace-store'
 
 // The Settings gear's Export page (papeliz-settings-gear-button.tsx): tick notes in the vault's
-// folder tree, pick a format row, press Export. One note downloads as one file; several as one .zip,
-// folders kept (a template is always a .zip). Each format's engine loads with `import()` only when
+// folder tree, pick a format row (its gear opens its settings in a dialog), press Export. One note
+// downloads as one file; several as one .zip, folders kept (a template is always a .zip). Each format's engine loads with `import()` only when
 // someone exports with it.
 
 type PapelizSettingsGearExportFormat = 'word' | 'pdf' | 'html' | 'template'
@@ -132,13 +133,14 @@ function describePresetPaperDimensions(exportPresetPaperSize: PapelizExportPrese
   return `${formatExportPaperSide(pageWidthPoints, exportPaperUnit)} × ${formatExportPaperSide(pageHeightPoints, exportPaperUnit)} ${exportPaperUnit}`
 }
 
-const papelizSettingsGearExportPaperListboxOptions: readonly PapelizListboxSelectOption[] = [
+// Word's and PDF's settings list every paper, each with its size, then Custom.
+const papelizSettingsGearExportPaperOptions: ReadonlyArray<{ exportPaperChoice: PapelizSettingsGearExportPaperChoice; exportPaperLabel: string; exportPaperDimensionsNote: string }> = [
   ...papelizSettingsGearExportPresetPaperRows.map((presetPaperRow) => ({
-    listboxOptionValue: presetPaperRow.exportPresetPaperSize,
-    listboxOptionLabel: presetPaperRow.exportPaperLabel,
-    listboxOptionNote: describePresetPaperDimensions(presetPaperRow.exportPresetPaperSize, presetPaperRow.exportPaperUnit),
+    exportPaperChoice: presetPaperRow.exportPresetPaperSize,
+    exportPaperLabel: presetPaperRow.exportPaperLabel,
+    exportPaperDimensionsNote: describePresetPaperDimensions(presetPaperRow.exportPresetPaperSize, presetPaperRow.exportPaperUnit),
   })),
-  { listboxOptionValue: 'custom', listboxOptionLabel: 'Custom', listboxOptionNote: 'Your own size' },
+  { exportPaperChoice: 'custom', exportPaperLabel: 'Custom', exportPaperDimensionsNote: 'Your own size' },
 ]
 
 // A custom paper as typed: each side as written, and their unit.
@@ -307,19 +309,28 @@ function PapelizExportTreeRow({
   )
 }
 
+// The formats with settings of their own, opened by the gear on their row. HTML has none: it follows
+// the Accessibility page's font, text size and width.
+const papelizSettingsGearExportFormatsWithSettings: ReadonlySet<PapelizSettingsGearExportFormat> = new Set(['word', 'pdf', 'template'])
+
 interface PapelizSettingsGearExportFormatListProps {
   chosenExportFormat: PapelizSettingsGearExportFormat
   onExportFormatSelect: (exportFormat: PapelizSettingsGearExportFormat) => void
+  // Beside a format's name: what its settings are set to ("A4").
+  exportFormatSettingsSummaries: Partial<Record<PapelizSettingsGearExportFormat, string>>
+  onExportFormatSettingsOpen: (exportFormat: PapelizSettingsGearExportFormat) => void
 }
 
-// The formats as a radio group of rows: an icon, the name and one line about it. As with radio
-// buttons, one row takes Tab and the arrow keys choose the next or previous one.
-function PapelizSettingsGearExportFormatList({ chosenExportFormat, onExportFormatSelect }: PapelizSettingsGearExportFormatListProps) {
+// The formats as a radio group of rows: an icon, the name and one line about it, and for a format
+// with settings, a gear that picks it and opens them. As with radio buttons, one row takes Tab and
+// the arrow keys choose the next or previous one; each gear takes Tab of its own.
+function PapelizSettingsGearExportFormatList({ chosenExportFormat, onExportFormatSelect, exportFormatSettingsSummaries, onExportFormatSettingsOpen }: PapelizSettingsGearExportFormatListProps) {
   const exportFormatListId = useId()
   const exportFormatRowButtonsRef = useRef<Array<HTMLButtonElement | null>>([])
   const chosenExportFormatIndex = papelizSettingsGearExportFormatRows.findIndex((exportFormatRow) => exportFormatRow.exportFormat === chosenExportFormat)
 
   const moveExportFormatChoice = (keyboardEvent: KeyboardEvent<HTMLDivElement>) => {
+    if (!(keyboardEvent.target instanceof HTMLElement) || keyboardEvent.target.getAttribute('role') !== 'radio') return
     const lastExportFormatIndex = papelizSettingsGearExportFormatRows.length - 1
     const nextExportFormatIndexByKey: Readonly<Record<string, number>> = {
       ArrowDown: chosenExportFormatIndex === lastExportFormatIndex ? 0 : chosenExportFormatIndex + 1,
@@ -343,47 +354,65 @@ function PapelizSettingsGearExportFormatList({ chosenExportFormat, onExportForma
         const isExportFormatChosen = exportFormatRow.exportFormat === chosenExportFormat
         const { ExportFormatIcon } = exportFormatRow
         const exportFormatLineId = `${exportFormatListId}-${exportFormatRow.exportFormat}-line`
+        const hasExportFormatSettings = papelizSettingsGearExportFormatsWithSettings.has(exportFormatRow.exportFormat)
+        const exportFormatSettingsSummary = exportFormatSettingsSummaries[exportFormatRow.exportFormat]
         return (
-          <button
-            key={exportFormatRow.exportFormat}
-            ref={(exportFormatRowButton) => {
-              exportFormatRowButtonsRef.current[exportFormatIndex] = exportFormatRowButton
-            }}
-            type="button"
-            role="radio"
-            aria-checked={isExportFormatChosen}
-            // Screen readers say the name, then the line about it.
-            aria-label={exportFormatRow.isExportFormatReady ? exportFormatRow.exportFormatLabel : `${exportFormatRow.exportFormatLabel}, coming soon`}
-            aria-describedby={exportFormatLineId}
-            tabIndex={isExportFormatChosen ? 0 : -1}
-            onClick={() => onExportFormatSelect(exportFormatRow.exportFormat)}
-            className={`flex w-full items-center gap-2.5 rounded-[10px] px-2 py-1.5 text-left pointer-coarse:min-h-10 pointer-coarse:py-2 ${
-              isExportFormatChosen ? 'bg-papeliz-chosen-row-ground' : 'hover:bg-papeliz-surface-soft'
-            } ${exportFormatRow.isExportFormatReady ? '' : 'opacity-55'}`}
-          >
-            <span
-              className={`grid size-[30px] flex-none place-items-center rounded-lg ${isExportFormatChosen ? 'bg-papeliz-surface text-papeliz-blue' : 'bg-papeliz-surface-gray text-papeliz-ink-muted'}`}
+          <div key={exportFormatRow.exportFormat} className="relative">
+            <button
+              ref={(exportFormatRowButton) => {
+                exportFormatRowButtonsRef.current[exportFormatIndex] = exportFormatRowButton
+              }}
+              type="button"
+              role="radio"
+              aria-checked={isExportFormatChosen}
+              // Screen readers say the name, then the line about it.
+              aria-label={exportFormatRow.isExportFormatReady ? exportFormatRow.exportFormatLabel : `${exportFormatRow.exportFormatLabel}, coming soon`}
+              aria-describedby={exportFormatLineId}
+              tabIndex={isExportFormatChosen ? 0 : -1}
+              onClick={() => onExportFormatSelect(exportFormatRow.exportFormat)}
+              className={`flex w-full items-center gap-2.5 rounded-[10px] px-2 py-1.5 text-left pointer-coarse:min-h-10 pointer-coarse:py-2 ${
+                isExportFormatChosen ? 'bg-papeliz-chosen-row-ground' : 'hover:bg-papeliz-surface-soft'
+              } ${exportFormatRow.isExportFormatReady ? '' : 'opacity-55'}`}
             >
-              <ExportFormatIcon className="size-4" aria-hidden="true" />
-            </span>
-            <span className="min-w-0 flex-1 leading-[1.3]">
-              <span className={`block text-[13px] font-semibold ${isExportFormatChosen ? 'text-papeliz-chosen-row-ink' : ''}`}>
-                {exportFormatRow.exportFormatLabel}
-                {!exportFormatRow.isExportFormatReady && (
-                  <span aria-hidden="true" className="ml-1.5 inline-flex h-[18px] items-center rounded-full border border-papeliz-blue-line bg-papeliz-blue-soft px-[7px] align-[1px] text-[10.5px] font-semibold text-papeliz-blue">
-                    Coming soon
-                  </span>
-                )}
+              <span
+                className={`grid size-[30px] flex-none place-items-center rounded-lg ${isExportFormatChosen ? 'bg-papeliz-surface text-papeliz-blue' : 'bg-papeliz-surface-gray text-papeliz-ink-muted'}`}
+              >
+                <ExportFormatIcon className="size-4" aria-hidden="true" />
               </span>
-              <span id={exportFormatLineId} className="block text-[11.5px] text-papeliz-ink-subtle">
-                {exportFormatRow.exportFormatLine}
+              <span className={`min-w-0 flex-1 leading-[1.3] ${hasExportFormatSettings ? 'mr-7' : ''}`}>
+                <span className={`block text-[13px] font-semibold ${isExportFormatChosen ? 'text-papeliz-chosen-row-ink' : ''}`}>
+                  {exportFormatRow.exportFormatLabel}
+                  {exportFormatSettingsSummary !== undefined && <span className="ml-1.5 text-[11.5px] font-normal text-papeliz-ink-subtle">{exportFormatSettingsSummary}</span>}
+                  {!exportFormatRow.isExportFormatReady && (
+                    <span aria-hidden="true" className="ml-1.5 inline-flex h-[18px] items-center rounded-full border border-papeliz-blue-line bg-papeliz-blue-soft px-[7px] align-[1px] text-[10.5px] font-semibold text-papeliz-blue">
+                      Coming soon
+                    </span>
+                  )}
+                </span>
+                <span id={exportFormatLineId} className="block text-[11.5px] text-papeliz-ink-subtle">
+                  {exportFormatRow.exportFormatLine}
+                </span>
               </span>
-            </span>
-            <span
-              aria-hidden="true"
-              className={`size-4 flex-none rounded-full bg-papeliz-surface ${isExportFormatChosen ? 'border-[5px] border-papeliz-blue' : 'border-[1.5px] border-papeliz-line-strong'}`}
-            />
-          </button>
+              <span
+                aria-hidden="true"
+                className={`size-4 flex-none rounded-full bg-papeliz-surface ${isExportFormatChosen ? 'border-[5px] border-papeliz-blue' : 'border-[1.5px] border-papeliz-line-strong'}`}
+              />
+            </button>
+            {hasExportFormatSettings && (
+              <button
+                type="button"
+                aria-label={`${exportFormatRow.exportFormatLabel} Settings`}
+                title={`${exportFormatRow.exportFormatLabel} Settings`}
+                onClick={() => {
+                  onExportFormatSelect(exportFormatRow.exportFormat)
+                  onExportFormatSettingsOpen(exportFormatRow.exportFormat)
+                }}
+                className="absolute top-1/2 right-[30px] grid size-7 -translate-y-1/2 place-items-center rounded-lg text-papeliz-ink-muted transition-colors hover:bg-papeliz-hover hover:text-papeliz-ink focus-visible:outline-2 focus-visible:outline-papeliz-blue"
+              >
+                <Settings className="size-4" aria-hidden="true" />
+              </button>
+            )}
+          </div>
         )
       })}
     </div>
@@ -420,7 +449,7 @@ export function PapelizSettingsGearExportPage() {
   )
   const hasChosenExportPaperRef = useRef(false)
   const exportPaperLabelId = useId()
-  const exportPaperTriggerId = useId()
+  const exportPaperRadioGroupName = useId()
   useEffect(() => {
     let isPaperSettingWanted = true
     void readPapelizUserSetting<unknown>(papelizExportPaperSizeSettingName, null).then((storedExportPaper) => {
@@ -486,7 +515,8 @@ export function PapelizSettingsGearExportPage() {
   const [templateExportSettings, setTemplateExportSettings] = useState<PapelizSettingsGearTemplateExportSettings>(() =>
     createPapelizSettingsGearTemplateExportSettings(openVaultDisplayName),
   )
-  const [isTemplateSettingsPageShown, setIsTemplateSettingsPageShown] = useState(false)
+  // The format whose settings dialog is open, if any.
+  const [openedExportFormatSettings, setOpenedExportFormatSettings] = useState<PapelizSettingsGearExportFormat | null>(null)
   const hasChangedTemplateExportSettingsRef = useRef(false)
   useEffect(() => {
     if (openVaultId === null) return
@@ -771,17 +801,12 @@ export function PapelizSettingsGearExportPage() {
       )
     })
 
-  if (isTemplateSettingsPageShown) {
-    return (
-      <PapelizSettingsGearExportTemplateSettings
-        templateExportSettings={templateExportSettings}
-        onTemplateExportSettingsChange={changeTemplateExportSettings}
-        tickedExportNoteRelativePaths={tickedExportNoteRelativePaths}
-        shownTemplateFirstNotePath={shownTemplateFirstNotePath}
-        onTemplateSettingsClose={() => setIsTemplateSettingsPageShown(false)}
-      />
-    )
-  }
+  // The paper beside Word and PDF: its name, or a custom size as typed.
+  const exportPaperSummary =
+    exportPaperChoice === 'custom'
+      ? `${exportCustomPaper.customPaperWidthText} × ${exportCustomPaper.customPaperHeightText} ${exportCustomPaper.customPaperUnit}`
+      : (papelizSettingsGearExportPresetPaperRows.find((presetPaperRow) => presetPaperRow.exportPresetPaperSize === exportPaperChoice)?.exportPaperLabel ?? '')
+  const openedExportFormatRow = papelizSettingsGearExportFormatRows.find((exportFormatRow) => exportFormatRow.exportFormat === openedExportFormatSettings)
 
   return (
     <div>
@@ -835,74 +860,95 @@ export function PapelizSettingsGearExportPage() {
       </div>
       <p className="mt-2 text-[12px] leading-[1.4] text-papeliz-ink-muted">{exportSelectionSummary}</p>
 
-      <div className="mt-3 mb-1.5 flex min-h-7 items-center justify-between gap-2">
-        <p className="text-[12px] font-medium text-papeliz-ink-subtle">Format</p>
-        {chosenExportFormat === 'template' && (
-          <button
-            type="button"
-            onClick={() => setIsTemplateSettingsPageShown(true)}
-            className="flex h-7 flex-none items-center gap-1 rounded-full border border-papeliz-line-strong bg-papeliz-surface pr-2.5 pl-2 text-[12.5px] font-medium text-papeliz-ink transition-colors hover:bg-papeliz-hover pointer-coarse:h-9"
-          >
-            <Settings2 className="size-3.5 text-papeliz-ink-muted" aria-hidden="true" />
-            Template Settings
-          </button>
-        )}
-        {(chosenExportFormat === 'word' || chosenExportFormat === 'pdf') && (
-          <div className="flex items-center gap-1.5">
-            <span id={exportPaperLabelId} className="text-[12px] text-papeliz-ink-subtle">
-              Paper
-            </span>
-            <PapelizListboxSelect
-              listboxSelectSize="compact"
-              listboxSelectTriggerId={exportPaperTriggerId}
-              listboxSelectLabelId={exportPaperLabelId}
-              listboxSelectOptions={papelizSettingsGearExportPaperListboxOptions}
-              chosenListboxOptionValue={exportPaperChoice}
-              onListboxOptionChoose={(chosenListboxOptionValue) => chooseExportPaper(isPapelizExportPresetPageSize(chosenListboxOptionValue) ? chosenListboxOptionValue : 'custom')}
+      <p className="mt-3 mb-1.5 text-[12px] font-medium text-papeliz-ink-subtle">Format</p>
+      <PapelizSettingsGearExportFormatList
+        chosenExportFormat={chosenExportFormat}
+        onExportFormatSelect={setChosenExportFormat}
+        exportFormatSettingsSummaries={{ word: exportPaperSummary, pdf: exportPaperSummary }}
+        onExportFormatSettingsOpen={setOpenedExportFormatSettings}
+      />
+      {openedExportFormatSettings !== null && openedExportFormatRow !== undefined && (
+        <PapelizSettingsGearExportFormatSettingsDialog
+          exportFormatSettingsTitle={`${openedExportFormatRow.exportFormatLabel} Settings`}
+          ExportFormatSettingsIcon={openedExportFormatRow.ExportFormatIcon}
+          onExportFormatSettingsClose={() => setOpenedExportFormatSettings(null)}
+        >
+          {openedExportFormatSettings === 'template' ? (
+            <PapelizSettingsGearExportTemplateSettings
+              templateExportSettings={templateExportSettings}
+              onTemplateExportSettingsChange={changeTemplateExportSettings}
+              tickedExportNoteRelativePaths={tickedExportNoteRelativePaths}
+              shownTemplateFirstNotePath={shownTemplateFirstNotePath}
             />
-          </div>
-        )}
-      </div>
-      {(chosenExportFormat === 'word' || chosenExportFormat === 'pdf') && exportPaperChoice === 'custom' && (
-        <div className="mb-2 rounded-xl border border-papeliz-line bg-papeliz-surface p-2">
-          <div className="flex items-center gap-1.5">
-            <input
-              type="text"
-              inputMode="decimal"
-              aria-label="Paper width"
-              value={exportCustomPaper.customPaperWidthText}
-              onChange={(changeEvent) => changeExportCustomPaper({ ...exportCustomPaper, customPaperWidthText: changeEvent.target.value })}
-              className="h-8 w-16 min-w-0 rounded-lg border border-papeliz-line-strong bg-papeliz-surface px-2 text-center text-[12.5px] text-papeliz-ink tabular-nums outline-none focus-visible:border-papeliz-blue"
-            />
-            <span aria-hidden="true" className="text-[12px] text-papeliz-ink-subtle">
-              ×
-            </span>
-            <input
-              type="text"
-              inputMode="decimal"
-              aria-label="Paper height"
-              value={exportCustomPaper.customPaperHeightText}
-              onChange={(changeEvent) => changeExportCustomPaper({ ...exportCustomPaper, customPaperHeightText: changeEvent.target.value })}
-              className="h-8 w-16 min-w-0 rounded-lg border border-papeliz-line-strong bg-papeliz-surface px-2 text-center text-[12.5px] text-papeliz-ink tabular-nums outline-none focus-visible:border-papeliz-blue"
-            />
-            <PapelizSlidingChoiceGroup<PapelizSettingsGearExportCustomPaperUnit>
-              slidingChoiceGroupLabel="Paper unit"
-              slidingChoiceGroupRole="radiogroup"
-              chosenSlidingChoiceValue={exportCustomPaper.customPaperUnit}
-              onSlidingChoiceSelect={changeExportCustomPaperUnit}
-              slidingChoiceGroupClassName="min-w-0 flex-1"
-              slidingChoices={[
-                { slidingChoiceValue: 'in', slidingChoiceContent: 'in' },
-                { slidingChoiceValue: 'mm', slidingChoiceContent: 'mm' },
-              ]}
-            />
-          </div>
-          <p className={`mt-1.5 text-[11.5px] leading-[1.4] ${exportPaperSize === null ? 'text-papeliz-error-notice-ink' : 'text-papeliz-ink-subtle'}`}>
-            Width × height. {describeExportCustomPaperSideRange(exportCustomPaper.customPaperUnit)}
-          </p>
-        </div>
+          ) : (
+            <>
+              <p id={exportPaperLabelId} className="text-[12.5px] font-medium">
+                Paper
+              </p>
+              <div role="radiogroup" aria-labelledby={exportPaperLabelId} className="mt-1.5 divide-y divide-papeliz-line overflow-hidden rounded-2xl border border-papeliz-line">
+                {papelizSettingsGearExportPaperOptions.map((exportPaperOption) => {
+                  const isExportPaperChosen = exportPaperOption.exportPaperChoice === exportPaperChoice
+                  return (
+                    <div key={exportPaperOption.exportPaperChoice} className={isExportPaperChosen ? 'bg-papeliz-blue-soft' : undefined}>
+                      <label className={joinPapelizClassNames('flex cursor-pointer items-center gap-2.5 px-3 py-2', !isExportPaperChosen && 'hover:bg-papeliz-surface-soft')}>
+                        <input
+                          type="radio"
+                          name={exportPaperRadioGroupName}
+                          checked={isExportPaperChosen}
+                          onChange={() => chooseExportPaper(exportPaperOption.exportPaperChoice)}
+                          className="size-[15px] flex-none accent-papeliz-blue"
+                        />
+                        <span className="min-w-0 flex-1 text-[13px] font-medium">{exportPaperOption.exportPaperLabel}</span>
+                        <span className="flex-none text-[12px] text-papeliz-ink-subtle tabular-nums">{exportPaperOption.exportPaperDimensionsNote}</span>
+                      </label>
+                      {exportPaperOption.exportPaperChoice === 'custom' && isExportPaperChosen && (
+                        <div className="px-3 pb-2.5">
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              aria-label="Paper width"
+                              value={exportCustomPaper.customPaperWidthText}
+                              onChange={(changeEvent) => changeExportCustomPaper({ ...exportCustomPaper, customPaperWidthText: changeEvent.target.value })}
+                              className="h-9 w-20 min-w-0 rounded-lg border border-papeliz-line-strong bg-papeliz-surface px-2 text-center text-[13px] text-papeliz-ink tabular-nums outline-none focus-visible:border-papeliz-blue"
+                            />
+                            <span aria-hidden="true" className="text-[12.5px] text-papeliz-ink-subtle">
+                              ×
+                            </span>
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              aria-label="Paper height"
+                              value={exportCustomPaper.customPaperHeightText}
+                              onChange={(changeEvent) => changeExportCustomPaper({ ...exportCustomPaper, customPaperHeightText: changeEvent.target.value })}
+                              className="h-9 w-20 min-w-0 rounded-lg border border-papeliz-line-strong bg-papeliz-surface px-2 text-center text-[13px] text-papeliz-ink tabular-nums outline-none focus-visible:border-papeliz-blue"
+                            />
+                            <PapelizSlidingChoiceGroup<PapelizSettingsGearExportCustomPaperUnit>
+                              slidingChoiceGroupLabel="Paper unit"
+                              slidingChoiceGroupRole="radiogroup"
+                              chosenSlidingChoiceValue={exportCustomPaper.customPaperUnit}
+                              onSlidingChoiceSelect={changeExportCustomPaperUnit}
+                              slidingChoiceGroupClassName="min-w-0 flex-1"
+                              slidingChoices={[
+                                { slidingChoiceValue: 'in', slidingChoiceContent: 'in' },
+                                { slidingChoiceValue: 'mm', slidingChoiceContent: 'mm' },
+                              ]}
+                            />
+                          </div>
+                          <p className={`mt-1.5 text-[11.5px] leading-[1.4] ${exportPaperSize === null ? 'text-papeliz-error-notice-ink' : 'text-papeliz-ink-subtle'}`}>
+                            Width × height. {describeExportCustomPaperSideRange(exportCustomPaper.customPaperUnit)}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+              <p className="mt-2 text-[11.5px] leading-snug text-papeliz-ink-subtle">Word and PDF print on the same paper, and Papeliz remembers it.</p>
+            </>
+          )}
+        </PapelizSettingsGearExportFormatSettingsDialog>
       )}
-      <PapelizSettingsGearExportFormatList chosenExportFormat={chosenExportFormat} onExportFormatSelect={setChosenExportFormat} />
 
       <PapelizPillButton
         pillButtonVariant="primary"

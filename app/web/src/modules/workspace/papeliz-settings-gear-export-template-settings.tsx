@@ -1,4 +1,3 @@
-import { ChevronLeft } from 'lucide-react'
 import { useId, useState } from 'react'
 import {
   formatPapelizTemplateTagDisplayName,
@@ -12,9 +11,9 @@ import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { PapelizListboxSelect } from '../ui/papeliz-listbox-select'
 import { PapelizSlidingChoiceGroup } from '../ui/papeliz-sliding-choice-group'
 
-// Export › Template's settings (papeliz-settings-gear-export-page.tsx): a page over the Export page,
-// with Details (the name, description, category, first note and license the template's manifest gets)
-// and Files (each ticked note Recommended or Optional). Every change is kept at once; ‹ Export goes back.
+// Export › Template's settings (papeliz-settings-gear-export-page.tsx), in the dialog Template's gear
+// opens: Details (the name, description, category, first note and license the template's manifest
+// gets) and Files (each ticked note Recommended or Optional). Every change is kept at once.
 
 export interface PapelizSettingsGearTemplateExportSettings {
   templateExportName: string
@@ -38,7 +37,6 @@ interface PapelizSettingsGearExportTemplateSettingsProps {
   tickedExportNoteRelativePaths: readonly string[]
   // The first note the template opens, as the Export page reads it (the setting, or the first ticked note).
   shownTemplateFirstNotePath: string | null
-  onTemplateSettingsClose: () => void
 }
 
 export function PapelizSettingsGearExportTemplateSettings({
@@ -46,7 +44,6 @@ export function PapelizSettingsGearExportTemplateSettings({
   onTemplateExportSettingsChange,
   tickedExportNoteRelativePaths,
   shownTemplateFirstNotePath,
-  onTemplateSettingsClose,
 }: PapelizSettingsGearExportTemplateSettingsProps) {
   const [chosenTemplateSettingsTab, setChosenTemplateSettingsTab] = useState<PapelizSettingsGearTemplateSettingsTab>('details')
   const templateSettingsFieldIdPrefix = useId()
@@ -61,10 +58,6 @@ export function PapelizSettingsGearExportTemplateSettings({
 
   return (
     <div>
-      <button type="button" onClick={onTemplateSettingsClose} className="mb-2 flex items-center gap-0.5 text-[12.5px] font-semibold text-papeliz-blue hover:underline">
-        <ChevronLeft className="size-3.5" aria-hidden="true" />
-        Export
-      </button>
       <PapelizSlidingChoiceGroup<PapelizSettingsGearTemplateSettingsTab>
         slidingChoiceGroupLabel="Template Settings"
         slidingChoiceGroupRole="tablist"

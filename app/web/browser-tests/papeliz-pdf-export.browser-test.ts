@@ -32,10 +32,13 @@ async function openExportPageWithPdf(page: Page): Promise<void> {
   await page.getByRole('radio', { name: 'PDF' }).click()
 }
 
-// The Paper menu at the right of Format: a named size, or Custom.
+// PDF's gear opens PDF Settings, which lists every paper with its size, then Custom. Custom leaves the
+// dialog open for its width and height; a named size closes it with Done.
 async function choosePaper(page: Page, paperOptionLabel: string): Promise<void> {
-  await page.getByRole('button', { name: /^Paper / }).click()
-  await page.getByRole('option', { name: new RegExp(`^${paperOptionLabel}`) }).click()
+  await page.getByRole('button', { name: 'PDF Settings' }).click()
+  const pdfSettingsDialog = page.getByRole('dialog', { name: 'PDF Settings' })
+  await pdfSettingsDialog.getByRole('radiogroup', { name: 'Paper' }).getByRole('radio', { name: new RegExp(`^${paperOptionLabel}`) }).check()
+  if (paperOptionLabel !== 'Custom') await pdfSettingsDialog.getByRole('button', { name: 'Done' }).click()
 }
 
 // A new note in the sample vault holding this text.
@@ -116,12 +119,15 @@ test('exports the open note as a PDF on the chosen paper, with no print window, 
   await page.reload()
   await page.getByRole('button', { name: 'Try Sample' }).first().click()
   await openExportPageWithPdf(page)
-  await expect(page.getByRole('button', { name: 'Paper A4' })).toBeVisible()
+  await expect(page.getByRole('radio', { name: 'PDF' })).toContainText('A4')
   // A custom size prints on that page, in the unit typed.
   await choosePaper(page, 'Custom')
-  await page.getByRole('radio', { name: 'in', exact: true }).click()
-  await page.getByRole('textbox', { name: 'Paper width' }).fill('6')
-  await page.getByRole('textbox', { name: 'Paper height' }).fill('9')
+  const pdfSettingsDialog = page.getByRole('dialog', { name: 'PDF Settings' })
+  await pdfSettingsDialog.getByRole('radio', { name: 'in', exact: true }).click()
+  await pdfSettingsDialog.getByRole('textbox', { name: 'Paper width' }).fill('6')
+  await pdfSettingsDialog.getByRole('textbox', { name: 'Paper height' }).fill('9')
+  await pdfSettingsDialog.getByRole('button', { name: 'Done' }).click()
+  await expect(page.getByRole('radio', { name: 'PDF' })).toContainText('6 × 9 in')
   const { exportFileBytes: customFileBytes } = await exportAndDownload(page)
   expect((await readPdfFile(customFileBytes)).pdfPageSize).toEqual([432, 648])
 })
