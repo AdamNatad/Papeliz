@@ -10,6 +10,7 @@ import {
   papelizSuggestTagsRequestText,
   usePapelizAssistantConversationStore,
   type PapelizAssistantChatEntry,
+  type PapelizAssistantReplyProviderModel,
 } from './papeliz-assistant-conversation-store'
 import { PapelizAssistantMessageMarkdown } from './papeliz-assistant-message-markdown'
 import { usePapelizAssistantPanelUiStore } from './papeliz-assistant-panel-ui-store'
@@ -62,6 +63,21 @@ function PapelizAssistantToolActivityRow({ chatEntry }: { chatEntry: Extract<Pap
   )
 }
 
+// The model that wrote an answer, muted beside it, since the model chip can switch models in the
+// middle of a chat; the tip adds its provider.
+function PapelizAssistantReplyProviderModelLabel({ replyProviderModel, className }: { replyProviderModel: PapelizAssistantReplyProviderModel; className?: string }) {
+  const { assistantReplyProviderModelName, assistantReplyProviderDisplayName } = replyProviderModel
+  if (assistantReplyProviderModelName === undefined) return null
+  return (
+    <span
+      className={joinPapelizClassNames('min-w-0 truncate', className)}
+      title={`Answered by ${assistantReplyProviderModelName}${assistantReplyProviderDisplayName === undefined ? '' : ` on ${assistantReplyProviderDisplayName}`}`}
+    >
+      {assistantReplyProviderModelName}
+    </span>
+  )
+}
+
 // A plan written in Plan mode: Write It switches to Write and has the assistant carry it out; Save
 // as Note keeps it as a note at the top of the vault.
 function PapelizAssistantPlanCard({ planEntry }: { planEntry: Extract<PapelizAssistantChatEntry, { chatEntryKind: 'assistant-message' }> }) {
@@ -81,6 +97,7 @@ function PapelizAssistantPlanCard({ planEntry }: { planEntry: Extract<PapelizAss
         <span className="min-w-0">
           Plan{planTitle !== null && <b className="font-semibold text-papeliz-ink"> · {planTitle}</b>}
         </span>
+        <PapelizAssistantReplyProviderModelLabel replyProviderModel={planEntry} className="ml-auto max-w-[45%] flex-none text-papeliz-ink-subtle" />
       </div>
       <div className="max-h-96 overflow-y-auto px-3.5 py-2.5">
         <PapelizAssistantMessageMarkdown assistantMessageText={planStepsText.trim()} />
@@ -162,6 +179,7 @@ function PapelizAssistantChatEntryView({ chatEntry }: { chatEntry: PapelizAssist
               <WandSparkles className="size-3" aria-hidden="true" />
             </span>
             <b className="font-semibold text-papeliz-ink">Assistant</b>
+            <PapelizAssistantReplyProviderModelLabel replyProviderModel={chatEntry} />
             {chatEntry.isChatEntryStreaming && <span className="papeliz-saving-dot size-1.5 rounded-full bg-papeliz-blue" aria-label="Writing" />}
           </div>
           {chatEntry.chatEntryText.length === 0 ? (

@@ -7,7 +7,7 @@ import { usePapelizWorkspaceStore } from '../workspace/papeliz-workspace-store'
 import { isPapelizChatSessionNotePath, papelizChatSessionsFolderName } from './papeliz-assistant-chat-session-files'
 import { usePapelizAssistantConversationStore } from './papeliz-assistant-conversation-store'
 import { usePapelizAssistantPanelUiStore } from './papeliz-assistant-panel-ui-store'
-import { formatPapelizAssistantTokenCountShort } from './papeliz-assistant-token-usage'
+import { formatPapelizAssistantTokenCountShort, papelizUnknownProviderModelName } from './papeliz-assistant-token-usage'
 import { readPapelizAssistantChatSessionRows, type PapelizAssistantUsageViewSessionRow } from './papeliz-assistant-vault-token-usage'
 
 const papelizSessionTimeFormat = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' })
@@ -31,6 +31,14 @@ function describeChatSessionRow(chatSessionRow: PapelizAssistantUsageViewSession
     chatSessionRowParts.push(`${chatSessionTokenUsageTally.isAssistantTokenCountEstimated ? 'about ' : ''}${formatPapelizAssistantTokenCountShort(chatSessionTokenCount)} tokens`)
   }
   return chatSessionRowParts.join(' · ')
+}
+
+// The models the chat sent its requests to, in the order it first used them. A chat saved before
+// token use was kept names none.
+function listChatSessionProviderModelNames(chatSessionRow: PapelizAssistantUsageViewSessionRow): string[] {
+  return chatSessionRow.chatSessionTokenUsage.chatSessionModelTokenUsageTallies
+    .map((modelTokenUsageTally) => modelTokenUsageTally.providerModelName)
+    .filter((providerModelName) => providerModelName !== papelizUnknownProviderModelName)
 }
 
 // Sessions: every chat saved in this vault, newest first under its day, with a search. A click
@@ -126,6 +134,7 @@ export function PapelizAssistantSessionsView() {
                 const isLiveChatSession = chatSessionRow.chatSessionVaultNoteRelativePath === liveChatSessionVaultNoteRelativePath
                 const chatSessionUpdatedDate = new Date(chatSessionRow.chatSessionUpdatedAt)
                 const chatSessionTitle = chatSessionRow.chatSessionTitle || getVaultNoteTitle(chatSessionRow.chatSessionVaultNoteRelativePath)
+                const chatSessionProviderModelNamesText = listChatSessionProviderModelNames(chatSessionRow).join(' · ')
                 // The chat being answered can't be deleted until the reply is done.
                 const canDeleteChatSession = !(isAssistantRunning && isLiveChatSession)
                 return (
@@ -151,6 +160,11 @@ export function PapelizAssistantSessionsView() {
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm font-medium">{chatSessionTitle}</span>
                         <span className="block truncate text-xs text-papeliz-ink-subtle tabular-nums">{describeChatSessionRow(chatSessionRow)}</span>
+                        {chatSessionProviderModelNamesText.length > 0 && (
+                          <span className="block truncate text-xs text-papeliz-ink-subtle" title={chatSessionProviderModelNamesText}>
+                            {chatSessionProviderModelNamesText}
+                          </span>
+                        )}
                       </span>
                       {/* The time gives way to Delete while the row is pointed at or focused. */}
                       {!Number.isNaN(chatSessionUpdatedDate.getTime()) && (

@@ -9,13 +9,12 @@ import {
 import { findPapelizAssistantProviderPreset } from './papeliz-assistant-provider-presets'
 import { listPapelizEnabledProviderModelNames, listPapelizSavedAssistantProviderIds, usePapelizAssistantProviderSettingsStore } from './papeliz-assistant-provider-settings-store'
 
-// Settings › AI Provider: the saved providers, all in use at once (Adam, 2026-11-02: "Saved Provider
-// / and each saved provider has a gear setting clicking them shows the modal where it has keys and
-// advance and stuffs", then "we can make all of that in use and each model of that we can select
-// which to enable like open code"). A row per provider: its name, where its key goes and how many of
-// its models are on, and the gear that opens its modal. Add Provider opens the modal's two steps. A
-// provider is saved only once its test passes (papeliz-assistant-provider-editor-dialog.tsx), and the
-// model chip in the assistant picks among every model switched on.
+// Settings › AI Provider: the saved providers, all in use at once, each with the models switched on
+// for it. A row per provider: its name, where its key goes and how many of its models are on, and the
+// gear that opens its modal with the key, the models and Advanced. Add Provider opens one modal: a
+// Provider dropdown over the chosen provider's key, test and models. A provider is saved only once its
+// test passes (papeliz-assistant-provider-editor-dialog.tsx), and the model chip in the assistant picks
+// among every model switched on.
 export function PapelizAssistantProviderSettingsPage() {
   const savedProvidersHeadingId = useId()
   const providerSettingsByProviderId = usePapelizAssistantProviderSettingsStore((settingsState) => settingsState.providerSettingsByProviderId)

@@ -9,8 +9,8 @@ import { PapelizSyncPassphraseField } from './papeliz-sync-passphrase-fields'
 import { describePapelizSyncActionFailureNow, describePapelizSyncFileCount, formatPapelizSyncByteSize, papelizSyncVaultEncryptionKindDisplayNames } from './papeliz-sync-screen-words'
 
 // The Sync page's "Synced vaults": every vault on the account, with its files, its size, its kind and
-// whether it's this vault or on this device, each with Remove from Sync (Adam's pick B, 2026-10-31;
-// "Remove" rather than "Delete", as on the account page, 2026-11-01). Removing takes the synced copy and its old versions off the account; every device keeps its files and
+// whether it's this vault or on this device, each with Remove from Sync ("Remove" rather than
+// "Delete", as on the account page). Removing takes the synced copy and its old versions off the account; every device keeps its files and
 // stops syncing that vault. The confirmation asks for the vault's name, as Delete in the Hidden list
 // does. Every End-to-end vault has Change passphrase, which also asks the current passphrase when
 // this device doesn't hold the vault's key; one here that is locked has Unlock too, whose "Forgot

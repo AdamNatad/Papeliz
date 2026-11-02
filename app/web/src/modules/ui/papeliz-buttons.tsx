@@ -15,9 +15,8 @@ type PapelizPillButtonVariant =
   | 'dialog-confirm-danger'
 type PapelizPillButtonSize = 'small' | 'medium' | 'large'
 
-// The main action's colors everywhere, as on the website's account page (Adam, 2026-11-01: "follow our
-// account page Cancel and Confirm button color … Cancel was with outline"): solid blue, or solid red
-// when it erases. The quieter choice beside it is white with an outline and turns soft blue when
+// The main action's colors everywhere, the same as the website's account page Confirm and Cancel: solid
+// blue, or solid red when it erases. The quieter choice beside it is white with an outline and turns soft blue when
 // hovered. Buttons that aren't PapelizPillButton, such as New Vault's footer, share these too.
 export const papelizMainActionButtonColorClassName =
   'bg-papeliz-gradient-start text-white shadow-[inset_0_1px_0_#ffffff1f,0_2px_3px_rgb(0_40_100/0.18)] enabled:hover:brightness-110'

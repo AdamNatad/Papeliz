@@ -125,15 +125,20 @@ async function playTestProvider(
 }
 
 // A Custom provider at the test provider's address, added on the Settings panel's AI Provider page,
-// which the panel's set-up button opens: Add Provider, Custom, then its address, key and a typed
-// model. Add Provider stays off until Test Connection passes. Esc then closes the panel.
+// which the panel's set-up button opens: Add Provider, Custom from its Provider dropdown, then its
+// address, key and a typed model. Add Provider stays off until Test Connection passes. Esc then
+// closes the panel.
 async function setUpTestProvider(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Choose a Provider' }).click()
   const settingsPanel = page.getByRole('dialog', { name: 'Settings' })
   await expect(settingsPanel.getByRole('heading', { name: 'Saved Providers' })).toBeVisible()
   await settingsPanel.getByRole('button', { name: 'Add Provider', exact: true }).click()
-  await page.getByRole('dialog', { name: 'Add Provider' }).getByRole('option', { name: /^Custom/ }).click()
-  const addCustomDialog = page.getByRole('dialog', { name: 'Add Custom' })
+  const addCustomDialog = page.getByRole('dialog', { name: 'Add Provider' })
+  await expect(addCustomDialog.getByRole('button', { name: /^Provider Meta Model API/ })).toBeVisible()
+  await addCustomDialog.getByRole('button', { name: /^Provider / }).click()
+  await addCustomDialog.getByRole('option', { name: /^Custom/ }).click()
+  await expect(addCustomDialog.getByRole('button', { name: /^Provider Custom/ })).toBeVisible()
+  await expect(addCustomDialog.getByRole('textbox', { name: 'Base URL' })).toBeFocused()
   await addCustomDialog.getByRole('textbox', { name: 'Base URL' }).fill(testProviderBaseUrl)
   await addCustomDialog.getByLabel(/^API Key/).fill(testProviderApiKey)
   await addCustomDialog.getByRole('textbox', { name: 'Model Name' }).fill(testProviderModelName)
@@ -288,10 +293,11 @@ test('two providers each keep their own key, and the model chip sends each messa
   await page.getByRole('menu', { name: 'Model' }).getByRole('menuitem', { name: 'AI Provider' }).click()
   const settingsPanel = page.getByRole('dialog', { name: 'Settings' })
   await settingsPanel.getByRole('button', { name: 'Add Provider', exact: true }).click()
-  const addProviderDialog = page.getByRole('dialog', { name: 'Add Provider' })
-  await expect(addProviderDialog.getByRole('option', { name: /^Custom/ })).toBeDisabled()
-  await addProviderDialog.getByRole('option', { name: /^LM Studio Local/ }).click()
-  const addLmStudioDialog = page.getByRole('dialog', { name: 'Add LM Studio Local' })
+  const addLmStudioDialog = page.getByRole('dialog', { name: 'Add Provider' })
+  await addLmStudioDialog.getByRole('button', { name: /^Provider / }).click()
+  await expect(addLmStudioDialog.getByRole('option', { name: /^Custom/ })).toBeDisabled()
+  await addLmStudioDialog.getByRole('option', { name: /^LM Studio Local/ }).click()
+  await expect(addLmStudioDialog.getByRole('button', { name: /^Provider LM Studio Local/ })).toBeVisible()
   await addLmStudioDialog.getByLabel(/^API Key/).fill(secondTestProviderApiKey)
   await addLmStudioDialog.getByRole('button', { name: 'Test Connection', exact: true }).click()
   await expect(addLmStudioDialog.getByText('2 models found.', { exact: false })).toBeVisible()

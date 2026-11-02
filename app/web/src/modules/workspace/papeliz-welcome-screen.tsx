@@ -259,8 +259,8 @@ function PapelizWelcomeAction({
 
 const papelizRecentVaultSyncBadgeClassName = 'inline-flex h-[18px] flex-none items-center gap-1 rounded-full px-[7px] text-[10.5px] font-semibold whitespace-nowrap'
 
-// The badges' words for a synced vault's encryption, in Adam's own casing (2026-11-02: "Standard
-// Encryption / End-to-End Encryption / Local / Sync"). The Sync pages keep their shorter names.
+// The badges' words for a synced vault's encryption, in title case. The Sync pages keep their shorter
+// names.
 const papelizRecentVaultEncryptionBadgeWords: Record<PapelizSyncVaultEncryptionKind, string> = {
   standard: 'Standard Encryption',
   'end-to-end': 'End-to-End Encryption',

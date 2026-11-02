@@ -15,8 +15,19 @@ const testChatSession: PapelizChatSession = {
   chatSessionModelName: 'test-model',
   chatSessionMessages: [
     { chatSessionMessageRole: 'user', chatSessionMessageText: 'What did I plan for the garden?' },
-    { chatSessionMessageRole: 'assistant', chatSessionMessageText: '> Read [[Garden plan]]\n\nThree beds.\n\n### You\nmight appear in an answer.' },
+    {
+      chatSessionMessageRole: 'assistant',
+      chatSessionMessageText: '> Read [[Garden plan]]\n\nThree beds.\n\n### You\nmight appear in an answer.\n### Assistant · or this',
+      assistantReplyProviderModelName: 'test-model',
+      assistantReplyProviderDisplayName: 'Test Provider',
+    },
     { chatSessionMessageRole: 'user', chatSessionMessageText: 'Thanks' },
+    {
+      chatSessionMessageRole: 'assistant',
+      chatSessionMessageText: 'You’re welcome.',
+      assistantReplyProviderModelName: 'local "llama3.1:8b"',
+      assistantReplyProviderDisplayName: 'Ollama',
+    },
   ],
   chatSessionTokenUsage: {
     chatSessionTokenUsageTally: { assistantInputTokenCount: 5400, assistantOutputTokenCount: 320, assistantRequestCount: 3, isAssistantTokenCountEstimated: true },
@@ -35,7 +46,40 @@ describe('chat session files', () => {
     expect(chatSessionFileText).toContain('papeliz-chat-session: session-1')
     expect(chatSessionFileText).toContain('# What did I plan for the garden?\n\n### You\nWhat did I plan for the garden?')
     expect(chatSessionFileText).toContain('\\### You\nmight appear')
+    expect(chatSessionFileText).toContain('\n\\### Assistant · or this\n')
     expect(parsePapelizChatSessionFile(chatSessionFileText)).toEqual(testChatSession)
+  })
+
+  it('name the model and provider of each answer in its heading', () => {
+    const chatSessionFileText = formatPapelizChatSessionFile(testChatSession)
+    expect(chatSessionFileText).toContain('\n### Assistant · test-model · Test Provider\n> Read [[Garden plan]]')
+    expect(chatSessionFileText).toContain('\n### Assistant · local "llama3.1:8b" · Ollama\nYou’re welcome.')
+    // A model name with " · " in it stays whole: the provider is the part after the last one.
+    const separatorModelChatSession: PapelizChatSession = {
+      ...testChatSession,
+      chatSessionMessages: [
+        { chatSessionMessageRole: 'user', chatSessionMessageText: 'Hi' },
+        { chatSessionMessageRole: 'assistant', chatSessionMessageText: 'Hello.', assistantReplyProviderModelName: 'odd · model', assistantReplyProviderDisplayName: 'Custom' },
+        { chatSessionMessageRole: 'user', chatSessionMessageText: 'Again' },
+        { chatSessionMessageRole: 'assistant', chatSessionMessageText: 'Hello again.' },
+      ],
+    }
+    expect(parsePapelizChatSessionFile(formatPapelizChatSessionFile(separatorModelChatSession))).toEqual(separatorModelChatSession)
+  })
+
+  it('put every answer of a note saved before answers named their model down to the note’s model', () => {
+    const savedChatSession = parsePapelizChatSessionFile(
+      '---\npapeliz-chat-session: old-2\nmodel: muse-spark-1.3\ntags: [chat-session]\n---\n# Hi\n\n### You\nHi\n\n### Assistant\nHello.\n\n### You\nAgain\n\n### Assistant\nHello again.\n',
+    )
+    expect(savedChatSession?.chatSessionMessages).toEqual([
+      { chatSessionMessageRole: 'user', chatSessionMessageText: 'Hi' },
+      { chatSessionMessageRole: 'assistant', chatSessionMessageText: 'Hello.', assistantReplyProviderModelName: 'muse-spark-1.3' },
+      { chatSessionMessageRole: 'user', chatSessionMessageText: 'Again' },
+      { chatSessionMessageRole: 'assistant', chatSessionMessageText: 'Hello again.', assistantReplyProviderModelName: 'muse-spark-1.3' },
+    ])
+    // With no model on record, the answers name none.
+    const unknownModelChatSession = parsePapelizChatSessionFile('---\npapeliz-chat-session: old-3\nmodel: unknown\n---\n# Hi\n\n### You\nHi\n\n### Assistant\nHello.\n')
+    expect(unknownModelChatSession?.chatSessionMessages[1]).toEqual({ chatSessionMessageRole: 'assistant', chatSessionMessageText: 'Hello.' })
   })
 
   it('keep the chat’s token use in the frontmatter, one line per model', () => {

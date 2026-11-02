@@ -67,8 +67,7 @@ export interface PapelizTemplateFilesChoices {
   templateOptionalTopEntryNames: string[]
 }
 
-// A template's license, any one its author chose (Adam, 2026-11-02: the gallery accepts any): the
-// SPDX id of a well-known license, named from its LICENSE file's text ("MIT", "Apache-2.0",
+// A template's license, any one its author chose, since the gallery accepts any: the SPDX id of a well-known license, named from its LICENSE file's text ("MIT", "Apache-2.0",
 // "CC-BY-SA-4.0"), or `papelizTemplateCustomLicenseId` for any other text, the author's own.
 export type PapelizTemplateLicenseId = string
 export const papelizTemplateCustomLicenseId = 'LicenseRef-Custom'

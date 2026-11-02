@@ -36,11 +36,16 @@ import {
 //   ### You
 //   What did I plan for the garden?
 //
-//   ### Assistant
+//   ### Assistant · example-model · Example Provider
 //   You planned three raised beds… see [[Garden plan]].
 //
-// A message line that is exactly "### You" or "### Assistant" is written as "\### You", so it can
-// never be mistaken for the start of the next message.
+// Each answer's heading names the model that wrote it and that model's provider, since the model
+// chip can switch models in the middle of a chat. `model:` is the model that answered last.
+// Notes saved before then have a bare "### Assistant" and, as `model:`, the model in use when they
+// were saved; their answers are put down to it.
+//
+// A message line that reads like a heading ("### You", or "### Assistant" with or without a model)
+// is written as "\### You", so it can never be mistaken for the start of the next message.
 //
 // The `chat-session-…` keys are the chat's token use (papeliz-assistant-token-usage.ts): every
 // request the chat made, added up, then split by model, one line per model ("· estimated" at the
@@ -54,6 +59,9 @@ export const papelizEarlierChatSessionsFolderNames: readonly string[] = [papeliz
 const papelizChatSessionFrontmatterKey = 'papeliz-chat-session'
 const papelizChatSessionUserHeading = '### You'
 const papelizChatSessionAssistantHeading = '### Assistant'
+// "### Assistant", or "### Assistant · model", or "### Assistant · model · provider".
+const papelizChatSessionAssistantHeadingPattern = /^### Assistant(?: · (.+))?$/
+const papelizChatSessionAssistantHeadingPartSeparator = ' · '
 const papelizChatSessionTokenUsageFrontmatterKeys = {
   chatSessionInputTokenCount: 'chat-session-input-tokens',
   chatSessionOutputTokenCount: 'chat-session-output-tokens',
@@ -70,6 +78,10 @@ export type PapelizChatSessionMessageRole = 'user' | 'assistant'
 export interface PapelizChatSessionMessage {
   chatSessionMessageRole: PapelizChatSessionMessageRole
   chatSessionMessageText: string
+  // An answer only: the exact model name Papeliz sent its requests to, and that provider's name
+  // ("Claude"). Left out when nothing records them.
+  assistantReplyProviderModelName?: string
+  assistantReplyProviderDisplayName?: string
 }
 
 export interface PapelizChatSession {
@@ -89,24 +101,52 @@ export function isPapelizChatSessionNotePath(vaultNoteRelativePath: string): boo
   )
 }
 
+function isChatSessionMessageHeadingLine(messageLine: string): boolean {
+  const trimmedMessageLine = messageLine.trimEnd()
+  return trimmedMessageLine === papelizChatSessionUserHeading || papelizChatSessionAssistantHeadingPattern.test(trimmedMessageLine)
+}
+
 function escapeMessageMarkerLines(chatSessionMessageText: string): string {
   return chatSessionMessageText
     .split('\n')
-    .map((messageLine) => (messageLine.trimEnd() === papelizChatSessionUserHeading || messageLine.trimEnd() === papelizChatSessionAssistantHeading ? `\\${messageLine}` : messageLine))
+    .map((messageLine) => (isChatSessionMessageHeadingLine(messageLine) ? `\\${messageLine}` : messageLine))
     .join('\n')
 }
 
 function unescapeMessageMarkerLines(chatSessionMessageText: string): string {
   return chatSessionMessageText
     .split('\n')
-    .map((messageLine) =>
-      messageLine.trimEnd() === `\\${papelizChatSessionUserHeading}` || messageLine.trimEnd() === `\\${papelizChatSessionAssistantHeading}` ? messageLine.slice(1) : messageLine,
-    )
+    .map((messageLine) => (messageLine.startsWith('\\') && isChatSessionMessageHeadingLine(messageLine.slice(1)) ? messageLine.slice(1) : messageLine))
     .join('\n')
 }
 
 function oneLine(frontmatterValue: string): string {
   return frontmatterValue.replace(/[\r\n]+/g, ' ').trim()
+}
+
+// "### Assistant · claude-haiku-5-5 · Claude", or a bare "### Assistant" when the model isn't known.
+function formatChatSessionAssistantHeading(chatSessionMessage: PapelizChatSessionMessage): string {
+  const assistantReplyProviderModelName = oneLine(chatSessionMessage.assistantReplyProviderModelName ?? '')
+  if (assistantReplyProviderModelName.length === 0) return papelizChatSessionAssistantHeading
+  const assistantReplyProviderDisplayName = oneLine(chatSessionMessage.assistantReplyProviderDisplayName ?? '')
+  return [papelizChatSessionAssistantHeading, assistantReplyProviderModelName, ...(assistantReplyProviderDisplayName.length > 0 ? [assistantReplyProviderDisplayName] : [])].join(
+    papelizChatSessionAssistantHeadingPartSeparator,
+  )
+}
+
+// The model and provider an answer's heading names. The provider is the part after the last " · ",
+// so a model name with " · " in it stays whole when its provider is named too.
+function parseChatSessionAssistantHeading(
+  assistantHeadingLine: string,
+): Pick<PapelizChatSessionMessage, 'assistantReplyProviderModelName' | 'assistantReplyProviderDisplayName'> {
+  const assistantHeadingText = papelizChatSessionAssistantHeadingPattern.exec(assistantHeadingLine)?.[1]?.trim() ?? ''
+  if (assistantHeadingText.length === 0) return {}
+  const providerSeparatorIndex = assistantHeadingText.lastIndexOf(papelizChatSessionAssistantHeadingPartSeparator)
+  if (providerSeparatorIndex === -1) return { assistantReplyProviderModelName: assistantHeadingText }
+  return {
+    assistantReplyProviderModelName: assistantHeadingText.slice(0, providerSeparatorIndex).trim(),
+    assistantReplyProviderDisplayName: assistantHeadingText.slice(providerSeparatorIndex + papelizChatSessionAssistantHeadingPartSeparator.length).trim(),
+  }
 }
 
 // One model's line under `chat-session-tokens-by-model`, quoted so any model name stays one value.
@@ -223,7 +263,7 @@ export function formatPapelizChatSessionFile(chatSession: PapelizChatSession): s
   for (const chatSessionMessage of chatSession.chatSessionMessages) {
     chatSessionFileParts.push(
       '',
-      chatSessionMessage.chatSessionMessageRole === 'user' ? papelizChatSessionUserHeading : papelizChatSessionAssistantHeading,
+      chatSessionMessage.chatSessionMessageRole === 'user' ? papelizChatSessionUserHeading : formatChatSessionAssistantHeading(chatSessionMessage),
       escapeMessageMarkerLines(chatSessionMessage.chatSessionMessageText.trim()),
     )
   }
@@ -259,19 +299,20 @@ export function parsePapelizChatSessionFile(chatSessionFileText: string): Papeli
   const chatSessionBodyLines = normalizedFileText.slice(frontmatterMatch[0].length).split('\n')
   let chatSessionTitle = ''
   const chatSessionMessages: PapelizChatSessionMessage[] = []
-  let currentChatSessionMessage: { chatSessionMessageRole: PapelizChatSessionMessageRole; messageLines: string[] } | null = null
+  let currentChatSessionMessage: (Omit<PapelizChatSessionMessage, 'chatSessionMessageText'> & { messageLines: string[] }) | null = null
   const finishCurrentMessage = () => {
     if (currentChatSessionMessage === null) return
-    chatSessionMessages.push({
-      chatSessionMessageRole: currentChatSessionMessage.chatSessionMessageRole,
-      chatSessionMessageText: unescapeMessageMarkerLines(currentChatSessionMessage.messageLines.join('\n').trim()),
-    })
+    const { messageLines, ...chatSessionMessageFields } = currentChatSessionMessage
+    chatSessionMessages.push({ ...chatSessionMessageFields, chatSessionMessageText: unescapeMessageMarkerLines(messageLines.join('\n').trim()) })
   }
   for (const chatSessionBodyLine of chatSessionBodyLines) {
     const trimmedBodyLine = chatSessionBodyLine.trimEnd()
-    if (trimmedBodyLine === papelizChatSessionUserHeading || trimmedBodyLine === papelizChatSessionAssistantHeading) {
+    if (trimmedBodyLine === papelizChatSessionUserHeading) {
       finishCurrentMessage()
-      currentChatSessionMessage = { chatSessionMessageRole: trimmedBodyLine === papelizChatSessionUserHeading ? 'user' : 'assistant', messageLines: [] }
+      currentChatSessionMessage = { chatSessionMessageRole: 'user', messageLines: [] }
+    } else if (papelizChatSessionAssistantHeadingPattern.test(trimmedBodyLine)) {
+      finishCurrentMessage()
+      currentChatSessionMessage = { chatSessionMessageRole: 'assistant', ...parseChatSessionAssistantHeading(trimmedBodyLine), messageLines: [] }
     } else if (currentChatSessionMessage !== null) {
       currentChatSessionMessage.messageLines.push(chatSessionBodyLine)
     } else if (chatSessionTitle.length === 0 && trimmedBodyLine.startsWith('# ')) {
@@ -280,13 +321,23 @@ export function parsePapelizChatSessionFile(chatSessionFileText: string): Papeli
   }
   finishCurrentMessage()
 
+  // Saved before each answer named its model: every answer is put down to the note's `model:`, the
+  // model in use when it was saved. A note that names any answer's model leaves the others unnamed.
+  const chatSessionModelName = frontmatterValues.get('model') ?? ''
+  const isSavedBeforeAnswerModels = !chatSessionMessages.some((chatSessionMessage) => chatSessionMessage.assistantReplyProviderModelName !== undefined)
+  const hasKnownChatSessionModel = chatSessionModelName.length > 0 && chatSessionModelName !== papelizUnknownProviderModelName
   return {
     papelizChatSessionId,
     chatSessionTitle,
     chatSessionCreatedAt: frontmatterValues.get('created') ?? '',
     chatSessionUpdatedAt: frontmatterValues.get('updated') ?? '',
-    chatSessionModelName: frontmatterValues.get('model') ?? '',
-    chatSessionMessages,
+    chatSessionModelName,
+    chatSessionMessages:
+      isSavedBeforeAnswerModels && hasKnownChatSessionModel
+        ? chatSessionMessages.map((chatSessionMessage) =>
+            chatSessionMessage.chatSessionMessageRole === 'assistant' ? { ...chatSessionMessage, assistantReplyProviderModelName: chatSessionModelName } : chatSessionMessage,
+          )
+        : chatSessionMessages,
     chatSessionTokenUsage: parseChatSessionTokenUsageFrontmatter(frontmatterValues, frontmatterListValues),
   }
 }

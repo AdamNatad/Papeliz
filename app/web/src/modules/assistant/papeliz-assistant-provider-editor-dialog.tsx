@@ -1,8 +1,9 @@
-import { ChevronDown, ChevronRight, CircleAlert, CircleCheck, ExternalLink, Eye, EyeOff, LoaderCircle, Lock, PlugZap, RefreshCw, Search, X } from 'lucide-react'
+import { Check, ChevronDown, ChevronRight, CircleAlert, CircleCheck, ExternalLink, Eye, EyeOff, LoaderCircle, Lock, PlugZap, RefreshCw, Search, X } from 'lucide-react'
 import { Fragment, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { PapelizIconButton, PapelizPillButton } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { PapelizConfirmDialog } from '../ui/papeliz-confirm-dialog'
+import { measurePapelizListboxSelectRoom } from '../ui/papeliz-listbox-select'
 import {
   findPapelizAssistantModelPrice,
   formatPapelizAssistantModelPricePerMillionTokens,
@@ -84,8 +85,7 @@ const papelizProviderSectionTitleClassName = 'mt-5 flex min-h-5 items-center jus
 // More models than this, and the models get a search box.
 const papelizProviderModelSearchShownFromCount = 8
 
-// Add Provider's groups, by where each provider runs. The hosted ones come first with no heading
-// (Adam, 2026-11-03: "remove that Hosted Line and the Local change it to Local").
+// Add Provider's groups, by where each provider runs. The hosted ones come first with no heading.
 const papelizProviderPresetPlaceHeadings: Record<PapelizAssistantProviderPreset['providerPresetPlace'], string | null> = {
   hosted: null,
   'this-computer': 'Local',
@@ -169,49 +169,86 @@ function PapelizAssistantProviderDialogHeader({
   )
 }
 
-// A key's name on a hint, such as Enter beside the blue row.
-const papelizProviderKeyHintClassName = 'rounded-md border border-papeliz-line-strong bg-papeliz-surface px-1.5 text-[11px] leading-[18px] font-medium text-papeliz-ink-muted'
 const papelizProviderPresetPlaceOrder = ['hosted', 'this-computer', 'any-address'] as const
 
-// Add Provider, step 1: a search box with every offered provider listed right under it, the hosted
-// ones first, then Local and Any Other (Adam, 2026-11-03, "1D · Search list, like OpenCode"). The
-// cursor starts in the box and typing narrows the list; Up and Down move the blue row, Enter picks it,
-// and a click picks too. One already saved shows as Saved and can't be picked again.
-function PapelizAssistantProviderPresetChoice({
-  providerDialogTitleId,
+// Every offered provider in the dropdown's order: the hosted ones, then Local, then Any Other.
+function listPapelizProviderPresetsInPlaceOrder(): PapelizAssistantProviderPreset[] {
+  return papelizProviderPresetPlaceOrder.flatMap((providerPresetPlace) =>
+    listPapelizOfferedAssistantProviderPresets('').filter((offeredProviderPreset) => offeredProviderPreset.providerPresetPlace === providerPresetPlace),
+  )
+}
+
+// The provider list's height inside the dropdown: at most this tall, and never shorter than two rows.
+const papelizProviderPresetListTallestHeight = 320
+const papelizProviderPresetListShortestHeight = 84
+// What sits under the trigger besides the list: the gap, the frame's border and padding, the search
+// and its gap, and the room kept free at the modal's edge.
+const papelizProviderPresetListSurroundHeight = 74
+
+// Add Provider's Provider field: a select that opens on a search over every offered provider, the
+// hosted ones first, then Local and Any Other, in the same modal as the key and models. Typing narrows
+// the list, Up and Down move the blue row, Enter or a click picks it, and Esc closes only the list. One
+// already saved shows as Saved and can't be picked.
+function PapelizAssistantProviderPresetDropdown({
+  providerPresetDropdownTriggerId,
+  providerPresetDropdownLabelId,
+  chosenProviderPresetId,
   onProviderPresetChoose,
-  onProviderDialogClose,
 }: {
-  providerDialogTitleId: string
+  providerPresetDropdownTriggerId: string
+  providerPresetDropdownLabelId: string
+  chosenProviderPresetId: string
   onProviderPresetChoose: (papelizAssistantProviderId: string) => void
-  onProviderDialogClose: () => void
 }) {
   const providerPresetListIdPrefix = useId()
+  const providerPresetDropdownRef = useRef<HTMLDivElement>(null)
+  const providerPresetDropdownTriggerRef = useRef<HTMLButtonElement>(null)
   const providerPresetSearchFieldRef = useRef<HTMLInputElement>(null)
   const providerSettingsByProviderId = usePapelizAssistantProviderSettingsStore((settingsState) => settingsState.providerSettingsByProviderId)
+  // Null while the list is closed; open, how tall it may grow and still stay inside the modal.
+  const [providerPresetListMaxHeight, setProviderPresetListMaxHeight] = useState<number | null>(null)
   const [providerPresetSearchText, setProviderPresetSearchText] = useState('')
-  // The row moved to with the keys or the pointer; null means the first one that can be picked.
+  // The row moved to with the keys or the pointer; null means the chosen one, or the first match once
+  // a search is typed.
   const [highlightedProviderPresetId, setHighlightedProviderPresetId] = useState<string | null>(null)
+  const isProviderPresetListOpen = providerPresetListMaxHeight !== null
+  const chosenProviderPreset = findPapelizAssistantProviderPreset(chosenProviderPresetId)
   const trimmedProviderPresetSearchText = providerPresetSearchText.trim().toLowerCase()
-  const shownProviderPresets = papelizProviderPresetPlaceOrder.flatMap((providerPresetPlace) =>
-    listPapelizOfferedAssistantProviderPresets('').filter(
-      (offeredProviderPreset) =>
-        offeredProviderPreset.providerPresetPlace === providerPresetPlace &&
-        `${offeredProviderPreset.providerPresetDisplayName} ${offeredProviderPreset.providerPresetDescription} ${offeredProviderPreset.isProviderPresetRecommended === true ? 'recommended' : ''}`
-          .toLowerCase()
-          .includes(trimmedProviderPresetSearchText),
-    ),
+  const shownProviderPresets = listPapelizProviderPresetsInPlaceOrder().filter((offeredProviderPreset) =>
+    `${offeredProviderPreset.providerPresetDisplayName} ${offeredProviderPreset.providerPresetDescription} ${offeredProviderPreset.isProviderPresetRecommended === true ? 'recommended' : ''}`
+      .toLowerCase()
+      .includes(trimmedProviderPresetSearchText),
   )
   const pickableProviderPresets = shownProviderPresets.filter((shownProviderPreset) => providerSettingsByProviderId[shownProviderPreset.papelizAssistantProviderId] === undefined)
   const highlightedProviderPreset =
-    pickableProviderPresets.find((pickableProviderPreset) => pickableProviderPreset.papelizAssistantProviderId === highlightedProviderPresetId) ?? pickableProviderPresets[0]
+    pickableProviderPresets.find((pickableProviderPreset) => pickableProviderPreset.papelizAssistantProviderId === highlightedProviderPresetId) ??
+    (trimmedProviderPresetSearchText.length === 0
+      ? pickableProviderPresets.find((pickableProviderPreset) => pickableProviderPreset.papelizAssistantProviderId === chosenProviderPresetId)
+      : undefined) ??
+    pickableProviderPresets[0]
   const describeProviderPresetOptionId = (papelizAssistantProviderId: string) => `${providerPresetListIdPrefix}-option-${papelizAssistantProviderId}`
 
-  // The cursor goes to the search, and again when Back returns here from step 2. Queued, so it runs
-  // after the frame's own effect has shown the modal, which focuses the modal's first button.
-  useEffect(() => {
-    queueMicrotask(() => providerPresetSearchFieldRef.current?.focus())
-  }, [])
+  // The list opens under the trigger, as tall as the modal leaves room for.
+  const openProviderPresetList = () => {
+    const providerPresetDropdownTriggerElement = providerPresetDropdownTriggerRef.current
+    if (providerPresetDropdownTriggerElement === null) return
+    const { listboxRoomBottom } = measurePapelizListboxSelectRoom(providerPresetDropdownTriggerElement)
+    const providerPresetListRoom = listboxRoomBottom - providerPresetDropdownTriggerElement.getBoundingClientRect().bottom - papelizProviderPresetListSurroundHeight
+    setProviderPresetListMaxHeight(Math.max(papelizProviderPresetListShortestHeight, Math.min(papelizProviderPresetListTallestHeight, providerPresetListRoom)))
+    setProviderPresetSearchText('')
+    setHighlightedProviderPresetId(null)
+  }
+
+  const closeProviderPresetList = (shouldFocusTrigger: boolean) => {
+    setProviderPresetListMaxHeight(null)
+    if (shouldFocusTrigger) providerPresetDropdownTriggerRef.current?.focus()
+  }
+
+  // Another provider swaps the fields under the dropdown, and the cursor goes to its first field there.
+  const chooseProviderPreset = (papelizAssistantProviderId: string) => {
+    closeProviderPresetList(papelizAssistantProviderId === chosenProviderPresetId)
+    if (papelizAssistantProviderId !== chosenProviderPresetId) onProviderPresetChoose(papelizAssistantProviderId)
+  }
 
   // Up and Down go round the rows that can be picked, keeping the blue one in view.
   const moveProviderPresetHighlight = (highlightStep: 1 | -1) => {
@@ -223,15 +260,36 @@ function PapelizAssistantProviderPresetChoice({
     document.getElementById(describeProviderPresetOptionId(nextProviderPreset.papelizAssistantProviderId))?.scrollIntoView({ block: 'nearest' })
   }
 
+  // Open, the cursor goes to the search and the chosen row shows.
+  useEffect(() => {
+    if (!isProviderPresetListOpen) return
+    providerPresetSearchFieldRef.current?.focus({ preventScroll: true })
+    document.getElementById(`${providerPresetListIdPrefix}-option-${chosenProviderPresetId}`)?.scrollIntoView({ block: 'nearest' })
+  }, [isProviderPresetListOpen, providerPresetListIdPrefix, chosenProviderPresetId])
+
+  // A press anywhere outside the dropdown or its label closes the list.
+  useEffect(() => {
+    if (!isProviderPresetListOpen) return
+    const closeProviderPresetListOnOutsidePointer = (pointerEvent: PointerEvent) => {
+      const pressedNode = pointerEvent.target instanceof Node ? pointerEvent.target : null
+      const isPressInsideDropdown = providerPresetDropdownRef.current?.contains(pressedNode) === true
+      const isPressOnDropdownLabel = document.getElementById(providerPresetDropdownLabelId)?.contains(pressedNode) === true
+      if (!isPressInsideDropdown && !isPressOnDropdownLabel) setProviderPresetListMaxHeight(null)
+    }
+    document.addEventListener('pointerdown', closeProviderPresetListOnOutsidePointer, true)
+    return () => document.removeEventListener('pointerdown', closeProviderPresetListOnOutsidePointer, true)
+  }, [isProviderPresetListOpen, providerPresetDropdownLabelId])
+
   const renderProviderPresetOption = (shownProviderPreset: PapelizAssistantProviderPreset) => {
     const isProviderPresetSaved = providerSettingsByProviderId[shownProviderPreset.papelizAssistantProviderId] !== undefined
     const isProviderPresetHighlighted = shownProviderPreset === highlightedProviderPreset
+    const isProviderPresetChosen = shownProviderPreset.papelizAssistantProviderId === chosenProviderPresetId
     return (
       <div
         key={shownProviderPreset.papelizAssistantProviderId}
         id={describeProviderPresetOptionId(shownProviderPreset.papelizAssistantProviderId)}
         role="option"
-        aria-selected={isProviderPresetHighlighted}
+        aria-selected={isProviderPresetChosen}
         aria-disabled={isProviderPresetSaved || undefined}
         // Keeps the cursor in the search, so typing can go on after a pointer moved over the list.
         onMouseDown={(mouseDownEvent) => mouseDownEvent.preventDefault()}
@@ -239,7 +297,7 @@ function PapelizAssistantProviderPresetChoice({
           if (!isProviderPresetSaved) setHighlightedProviderPresetId(shownProviderPreset.papelizAssistantProviderId)
         }}
         onClick={() => {
-          if (!isProviderPresetSaved) onProviderPresetChoose(shownProviderPreset.papelizAssistantProviderId)
+          if (!isProviderPresetSaved) chooseProviderPreset(shownProviderPreset.papelizAssistantProviderId)
         }}
         className={joinPapelizClassNames(
           'flex h-[38px] items-center gap-2.5 rounded-full px-3 text-sm font-medium',
@@ -259,97 +317,114 @@ function PapelizAssistantProviderPresetChoice({
         )}
         <span className="flex-1" />
         {isProviderPresetSaved && <span className="flex-none rounded-full bg-papeliz-surface-gray px-2 py-px text-[11.5px] font-normal text-papeliz-ink-muted">Saved</span>}
-        {isProviderPresetHighlighted && (
-          <kbd aria-hidden="true" className={`hidden flex-none sm:inline ${papelizProviderKeyHintClassName}`}>
-            Enter
-          </kbd>
-        )}
+        {isProviderPresetChosen && <Check className="size-4 flex-none" aria-hidden="true" />}
       </div>
     )
   }
 
   return (
-    <>
-      <PapelizAssistantProviderDialogHeader
-        providerDialogTitleId={providerDialogTitleId}
-        providerDialogTitle="Add Provider"
-        providerDialogSubtitle={null}
-        onProviderDialogClose={onProviderDialogClose}
-      />
-      {/* The search stays put while the list under it scrolls. */}
-      <div className={`flex-none pt-2 ${papelizProviderDialogSidesClassName}`}>
-        <div className="relative">
-          <Search className="pointer-events-none absolute top-1/2 left-4 size-4 -translate-y-1/2 text-papeliz-ink-subtle" aria-hidden="true" />
-          <input
-            ref={providerPresetSearchFieldRef}
-            type="text"
-            role="combobox"
-            aria-label="Search Providers"
-            aria-expanded="true"
-            aria-controls={`${providerPresetListIdPrefix}-list`}
-            aria-autocomplete="list"
-            aria-activedescendant={highlightedProviderPreset === undefined ? undefined : describeProviderPresetOptionId(highlightedProviderPreset.papelizAssistantProviderId)}
-            autoComplete="off"
-            spellCheck={false}
-            placeholder="Search providers"
-            value={providerPresetSearchText}
-            onChange={(changeEvent) => {
-              setProviderPresetSearchText(changeEvent.target.value)
-              setHighlightedProviderPresetId(null)
-            }}
-            onKeyDown={(keyboardEvent) => {
-              if (keyboardEvent.key === 'ArrowDown' || keyboardEvent.key === 'ArrowUp') {
-                keyboardEvent.preventDefault()
-                moveProviderPresetHighlight(keyboardEvent.key === 'ArrowDown' ? 1 : -1)
-              } else if (keyboardEvent.key === 'Enter') {
-                keyboardEvent.preventDefault()
-                if (highlightedProviderPreset !== undefined) onProviderPresetChoose(highlightedProviderPreset.papelizAssistantProviderId)
-              }
-            }}
-            className={`${papelizProviderFieldClassName} pl-10 text-sm placeholder:text-papeliz-ink-subtle`}
-          />
-        </div>
-      </div>
-      {/* As tall as the whole list, so the modal holds still while typing narrows it; a short window
-          shrinks it, and it scrolls. */}
-      <div className={`h-[504px] min-h-0 flex-[0_1_auto] overflow-y-auto pt-1.5 pb-4 ${papelizProviderDialogSidesClassName}`}>
-        <div id={`${providerPresetListIdPrefix}-list`} role="listbox" aria-label="Providers">
-          {papelizProviderPresetPlaceOrder.map((providerPresetPlace) => {
-            const placeProviderPresets = shownProviderPresets.filter((shownProviderPreset) => shownProviderPreset.providerPresetPlace === providerPresetPlace)
-            if (placeProviderPresets.length === 0) return null
-            const providerPresetPlaceHeading = papelizProviderPresetPlaceHeadings[providerPresetPlace]
-            if (providerPresetPlaceHeading === null) return <Fragment key={providerPresetPlace}>{placeProviderPresets.map(renderProviderPresetOption)}</Fragment>
-            const providerPresetPlaceHeadingId = `${providerPresetListIdPrefix}-group-${providerPresetPlace}`
-            return (
-              <div key={providerPresetPlace} role="group" aria-labelledby={providerPresetPlaceHeadingId}>
-                <div id={providerPresetPlaceHeadingId} role="presentation" className="mt-3 mb-1 px-3 text-xs font-semibold text-papeliz-ink-subtle">
-                  {providerPresetPlaceHeading}
-                </div>
-                {placeProviderPresets.map(renderProviderPresetOption)}
-              </div>
-            )
-          })}
-        </div>
-        {shownProviderPresets.length === 0 && (
-          <p role="status" className={`px-3 ${papelizProviderFieldHelpClassName}`}>
-            No provider matches the search.
-          </p>
+    <div ref={providerPresetDropdownRef} className="relative mt-1.5">
+      <button
+        ref={providerPresetDropdownTriggerRef}
+        id={providerPresetDropdownTriggerId}
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={isProviderPresetListOpen}
+        aria-controls={isProviderPresetListOpen ? `${providerPresetListIdPrefix}-list` : undefined}
+        // The field's label, then the chosen provider.
+        aria-labelledby={`${providerPresetDropdownLabelId} ${providerPresetDropdownTriggerId}`}
+        onClick={() => (isProviderPresetListOpen ? closeProviderPresetList(false) : openProviderPresetList())}
+        onKeyDown={(keyboardEvent) => {
+          if (isProviderPresetListOpen || (keyboardEvent.key !== 'ArrowDown' && keyboardEvent.key !== 'ArrowUp')) return
+          keyboardEvent.preventDefault()
+          openProviderPresetList()
+        }}
+        className={`flex items-center gap-2 pr-3 text-left text-sm ${papelizProviderFieldClassName}`}
+      >
+        <span className="min-w-0 truncate">{chosenProviderPreset.providerPresetDisplayName}</span>
+        {chosenProviderPreset.isProviderPresetRecommended === true && (
+          <span className="flex-none rounded-full bg-papeliz-gradient-start px-2 py-px text-[11px] font-semibold text-white">Recommended</span>
         )}
-      </div>
-      {/* The keys, for a keyboard; a phone has none to show. */}
-      <div aria-hidden="true" className={`hidden flex-none items-center gap-4 border-t border-papeliz-line py-2.5 text-xs text-papeliz-ink-subtle sm:flex ${papelizProviderDialogSidesClassName}`}>
-        <span className="flex items-center gap-1">
-          <kbd className={papelizProviderKeyHintClassName}>↑</kbd>
-          <kbd className={papelizProviderKeyHintClassName}>↓</kbd> Move
-        </span>
-        <span className="flex items-center gap-1">
-          <kbd className={papelizProviderKeyHintClassName}>Enter</kbd> Pick
-        </span>
-        <span className="flex items-center gap-1">
-          <kbd className={papelizProviderKeyHintClassName}>Esc</kbd> Close
-        </span>
-      </div>
-    </>
+        <span className="flex-1" />
+        <ChevronDown
+          className={joinPapelizClassNames('size-4 flex-none text-papeliz-ink-muted transition-transform duration-150', isProviderPresetListOpen && 'rotate-180')}
+          aria-hidden="true"
+        />
+      </button>
+      {isProviderPresetListOpen && (
+        <div
+          onBlur={(focusEvent) => {
+            // Focus went to another field. (No target means the window lost focus; the list stays.)
+            if (focusEvent.relatedTarget instanceof Node && providerPresetDropdownRef.current?.contains(focusEvent.relatedTarget) !== true) setProviderPresetListMaxHeight(null)
+          }}
+          className="papeliz-pop-enter absolute inset-x-0 top-full z-20 mt-1.5 rounded-2xl border border-papeliz-line bg-papeliz-surface p-1.5 shadow-papeliz-pop"
+        >
+          <div className="relative">
+            <Search className="pointer-events-none absolute top-1/2 left-4 size-4 -translate-y-1/2 text-papeliz-ink-subtle" aria-hidden="true" />
+            <input
+              ref={providerPresetSearchFieldRef}
+              type="text"
+              role="combobox"
+              aria-label="Search Providers"
+              aria-expanded="true"
+              aria-controls={`${providerPresetListIdPrefix}-list`}
+              aria-autocomplete="list"
+              aria-activedescendant={highlightedProviderPreset === undefined ? undefined : describeProviderPresetOptionId(highlightedProviderPreset.papelizAssistantProviderId)}
+              autoComplete="off"
+              spellCheck={false}
+              placeholder="Search providers"
+              value={providerPresetSearchText}
+              onChange={(changeEvent) => {
+                setProviderPresetSearchText(changeEvent.target.value)
+                setHighlightedProviderPresetId(null)
+              }}
+              onKeyDown={(keyboardEvent) => {
+                if (keyboardEvent.key === 'ArrowDown' || keyboardEvent.key === 'ArrowUp') {
+                  keyboardEvent.preventDefault()
+                  moveProviderPresetHighlight(keyboardEvent.key === 'ArrowDown' ? 1 : -1)
+                } else if (keyboardEvent.key === 'Enter') {
+                  keyboardEvent.preventDefault()
+                  if (highlightedProviderPreset !== undefined) chooseProviderPreset(highlightedProviderPreset.papelizAssistantProviderId)
+                } else if (keyboardEvent.key === 'Escape') {
+                  // Canceling the key keeps the modal open: Esc closes only the list.
+                  keyboardEvent.preventDefault()
+                  keyboardEvent.stopPropagation()
+                  closeProviderPresetList(true)
+                } else if (keyboardEvent.key === 'Tab') {
+                  // Back on the trigger, the Tab itself then moves on to the next field.
+                  closeProviderPresetList(true)
+                }
+              }}
+              className={`${papelizProviderFieldClassName} pl-10 text-sm placeholder:text-papeliz-ink-subtle`}
+            />
+          </div>
+          <div className="mt-1.5 overflow-y-auto overscroll-contain [scrollbar-width:thin]" style={{ maxHeight: providerPresetListMaxHeight }}>
+            <div id={`${providerPresetListIdPrefix}-list`} role="listbox" aria-label="Providers">
+              {papelizProviderPresetPlaceOrder.map((providerPresetPlace) => {
+                const placeProviderPresets = shownProviderPresets.filter((shownProviderPreset) => shownProviderPreset.providerPresetPlace === providerPresetPlace)
+                if (placeProviderPresets.length === 0) return null
+                const providerPresetPlaceHeading = papelizProviderPresetPlaceHeadings[providerPresetPlace]
+                if (providerPresetPlaceHeading === null) return <Fragment key={providerPresetPlace}>{placeProviderPresets.map(renderProviderPresetOption)}</Fragment>
+                const providerPresetPlaceHeadingId = `${providerPresetListIdPrefix}-group-${providerPresetPlace}`
+                return (
+                  <div key={providerPresetPlace} role="group" aria-labelledby={providerPresetPlaceHeadingId}>
+                    <div id={providerPresetPlaceHeadingId} role="presentation" className="mt-3 mb-1 px-3 text-xs font-semibold text-papeliz-ink-subtle">
+                      {providerPresetPlaceHeading}
+                    </div>
+                    {placeProviderPresets.map(renderProviderPresetOption)}
+                  </div>
+                )
+              })}
+            </div>
+            {shownProviderPresets.length === 0 && (
+              <p role="status" className={`px-3 py-2 ${papelizProviderFieldHelpClassName}`}>
+                No provider matches the search.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -361,8 +436,9 @@ function readTypedAdvancedNumber(typedNumberText: string, readTypedNumber: (type
   return { isTypedNumberValid: typedNumber !== undefined, typedNumber }
 }
 
-// Add Provider's step 2, or a saved provider's gear: one page in sections. Key: the API key (and
-// Custom's base URL), Get a key and Test Connection. Models: load the provider's models and switch
+// Add Provider, or a saved provider's gear: one page in sections. Add Provider starts with the
+// Provider dropdown, and the page under it is the chosen provider's. Key: the API key (and Custom's
+// base URL), Get a key and Test Connection. Models: load the provider's models and switch
 // on the ones the assistant's model chip offers, each with its price for Usage. Advanced, folded:
 // the base URL of a preset, the context window, the longest answer and the temperature. A provider is
 // added, or saved after its key or address changed, only once Test Connection passes for them.
@@ -371,13 +447,13 @@ function PapelizAssistantProviderSettingsForm({
   papelizAssistantProviderId,
   providerEditorKind,
   providerDialogTitleId,
-  onProviderEditorBack,
+  onProviderPresetChoose,
   onProviderDialogClose,
 }: {
   papelizAssistantProviderId: string
   providerEditorKind: 'add' | 'edit'
   providerDialogTitleId: string
-  onProviderEditorBack: () => void
+  onProviderPresetChoose: (papelizAssistantProviderId: string) => void
   onProviderDialogClose: () => void
 }) {
   const providerFieldIdPrefix = useId()
@@ -395,6 +471,8 @@ function PapelizAssistantProviderSettingsForm({
   const [isApiKeyShown, setIsApiKeyShown] = useState(false)
   // Null until Load Models (or a test) has answered for the current base URL and key.
   const [loadedProviderModelNames, setLoadedProviderModelNames] = useState<string[] | null>(null)
+  // The models on when the modal opened, and any typed in: listed first, in that order.
+  const [savedOrTypedProviderModelNames, setSavedOrTypedProviderModelNames] = useState<string[]>(() => listPapelizEnabledProviderModelNames(editedProviderSettings))
   const [providerCheckState, setProviderCheckState] = useState<PapelizProviderCheckState>({ providerCheckKind: 'idle' })
   const [isConnectionTestPassed, setIsConnectionTestPassed] = useState(false)
   const [providerModelSearchText, setProviderModelSearchText] = useState('')
@@ -499,8 +577,10 @@ function PapelizAssistantProviderSettingsForm({
       return `Connected. ${testProviderModelName} answered: “${providerReply.slice(0, 60) || '(empty)'}”`
     })
 
-  // The models shown: those switched on first, then the rest the provider listed.
-  const listedProviderModelNames = [...new Set([...enabledProviderModelNames, ...(loadedProviderModelNames ?? [])])]
+  // The models shown, in one steady order, so switching a model never moves its row: those on when the
+  // modal opened or typed in, then the rest in the provider's own order, then any still on that neither
+  // holds (after a new key).
+  const listedProviderModelNames = [...new Set([...savedOrTypedProviderModelNames, ...(loadedProviderModelNames ?? []), ...enabledProviderModelNames])]
   const trimmedProviderModelSearchText = providerModelSearchText.trim().toLowerCase()
   const shownProviderModelNames =
     trimmedProviderModelSearchText.length === 0
@@ -509,6 +589,7 @@ function PapelizAssistantProviderSettingsForm({
   const addTypedCustomProviderModel = () => {
     const trimmedTypedModelName = typedCustomProviderModelName.trim()
     if (trimmedTypedModelName.length === 0) return
+    setSavedOrTypedProviderModelNames((currentModelNames) => (currentModelNames.includes(trimmedTypedModelName) ? currentModelNames : [...currentModelNames, trimmedTypedModelName]))
     switchProviderModel(trimmedTypedModelName, true)
     setTypedCustomProviderModelName('')
   }
@@ -591,6 +672,14 @@ function PapelizAssistantProviderSettingsForm({
     setTypedTemperatureText('')
   }
 
+  // Add Provider: the cursor starts in the chosen provider's first field, Custom's base URL or any
+  // other's key, and goes there again when the dropdown picks another provider. Queued, so it runs
+  // after the frame's own effect has shown the modal, which focuses the modal's first button.
+  useEffect(() => {
+    if (providerEditorKind !== 'add') return
+    queueMicrotask(() => document.getElementById(`${providerFieldIdPrefix}-${isCustomProvider ? 'base-url' : 'api-key'}`)?.focus())
+  }, [providerEditorKind, providerFieldIdPrefix, isCustomProvider])
+
   const providerHost = describePapelizProviderHost(editedProviderSettings.providerBaseUrl)
   const renderProviderBaseUrlField = (providerBaseUrlFieldHelp: string | null) => (
     <>
@@ -620,15 +709,29 @@ function PapelizAssistantProviderSettingsForm({
     <>
       <PapelizAssistantProviderDialogHeader
         providerDialogTitleId={providerDialogTitleId}
-        providerDialogTitle={providerEditorKind === 'add' ? `Add ${providerPreset.providerPresetDisplayName}` : providerPreset.providerPresetDisplayName}
-        providerDialogSubtitle={providerPreset.providerPresetDescription}
+        providerDialogTitle={providerEditorKind === 'add' ? 'Add Provider' : providerPreset.providerPresetDisplayName}
+        providerDialogSubtitle={providerEditorKind === 'add' ? null : providerPreset.providerPresetDescription}
         onProviderDialogClose={onProviderDialogClose}
       />
-      <div className={`min-h-0 flex-1 overflow-y-auto pt-2 pb-5 ${papelizProviderDialogSidesClassName}`}>
+      {/* Add Provider's dropdown stays put above the page it fills in, and its list opens over that page. */}
+      {providerEditorKind === 'add' && (
+        <div className={`flex-none pt-2 ${papelizProviderDialogSidesClassName}`}>
+          <label id={`${providerFieldIdPrefix}-provider-label`} className={papelizProviderFieldLabelClassName} htmlFor={`${providerFieldIdPrefix}-provider`}>
+            Provider
+          </label>
+          <PapelizAssistantProviderPresetDropdown
+            providerPresetDropdownTriggerId={`${providerFieldIdPrefix}-provider`}
+            providerPresetDropdownLabelId={`${providerFieldIdPrefix}-provider-label`}
+            chosenProviderPresetId={papelizAssistantProviderId}
+            onProviderPresetChoose={onProviderPresetChoose}
+          />
+          <p className={papelizProviderFieldHelpClassName}>{providerPreset.providerPresetDescription}</p>
+        </div>
+      )}
+      <div className={`min-h-0 flex-1 overflow-y-auto pb-5 ${providerEditorKind === 'add' ? 'pt-4' : 'pt-2'} ${papelizProviderDialogSidesClassName}`}>
         {isCustomProvider && <div className="mb-3.5">{renderProviderBaseUrlField(null)}</div>}
 
-        {/* Key: Get a key at the label row's end; Test Connection, the key's check, right of the field
-            (Adam, 2026-11-03, "2A · Test beside the key"). */}
+        {/* Key: Get a key at the label row's end; Test Connection, the key's check, right of the field. */}
         <div className={papelizProviderFieldLabelRowClassName}>
           <label className={papelizProviderFieldLabelClassName} htmlFor={`${providerFieldIdPrefix}-api-key`}>
             API Key {!providerPreset.isProviderApiKeyRequired && <span className="font-normal text-papeliz-ink-subtle">(not needed for most local servers)</span>}
@@ -914,25 +1017,19 @@ function PapelizAssistantProviderSettingsForm({
         )}
       </div>
 
-      {/* The footer's buttons look like every other dialog's: outlined Back or Cancel, the blue action. */}
+      {/* The footer's buttons look like every other dialog's: outlined Cancel, the blue action. */}
       <div className={`flex flex-none flex-wrap items-center gap-2 border-t border-papeliz-line py-3.5 ${papelizProviderDialogSidesClassName}`}>
-        {providerEditorKind === 'edit' ? (
+        {providerEditorKind === 'edit' && (
           <PapelizPillButton pillButtonVariant="gray" className="text-papeliz-diff-removed-ink" onClick={() => setIsRemovalQuestionOpen(true)}>
             Remove Provider
           </PapelizPillButton>
-        ) : (
-          <PapelizPillButton pillButtonVariant="dialog-cancel" className="min-w-28" onClick={onProviderEditorBack}>
-            Back
-          </PapelizPillButton>
         )}
-        {providerEditorKind === 'edit' && (
-          <PapelizPillButton pillButtonVariant="dialog-cancel" className="ml-auto min-w-28" onClick={onProviderDialogClose}>
-            Cancel
-          </PapelizPillButton>
-        )}
+        <PapelizPillButton pillButtonVariant="dialog-cancel" className="ml-auto min-w-28" onClick={onProviderDialogClose}>
+          Cancel
+        </PapelizPillButton>
         <PapelizPillButton
           pillButtonVariant="dialog-confirm"
-          className={providerEditorKind === 'add' ? 'ml-auto min-w-28' : 'min-w-28'}
+          className="min-w-28"
           disabled={providerSaveProblem !== null}
           title={providerSaveProblem ?? undefined}
           onClick={saveProviderSettings}
@@ -970,8 +1067,8 @@ function PapelizAssistantProviderSettingsForm({
   )
 }
 
-// Settings › AI Provider's modal: Add Provider (pick a provider, then its key, test and models), or
-// one saved provider's settings, opened by its gear.
+// Settings › AI Provider's modal: Add Provider (a provider from the dropdown, then its key, test and
+// models, all in one modal), or one saved provider's settings, opened by its gear.
 export function PapelizAssistantProviderEditorDialog({
   providerEditorRequest,
   onProviderEditorClose,
@@ -980,26 +1077,37 @@ export function PapelizAssistantProviderEditorDialog({
   onProviderEditorClose: () => void
 }) {
   const providerDialogTitleId = useId()
-  // Add Provider's pick from step 1; a gear's provider from the start.
-  const [chosenProviderId, setChosenProviderId] = useState<string | null>(
-    providerEditorRequest.providerEditorKind === 'edit' ? providerEditorRequest.papelizAssistantProviderId : null,
-  )
+  // A gear's provider; for Add Provider, the recommended one, or else the first not saved yet. Null
+  // when every provider is saved.
+  const [chosenProviderId, setChosenProviderId] = useState<string | null>(() => {
+    if (providerEditorRequest.providerEditorKind === 'edit') return providerEditorRequest.papelizAssistantProviderId
+    const { providerSettingsByProviderId } = usePapelizAssistantProviderSettingsStore.getState()
+    const unsavedProviderPresets = listPapelizProviderPresetsInPlaceOrder().filter(
+      (offeredProviderPreset) => providerSettingsByProviderId[offeredProviderPreset.papelizAssistantProviderId] === undefined,
+    )
+    const firstProviderPreset = unsavedProviderPresets.find((unsavedProviderPreset) => unsavedProviderPreset.isProviderPresetRecommended === true) ?? unsavedProviderPresets[0]
+    return firstProviderPreset?.papelizAssistantProviderId ?? null
+  })
 
   return (
     <PapelizAssistantProviderDialogFrame providerDialogTitleId={providerDialogTitleId} onProviderDialogClose={onProviderEditorClose}>
       {chosenProviderId === null ? (
-        <PapelizAssistantProviderPresetChoice
-          providerDialogTitleId={providerDialogTitleId}
-          onProviderPresetChoose={setChosenProviderId}
-          onProviderDialogClose={onProviderEditorClose}
-        />
+        <>
+          <PapelizAssistantProviderDialogHeader
+            providerDialogTitleId={providerDialogTitleId}
+            providerDialogTitle="Add Provider"
+            providerDialogSubtitle={null}
+            onProviderDialogClose={onProviderEditorClose}
+          />
+          <p className={`pt-2 pb-5 text-sm text-papeliz-ink-muted ${papelizProviderDialogSidesClassName}`}>Every provider is saved already. Its gear changes it.</p>
+        </>
       ) : (
         <PapelizAssistantProviderSettingsForm
           key={chosenProviderId}
           papelizAssistantProviderId={chosenProviderId}
           providerEditorKind={providerEditorRequest.providerEditorKind}
           providerDialogTitleId={providerDialogTitleId}
-          onProviderEditorBack={() => setChosenProviderId(null)}
+          onProviderPresetChoose={setChosenProviderId}
           onProviderDialogClose={onProviderEditorClose}
         />
       )}

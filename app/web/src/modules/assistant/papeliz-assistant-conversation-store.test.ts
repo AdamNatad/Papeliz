@@ -4,6 +4,7 @@ import { startPapelizVaultKnowledgeSync } from '../workspace/papeliz-vault-knowl
 import { usePapelizWorkspaceStore } from '../workspace/papeliz-workspace-store'
 import { parsePapelizChatSessionFile } from './papeliz-assistant-chat-session-files'
 import { usePapelizAssistantConversationStore } from './papeliz-assistant-conversation-store'
+import { runPapelizInlineEdit } from './papeliz-assistant-inline-edit-run'
 import { usePapelizAssistantProviderSettingsStore } from './papeliz-assistant-provider-settings-store'
 import { usePapelizAssistantRunOptionsStore } from './papeliz-assistant-run-options-store'
 
@@ -235,6 +236,87 @@ describe('the assistant conversation', () => {
     ])
     // Saved before token use was kept: it starts from none.
     expect(conversationState.chatSessionTokenUsage.chatSessionTokenUsageTally.assistantRequestCount).toBe(0)
+    // Saved before answers named their model: the answer is put down to the note's model.
+    const reopenedAssistantMessage = conversationState.chatEntries.find((chatEntry) => chatEntry.chatEntryKind === 'assistant-message')
+    expect(reopenedAssistantMessage).toMatchObject({ assistantReplyProviderModelName: 'm', assistantReplyProviderDisplayName: undefined })
     stopVaultKnowledgeSync()
+  })
+
+  it('tells the model which model and provider it runs on, and keeps each answer’s model when the chip switches', async () => {
+    const providerSystemMessages: string[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_requestUrl: string, requestInit: RequestInit) => {
+        const providerRequestBody = JSON.parse(String(requestInit.body)) as { model: string; messages: Array<{ role: string; content: string }> }
+        providerSystemMessages.push(providerRequestBody.messages.find((providerMessage) => providerMessage.role === 'system')?.content ?? '')
+        return Response.json({ choices: [{ message: { content: `I am ${providerRequestBody.model}.` }, finish_reason: 'stop' }], usage: { prompt_tokens: 10, completion_tokens: 2 } })
+      }),
+    )
+    const vaultAdapter = new PapelizInMemoryVaultAdapter([{ vaultNoteRelativePath: 'Inbox.md', vaultNoteText: 'Buy seeds.' }])
+    await usePapelizWorkspaceStore.getState().openVaultInWorkspace(
+      { papelizVaultId: 'answer-model-vault', papelizVaultDisplayName: 'Test vault', papelizVaultAdapter: vaultAdapter },
+      { firstVaultNoteRelativePathToOpen: null, firstNoteViewMode: 'md-view', expandAllTopLevelFolders: false },
+    )
+    usePapelizAssistantProviderSettingsStore.setState({
+      activeAssistantProviderId: 'meta-model-api',
+      activeAssistantProviderModelName: 'muse-spark-1.3-contributor',
+      providerSettingsByProviderId: {
+        'meta-model-api': {
+          papelizAssistantProviderId: 'meta-model-api',
+          providerBaseUrl: 'https://first-provider.test/v1',
+          providerApiKey: 'test-first-key',
+          enabledProviderModelNames: ['muse-spark-1.3-contributor'],
+        },
+        claude: { papelizAssistantProviderId: 'claude', providerBaseUrl: 'https://second-provider.test/v1', providerApiKey: 'test-second-key', enabledProviderModelNames: ['claude-haiku-5-5'] },
+      },
+    })
+    usePapelizAssistantRunOptionsStore.setState({ assistantMode: 'ask' })
+    await waitUntil(() => usePapelizWorkspaceStore.getState().vaultTreeEntries.length > 0)
+
+    await usePapelizAssistantConversationStore.getState().sendAssistantMessage('What model are you?')
+    expect(providerSystemMessages.at(-1)).toContain('You run on the model “muse-spark-1.3-contributor” from the provider “Meta Model API”')
+    expect(providerSystemMessages.at(-1)).toContain('Never claim to be another model')
+    expect(providerSystemMessages.at(-1)).toContain(
+      'When asked who you are or who made you, answer as Papeliz: Papeliz is a Markdown editor and viewer with a built-in AI assistant, made by Adam Natad.',
+    )
+    usePapelizAssistantProviderSettingsStore.setState({ activeAssistantProviderId: 'claude', activeAssistantProviderModelName: 'claude-haiku-5-5' })
+    await usePapelizAssistantConversationStore.getState().sendAssistantMessage('And now?')
+    expect(providerSystemMessages.at(-1)).toContain('You run on the model “claude-haiku-5-5” from the provider “Claude”')
+
+    const answeredProviderModels = usePapelizAssistantConversationStore
+      .getState()
+      .chatEntries.flatMap((chatEntry) => (chatEntry.chatEntryKind === 'assistant-message' ? [[chatEntry.assistantReplyProviderModelName, chatEntry.assistantReplyProviderDisplayName]] : []))
+    expect(answeredProviderModels).toEqual([
+      ['muse-spark-1.3-contributor', 'Meta Model API'],
+      ['claude-haiku-5-5', 'Claude'],
+    ])
+
+    // The saved chat names each answer's model, so it shows again when reopened.
+    let savedChatSessionText = ''
+    for (let attempt = 0; attempt < 100 && !savedChatSessionText.includes('I am claude-haiku-5-5.'); attempt += 1) {
+      await new Promise((resolveWait) => setTimeout(resolveWait, 10))
+      const chatSessionVaultNoteRelativePath = usePapelizAssistantConversationStore.getState().chatSessionVaultNoteRelativePath
+      savedChatSessionText = chatSessionVaultNoteRelativePath === null ? '' : await vaultAdapter.readVaultNoteText(chatSessionVaultNoteRelativePath).catch(() => '')
+    }
+    expect(savedChatSessionText).toContain('\nmodel: claude-haiku-5-5\n')
+    expect(savedChatSessionText).toContain('### Assistant · muse-spark-1.3-contributor · Meta Model API\nI am muse-spark-1.3-contributor.')
+    expect(savedChatSessionText).toContain('### Assistant · claude-haiku-5-5 · Claude\nI am claude-haiku-5-5.')
+    const chatSessionVaultNoteRelativePath = usePapelizAssistantConversationStore.getState().chatSessionVaultNoteRelativePath!
+    usePapelizAssistantConversationStore.getState().startNewAssistantChat()
+    await usePapelizAssistantConversationStore.getState().openSavedChatSession(chatSessionVaultNoteRelativePath)
+    const reopenedProviderModels = usePapelizAssistantConversationStore
+      .getState()
+      .chatEntries.flatMap((chatEntry) => (chatEntry.chatEntryKind === 'assistant-message' ? [[chatEntry.assistantReplyProviderModelName, chatEntry.assistantReplyProviderDisplayName]] : []))
+    expect(reopenedProviderModels).toEqual(answeredProviderModels)
+
+    // An inline edit is told the same.
+    await runPapelizInlineEdit({
+      inlineEditInstruction: 'Shorter',
+      selectedPassageText: 'Buy seeds.',
+      vaultNoteTitle: 'Inbox',
+      abortSignal: new AbortController().signal,
+      onReplacementTextDelta: () => undefined,
+    })
+    expect(providerSystemMessages.at(-1)).toContain('You run on the model “claude-haiku-5-5” from the provider “Claude”')
   })
 })

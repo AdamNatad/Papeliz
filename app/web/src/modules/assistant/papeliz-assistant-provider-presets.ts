@@ -7,7 +7,8 @@
 // permission header) and OpenCode Zen and Go refuse it for chat (404), so a web page can't reach
 // them; an app outside the browser could. Claude's API (checked 2026-11-03 the same way) allows
 // papeliz.com its chat and model list only when the request also sends Anthropic's header for calls
-// from a browser page, which the Claude preset adds (`providerExtraRequestHeaders`).
+// from a browser page, which the Claude preset adds (`providerExtraRequestHeaders`). DeepSeek
+// (checked 2026-11-03 the same way) allows it.
 
 export interface PapelizAssistantProviderPreset {
   papelizAssistantProviderId: string
@@ -120,6 +121,19 @@ export const papelizAssistantProviderPresets: readonly PapelizAssistantProviderP
     providerPresetPlace: 'hosted',
   },
   {
+    papelizAssistantProviderId: 'deepseek',
+    providerPresetDisplayName: 'DeepSeek',
+    providerPresetDescription: 'DeepSeek’s V4 models, Flash and Pro.',
+    providerBaseUrl: 'https://api.deepseek.com',
+    // The names DeepSeek's API docs give since V4; deepseek-chat and deepseek-reasoner were retired
+    // on 2026-07-24.
+    suggestedProviderModelNames: ['deepseek-flash', 'deepseek-v4-pro'],
+    isProviderApiKeyRequired: true,
+    providerApiKeyHelpUrl: 'https://platform.deepseek.com/api_keys',
+    isBrowserAccessConfirmed: true,
+    providerPresetPlace: 'hosted',
+  },
+  {
     papelizAssistantProviderId: 'ollama-cloud',
     providerPresetDisplayName: 'Ollama Cloud',
     providerPresetDescription: 'Ollama’s hosted models, with a key from your ollama.com account.',
@@ -196,11 +210,9 @@ export const papelizBrowserBlockedAssistantProviderIds: readonly string[] = ['ol
 // Providers whose answers carry what each request cost, which Usage counts before any price.
 export const papelizRequestCostReportingAssistantProviderIds: readonly string[] = ['openrouter']
 
-// The providers settings offers: the Meta Model API first, then Claude, then every other provider a
-// web page can reach, those on this computer and Custom (Adam, 2026-10-29: "remove ollama cloud for
-// now", then "Openrouter works or whatever works on the provider put it in"; 2026-11-02: "Meta Model
-// API / Claude / OpenAI"). A hidden one stays defined, so settings saved for it still open, and it
-// stays listed while it is the one chosen.
+// The providers settings offers: the Meta Model API first, then Claude and OpenAI, then every other
+// provider a web page can reach, those on this computer and Custom. A hidden one stays defined, so
+// settings saved for it still open, and it stays listed while it is the one chosen.
 export const papelizOfferedAssistantProviderIds: readonly string[] = papelizAssistantProviderPresets
   .map((providerPreset) => providerPreset.papelizAssistantProviderId)
   .filter((papelizAssistantProviderId) => !papelizBrowserBlockedAssistantProviderIds.includes(papelizAssistantProviderId))

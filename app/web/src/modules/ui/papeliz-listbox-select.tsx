@@ -42,7 +42,7 @@ const papelizListboxSelectTypeAheadPause = 600
 
 // The strip of the screen the list can draw in: the window, cut down by every scrolling box around
 // the select, up to its dialog (a modal dialog draws over the rest of the page).
-function measurePapelizListboxSelectRoom(listboxSelectTriggerElement: HTMLElement): { listboxRoomTop: number; listboxRoomBottom: number } {
+export function measurePapelizListboxSelectRoom(listboxSelectTriggerElement: HTMLElement): { listboxRoomTop: number; listboxRoomBottom: number } {
   let listboxRoomTop = 0
   let listboxRoomBottom = window.innerHeight
   for (

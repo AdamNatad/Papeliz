@@ -1,5 +1,6 @@
 import { describePapelizFailureMessage } from '../vault/papeliz-failure-code-words'
 import { usePapelizWorkspaceStore } from '../workspace/papeliz-workspace-store'
+import { describePapelizAssistantRunningProviderModel } from './papeliz-assistant-conversation-store'
 import { recordPapelizInlineEditTokenUsageInVault } from './papeliz-assistant-inline-edit-usage-file'
 import { getActivePapelizAssistantProviderConnection } from './papeliz-assistant-provider-settings-store'
 import {
@@ -53,8 +54,10 @@ export async function runPapelizInlineEdit(inlineEditRunRequest: PapelizInlineEd
   const inlineEditChatMessages: PapelizChatMessage[] = [
     {
       role: 'system',
-      content:
+      content: [
         'You edit one passage of a Markdown note in Papeliz. Reply with only the new passage, in Markdown: no explanation, no quotes around it, no code fence. Keep [[wikilinks]], #tags and formatting unless asked to change them. Keep the passage’s line breaks unless asked otherwise.',
+        describePapelizAssistantRunningProviderModel(activeProviderConnection.providerConnection.providerModelName, activeProviderConnection.providerDisplayName),
+      ].join(' '),
     },
     {
       role: 'user',

@@ -67,6 +67,14 @@ import { applyPapelizVaultNoteTextEdits } from './papeliz-vault-note-text-edits'
 
 export type PapelizAssistantProposalStatus = 'pending' | 'accepted' | 'rejected' | 'failed'
 
+// The model that wrote an answer, since the model chip can switch models in the middle of a chat:
+// the exact model name Papeliz sent the request to, and that provider's name ("Claude"). A chat
+// reopened from a note saved before answers named their model may know only the model, or neither.
+export interface PapelizAssistantReplyProviderModel {
+  assistantReplyProviderModelName?: string
+  assistantReplyProviderDisplayName?: string
+}
+
 export interface PapelizAssistantProposal extends PapelizAssistantProposalDraft {
   assistantProposalId: string
   proposalStatus: PapelizAssistantProposalStatus
@@ -84,7 +92,7 @@ export type PapelizAssistantChatEntry =
       // Files and pictures sent with it.
       userMessageAttachments?: PapelizAssistantAttachment[]
     }
-  | {
+  | ({
       chatEntryId: string
       chatEntryKind: 'assistant-message'
       chatEntryText: string
@@ -93,8 +101,8 @@ export type PapelizAssistantChatEntry =
       assistantMessageMode?: PapelizAssistantMode
       // Where Save as Note put a plan.
       savedPlanVaultNoteRelativePath?: string | null
-    }
-  | {
+    } & PapelizAssistantReplyProviderModel)
+  | ({
       chatEntryId: string
       chatEntryKind: 'question'
       assistantQuestions: PapelizAssistantQuestion[]
@@ -102,7 +110,7 @@ export type PapelizAssistantChatEntry =
       questionAnswerTexts: string[] | null
       // The message sent as the answer (on the card, or typed in the chat box), once there is one.
       questionAnswerText: string | null
-    }
+    } & PapelizAssistantReplyProviderModel)
   | {
       chatEntryId: string
       chatEntryKind: 'tool-activity'
@@ -220,11 +228,23 @@ function buildChatSessionMessages(
   const chatSessionMessages: PapelizChatSessionMessage[] = []
   let assistantAnswerLines: string[] = []
   let assistantReplyTexts: string[] = []
+  // The model that wrote the answer: one answer comes from one run, which keeps its model throughout.
+  let assistantAnswerProviderModel: PapelizAssistantReplyProviderModel = {}
   const finishAssistantAnswer = () => {
     const assistantAnswerText = [assistantAnswerLines.join('\n'), ...assistantReplyTexts].filter((answerPart) => answerPart.trim().length > 0).join('\n\n')
-    if (assistantAnswerText.length > 0) chatSessionMessages.push({ chatSessionMessageRole: 'assistant', chatSessionMessageText: assistantAnswerText })
+    if (assistantAnswerText.length > 0) {
+      chatSessionMessages.push({ chatSessionMessageRole: 'assistant', chatSessionMessageText: assistantAnswerText, ...assistantAnswerProviderModel })
+    }
     assistantAnswerLines = []
     assistantReplyTexts = []
+    assistantAnswerProviderModel = {}
+  }
+  const keepAssistantAnswerProviderModel = ({ assistantReplyProviderModelName, assistantReplyProviderDisplayName }: PapelizAssistantReplyProviderModel) => {
+    if (assistantAnswerProviderModel.assistantReplyProviderModelName !== undefined || assistantReplyProviderModelName === undefined) return
+    assistantAnswerProviderModel = {
+      assistantReplyProviderModelName,
+      ...(assistantReplyProviderDisplayName === undefined ? {} : { assistantReplyProviderDisplayName }),
+    }
   }
   const linkVaultNote = (vaultNoteRelativePath: string) => `[[${vaultNoteRelativePath.replace(/\.md$/i, '')}|${getVaultNoteTitle(vaultNoteRelativePath)}]]`
   for (const chatEntry of chatEntries) {
@@ -236,8 +256,10 @@ function buildChatSessionMessages(
         chatSessionMessageText: [chatEntry.chatEntryText, attachmentsTranscriptText].filter((messagePart) => messagePart.length > 0).join('\n\n'),
       })
     } else if (chatEntry.chatEntryKind === 'assistant-message') {
+      keepAssistantAnswerProviderModel(chatEntry)
       assistantReplyTexts.push(chatEntry.chatEntryText)
     } else if (chatEntry.chatEntryKind === 'question') {
+      keepAssistantAnswerProviderModel(chatEntry)
       assistantReplyTexts.push(
         chatEntry.assistantQuestions
           .map((assistantQuestion) => [assistantQuestion.questionText, ...assistantQuestion.answerOptionTexts.map((answerOptionText) => `- ${answerOptionText}`)].join('\n'))
@@ -293,15 +315,26 @@ function describeAssistantModeRules(assistantMode: PapelizAssistantMode): string
   ]
 }
 
+// What the model is told about itself, so it can say truthfully what it runs on when asked: the
+// provider's name and the exact model name Papeliz sends the request to. Asked who it is or who made it,
+// it answers as Papeliz, the whole app, and names Papeliz's maker.
+export function describePapelizAssistantRunningProviderModel(runningProviderModelName: string, runningProviderDisplayName: string): string {
+  return `You run on the model “${runningProviderModelName}” from the provider “${runningProviderDisplayName}”: Papeliz sends this request to exactly that model name. When asked which model or provider you are, or what runs under the hood, give exactly that model name and provider. Never claim to be another model, and never guess beyond those names. When asked who you are or who made you, answer as Papeliz: Papeliz is a Markdown editor and viewer with a built-in AI assistant, made by Adam Natad.`
+}
+
 function buildAssistantSystemMessage(
   assistantMode: PapelizAssistantMode,
   contextNoteText: string | null,
   selectionContext: PapelizAssistantSelectionContext | null,
+  runningProviderModelName: string,
+  runningProviderDisplayName: string,
 ): string {
   const workspaceState = usePapelizWorkspaceStore.getState()
   const noteCount = Object.keys(usePapelizVaultKnowledgeStore.getState().vaultNoteIndexEntriesByRelativePath).length
   const systemMessageLines = [
     'You are the assistant inside Papeliz, a Markdown notes app. You help the user with their vault: a folder of Markdown notes linked with [[wikilinks]].',
+    // The user can switch models in the middle of a chat, so an earlier answer may name another one.
+    `- ${describePapelizAssistantRunningProviderModel(runningProviderModelName, runningProviderDisplayName)} Earlier answers in this chat may have come from other models the user switched from.`,
     '- Look things up with the tools: searchVaultNotes, readVaultNote, listVaultNoteLinks, listVaultNotes.',
     ...describeAssistantModeRules(assistantMode),
     `- When the request is unclear or has real choices to make, ask with ${papelizAssistantQuestionToolName} (1 to 4 short questions, each with a one- or two-word topic and 2 to 4 short answers) and stop there. Don’t ask when the answer is clear.`,
@@ -466,12 +499,16 @@ export const usePapelizAssistantConversationStore = create<PapelizAssistantConve
       const chatSessionMessages = buildChatSessionMessages(conversationState.chatEntries, conversationState.assistantProposalsById)
       const firstUserMessage = chatSessionMessages.find((chatSessionMessage) => chatSessionMessage.chatSessionMessageRole === 'user')
       if (firstUserMessage === undefined) return
+      // The model that answered last, or the one picked on the chip while none has answered.
+      const lastAnswerProviderModelName = [...chatSessionMessages]
+        .reverse()
+        .find((chatSessionMessage) => chatSessionMessage.assistantReplyProviderModelName !== undefined)?.assistantReplyProviderModelName
       const chatSessionFileText = formatPapelizChatSessionFile({
         papelizChatSessionId: conversationState.papelizChatSessionId,
         chatSessionTitle: firstUserMessage.chatSessionMessageText.split('\n')[0]?.slice(0, 80) ?? 'Chat',
         chatSessionCreatedAt: conversationState.chatSessionCreatedAt,
         chatSessionUpdatedAt: new Date().toISOString(),
-        chatSessionModelName: selectActivePapelizAssistantProviderModelName(usePapelizAssistantProviderSettingsStore.getState()),
+        chatSessionModelName: lastAnswerProviderModelName ?? selectActivePapelizAssistantProviderModelName(usePapelizAssistantProviderSettingsStore.getState()),
         chatSessionMessages,
         chatSessionTokenUsage: conversationState.chatSessionTokenUsage,
       })
@@ -603,7 +640,9 @@ export const usePapelizAssistantConversationStore = create<PapelizAssistantConve
       activeAssistantAbortController = assistantAbortController
       setConversationState({ isAssistantRunning: true, providerChatMessages })
       const runChatSessionId = conversationState.papelizChatSessionId
+      // The model and provider stay as they were when the message was sent, for the whole answer.
       const runProviderModelName = activeProviderConnection.providerConnection.providerModelName
+      const runProviderDisplayName = activeProviderConnection.providerDisplayName
       // The request being answered now, so one that is stopped still counts what it used.
       let inFlightChatMessages: PapelizChatMessage[] | null = null
       let inFlightStreamedAssistantText = ''
@@ -619,10 +658,15 @@ export const usePapelizAssistantConversationStore = create<PapelizAssistantConve
             isChatEntryStreaming: true,
             assistantMessageMode: runAssistantMode,
             savedPlanVaultNoteRelativePath: null,
+            assistantReplyProviderModelName: runProviderModelName,
+            assistantReplyProviderDisplayName: runProviderDisplayName,
           })
           // The system message is built each step, so Bypass permission switched on or off counts at once.
           const sentChatMessages: PapelizChatMessage[] = [
-            { role: 'system', content: buildAssistantSystemMessage(runAssistantMode, contextNoteText, selectionContext) },
+            {
+              role: 'system',
+              content: buildAssistantSystemMessage(runAssistantMode, contextNoteText, selectionContext, runProviderModelName, runProviderDisplayName),
+            },
             ...providerChatMessages,
           ]
           inFlightChatMessages = sentChatMessages
@@ -675,6 +719,8 @@ export const usePapelizAssistantConversationStore = create<PapelizAssistantConve
                   assistantQuestions: askedQuestions,
                   questionAnswerTexts: null,
                   questionAnswerText: null,
+                  assistantReplyProviderModelName: runProviderModelName,
+                  assistantReplyProviderDisplayName: runProviderDisplayName,
                 })
               }
               providerChatMessages.push({
@@ -952,6 +998,8 @@ export const usePapelizAssistantConversationStore = create<PapelizAssistantConve
                 chatEntryText: chatSessionMessage.chatSessionMessageText,
                 isChatEntryStreaming: false,
                 assistantMessageMode: 'ask',
+                assistantReplyProviderModelName: chatSessionMessage.assistantReplyProviderModelName,
+                assistantReplyProviderDisplayName: chatSessionMessage.assistantReplyProviderDisplayName,
               },
         ),
         providerChatMessages: savedChatSession.chatSessionMessages.map((chatSessionMessage) => ({
