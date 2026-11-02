@@ -94,6 +94,16 @@ const papelizLauncherSurfaces = {
     ],
     build: [{ name: 'help', label: 'Build the Static Help Site', rootScript: 'help:build' }],
   },
+  // The desktop app (app/desktop, Tauri) opens its own window, so its targets have no port. The
+  // Vite dev server it starts listens on 14207 (app/desktop/tauri.conf.json).
+  desktop: {
+    title: 'Papeliz Desktop',
+    missingScriptHint: 'Check the root package.json "desktop:*" scripts.',
+    start: [{ name: 'desktop', label: 'Run the Desktop App', rootScript: 'desktop:dev', isRustToolchainRequired: true }],
+    build: [
+      { name: 'desktop', label: 'Build the Desktop Installer (unsigned)', rootScript: 'desktop:build', isRustToolchainRequired: true },
+    ],
+  },
 }
 
 class PapelizLauncherError extends Error {
@@ -104,7 +114,7 @@ class PapelizLauncherError extends Error {
 }
 
 function papelizLauncherUsage() {
-  return 'Usage: papeliz-launcher.mjs <webapp|site|help> <start|build> <windows|macos|linux|auto> [target] [--help] [--dry-run] [--no-open]'
+  return 'Usage: papeliz-launcher.mjs <webapp|site|help|desktop> <start|build> <windows|macos|linux|auto> [target] [--help] [--dry-run] [--no-open]'
 }
 
 function detectPapelizPlatform() {
@@ -257,6 +267,17 @@ function checkNodeVersion() {
   } else {
     console.log(` [ready] Node.js ${process.versions.node}`)
   }
+}
+
+// The desktop app's shell is Rust: Tauri needs cargo, with Visual Studio's C++ build tools on Windows.
+function checkRustToolchain() {
+  // `cargo --version` prints "cargo 1.94.0 (85eff7c80 2026-01-15)": the version is the second word.
+  const cargoVersionResult = spawnSync('cargo', ['--version'], { cwd: papelizRepositoryRoot, encoding: 'utf8', windowsHide: true })
+  const cargoVersion = cargoVersionResult.status === 0 ? cargoVersionResult.stdout.trim().split(/\s+/)[1] : null
+  if (!cargoVersion) {
+    throw new PapelizLauncherError('Rust was not found. Install it from https://rustup.rs, then run this again.')
+  }
+  console.log(` [ready] cargo ${cargoVersion}`)
 }
 
 async function ensurePnpm({ dryRun }) {
@@ -1047,6 +1068,7 @@ async function runPapelizLauncher(argv) {
   )
 
   checkNodeVersion()
+  if (launcherTarget.isRustToolchainRequired) checkRustToolchain()
 
   if (launcherTarget.staticDirectory) {
     if (launcherRequest.dryRun) {

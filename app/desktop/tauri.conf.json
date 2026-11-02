@@ -1,0 +1,50 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Papeliz",
+  "version": "0.1.0",
+  "identifier": "com.papeliz.desktop",
+  "build": {
+    "frontendDist": "papeliz-desktop-webapp-build",
+    "devUrl": "http://127.0.0.1:14207/",
+    "beforeDevCommand": "pnpm --filter @papeliz/webapp exec vite --host 127.0.0.1 --port 14207 --strictPort"
+  },
+  "app": {
+    "windows": [],
+    "security": {
+      "csp": null,
+      "dangerousDisableAssetCspModification": ["style-src"]
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "publisher": "Natad Corporation",
+    "copyright": "Copyright (c) 2026 Natad Corporation",
+    "homepage": "https://papeliz.com",
+    "license": "MIT",
+    "category": "Productivity",
+    "shortDescription": "A Markdown editor and viewer with a built-in AI assistant",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "webviewInstallMode": { "type": "downloadBootstrapper" },
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": ["English"],
+        "displayLanguageSelector": false
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEQxMEZGQjgwNDhBMjhDNTYKUldSV2pLSklnUHNQMFRJa2Z6VktDQm1uTzI3WGR0UTB3SExKN0dxcmVSNHZRcXRReHVrcU8wRkIK",
+      "endpoints": ["https://github.com/AdamNatad/Papeliz/releases/latest/download/latest.json"],
+      "windows": { "installMode": "passive" }
+    }
+  }
+}

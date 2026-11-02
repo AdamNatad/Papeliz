@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Papeliz for the Microsoft Store: the MSIX manifest around the same papeliz-desktop.exe that the
+  NSIS installer ships. build_tools/desktop/papeliz-desktop-msix-pack.mjs stages it and packs it.
+
+  PLACEHOLDERS: Identity Name, Identity Publisher and PublisherDisplayName are stand-ins until the
+  app's name is reserved in Partner Center. Replace all three with the values Partner Center shows
+  under Product identity (Package/Identity/Name, Package/Identity/Publisher and
+  Package/Properties/PublisherDisplayName). The Store rejects a package that still carries these.
+
+  Version: Major.Minor.Build.0. The Store needs a first part above 0 and keeps the fourth part for
+  itself, so it stays 0. Raise it for every Store submission.
+-->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap rescap">
+
+  <Identity
+    Name="PlaceholderFromPartnerCenter.Papeliz"
+    Publisher="CN=PlaceholderPublisherFromPartnerCenter"
+    Version="1.0.0.0"
+    ProcessorArchitecture="x64" />
+
+  <Properties>
+    <DisplayName>Papeliz</DisplayName>
+    <PublisherDisplayName>Placeholder publisher display name from Partner Center</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+    <Description>A Markdown editor and viewer with a built-in AI assistant</Description>
+  </Properties>
+
+  <Dependencies>
+    <!-- WebView2 needs Windows 10 version 1809 or later; Windows 11 ships it. -->
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.26200.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="en-us" />
+  </Resources>
+
+  <Applications>
+    <Application
+      Id="Papeliz"
+      Executable="papeliz-desktop.exe"
+      EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements
+        DisplayName="Papeliz"
+        Description="A Markdown editor and viewer with a built-in AI assistant"
+        BackgroundColor="transparent"
+        Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png">
+        <uap:DefaultTile Square71x71Logo="Assets\Square71x71Logo.png" />
+      </uap:VisualElements>
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+</Package>

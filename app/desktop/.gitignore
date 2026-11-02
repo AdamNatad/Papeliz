@@ -1,0 +1,8 @@
+# Cargo's build output
+/target/
+# Written by tauri-build on every build
+/gen/schemas/
+# The webapp built for the desktop app, and the Tauri settings written beside it
+# (build_tools/desktop/papeliz-desktop-tauri-command.mjs)
+/papeliz-desktop-webapp-build/
+/papeliz-desktop-tauri-generated.conf.json

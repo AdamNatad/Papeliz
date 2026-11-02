@@ -23,6 +23,10 @@
     "webapp:test": "pnpm --filter @papeliz/webapp test",
     "webapp:lint": "pnpm --filter @papeliz/webapp lint",
     "webapp:browser-test": "pnpm --filter @papeliz/webapp browser-test",
+    "desktop:dev": "node build_tools/desktop/papeliz-desktop-tauri-command.mjs dev",
+    "desktop:build": "node build_tools/desktop/papeliz-desktop-tauri-command.mjs build",
+    "desktop:typecheck": "pnpm --filter @papeliz/desktop typecheck",
+    "desktop:msix": "node build_tools/desktop/papeliz-desktop-msix-pack.mjs",
     "deploy:assemble": "pnpm run site:build && pnpm run webapp:build && pnpm run help:build && node build_tools/shared/deploy-folder/papeliz-deploy-folder-assemble.mjs"
   }
 }
