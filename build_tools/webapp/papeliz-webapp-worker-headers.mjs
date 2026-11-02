@@ -10,6 +10,10 @@
 // page or a worker ignores a policy header on its own response, so the header changes nothing else.
 // It adds frame-ancestors, which a `<meta>` policy can't set.
 //
+// The Permissions-Policy lets only the app's own page ask for the microphone, which it does when
+// the assistant's Record is pressed, to transcribe speech. No frame may use it, and the camera and
+// location stay off.
+//
 // Run after the webapp build; the root `webapp:build` script does.
 // Usage: node build_tools/webapp/papeliz-webapp-worker-headers.mjs
 
@@ -28,7 +32,7 @@ const papelizWebappWorkerHeadersText = `# Response headers for the webapp's Work
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
   Content-Security-Policy: ${buildPapelizWebappContentSecurityPolicy()}; frame-ancestors 'self'
-  Permissions-Policy: camera=(), microphone=(), geolocation=()
+  Permissions-Policy: camera=(), microphone=(self), geolocation=()
 
 /app/assets/*
   Cache-Control: public, max-age=31536000, immutable

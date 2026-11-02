@@ -21,6 +21,13 @@ import type { PapelizWikilinkTargetResolver } from '../links/papeliz-wikilink-ta
 import { requestPapelizFileExplorerSearch } from '../workspace/papeliz-file-explorer-search-request-store'
 import { PapelizNoteFrontmatterPropertyChips } from './papeliz-note-frontmatter-property-chips'
 import { readPapelizNoteFrontmatterProperties } from './papeliz-note-frontmatter-properties'
+import { PapelizMdViewMedia } from './papeliz-md-view-media'
+import {
+  readPapelizMdViewMediaSource,
+  readPapelizMdViewVaultMediaSource,
+  readPapelizMdViewWikilinkEmbedLabel,
+  readPapelizYouTubeVideoId,
+} from './papeliz-md-view-media-sources'
 import { mountPapelizMermaidDiagram, unmountPapelizMermaidDiagram } from './papeliz-md-view-mermaid-diagrams'
 import { renderPapelizMdViewNote } from './papeliz-md-view-render-pipeline'
 import { papelizMdViewCalloutTitleClassName } from './papeliz-remark-callouts'
@@ -97,6 +104,26 @@ function searchPapelizMdViewRenderedPageTag(papelizTagName: string): void {
   requestPapelizFileExplorerSearch(`#${papelizTagName}`)
 }
 
+// A note of the vault shows its own pictures and videos (papeliz-md-view-media.tsx): its vault files,
+// `![[picture.png]]` embeds, web videos, and YouTube links as posters. Elsewhere (an assistant
+// answer, a template's page) pictures keep their own rules: only web pictures show.
+export interface PapelizMdViewMediaRenderOptions {
+  fromVaultNoteRelativePath: string | null
+}
+
+// The YouTube video a paragraph is, when it holds nothing but one link to one: a link alone on its
+// line, as `[title](https://youtu.be/…)` or the bare address.
+function readLoneYouTubeLink(hastParagraphElement: HastElement | undefined): { youTubeVideoId: string; youTubeLinkText: string } | null {
+  const hastParagraphChildren = (hastParagraphElement?.children ?? []).filter((hastChild) => !(hastChild.type === 'text' && hastChild.value.trim().length === 0))
+  const hastLinkElement = hastParagraphChildren[0]
+  if (hastParagraphChildren.length !== 1 || hastLinkElement?.type !== 'element' || hastLinkElement.tagName !== 'a') return null
+  const linkHref = getHastStringProperty(hastLinkElement, 'href')
+  const youTubeVideoId = linkHref === null ? null : readPapelizYouTubeVideoId(linkHref)
+  if (youTubeVideoId === null) return null
+  const youTubeLinkText = collectHastElementText(hastLinkElement).trim()
+  return { youTubeVideoId, youTubeLinkText: youTubeLinkText === linkHref ? '' : youTubeLinkText }
+}
+
 // Turns the sanitized tree into React elements. Wikilinks and links to other `.md` files open
 // inside Papeliz; web links open in a new tab; tags search the vault when `onTagSearch` is given.
 // Also used for the assistant's answers, which keep ```mermaid blocks as code
@@ -107,6 +134,7 @@ export function renderPapelizMdViewHastToReact(
   onRelativeNoteLinkActivate: (linkHref: string) => void,
   drawsMermaidDiagrams = false,
   onTagSearch: ((papelizTagName: string) => void) | null = null,
+  mdViewMediaOptions: PapelizMdViewMediaRenderOptions | null = null,
 ): ReactNode {
   const papelizMdViewRenderedPageComponents: Components = {
     pre: ({ node: hastPreElement, children, ...preProps }: ComponentProps<'pre'> & { node?: HastElement }) => {
@@ -114,8 +142,43 @@ export function renderPapelizMdViewHastToReact(
       if (mermaidDiagramSource !== null) return <PapelizMdViewMermaidDiagram mermaidDiagramSource={mermaidDiagramSource} />
       return <pre {...preProps}>{children}</pre>
     },
+    p: ({ node: hastParagraphElement, children, ...paragraphProps }: ComponentProps<'p'> & { node?: HastElement }) => {
+      const loneYouTubeLink = mdViewMediaOptions === null ? null : readLoneYouTubeLink(hastParagraphElement)
+      if (loneYouTubeLink !== null) {
+        return (
+          <p {...paragraphProps}>
+            <PapelizMdViewMedia
+              mdViewMediaSource={{ mediaSourceKind: 'youtube-video', youTubeVideoId: loneYouTubeLink.youTubeVideoId }}
+              mediaAlternativeText={loneYouTubeLink.youTubeLinkText}
+              mediaTitle={null}
+              mediaWidthPixels={null}
+              mediaHeightPixels={null}
+              fromVaultNoteRelativePath={null}
+            />
+          </p>
+        )
+      }
+      return <p {...paragraphProps}>{children}</p>
+    },
     a: ({ node: hastAnchorElement, href, children, ...anchorProps }: ComponentProps<'a'> & { node?: HastElement }) => {
       const wikilinkTargetNoteName = getHastStringProperty(hastAnchorElement, 'dataPapelizWikilinkTarget')
+      // `![[picture.png]]` and `![[clip.mp4]]` show the vault file itself.
+      if (wikilinkTargetNoteName !== null && mdViewMediaOptions !== null && getHastStringProperty(hastAnchorElement, 'dataPapelizWikilinkEmbed') === 'true') {
+        const embeddedMediaSource = readPapelizMdViewVaultMediaSource(wikilinkTargetNoteName)
+        if (embeddedMediaSource.mediaSourceKind !== 'not-shown') {
+          const wikilinkEmbedLabel = readPapelizMdViewWikilinkEmbedLabel(hastAnchorElement === undefined ? null : collectHastElementText(hastAnchorElement))
+          return (
+            <PapelizMdViewMedia
+              mdViewMediaSource={embeddedMediaSource}
+              mediaAlternativeText={wikilinkEmbedLabel.mediaAlternativeText ?? wikilinkTargetNoteName}
+              mediaTitle={null}
+              mediaWidthPixels={wikilinkEmbedLabel.mediaWidthPixels}
+              mediaHeightPixels={wikilinkEmbedLabel.mediaHeightPixels}
+              fromVaultNoteRelativePath={mdViewMediaOptions.fromVaultNoteRelativePath}
+            />
+          )
+        }
+      }
       if (wikilinkTargetNoteName !== null) {
         return (
           <a
@@ -181,11 +244,22 @@ export function renderPapelizMdViewHastToReact(
       }
       return <span {...spanProps}>{children}</span>
     },
-    img: ({ node: _hastImageElement, src, alt }: ComponentProps<'img'> & { node?: HastElement }) => {
+    img: ({ node: _hastImageElement, src, alt, title }: ComponentProps<'img'> & { node?: HastElement }) => {
+      if (mdViewMediaOptions !== null) {
+        return (
+          <PapelizMdViewMedia
+            mdViewMediaSource={readPapelizMdViewMediaSource(typeof src === 'string' ? src : '')}
+            mediaAlternativeText={alt ?? ''}
+            mediaTitle={title ?? null}
+            mediaWidthPixels={null}
+            mediaHeightPixels={null}
+            fromVaultNoteRelativePath={mdViewMediaOptions.fromVaultNoteRelativePath}
+          />
+        )
+      }
       if (typeof src === 'string' && /^https:/i.test(src)) {
         return <img src={src} alt={alt ?? ''} loading="lazy" referrerPolicy="no-referrer" />
       }
-      // Images stored in the vault arrive with attachments in a later version.
       return <span className="papeliz-md-view-image-placeholder">Image: {alt || src || 'untitled'}</span>
     },
   }
@@ -217,8 +291,11 @@ export function PapelizMdViewRenderedPage({
   )
 
   const renderedNoteBody = useMemo(
-    () => renderPapelizMdViewHastToReact(renderedNote.noteHastRoot, onWikilinkActivate, onRelativeNoteLinkActivate, true, searchPapelizMdViewRenderedPageTag),
-    [renderedNote.noteHastRoot, onWikilinkActivate, onRelativeNoteLinkActivate],
+    () =>
+      renderPapelizMdViewHastToReact(renderedNote.noteHastRoot, onWikilinkActivate, onRelativeNoteLinkActivate, true, searchPapelizMdViewRenderedPageTag, {
+        fromVaultNoteRelativePath: vaultNoteRelativePath,
+      }),
+    [renderedNote.noteHastRoot, onWikilinkActivate, onRelativeNoteLinkActivate, vaultNoteRelativePath],
   )
 
   return (

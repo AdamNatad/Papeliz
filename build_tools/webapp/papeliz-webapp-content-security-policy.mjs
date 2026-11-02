@@ -4,23 +4,32 @@
 // `<meta>` policy; it takes the policy of its own script's response, so the header is what holds the
 // sync thread and the search, PDF and file-writer workers to the same rules as the page.
 //
-// The user's API keys live in this origin, so: scripts only from the app itself, no plugins or
-// frames. Network calls go to the app, to any https host (the user's provider, which can be any
-// OpenAI-compatible API on a Custom base URL) and to local model servers on this computer. Papeliz
-// Sync needs nothing more: its API and live connection are on the app's own origin ('self' covers
-// wss: to it too) and its storage links are https. Styles allow inline because the note editor
-// writes its own style rules. Remote images (https) may show in notes; small font files are inlined
-// as data: URLs by the build.
+// The user's API keys live in this origin, so: scripts only from the app itself, no plugins, and
+// one frame only. Network calls go to the app, to any https host (the user's provider, which can be
+// any OpenAI-compatible API on a Custom base URL) and to local model servers on this computer.
+// Papeliz Sync needs nothing more: its API and live connection are on the app's own origin ('self'
+// covers wss: to it too) and its storage links are https. Styles allow inline because the note editor
+// writes its own style rules. Small font files are inlined as data: URLs by the build.
+//
+// Pictures and media:
+// - Web pictures and videos (https) may show in notes.
+// - The vault's own pictures and videos show from blob: URLs the page makes from files it read
+//   (app/web/src/modules/md-view/papeliz-md-view-vault-media-files.ts); an SVG picture from a data:
+//   URL instead.
+// - The assistant's generated pictures and recorded speech also play from blob: URLs.
+// - The one frame is YouTube's privacy-enhanced player, which a note's YouTube poster loads only when
+//   play is pressed (app/web/src/modules/md-view/papeliz-md-view-media.tsx).
 export const papelizWebappContentSecurityPolicyDirectives = Object.freeze([
   "default-src 'self'",
   "script-src 'self'",
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' https: data:",
+  "img-src 'self' https: data: blob:",
+  "media-src 'self' https: blob:",
   "font-src 'self' data:",
   "connect-src 'self' https: http://localhost:* http://127.0.0.1:*",
   "worker-src 'self' blob:",
   "object-src 'none'",
-  "frame-src 'none'",
+  "frame-src https://www.youtube-nocookie.com",
   "base-uri 'none'",
   "form-action 'none'",
 ])

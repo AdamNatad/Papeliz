@@ -13,6 +13,10 @@ import { requestPapelizFileExplorerSearch } from '../workspace/papeliz-file-expl
 import { isPapelizKeyBindingPressed } from '../workspace/papeliz-key-bindings-store'
 import { PapelizNoteFrontmatterPropertyChips } from './papeliz-note-frontmatter-property-chips'
 import { readPapelizNoteFrontmatterProperties, type PapelizNoteFrontmatterProperty } from './papeliz-note-frontmatter-properties'
+import { PapelizMdViewMedia } from './papeliz-md-view-media'
+import type { PapelizMdViewMediaSource } from './papeliz-md-view-media-sources'
+import { readPapelizMdViewImageSyntax, readPapelizMdViewLoneYouTubeLinkSyntax, readPapelizMdViewWikilinkEmbedSyntax } from './papeliz-md-view-media-syntax'
+import { readPapelizMdViewActiveVaultNoteRelativePath } from './papeliz-md-view-vault-media-files'
 import { mountPapelizMermaidDiagram, unmountPapelizMermaidDiagram } from './papeliz-md-view-mermaid-diagrams'
 import { findPapelizMdViewRenderedBlocks } from './papeliz-md-view-rendered-blocks'
 import {
@@ -202,6 +206,70 @@ class PapelizMdViewTextWidget extends WidgetType {
     textWidgetElement.className = this.widgetClassName
     textWidgetElement.textContent = this.widgetText
     return textWidgetElement
+  }
+}
+
+interface PapelizMdViewMediaWidgetContent {
+  mdViewMediaSource: PapelizMdViewMediaSource
+  mediaAlternativeText: string
+  mediaTitle: string | null
+  mediaWidthPixels: number | null
+  mediaHeightPixels: number | null
+  fromVaultNoteRelativePath: string | null
+  // The web link a picture sits in (`[![alt](picture.png)](https://…)`), opened by Ctrl+click.
+  mediaLinkHref: string | null
+}
+
+const papelizMdViewMediaRootsByWidgetElement = new WeakMap<HTMLElement, ReactRoot>()
+
+function isPapelizMdViewMediaShownAsBlock(mdViewMediaSource: PapelizMdViewMediaSource): boolean {
+  return mdViewMediaSource.mediaSourceKind === 'youtube-video' || mdViewMediaSource.mediaSourceKind === 'web-video' || mdViewMediaSource.mediaSourceKind === 'vault-video'
+}
+
+// A picture, video or YouTube poster in place of its Markdown, drawn by the same component as the
+// locked page (papeliz-md-view-media.tsx). A plain click puts the cursor there, which shows the
+// Markdown to edit; a video's controls and the YouTube poster take their own clicks; Ctrl+click on
+// a picture inside a web link opens the link.
+class PapelizMdViewMediaWidget extends WidgetType {
+  constructor(readonly mediaWidgetContent: PapelizMdViewMediaWidgetContent) {
+    super()
+  }
+
+  override eq(otherWidget: PapelizMdViewMediaWidget): boolean {
+    return JSON.stringify(otherWidget.mediaWidgetContent) === JSON.stringify(this.mediaWidgetContent)
+  }
+
+  toDOM(editorView: EditorView): HTMLElement {
+    const { mediaLinkHref, ...mediaProps } = this.mediaWidgetContent
+    const mediaWidgetElement = document.createElement('span')
+    mediaWidgetElement.className = isPapelizMdViewMediaShownAsBlock(mediaProps.mdViewMediaSource) ? 'cm-papeliz-md-view-media cm-papeliz-md-view-media-block' : 'cm-papeliz-md-view-media'
+    if (mediaLinkHref !== null) {
+      mediaWidgetElement.dataset['papelizLinkHref'] = mediaLinkHref
+      mediaWidgetElement.title = `${mediaLinkHref} (Ctrl+click to open)`
+    }
+    // Ctrl+press leaves the cursor where it was: the click that follows opens the link.
+    mediaWidgetElement.addEventListener('mousedown', (mouseDownEvent) => {
+      if (mediaLinkHref !== null && (mouseDownEvent.ctrlKey || mouseDownEvent.metaKey)) mouseDownEvent.preventDefault()
+    })
+    mediaWidgetElement.addEventListener('click', (clickEvent) => openPapelizMdViewWebLinkOnModifiedClick(clickEvent))
+    const mediaRoot = createRoot(mediaWidgetElement)
+    papelizMdViewMediaRootsByWidgetElement.set(mediaWidgetElement, mediaRoot)
+    // A picture that loads is taller than its placeholder: the editor measures it again.
+    mediaRoot.render(createElement(PapelizMdViewMedia, { ...mediaProps, onMediaSizeChange: () => editorView.requestMeasure() }))
+    return mediaWidgetElement
+  }
+
+  override destroy(mediaWidgetElement: HTMLElement): void {
+    // Unmounted after CodeMirror's update, never during a React render. Unmounting lets go of the
+    // vault file's URL.
+    const finishedMediaRoot = papelizMdViewMediaRootsByWidgetElement.get(mediaWidgetElement)
+    papelizMdViewMediaRootsByWidgetElement.delete(mediaWidgetElement)
+    queueMicrotask(() => finishedMediaRoot?.unmount())
+  }
+
+  override ignoreEvent(widgetEvent: Event): boolean {
+    if (widgetEvent.target instanceof Element && widgetEvent.target.closest('video, iframe, button, a') !== null) return true
+    return this.mediaWidgetContent.mediaLinkHref !== null && widgetEvent instanceof MouseEvent && (widgetEvent.ctrlKey || widgetEvent.metaKey)
   }
 }
 
@@ -611,6 +679,9 @@ function buildPapelizMdViewDecorations(editorView: EditorView, wikilinkHandlers:
   const followingSpaceLength = (afterPosition: number) => (editorState.sliceDoc(afterPosition, afterPosition + 1) === ' ' ? 1 : 0)
 
   const tagSkippedRanges: Array<{ skippedFrom: number; skippedTo: number }> = []
+  // A picture's address starts from the folder of the note on screen.
+  const activeVaultNoteRelativePath = readPapelizMdViewActiveVaultNoteRelativePath()
+  const readNoteText = (textFrom: number, textTo: number) => editorState.sliceDoc(textFrom, textTo)
   const visibleFrom = editorView.visibleRanges[0]?.from ?? 0
   const visibleTo = editorView.visibleRanges[editorView.visibleRanges.length - 1]?.to ?? noteDocument.length
 
@@ -656,15 +727,74 @@ function buildPapelizMdViewDecorations(editorView: EditorView, wikilinkHandlers:
           const closingTextLinkMark = linkMarkNodes[1]
           if (linkUrlNode === null || openingLinkMark === undefined || closingTextLinkMark === undefined) return
           const linkHref = editorState.sliceDoc(linkUrlNode.from, linkUrlNode.to)
-          markText(
-            openingLinkMark.to,
-            closingTextLinkMark.from,
-            'cm-papeliz-md-view-link',
-            /^(https?:|mailto:)/i.test(linkHref) ? { 'data-papeliz-link-href': linkHref, title: `${linkHref} (Ctrl+click to open)` } : undefined,
-          )
+          const linkWebHref = /^(https?:|mailto:)/i.test(linkHref) ? linkHref : null
+          const linkTextAttributes = linkWebHref === null ? undefined : { 'data-papeliz-link-href': linkWebHref, title: `${linkWebHref} (Ctrl+click to open)` }
+          // A picture inside a link (`[![alt](picture.png)](https://…)`) shows as the picture, off the
+          // cursor's line; Ctrl+click on it opens the link.
+          const linkImageNodes = isLineFocused(nodeFrom) ? [] : syntaxNode.getChildren('Image')
+          const linkImageWidgets = linkImageNodes.flatMap((linkImageNode) => {
+            const linkImage = readPapelizMdViewImageSyntax(linkImageNode, readNoteText)
+            return linkImage === null ? [] : [{ linkImageNode, linkImage }]
+          })
+          if (linkImageWidgets.length > 0) {
+            let linkTextFrom = openingLinkMark.to
+            for (const { linkImageNode, linkImage } of linkImageWidgets) {
+              markText(linkTextFrom, linkImageNode.from, 'cm-papeliz-md-view-link', linkTextAttributes)
+              replaceWithWidget(
+                linkImageNode.from,
+                linkImageNode.to,
+                new PapelizMdViewMediaWidget({ ...linkImage, mediaWidthPixels: null, mediaHeightPixels: null, fromVaultNoteRelativePath: activeVaultNoteRelativePath, mediaLinkHref: linkWebHref }),
+              )
+              linkTextFrom = linkImageNode.to
+            }
+            markText(linkTextFrom, closingTextLinkMark.from, 'cm-papeliz-md-view-link', linkTextAttributes)
+            hideMarkdown(openingLinkMark.from, openingLinkMark.to)
+            hideMarkdown(closingTextLinkMark.from, nodeTo)
+            return false
+          }
+          markText(openingLinkMark.to, closingTextLinkMark.from, 'cm-papeliz-md-view-link', linkTextAttributes)
           if (touchesSelection(nodeFrom, nodeTo)) return
           hideMarkdown(openingLinkMark.from, openingLinkMark.to)
           hideMarkdown(closingTextLinkMark.from, nodeTo)
+          return false
+        }
+        case 'Image': {
+          // `![alt](picture.png)`: the picture, video or YouTube poster, except on the cursor's line.
+          if (isLineFocused(nodeFrom)) return false
+          // `![[picture.png]]` and `![[clip.mp4|480]]`, which the Markdown parser reads as a picture
+          // with no address, show the vault file. Any other embed keeps its Markdown.
+          const wikilinkEmbed = readPapelizMdViewWikilinkEmbedSyntax(readNoteText(nodeFrom, nodeTo))
+          if (wikilinkEmbed !== null) {
+            replaceWithWidget(nodeFrom, nodeTo, new PapelizMdViewMediaWidget({ ...wikilinkEmbed, mediaTitle: null, fromVaultNoteRelativePath: activeVaultNoteRelativePath, mediaLinkHref: null }))
+            return false
+          }
+          const shownImage = readPapelizMdViewImageSyntax(syntaxNode, readNoteText)
+          if (shownImage === null) return false
+          replaceWithWidget(
+            nodeFrom,
+            nodeTo,
+            new PapelizMdViewMediaWidget({ ...shownImage, mediaWidthPixels: null, mediaHeightPixels: null, fromVaultNoteRelativePath: activeVaultNoteRelativePath, mediaLinkHref: null }),
+          )
+          return false
+        }
+        case 'Paragraph': {
+          // A YouTube link alone on its line is a poster, except on the cursor's line.
+          if (isLineFocused(nodeFrom) || !isOnOneLine(nodeFrom, nodeTo)) return
+          const loneYouTubeLink = readPapelizMdViewLoneYouTubeLinkSyntax(syntaxNode, readNoteText)
+          if (loneYouTubeLink === null) return
+          replaceWithWidget(
+            nodeFrom,
+            nodeTo,
+            new PapelizMdViewMediaWidget({
+              mdViewMediaSource: { mediaSourceKind: 'youtube-video', youTubeVideoId: loneYouTubeLink.youTubeVideoId },
+              mediaAlternativeText: loneYouTubeLink.youTubeLinkText,
+              mediaTitle: null,
+              mediaWidthPixels: null,
+              mediaHeightPixels: null,
+              fromVaultNoteRelativePath: null,
+              mediaLinkHref: null,
+            }),
+          )
           return false
         }
         case 'PapelizWikilink': {
