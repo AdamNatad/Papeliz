@@ -50,8 +50,9 @@ export function PapelizAssistantPanel({ onAssistantPanelClose }: PapelizAssistan
   const assistantMode = usePapelizAssistantRunOptionsStore((runOptionsState) => runOptionsState.assistantMode)
   const setAssistantMode = usePapelizAssistantRunOptionsStore((runOptionsState) => runOptionsState.setAssistantMode)
   const isBypassPermissionOn = usePapelizAssistantRunOptionsStore((runOptionsState) => runOptionsState.assistantChangePermission === 'bypass-permission')
-  // Read again whenever the provider or its settings change.
+  // Read again whenever the provider, the model or their settings change.
   usePapelizAssistantProviderSettingsStore((settingsState) => settingsState.activeAssistantProviderId)
+  usePapelizAssistantProviderSettingsStore((settingsState) => settingsState.activeAssistantProviderModelName)
   usePapelizAssistantProviderSettingsStore((settingsState) => settingsState.providerSettingsByProviderId)
   const isAssistantProviderReady = getActivePapelizAssistantProviderConnection().providerConnectionOutcome === 'ready'
 

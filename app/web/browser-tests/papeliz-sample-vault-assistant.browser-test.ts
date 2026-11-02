@@ -49,6 +49,21 @@ const startHereEditProviderReplies: TestProviderReply[] = [
   { content: 'I proposed an edit to [[Start here]]. Review the diff and accept it if it reads right.' },
 ]
 
+// Test Connection's tiny request (papeliz-openai-compatible-client.ts), answered apart from the chat.
+const connectionTestMessageText = 'Reply with the single word: ready'
+
+function isConnectionTestRequest(providerRequestMessages: Array<{ content?: unknown }>): boolean {
+  return providerRequestMessages.length === 1 && providerRequestMessages[0]?.content === connectionTestMessageText
+}
+
+function answerConnectionTest(route: Route): Promise<void> {
+  return route.fulfill({
+    status: 200,
+    headers: testProviderCorsHeaders,
+    json: { choices: [{ index: 0, message: { role: 'assistant', content: 'ready' }, finish_reason: 'stop' }] },
+  })
+}
+
 const testProviderCorsHeaders = {
   'access-control-allow-origin': '*',
   'access-control-allow-headers': 'authorization, content-type',
@@ -56,12 +71,14 @@ const testProviderCorsHeaders = {
 }
 
 // Answers the provider's chat calls from `testProviderReplies`, in order, and refuses every other
-// request that would leave this computer. Returns what the page asked the provider, and anything refused.
+// request that would leave this computer. Test Connection's request is answered apart and only its key
+// is noted. Returns what the page asked the provider, and anything refused.
 async function playTestProvider(
   page: Page,
   testProviderReplies: TestProviderReply[],
-): Promise<{ testProviderChatRequests: TestProviderChatRequest[]; refusedOutsideRequestUrls: string[] }> {
+): Promise<{ testProviderChatRequests: TestProviderChatRequest[]; testProviderConnectionTestAuthorizations: Array<string | null>; refusedOutsideRequestUrls: string[] }> {
   const testProviderChatRequests: TestProviderChatRequest[] = []
+  const testProviderConnectionTestAuthorizations: Array<string | null> = []
   const refusedOutsideRequestUrls: string[] = []
   // Routes added later are tried first: the provider's own, then this guard for everything else.
   await page.route('**/*', async (route: Route) => {
@@ -80,6 +97,10 @@ async function playTestProvider(
       model: string
       messages: TestProviderChatRequest['providerRequestMessages']
       tools?: Array<{ function: { name: string } }>
+    }
+    if (isConnectionTestRequest(providerRequestBody.messages)) {
+      testProviderConnectionTestAuthorizations.push(await providerRequest.headerValue('authorization'))
+      return answerConnectionTest(route)
     }
     testProviderChatRequests.push({
       providerRequestAuthorization: await providerRequest.headerValue('authorization'),
@@ -100,24 +121,30 @@ async function playTestProvider(
       },
     })
   })
-  return { testProviderChatRequests, refusedOutsideRequestUrls }
+  return { testProviderChatRequests, testProviderConnectionTestAuthorizations, refusedOutsideRequestUrls }
 }
 
-// Settings for a Custom provider at the test provider's address, on the Settings panel's AI Provider
-// page, which the panel's set-up button opens: the provider, address and key on Provider, the model on
-// Model, then Save, and Esc closes the panel.
+// A Custom provider at the test provider's address, added on the Settings panel's AI Provider page,
+// which the panel's set-up button opens: Add Provider, Custom, then its address, key and a typed
+// model. Add Provider stays off until Test Connection passes. Esc then closes the panel.
 async function setUpTestProvider(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Choose a Provider' }).click()
   const settingsPanel = page.getByRole('dialog', { name: 'Settings' })
-  await expect(settingsPanel.getByRole('tab', { name: 'Provider' })).toHaveAttribute('aria-selected', 'true')
-  await settingsPanel.getByRole('button', { name: /Provider/ }).click()
-  await page.getByRole('option', { name: /^Custom/ }).click()
-  await settingsPanel.getByRole('textbox', { name: 'Base URL' }).fill(testProviderBaseUrl)
-  await settingsPanel.getByLabel(/^API key/).fill(testProviderApiKey)
-  await settingsPanel.getByRole('tab', { name: 'Model' }).click()
-  await settingsPanel.getByRole('combobox', { name: 'Model', exact: true }).or(settingsPanel.getByRole('textbox', { name: 'Model', exact: true })).fill(testProviderModelName)
-  await settingsPanel.getByRole('button', { name: 'Save', exact: true }).click()
-  await expect(settingsPanel.getByText('Saved', { exact: true })).toBeVisible()
+  await expect(settingsPanel.getByRole('heading', { name: 'Saved Providers' })).toBeVisible()
+  await settingsPanel.getByRole('button', { name: 'Add Provider', exact: true }).click()
+  await page.getByRole('dialog', { name: 'Add Provider' }).getByRole('button', { name: /^Custom/ }).click()
+  const addCustomDialog = page.getByRole('dialog', { name: 'Add Custom' })
+  await addCustomDialog.getByRole('textbox', { name: 'Base URL' }).fill(testProviderBaseUrl)
+  await addCustomDialog.getByLabel(/^API Key/).fill(testProviderApiKey)
+  await addCustomDialog.getByRole('textbox', { name: 'Model Name' }).fill(testProviderModelName)
+  await addCustomDialog.getByRole('button', { name: 'Add Model', exact: true }).click()
+  await expect(addCustomDialog.getByRole('switch', { name: testProviderModelName })).toHaveAttribute('aria-checked', 'true')
+  await expect(addCustomDialog.getByRole('button', { name: 'Add Provider', exact: true })).toBeDisabled()
+  await addCustomDialog.getByRole('button', { name: 'Test Connection', exact: true }).click()
+  await expect(addCustomDialog.getByText(`Connected. ${testProviderModelName} answered`, { exact: false })).toBeVisible()
+  await addCustomDialog.getByRole('button', { name: 'Add Provider', exact: true }).click()
+  await expect(addCustomDialog).toBeHidden()
+  await expect(settingsPanel.getByRole('listitem').filter({ hasText: 'Custom' })).toContainText('1 model on')
   await page.keyboard.press('Escape')
   await expect(settingsPanel).toBeHidden()
 }
@@ -218,5 +245,114 @@ test('a web picture in an answer loads only once Show is pressed, and a vault pi
   // The vault picture still shows as MD View's label, with no Show button of its own.
   await expect(assistantAnswer.getByText('Image: Floor plan', { exact: true })).toBeVisible()
   await expect(assistantAnswer.getByRole('button', { name: /^Show/ })).toHaveCount(0)
+  expect(refusedOutsideRequestUrls).toEqual([])
+})
+
+// A second provider the test plays on this computer's LM Studio address: it lists two models and
+// records each chat call. Nothing reaches a real server there; the route answers first.
+const secondTestProviderBaseUrl = 'http://localhost:1234/v1'
+const secondTestProviderApiKey = 'papeliz-second-test-key-not-a-real-key'
+const secondTestProviderModelNames = ['papeliz-second-model-a', 'papeliz-second-model-b'] as const
+
+test('two providers each keep their own key, and the model chip sends each message to the model picked there', async ({ page }) => {
+  const { testProviderChatRequests, testProviderConnectionTestAuthorizations, refusedOutsideRequestUrls } = await playTestProvider(page, [])
+  const secondTestProviderChatRequests: Array<{ providerRequestAuthorization: string | null; providerRequestModelName: string }> = []
+  const secondTestProviderConnectionTestAuthorizations: Array<string | null> = []
+  await page.route(`${secondTestProviderBaseUrl}/**`, async (route: Route) => {
+    const providerRequest = route.request()
+    if (providerRequest.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: testProviderCorsHeaders })
+    if (providerRequest.method() === 'GET' && providerRequest.url().endsWith('/models')) {
+      return route.fulfill({ status: 200, headers: testProviderCorsHeaders, json: { data: secondTestProviderModelNames.map((providerModelName) => ({ id: providerModelName })) } })
+    }
+    const providerRequestBody = providerRequest.postDataJSON() as { model: string; messages: Array<{ content?: unknown }> }
+    if (isConnectionTestRequest(providerRequestBody.messages)) {
+      secondTestProviderConnectionTestAuthorizations.push(await providerRequest.headerValue('authorization'))
+      return answerConnectionTest(route)
+    }
+    secondTestProviderChatRequests.push({ providerRequestAuthorization: await providerRequest.headerValue('authorization'), providerRequestModelName: providerRequestBody.model })
+    return route.fulfill({
+      status: 200,
+      headers: testProviderCorsHeaders,
+      json: { choices: [{ index: 0, message: { role: 'assistant', content: 'Answered by the second provider.' }, finish_reason: 'stop' }] },
+    })
+  })
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Try Sample' }).first().click()
+  await setUpTestProvider(page)
+  expect(testProviderConnectionTestAuthorizations).toEqual([`Bearer ${testProviderApiKey}`])
+
+  // The model chip's menu leads to Settings › AI Provider; add the second provider there. Its test
+  // lists its models first, and asks for one to be switched on before it can pass.
+  const modelChip = page.getByRole('button', { name: `Model: ${testProviderModelName}` })
+  await modelChip.click()
+  await page.getByRole('menu', { name: 'Model' }).getByRole('menuitem', { name: 'AI Provider' }).click()
+  const settingsPanel = page.getByRole('dialog', { name: 'Settings' })
+  await settingsPanel.getByRole('button', { name: 'Add Provider', exact: true }).click()
+  const addProviderDialog = page.getByRole('dialog', { name: 'Add Provider' })
+  await expect(addProviderDialog.getByRole('button', { name: /^Custom/ })).toBeDisabled()
+  await addProviderDialog.getByRole('button', { name: /^LM Studio Local/ }).click()
+  const addLmStudioDialog = page.getByRole('dialog', { name: 'Add LM Studio Local' })
+  await addLmStudioDialog.getByLabel(/^API Key/).fill(secondTestProviderApiKey)
+  await addLmStudioDialog.getByRole('button', { name: 'Test Connection', exact: true }).click()
+  await expect(addLmStudioDialog.getByText('2 models found.', { exact: false })).toBeVisible()
+  await expect(addLmStudioDialog.getByRole('button', { name: 'Add Provider', exact: true })).toBeDisabled()
+  await addLmStudioDialog.getByRole('switch', { name: secondTestProviderModelNames[1] }).click()
+  await expect(addLmStudioDialog.getByRole('switch', { name: secondTestProviderModelNames[1] })).toHaveAttribute('aria-checked', 'true')
+  await expect(addLmStudioDialog.getByRole('switch', { name: secondTestProviderModelNames[0] })).toHaveAttribute('aria-checked', 'false')
+  await addLmStudioDialog.getByRole('button', { name: 'Test Connection', exact: true }).click()
+  await expect(addLmStudioDialog.getByText(`Connected. ${secondTestProviderModelNames[1]} answered`, { exact: false })).toBeVisible()
+  await addLmStudioDialog.getByRole('button', { name: 'Add Provider', exact: true }).click()
+  await expect(addLmStudioDialog).toBeHidden()
+  expect(secondTestProviderConnectionTestAuthorizations).toEqual([`Bearer ${secondTestProviderApiKey}`])
+  // Where each key goes: its own provider's address, under its name.
+  await expect(settingsPanel.getByRole('listitem').filter({ hasText: 'Custom' })).toContainText('papeliz-test-provider.invalid')
+  await expect(settingsPanel.getByRole('listitem').filter({ hasText: 'LM Studio Local' })).toContainText('localhost:1234 · 1 model on')
+  await page.keyboard.press('Escape')
+  await expect(settingsPanel).toBeHidden()
+
+  // Both providers' models are on the chip's menu; the second one answers once it is picked.
+  await modelChip.click()
+  const modelMenu = page.getByRole('menu', { name: 'Model' })
+  await expect(modelMenu.getByRole('menuitemradio', { name: testProviderModelName })).toHaveAttribute('aria-checked', 'true')
+  await expect(modelMenu.getByRole('menuitemradio', { name: secondTestProviderModelNames[0] })).toHaveCount(0)
+  await modelMenu.getByRole('menuitemradio', { name: secondTestProviderModelNames[1] }).click()
+  await expect(page.getByRole('button', { name: `Model: ${secondTestProviderModelNames[1]}` })).toBeVisible()
+  const assistantComposer = page.getByRole('textbox', { name: 'Message the assistant' })
+  await assistantComposer.fill('Which provider answers?')
+  await assistantComposer.press('Enter')
+  await expect(page.getByText('Answered by the second provider.')).toBeVisible()
+  expect(secondTestProviderChatRequests).toEqual([
+    { providerRequestAuthorization: `Bearer ${secondTestProviderApiKey}`, providerRequestModelName: secondTestProviderModelNames[1] },
+  ])
+  expect(testProviderChatRequests).toEqual([])
+
+  // Picked back, the first provider answers, with its own key.
+  await page.getByRole('button', { name: `Model: ${secondTestProviderModelNames[1]}` }).click()
+  await page.getByRole('menu', { name: 'Model' }).getByRole('menuitemradio', { name: testProviderModelName }).click()
+  await assistantComposer.fill('And now?')
+  await assistantComposer.press('Enter')
+  await expect.poll(() => testProviderChatRequests.length).toBe(1)
+  expect(testProviderChatRequests[0]).toMatchObject({ providerRequestAuthorization: `Bearer ${testProviderApiKey}`, providerRequestModelName: testProviderModelName })
+  expect(secondTestProviderChatRequests).toHaveLength(1)
+
+  // The gear opens the provider's modal. Remove asks first; Esc cancels only the question, and the
+  // modal stays open. Then the provider and its models are gone from the page and the chip.
+  await page.getByRole('button', { name: `Model: ${testProviderModelName}` }).click()
+  await page.getByRole('menu', { name: 'Model' }).getByRole('menuitem', { name: 'AI Provider' }).click()
+  await settingsPanel.getByRole('button', { name: 'LM Studio Local Settings', exact: true }).click()
+  const lmStudioDialog = page.getByRole('dialog', { name: 'LM Studio Local' })
+  await lmStudioDialog.getByRole('button', { name: 'Remove Provider', exact: true }).click()
+  const removeProviderDialog = page.getByRole('dialog', { name: 'Remove LM Studio Local?' })
+  await expect(removeProviderDialog).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(removeProviderDialog).toBeHidden()
+  await expect(lmStudioDialog).toBeVisible()
+  await lmStudioDialog.getByRole('button', { name: 'Remove Provider', exact: true }).click()
+  await removeProviderDialog.getByRole('button', { name: 'Remove Provider', exact: true }).click()
+  await expect(lmStudioDialog).toBeHidden()
+  await expect(settingsPanel.getByRole('listitem').filter({ hasText: 'LM Studio Local' })).toHaveCount(0)
+  await page.keyboard.press('Escape')
+  await page.getByRole('button', { name: `Model: ${testProviderModelName}` }).click()
+  await expect(page.getByRole('menu', { name: 'Model' }).getByRole('menuitemradio')).toHaveCount(1)
   expect(refusedOutsideRequestUrls).toEqual([])
 })

@@ -5,7 +5,9 @@
 // may send Authorization and Content-Type to its chat and model list. Meta, OpenAI, OpenRouter,
 // Groq, Together, Fireworks and Google Gemini allow it. Ollama Cloud refuses it (405, no
 // permission header) and OpenCode Zen and Go refuse it for chat (404), so a web page can't reach
-// them; an app outside the browser could.
+// them; an app outside the browser could. Claude's API (checked 2026-11-03 the same way) allows
+// papeliz.com its chat and model list only when the request also sends Anthropic's header for calls
+// from a browser page, which the Claude preset adds (`providerExtraRequestHeaders`).
 
 export interface PapelizAssistantProviderPreset {
   papelizAssistantProviderId: string
@@ -16,6 +18,10 @@ export interface PapelizAssistantProviderPreset {
   isProviderApiKeyRequired: boolean
   providerApiKeyHelpUrl: string | null
   isBrowserAccessConfirmed: boolean
+  // Where the provider runs, for the groups of Add Provider's list.
+  providerPresetPlace: 'hosted' | 'this-computer' | 'any-address'
+  // Headers this provider needs on every request besides the key's.
+  providerExtraRequestHeaders?: Readonly<Record<string, string>>
 }
 
 export const papelizCustomAssistantProviderId = 'custom'
@@ -23,13 +29,26 @@ export const papelizCustomAssistantProviderId = 'custom'
 export const papelizAssistantProviderPresets: readonly PapelizAssistantProviderPreset[] = [
   {
     papelizAssistantProviderId: 'meta-model-api',
-    providerPresetDisplayName: 'Muse Spark · Meta Model API',
+    providerPresetDisplayName: 'Meta Model API',
     providerPresetDescription: 'Recommended. Long context, so the assistant can work across many notes at once.',
     providerBaseUrl: 'https://api.meta.ai/v1',
     suggestedProviderModelNames: ['muse-spark-1.3', 'muse-spark-1.1'],
     isProviderApiKeyRequired: true,
     providerApiKeyHelpUrl: 'https://dev.meta.ai/',
     isBrowserAccessConfirmed: true,
+    providerPresetPlace: 'hosted',
+  },
+  {
+    papelizAssistantProviderId: 'claude',
+    providerPresetDisplayName: 'Claude',
+    providerPresetDescription: 'Anthropic’s Claude models.',
+    providerBaseUrl: 'https://api.anthropic.com/v1',
+    suggestedProviderModelNames: ['claude-sonnet-5-5', 'claude-opus-5-5', 'claude-haiku-5-5'],
+    isProviderApiKeyRequired: true,
+    providerApiKeyHelpUrl: 'https://console.anthropic.com/settings/keys',
+    isBrowserAccessConfirmed: true,
+    providerPresetPlace: 'hosted',
+    providerExtraRequestHeaders: { 'anthropic-dangerous-direct-browser-access': 'true' },
   },
   {
     papelizAssistantProviderId: 'openai',
@@ -40,6 +59,7 @@ export const papelizAssistantProviderPresets: readonly PapelizAssistantProviderP
     isProviderApiKeyRequired: true,
     providerApiKeyHelpUrl: 'https://platform.openai.com/api-keys',
     isBrowserAccessConfirmed: true,
+    providerPresetPlace: 'hosted',
   },
   {
     papelizAssistantProviderId: 'openrouter',
@@ -50,6 +70,7 @@ export const papelizAssistantProviderPresets: readonly PapelizAssistantProviderP
     isProviderApiKeyRequired: true,
     providerApiKeyHelpUrl: 'https://openrouter.ai/keys',
     isBrowserAccessConfirmed: true,
+    providerPresetPlace: 'hosted',
   },
   {
     papelizAssistantProviderId: 'groq',
@@ -60,6 +81,7 @@ export const papelizAssistantProviderPresets: readonly PapelizAssistantProviderP
     isProviderApiKeyRequired: true,
     providerApiKeyHelpUrl: 'https://console.groq.com/keys',
     isBrowserAccessConfirmed: true,
+    providerPresetPlace: 'hosted',
   },
   {
     papelizAssistantProviderId: 'together',
@@ -70,6 +92,7 @@ export const papelizAssistantProviderPresets: readonly PapelizAssistantProviderP
     isProviderApiKeyRequired: true,
     providerApiKeyHelpUrl: 'https://api.together.ai/settings/api-keys',
     isBrowserAccessConfirmed: true,
+    providerPresetPlace: 'hosted',
   },
   {
     papelizAssistantProviderId: 'fireworks',
@@ -80,6 +103,7 @@ export const papelizAssistantProviderPresets: readonly PapelizAssistantProviderP
     isProviderApiKeyRequired: true,
     providerApiKeyHelpUrl: 'https://fireworks.ai/account/api-keys',
     isBrowserAccessConfirmed: true,
+    providerPresetPlace: 'hosted',
   },
   {
     papelizAssistantProviderId: 'google-gemini',
@@ -90,6 +114,7 @@ export const papelizAssistantProviderPresets: readonly PapelizAssistantProviderP
     isProviderApiKeyRequired: true,
     providerApiKeyHelpUrl: 'https://aistudio.google.com/apikey',
     isBrowserAccessConfirmed: true,
+    providerPresetPlace: 'hosted',
   },
   {
     papelizAssistantProviderId: 'ollama-cloud',
@@ -100,6 +125,7 @@ export const papelizAssistantProviderPresets: readonly PapelizAssistantProviderP
     isProviderApiKeyRequired: true,
     providerApiKeyHelpUrl: 'https://ollama.com/settings/keys',
     isBrowserAccessConfirmed: false,
+    providerPresetPlace: 'hosted',
   },
   {
     papelizAssistantProviderId: 'opencode-zen',
@@ -110,6 +136,7 @@ export const papelizAssistantProviderPresets: readonly PapelizAssistantProviderP
     isProviderApiKeyRequired: true,
     providerApiKeyHelpUrl: 'https://opencode.ai/zen',
     isBrowserAccessConfirmed: false,
+    providerPresetPlace: 'hosted',
   },
   {
     papelizAssistantProviderId: 'opencode-go',
@@ -120,26 +147,29 @@ export const papelizAssistantProviderPresets: readonly PapelizAssistantProviderP
     isProviderApiKeyRequired: true,
     providerApiKeyHelpUrl: 'https://opencode.ai/docs/go/',
     isBrowserAccessConfirmed: false,
+    providerPresetPlace: 'hosted',
   },
   {
     papelizAssistantProviderId: 'ollama',
-    providerPresetDisplayName: 'Ollama (on this computer)',
+    providerPresetDisplayName: 'Ollama Local',
     providerPresetDescription: 'Local models. Allow Papeliz’s address in OLLAMA_ORIGINS first.',
     providerBaseUrl: 'http://localhost:11434/v1',
     suggestedProviderModelNames: [],
     isProviderApiKeyRequired: false,
     providerApiKeyHelpUrl: null,
     isBrowserAccessConfirmed: false,
+    providerPresetPlace: 'this-computer',
   },
   {
     papelizAssistantProviderId: 'lm-studio',
-    providerPresetDisplayName: 'LM Studio (on this computer)',
+    providerPresetDisplayName: 'LM Studio Local',
     providerPresetDescription: 'Local models from LM Studio’s server.',
     providerBaseUrl: 'http://localhost:1234/v1',
     suggestedProviderModelNames: [],
     isProviderApiKeyRequired: false,
     providerApiKeyHelpUrl: null,
     isBrowserAccessConfirmed: false,
+    providerPresetPlace: 'this-computer',
   },
   {
     papelizAssistantProviderId: papelizCustomAssistantProviderId,
@@ -150,6 +180,7 @@ export const papelizAssistantProviderPresets: readonly PapelizAssistantProviderP
     isProviderApiKeyRequired: false,
     providerApiKeyHelpUrl: null,
     isBrowserAccessConfirmed: false,
+    providerPresetPlace: 'any-address',
   },
 ]
 
@@ -162,10 +193,11 @@ export const papelizBrowserBlockedAssistantProviderIds: readonly string[] = ['ol
 // Providers whose answers carry what each request cost, which Usage counts before any price.
 export const papelizRequestCostReportingAssistantProviderIds: readonly string[] = ['openrouter']
 
-// The providers settings offers: Muse Spark on Meta first, then every provider a web page can reach,
-// those on this computer and Custom (Adam, 2026-10-29: "remove ollama cloud for now", then
-// "Openrouter works or whatever works on the provider put it in"). A hidden one stays defined, so
-// settings saved for it still open, and it stays listed while it is the one chosen.
+// The providers settings offers: the Meta Model API first, then Claude, then every other provider a
+// web page can reach, those on this computer and Custom (Adam, 2026-10-29: "remove ollama cloud for
+// now", then "Openrouter works or whatever works on the provider put it in"; 2026-11-02: "Meta Model
+// API / Claude / OpenAI"). A hidden one stays defined, so settings saved for it still open, and it
+// stays listed while it is the one chosen.
 export const papelizOfferedAssistantProviderIds: readonly string[] = papelizAssistantProviderPresets
   .map((providerPreset) => providerPreset.papelizAssistantProviderId)
   .filter((papelizAssistantProviderId) => !papelizBrowserBlockedAssistantProviderIds.includes(papelizAssistantProviderId))

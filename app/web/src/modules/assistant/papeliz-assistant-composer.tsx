@@ -6,6 +6,7 @@ import {
   Library,
   ListPlus,
   Plus,
+  Settings,
   ShieldAlert,
   ShieldCheck,
   SignalHigh,
@@ -25,7 +26,13 @@ import { PapelizAssistantContextWindowGauge } from './papeliz-assistant-context-
 import { usePapelizAssistantConversationStore } from './papeliz-assistant-conversation-store'
 import { usePapelizAssistantPanelUiStore } from './papeliz-assistant-panel-ui-store'
 import { findPapelizAssistantProviderPreset } from './papeliz-assistant-provider-presets'
-import { usePapelizAssistantProviderSettingsStore } from './papeliz-assistant-provider-settings-store'
+import {
+  listPapelizEnabledProviderModelNames,
+  listPapelizSavedAssistantProviderIds,
+  selectActivePapelizAssistantProviderId,
+  selectActivePapelizAssistantProviderModelName,
+  usePapelizAssistantProviderSettingsStore,
+} from './papeliz-assistant-provider-settings-store'
 import { usePapelizAssistantRunOptionsStore, type PapelizAssistantReasoningEffort } from './papeliz-assistant-run-options-store'
 
 const papelizAssistantReasoningEffortChoices: ReadonlyArray<{
@@ -44,7 +51,13 @@ const papelizComposerQuietButtonClassName =
   'flex h-7 min-w-0 flex-none items-center gap-1 rounded-lg px-1.5 text-[12.5px] text-papeliz-ink-muted transition-colors hover:bg-papeliz-hover hover:text-papeliz-ink aria-expanded:bg-papeliz-hover pointer-coarse:h-10 pointer-coarse:min-w-10 pointer-coarse:justify-center'
 
 // Which of the composer's chip menus is open, and where.
-type PapelizComposerChipMenu = { composerChipMenuKind: 'effort' | 'permission'; composerChipMenuPosition: PapelizPopoverMenuPosition }
+type PapelizComposerChipMenu = { composerChipMenuKind: 'model' | 'effort' | 'permission'; composerChipMenuPosition: PapelizPopoverMenuPosition }
+
+// The popover menu's rows (h-9), a group heading with its line, and its padding, so a menu that opens
+// above its chip can be placed before it is drawn.
+const papelizComposerChipMenuRowHeight = 36
+const papelizComposerChipMenuGroupHeadingHeight = 30
+const papelizComposerChipMenuFrameHeight = 10
 
 interface PapelizAssistantComposerProps {
   // `floating` is focus mode's large composer at the bottom of the note.
@@ -55,7 +68,8 @@ interface PapelizAssistantComposerProps {
 // quiet buttons. On the left: + (add files and pictures, which can also be pasted or dropped on the
 // box), what the assistant will see (this note, or the vault) and, in Write, whether its changes
 // wait for review or apply at once (Bypass permission, in red). On the right: the context gauge,
-// the model, how hard it thinks (Effort, left out for a model that refused it) and Send. Enter
+// the model (a menu of every model switched on in Settings › AI Provider, by provider), how hard it
+// thinks (Effort, left out for a model that refused it) and Send. Enter
 // sends, Shift+Enter starts a new line. While the assistant answers, Enter steers it (it reads the
 // message before its next step), and Queue keeps the message for when the answer ends.
 export function PapelizAssistantComposer({ composerPlacement }: PapelizAssistantComposerProps) {
@@ -70,10 +84,10 @@ export function PapelizAssistantComposer({ composerPlacement }: PapelizAssistant
   const setAssistantContextMode = usePapelizAssistantConversationStore((conversationState) => conversationState.setAssistantContextMode)
   const setPendingSelectionContext = usePapelizAssistantConversationStore((conversationState) => conversationState.setPendingSelectionContext)
   const activeVaultMarkdownNoteRelativePath = usePapelizWorkspaceStore(selectActiveVaultMarkdownNoteRelativePath)
-  const activeAssistantProviderId = usePapelizAssistantProviderSettingsStore((settingsState) => settingsState.activeAssistantProviderId)
-  const activeProviderModelName = usePapelizAssistantProviderSettingsStore(
-    (settingsState) => settingsState.providerSettingsByProviderId[settingsState.activeAssistantProviderId]?.providerModelName,
-  )
+  const activeAssistantProviderId = usePapelizAssistantProviderSettingsStore(selectActivePapelizAssistantProviderId)
+  const activeProviderModelName = usePapelizAssistantProviderSettingsStore(selectActivePapelizAssistantProviderModelName)
+  const providerSettingsByProviderId = usePapelizAssistantProviderSettingsStore((settingsState) => settingsState.providerSettingsByProviderId)
+  const chooseActiveAssistantProviderModel = usePapelizAssistantProviderSettingsStore((settingsState) => settingsState.chooseActiveAssistantProviderModel)
   const queuedAssistantMessages = usePapelizAssistantConversationStore((conversationState) => conversationState.queuedAssistantMessages)
   const steerAssistant = usePapelizAssistantConversationStore((conversationState) => conversationState.steerAssistant)
   const queueAssistantMessage = usePapelizAssistantConversationStore((conversationState) => conversationState.queueAssistantMessage)
@@ -88,7 +102,7 @@ export function PapelizAssistantComposer({ composerPlacement }: PapelizAssistant
   const setAssistantReasoningEffort = usePapelizAssistantRunOptionsStore((runOptionsState) => runOptionsState.setAssistantReasoningEffort)
   const setAssistantChangePermission = usePapelizAssistantRunOptionsStore((runOptionsState) => runOptionsState.setAssistantChangePermission)
   const isReasoningEffortRefusedByModel = usePapelizAssistantRunOptionsStore((runOptionsState) =>
-    runOptionsState.providerModelNamesRefusingReasoningEffort.includes(activeProviderModelName ?? ''),
+    runOptionsState.providerModelNamesRefusingReasoningEffort.includes(activeProviderModelName),
   )
   const [openComposerChipMenu, setOpenComposerChipMenu] = useState<PapelizComposerChipMenu | null>(null)
   const pendingAssistantAttachments = usePapelizAssistantConversationStore((conversationState) => conversationState.pendingAssistantAttachments)
@@ -117,7 +131,14 @@ export function PapelizAssistantComposer({ composerPlacement }: PapelizAssistant
     else void sendAssistantMessage(composerDraftText)
   }
   const isNoteContextShown = assistantContextMode === 'active-note' && activeVaultMarkdownNoteRelativePath !== null
-  const providerChipLabel = activeProviderModelName ?? findPapelizAssistantProviderPreset(activeAssistantProviderId).providerPresetDisplayName
+  const providerChipLabel = activeProviderModelName || findPapelizAssistantProviderPreset(activeAssistantProviderId).providerPresetDisplayName
+  // The models on the model chip's menu: each saved provider's switched-on models, under its name.
+  const enabledProviderModelGroups = listPapelizSavedAssistantProviderIds(providerSettingsByProviderId)
+    .map((savedProviderId) => ({
+      papelizAssistantProviderId: savedProviderId,
+      enabledProviderModelNames: listPapelizEnabledProviderModelNames(providerSettingsByProviderId[savedProviderId]),
+    }))
+    .filter((enabledProviderModelGroup) => enabledProviderModelGroup.enabledProviderModelNames.length > 0)
   const isComposerDraftEmpty = composerDraftText.trim().length === 0 && pendingAssistantAttachments.length === 0
   const isBypassPermissionOn = assistantChangePermission === 'bypass-permission'
   const chosenReasoningEffortChoice =
@@ -128,10 +149,47 @@ export function PapelizAssistantComposer({ composerPlacement }: PapelizAssistant
   const openComposerChipMenuBelow = (composerChipMenuKind: PapelizComposerChipMenu['composerChipMenuKind'], clickEvent: MouseEvent<HTMLButtonElement>) => {
     const chipRect = clickEvent.currentTarget.getBoundingClientRect()
     // The menu opens above the chip; the popover keeps it inside the window.
-    setOpenComposerChipMenu({ composerChipMenuKind, composerChipMenuPosition: { menuAnchorLeft: chipRect.left, menuAnchorTop: chipRect.top - 150 } })
+    const modelMenuHeight =
+      (enabledProviderModelGroups.reduce((modelRowCount, enabledProviderModelGroup) => modelRowCount + enabledProviderModelGroup.enabledProviderModelNames.length, 0) + 1) *
+        papelizComposerChipMenuRowHeight +
+      (enabledProviderModelGroups.length + 1) * papelizComposerChipMenuGroupHeadingHeight +
+      papelizComposerChipMenuFrameHeight
+    setOpenComposerChipMenu({
+      composerChipMenuKind,
+      composerChipMenuPosition: { menuAnchorLeft: chipRect.left, menuAnchorTop: chipRect.top - (composerChipMenuKind === 'model' ? modelMenuHeight + 6 : 150) },
+    })
   }
+  const isActiveProviderModel = (papelizAssistantProviderId: string, providerModelName: string) =>
+    papelizAssistantProviderId === activeAssistantProviderId && providerModelName === activeProviderModelName
   const composerChipMenuItems: PapelizPopoverMenuItem[] =
-    openComposerChipMenu?.composerChipMenuKind === 'effort'
+    openComposerChipMenu?.composerChipMenuKind === 'model'
+      ? [
+          ...enabledProviderModelGroups.flatMap((enabledProviderModelGroup) =>
+            enabledProviderModelGroup.enabledProviderModelNames.map((enabledProviderModelName, enabledProviderModelIndex) => ({
+              menuItemKey: `${enabledProviderModelGroup.papelizAssistantProviderId}/${enabledProviderModelName}`,
+              menuItemLabel: enabledProviderModelName,
+              isMenuItemChecked: isActiveProviderModel(enabledProviderModelGroup.papelizAssistantProviderId, enabledProviderModelName),
+              ...(enabledProviderModelIndex === 0
+                ? { menuItemGroupHeading: findPapelizAssistantProviderPreset(enabledProviderModelGroup.papelizAssistantProviderId).providerPresetDisplayName }
+                : {}),
+              onMenuItemSelect: () => {
+                if (isActiveProviderModel(enabledProviderModelGroup.papelizAssistantProviderId, enabledProviderModelName)) return
+                void chooseActiveAssistantProviderModel({
+                  papelizAssistantProviderId: enabledProviderModelGroup.papelizAssistantProviderId,
+                  providerModelName: enabledProviderModelName,
+                }).catch(() => undefined)
+              },
+            })),
+          ),
+          {
+            menuItemKey: 'ai-provider-settings',
+            menuItemLabel: 'AI Provider',
+            MenuItemIcon: Settings,
+            menuItemGroupHeading: 'Settings',
+            onMenuItemSelect: () => setProviderSettingsDialogOpen(true),
+          },
+        ]
+      : openComposerChipMenu?.composerChipMenuKind === 'effort'
       ? papelizAssistantReasoningEffortChoices.map((reasoningEffortChoice, reasoningEffortChoiceIndex) => ({
           menuItemKey: reasoningEffortChoice.assistantReasoningEffort,
           menuItemLabel: reasoningEffortChoice.reasoningEffortLabel,
@@ -335,10 +393,14 @@ export function PapelizAssistantComposer({ composerPlacement }: PapelizAssistant
         )}
         <span className="min-w-1 flex-1" />
         <PapelizAssistantContextWindowGauge />
+        {/* With a model switched on, a menu of them all; until then, Settings › AI Provider. */}
         <button
           type="button"
-          onClick={() => setProviderSettingsDialogOpen(true)}
-          title="Provider and model. Click to change."
+          aria-haspopup={enabledProviderModelGroups.length > 0 ? 'menu' : undefined}
+          aria-expanded={enabledProviderModelGroups.length > 0 ? openComposerChipMenu?.composerChipMenuKind === 'model' : undefined}
+          aria-label={activeProviderModelName.length > 0 ? `Model: ${activeProviderModelName}` : undefined}
+          onClick={(clickEvent) => (enabledProviderModelGroups.length > 0 ? openComposerChipMenuBelow('model', clickEvent) : setProviderSettingsDialogOpen(true))}
+          title="Model. Click to change."
           className={joinPapelizClassNames(papelizComposerQuietButtonClassName, 'max-w-[48%] flex-shrink')}
         >
           <span className="truncate">{providerChipLabel}</span>
@@ -398,7 +460,7 @@ export function PapelizAssistantComposer({ composerPlacement }: PapelizAssistant
       </div>
       {openComposerChipMenu !== null && (
         <PapelizPopoverMenu
-          menuLabel={openComposerChipMenu.composerChipMenuKind === 'effort' ? 'Effort' : 'Changes in Write'}
+          menuLabel={openComposerChipMenu.composerChipMenuKind === 'model' ? 'Model' : openComposerChipMenu.composerChipMenuKind === 'effort' ? 'Effort' : 'Changes in Write'}
           menuPosition={openComposerChipMenu.composerChipMenuPosition}
           menuItems={composerChipMenuItems}
           onMenuClose={() => setOpenComposerChipMenu(null)}

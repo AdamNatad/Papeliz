@@ -17,7 +17,11 @@ import {
   parsePapelizChatSessionFile,
   type PapelizChatSessionMessage,
 } from './papeliz-assistant-chat-session-files'
-import { getActivePapelizAssistantProviderConnection, usePapelizAssistantProviderSettingsStore } from './papeliz-assistant-provider-settings-store'
+import {
+  getActivePapelizAssistantProviderConnection,
+  selectActivePapelizAssistantProviderModelName,
+  usePapelizAssistantProviderSettingsStore,
+} from './papeliz-assistant-provider-settings-store'
 import {
   addPapelizChatCompletionToChatSessionTokenUsage,
   papelizEmptyChatSessionTokenUsage,
@@ -462,14 +466,12 @@ export const usePapelizAssistantConversationStore = create<PapelizAssistantConve
       const chatSessionMessages = buildChatSessionMessages(conversationState.chatEntries, conversationState.assistantProposalsById)
       const firstUserMessage = chatSessionMessages.find((chatSessionMessage) => chatSessionMessage.chatSessionMessageRole === 'user')
       if (firstUserMessage === undefined) return
-      const activeProviderSettingsState = usePapelizAssistantProviderSettingsStore.getState()
       const chatSessionFileText = formatPapelizChatSessionFile({
         papelizChatSessionId: conversationState.papelizChatSessionId,
         chatSessionTitle: firstUserMessage.chatSessionMessageText.split('\n')[0]?.slice(0, 80) ?? 'Chat',
         chatSessionCreatedAt: conversationState.chatSessionCreatedAt,
         chatSessionUpdatedAt: new Date().toISOString(),
-        chatSessionModelName:
-          activeProviderSettingsState.providerSettingsByProviderId[activeProviderSettingsState.activeAssistantProviderId]?.providerModelName ?? '',
+        chatSessionModelName: selectActivePapelizAssistantProviderModelName(usePapelizAssistantProviderSettingsStore.getState()),
         chatSessionMessages,
         chatSessionTokenUsage: conversationState.chatSessionTokenUsage,
       })

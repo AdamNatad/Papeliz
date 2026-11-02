@@ -11,6 +11,11 @@ export interface PapelizAssistantProviderConnection {
   providerBaseUrl: string
   providerApiKey: string
   providerModelName: string
+  // Headers the provider needs besides the key's, such as Claude's for calls from a browser page.
+  providerExtraRequestHeaders?: Readonly<Record<string, string>>
+  // Settings › AI Provider's Advanced: left out, the provider's own default applies.
+  providerMaximumOutputTokenCount?: number
+  providerTemperature?: number
 }
 
 export interface PapelizChatToolCall {
@@ -81,7 +86,7 @@ export function buildPapelizProviderUrl(providerBaseUrl: string, providerPath: s
 }
 
 function buildProviderHeaders(providerConnection: PapelizAssistantProviderConnection): Record<string, string> {
-  const providerHeaders: Record<string, string> = { 'Content-Type': 'application/json' }
+  const providerHeaders: Record<string, string> = { ...providerConnection.providerExtraRequestHeaders, 'Content-Type': 'application/json' }
   if (providerConnection.providerApiKey.trim().length > 0) providerHeaders['Authorization'] = `Bearer ${providerConnection.providerApiKey.trim()}`
   return providerHeaders
 }
@@ -304,7 +309,9 @@ async function streamChatCompletionFromProvider(chatCompletionRequest: PapelizCh
     requestBody['tools'] = chatCompletionRequest.chatTools
     requestBody['tool_choice'] = 'auto'
   }
-  if (chatCompletionRequest.maximumCompletionTokens !== undefined) requestBody['max_tokens'] = chatCompletionRequest.maximumCompletionTokens
+  const maximumCompletionTokens = chatCompletionRequest.maximumCompletionTokens ?? chatCompletionRequest.providerConnection.providerMaximumOutputTokenCount
+  if (maximumCompletionTokens !== undefined) requestBody['max_tokens'] = maximumCompletionTokens
+  if (chatCompletionRequest.providerConnection.providerTemperature !== undefined) requestBody['temperature'] = chatCompletionRequest.providerConnection.providerTemperature
 
   // The token counts come on the last chunk only when asked for.
   const providerBaseUrlKey = readProviderBaseUrlKey(chatCompletionRequest.providerConnection.providerBaseUrl)

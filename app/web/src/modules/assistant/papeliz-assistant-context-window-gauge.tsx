@@ -1,7 +1,11 @@
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { usePapelizAssistantConversationStore } from './papeliz-assistant-conversation-store'
 import { findPapelizAssistantModelContextWindowTokenCount } from './papeliz-assistant-provider-presets'
-import { usePapelizAssistantProviderSettingsStore } from './papeliz-assistant-provider-settings-store'
+import {
+  selectActivePapelizAssistantProviderContextWindowTokenCount,
+  selectActivePapelizAssistantProviderModelName,
+  usePapelizAssistantProviderSettingsStore,
+} from './papeliz-assistant-provider-settings-store'
 import { readPapelizAssistantContextWindowGauge, type PapelizAssistantContextWindowFillLevel } from './papeliz-assistant-token-usage'
 
 const papelizContextWindowFillLevelClassNames: Record<PapelizAssistantContextWindowFillLevel, string> = {
@@ -23,15 +27,15 @@ export function PapelizAssistantContextWindowGauge() {
   const isChatSessionContextTokenCountEstimated = usePapelizAssistantConversationStore(
     (conversationState) => conversationState.chatSessionTokenUsage.isChatSessionContextTokenCountEstimated,
   )
-  const activeProviderModelName = usePapelizAssistantProviderSettingsStore(
-    (settingsState) => settingsState.providerSettingsByProviderId[settingsState.activeAssistantProviderId]?.providerModelName ?? '',
-  )
+  const activeProviderModelName = usePapelizAssistantProviderSettingsStore(selectActivePapelizAssistantProviderModelName)
+  // A context window set in the provider's Advanced settings counts before the model's listed one.
+  const activeProviderContextWindowTokenCount = usePapelizAssistantProviderSettingsStore(selectActivePapelizAssistantProviderContextWindowTokenCount)
   if (chatSessionContextTokenCount <= 0) return null
 
   const contextWindowGaugeReading = readPapelizAssistantContextWindowGauge(
     chatSessionContextTokenCount,
     isChatSessionContextTokenCountEstimated,
-    findPapelizAssistantModelContextWindowTokenCount(activeProviderModelName),
+    activeProviderContextWindowTokenCount ?? findPapelizAssistantModelContextWindowTokenCount(activeProviderModelName),
   )
   if (contextWindowGaugeReading.contextWindowFilledFraction === null) {
     return (

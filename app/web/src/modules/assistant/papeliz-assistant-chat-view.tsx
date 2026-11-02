@@ -206,6 +206,7 @@ export function PapelizAssistantChatView() {
   const acceptAllPendingAssistantProposals = usePapelizAssistantConversationStore((conversationState) => conversationState.acceptAllPendingAssistantProposals)
   const setProviderSettingsDialogOpen = usePapelizAssistantPanelUiStore((panelUiState) => panelUiState.setProviderSettingsDialogOpen)
   usePapelizAssistantProviderSettingsStore((settingsState) => settingsState.providerSettingsByProviderId)
+  usePapelizAssistantProviderSettingsStore((settingsState) => settingsState.activeAssistantProviderId)
   const activeVaultMarkdownNoteRelativePath = usePapelizWorkspaceStore(selectActiveVaultMarkdownNoteRelativePath)
   const chatScrollAreaRef = useRef<HTMLDivElement>(null)
   const pendingProposalCount = Object.values(assistantProposalsById).filter((assistantProposal) => assistantProposal.proposalStatus === 'pending').length

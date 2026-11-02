@@ -13,6 +13,8 @@ interface PapelizUserSettingRecord<PapelizUserSettingValue> {
 
 export const papelizThemePreferenceSettingName = 'papelizThemePreference'
 export const papelizActiveAssistantProviderSettingName = 'papelizActiveAssistantProviderId'
+// The model picked on the assistant's model chip, of the provider above (papeliz-assistant-provider-settings-store.ts).
+export const papelizActiveAssistantProviderModelNameSettingName = 'papelizActiveAssistantProviderModelName'
 export const papelizWorkspacePanelWidthsSettingName = 'papelizWorkspacePanelWidths'
 // The note's font, size and width (papeliz-note-typography-store.ts).
 export const papelizNoteTypographySettingName = 'papelizNoteTypography'

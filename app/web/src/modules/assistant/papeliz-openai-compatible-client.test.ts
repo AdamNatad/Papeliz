@@ -306,4 +306,42 @@ describe('the OpenAI-compatible client', () => {
       await listPapelizProviderModelNames(testProviderConnection, async () => Response.json({ data: [{ id: 'b-model' }, { id: 'a-model' }] })),
     ).toEqual(['a-model', 'b-model'])
   })
+
+  it('sends a provider’s own extra headers with its key, and the Advanced longest answer and temperature', async () => {
+    const requests: Array<{ requestUrl: string; requestInit: RequestInit }> = []
+    const recordingFetchFunction = async (requestUrl: string, requestInit: RequestInit) => {
+      requests.push({ requestUrl, requestInit })
+      return requestUrl.endsWith('/models') ? Response.json({ data: [{ id: 'claude-sonnet-5-5' }] }) : Response.json({ choices: [{ message: { content: 'ready' } }] })
+    }
+    const claudeConnection = {
+      providerBaseUrl: 'https://api.anthropic.com/v1',
+      providerApiKey: 'papeliz-fake-claude-test-key',
+      providerModelName: 'claude-sonnet-5-5',
+      providerExtraRequestHeaders: findPapelizAssistantProviderPreset('claude').providerExtraRequestHeaders,
+      providerMaximumOutputTokenCount: 2048,
+      providerTemperature: 0.4,
+    }
+    await streamPapelizChatCompletion({ providerConnection: claudeConnection, chatMessages: [{ role: 'user', content: 'Hi' }], fetchFunction: recordingFetchFunction })
+    await listPapelizProviderModelNames(claudeConnection, recordingFetchFunction)
+    for (const { requestInit } of requests) {
+      expect(requestInit.headers).toMatchObject({
+        'anthropic-dangerous-direct-browser-access': 'true',
+        Authorization: 'Bearer papeliz-fake-claude-test-key',
+        'Content-Type': 'application/json',
+      })
+    }
+    expect(JSON.parse(String(requests[0]?.requestInit.body))).toMatchObject({ max_tokens: 2048, temperature: 0.4 })
+    // A request's own limit (Test Connection's) wins over the Advanced one.
+    await streamPapelizChatCompletion({
+      providerConnection: claudeConnection,
+      chatMessages: [{ role: 'user', content: 'Hi' }],
+      maximumCompletionTokens: 16,
+      fetchFunction: recordingFetchFunction,
+    })
+    expect(JSON.parse(String(requests.at(-1)?.requestInit.body))).toMatchObject({ max_tokens: 16 })
+    // Another provider sends neither the header nor the settings it doesn't have.
+    await streamPapelizChatCompletion({ providerConnection: testProviderConnection, chatMessages: [{ role: 'user', content: 'Hi' }], fetchFunction: recordingFetchFunction })
+    expect(requests.at(-1)?.requestInit.headers).not.toHaveProperty('anthropic-dangerous-direct-browser-access')
+    expect(JSON.parse(String(requests.at(-1)?.requestInit.body))).not.toHaveProperty('temperature')
+  })
 })
