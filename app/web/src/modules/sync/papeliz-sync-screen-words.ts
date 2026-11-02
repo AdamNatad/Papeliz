@@ -13,9 +13,6 @@ import type {
 
 // The words Papeliz Sync's screens use, kept apart from the screens so tests can read them.
 
-// What the Sync page says Sync is. Only the vaults set to End-to-end are end-to-end encrypted.
-export const papelizSyncPageIntro = 'Keep your vaults in sync across web, desktop and mobile. Choose End-to-end encryption for the vaults you want only you to read.'
-
 export const papelizSyncPlanDisplayNames: Record<PapelizSyncPlanName, string> = {
   free: 'Free',
   standard: 'Standard',
@@ -134,28 +131,16 @@ export function describePapelizSyncFileCount(syncFileCount: number): string {
   return `${syncFileCount.toLocaleString('en-US')} ${syncFileCount === 1 ? 'file' : 'files'}`
 }
 
-// A plan's visible limits as the plan list shows them, three lines. A plan that keeps versions for
-// less than a month (Free) counts them in days.
-export function describePapelizSyncPlanLimitLines(syncVisiblePlanLimits: PapelizSyncVisiblePlanLimits): string[] {
-  const { syncedVaultLimit, syncNoteHistoryMonthCount, syncNoteHistoryDayCount } = syncVisiblePlanLimits
-  return [
-    `${formatPapelizSyncByteSize(syncVisiblePlanLimits.syncStorageByteLimit)}, old versions included`,
-    `${syncedVaultLimit.toLocaleString('en-US')} ${syncedVaultLimit === 1 ? 'vault' : 'vaults'} · files up to ${formatPapelizSyncByteSize(syncVisiblePlanLimits.syncLargestFileByteLimit)}`,
-    syncNoteHistoryMonthCount > 0
-      ? `${syncNoteHistoryMonthCount} months of versions`
-      : `${syncNoteHistoryDayCount} ${syncNoteHistoryDayCount === 1 ? 'day' : 'days'} of versions`,
-  ]
+// A plan card's one line: its storage, its synced vaults and Version History, which every plan has.
+// How long versions are kept, devices and file sizes are in the help guide, not on the card.
+export function describePapelizSyncPlanCardLine(syncVisiblePlanLimits: PapelizSyncVisiblePlanLimits): string {
+  const { syncStorageByteLimit, syncedVaultLimit } = syncVisiblePlanLimits
+  return `${formatPapelizSyncByteSize(syncStorageByteLimit)} · ${syncedVaultLimit.toLocaleString('en-US')} ${syncedVaultLimit === 1 ? 'vault' : 'vaults'} · Version History`
 }
 
-// The Free card's lines: the plan lines, then its device limit, which the paid plans share at a far
-// higher number.
-export function describePapelizSyncFreePlanLimitLines(syncFreePlanLimits: PapelizSyncVisiblePlanLimits): string[] {
-  return [...describePapelizSyncPlanLimitLines(syncFreePlanLimits), `${syncFreePlanLimits.syncConnectedDeviceLimit.toLocaleString('en-US')} devices`]
-}
-
-// The engine's formatted price, shown as it is, with the period added.
-export function describePapelizSyncPlanPrice(syncDisplayPrice: string, syncBillingPeriod: PapelizSyncBillingPeriod): string {
-  return `${syncDisplayPrice} ${syncBillingPeriod === 'monthly' ? 'a month' : 'a year'}`
+// The engine's formatted price for a month, shown as it is: "$5 a month", "$4 a month, billed yearly".
+export function describePapelizSyncPlanPrice(syncDisplayPricePerMonth: string, syncBillingPeriod: PapelizSyncBillingPeriod): string {
+  return syncBillingPeriod === 'monthly' ? `${syncDisplayPricePerMonth} a month` : `${syncDisplayPricePerMonth} a month, billed yearly`
 }
 
 const papelizSyncDayFormat = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' })

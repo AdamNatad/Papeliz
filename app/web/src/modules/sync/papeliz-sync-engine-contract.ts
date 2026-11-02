@@ -65,8 +65,11 @@ export interface PapelizSyncPlanOfferReading {
   syncPlanName: PapelizSyncPaidPlanName
   syncBillingPeriod: PapelizSyncBillingPeriod
   // Formatted by the engine with Intl.NumberFormat in the reader's own number format, for the whole
-  // billing period. The screen shows it as it is and adds "a month" or "a year" from the billing period.
+  // billing period.
   syncDisplayPrice: string
+  // The same for one month: the monthly price, or the yearly price spread over 12 months. The plan list
+  // shows this, with "a month" and, for yearly, "billed yearly".
+  syncDisplayPricePerMonth: string
   syncPriceCurrencyCode: string
   syncVisiblePlanLimits: PapelizSyncVisiblePlanLimits
 }

@@ -9,15 +9,6 @@ export function PapelizSyncPageLabel({ children, isFirstLabel = false }: { child
   return <p className={`${isFirstLabel ? '' : 'mt-3.5 '}mb-1.5 text-[12px] font-medium text-papeliz-ink-subtle`}>{children}</p>
 }
 
-export function PapelizSyncPageTitle({ children, pageTitleChip }: { children: ReactNode; pageTitleChip?: ReactNode }) {
-  return (
-    <div className="flex items-center gap-2">
-      <p className="min-w-0 flex-1 text-[15px] font-semibold">{children}</p>
-      {pageTitleChip}
-    </div>
-  )
-}
-
 export function PapelizSyncPageText({ children, className }: { children: ReactNode; className?: string }) {
   return <p className={joinPapelizClassNames('text-[12.5px] leading-[1.45] text-papeliz-ink-muted', className)}>{children}</p>
 }

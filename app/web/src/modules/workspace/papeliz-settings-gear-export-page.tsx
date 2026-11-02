@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, Download, FilePen, FileText, Folder, Globe, LoaderCircle, Printer, Search } from 'lucide-react'
+import { ChevronDown, ChevronRight, Download, FilePen, FileText, Folder, Globe, LayoutTemplate, LoaderCircle, Printer, Search, Settings2 } from 'lucide-react'
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import {
   choosePapelizExportDefaultPageSize,
@@ -11,7 +11,14 @@ import {
   type PapelizExportPresetPageSize,
 } from '../export-print-style/papeliz-export-print-style'
 import type { PapelizPdfExportLocalFontData } from '../pdf-export/papeliz-pdf-export-computer-fonts'
-import { papelizExportPaperSizeSettingName, readPapelizUserSetting, writePapelizUserSetting } from '../settings/papeliz-user-settings'
+import {
+  papelizExportPaperSizeSettingName,
+  papelizTemplateExportSettingsSettingName,
+  readPapelizUserSetting,
+  writePapelizUserSetting,
+} from '../settings/papeliz-user-settings'
+import { findPapelizTemplateExportDetailsProblem } from '../template-gallery/papeliz-template-export-details'
+import { papelizTemplateCategoryTags, papelizTemplateLicenseIds } from '../template-gallery/papeliz-template-gallery-contract'
 import { PapelizPillButton } from '../ui/papeliz-buttons'
 import { PapelizListboxSelect, type PapelizListboxSelectOption } from '../ui/papeliz-listbox-select'
 import { PapelizSlidingChoiceGroup } from '../ui/papeliz-sliding-choice-group'
@@ -19,6 +26,7 @@ import { describePapelizErrorSentence } from '../vault/papeliz-failure-code-word
 import { PapelizVaultOperationError } from '../vault/papeliz-vault-adapter'
 import { getVaultEntryParentFolderRelativePath } from '../vault/papeliz-vault-relative-paths'
 import { buildThenSavePapelizExportFile, type PapelizExportFileKind } from './papeliz-export-file-save'
+import { PapelizSettingsGearExportTemplateSettings, type PapelizSettingsGearTemplateExportSettings } from './papeliz-settings-gear-export-template-settings'
 import { usePapelizNoteTypographyStore } from './papeliz-note-typography-store'
 import {
   buildPapelizExportNoteTree,
@@ -32,9 +40,10 @@ import { usePapelizWorkspaceStore } from './papeliz-workspace-store'
 
 // The Settings gear's Export page (papeliz-settings-gear-button.tsx): tick notes in the vault's
 // folder tree, pick a format row, press Export. One note downloads as one file; several as one .zip,
-// folders kept. Each format's engine loads with `import()` only when someone exports with it.
+// folders kept (a template is always a .zip). Each format's engine loads with `import()` only when
+// someone exports with it.
 
-type PapelizSettingsGearExportFormat = 'word' | 'pdf' | 'html'
+type PapelizSettingsGearExportFormat = 'word' | 'pdf' | 'html' | 'template'
 
 interface PapelizSettingsGearExportFormatRow {
   exportFormat: PapelizSettingsGearExportFormat
@@ -49,6 +58,13 @@ const papelizSettingsGearExportFormatRows: readonly PapelizSettingsGearExportFor
   { exportFormat: 'word', exportFormatLabel: 'Word', exportFormatLine: 'Editable .docx, for Word, Google Docs or Notion', ExportFormatIcon: FilePen, isExportFormatReady: true },
   { exportFormat: 'pdf', exportFormatLabel: 'PDF', exportFormatLine: 'Pages for printing and sharing', ExportFormatIcon: Printer, isExportFormatReady: true },
   { exportFormat: 'html', exportFormatLabel: 'HTML', exportFormatLine: 'A web page; several notes make a website', ExportFormatIcon: Globe, isExportFormatReady: true },
+  {
+    exportFormat: 'template',
+    exportFormatLabel: 'Template',
+    exportFormatLine: 'A folder others can start a vault from',
+    ExportFormatIcon: LayoutTemplate,
+    isExportFormatReady: true,
+  },
 ]
 
 // The one file a single note downloads as, named in the summary under the tree.
@@ -56,6 +72,7 @@ const papelizSettingsGearExportFormatOneNoteFileExtensions: Record<PapelizSettin
   word: '.docx',
   pdf: '.pdf',
   html: '.html',
+  template: '.zip',
 }
 
 // Where an export stands, for the lines under the Export button.
@@ -175,6 +192,37 @@ function startExportCustomPaperFrom(exportPresetPaperSize: PapelizExportPresetPa
 function describeExportCustomPaperSideRange(customPaperUnit: PapelizSettingsGearExportCustomPaperUnit): string {
   const { smallestPageSidePoints, largestPageSidePoints } = papelizExportCustomPageSideRangePoints
   return `Each side from ${formatExportPaperSide(smallestPageSidePoints, customPaperUnit)} to ${formatExportPaperSide(largestPageSidePoints, customPaperUnit)} ${customPaperUnit}.`
+}
+
+// Export › Template's settings, kept per vault so the next export starts from them.
+type PapelizSettingsGearStoredTemplateExportSettings = Record<string, PapelizSettingsGearTemplateExportSettings>
+
+function createPapelizSettingsGearTemplateExportSettings(vaultDisplayName: string): PapelizSettingsGearTemplateExportSettings {
+  return {
+    templateExportName: vaultDisplayName,
+    templateExportDescription: '',
+    templateExportCategoryTag: null,
+    templateExportFirstNotePath: null,
+    templateExportLicenseId: 'MIT',
+    templateExportOptionalNoteRelativePaths: [],
+  }
+}
+
+function readStoredTemplateExportSettings(storedTemplateExportSettings: unknown, vaultDisplayName: string): PapelizSettingsGearTemplateExportSettings | null {
+  if (typeof storedTemplateExportSettings !== 'object' || storedTemplateExportSettings === null) return null
+  const storedSettingFields = storedTemplateExportSettings as Record<string, unknown>
+  const startingSettings = createPapelizSettingsGearTemplateExportSettings(vaultDisplayName)
+  const readStoredText = (storedFieldValue: unknown, fallbackText: string) => (typeof storedFieldValue === 'string' ? storedFieldValue : fallbackText)
+  return {
+    templateExportName: readStoredText(storedSettingFields['templateExportName'], startingSettings.templateExportName),
+    templateExportDescription: readStoredText(storedSettingFields['templateExportDescription'], ''),
+    templateExportCategoryTag: papelizTemplateCategoryTags.find((categoryTag) => categoryTag === storedSettingFields['templateExportCategoryTag']) ?? null,
+    templateExportFirstNotePath: typeof storedSettingFields['templateExportFirstNotePath'] === 'string' ? storedSettingFields['templateExportFirstNotePath'] : null,
+    templateExportLicenseId: papelizTemplateLicenseIds.find((licenseId) => licenseId === storedSettingFields['templateExportLicenseId']) ?? 'MIT',
+    templateExportOptionalNoteRelativePaths: Array.isArray(storedSettingFields['templateExportOptionalNoteRelativePaths'])
+      ? storedSettingFields['templateExportOptionalNoteRelativePaths'].filter((optionalNotePath): optionalNotePath is string => typeof optionalNotePath === 'string')
+      : [],
+  }
 }
 
 // A failed export's line: "The export stopped.", then why as a sentence of its own, capitalized and
@@ -430,10 +478,52 @@ export function PapelizSettingsGearExportPage() {
   }
   // What Word and the PDF print on; null while a custom side is missing or out of range.
   const exportPaperSize: PapelizExportPageSize | null = exportPaperChoice === 'custom' ? readExportCustomPaperPageSize(exportCustomPaper) : exportPaperChoice
-  const isExportPaperChosen = chosenExportFormat === 'html' || exportPaperSize !== null
+  const isExportPaperChosen = (chosenExportFormat !== 'word' && chosenExportFormat !== 'pdf') || exportPaperSize !== null
+
+  // Template: its settings for this vault, and whether their page is open over this one.
+  const openVaultId = openVault?.papelizVaultId ?? null
+  const openVaultDisplayName = openVault?.papelizVaultDisplayName ?? ''
+  const [templateExportSettings, setTemplateExportSettings] = useState<PapelizSettingsGearTemplateExportSettings>(() =>
+    createPapelizSettingsGearTemplateExportSettings(openVaultDisplayName),
+  )
+  const [isTemplateSettingsPageShown, setIsTemplateSettingsPageShown] = useState(false)
+  const hasChangedTemplateExportSettingsRef = useRef(false)
+  useEffect(() => {
+    if (openVaultId === null) return
+    let isTemplateSettingWanted = true
+    void readPapelizUserSetting<unknown>(papelizTemplateExportSettingsSettingName, null).then((storedTemplateExportSettingsByVaultId) => {
+      if (!isTemplateSettingWanted || hasChangedTemplateExportSettingsRef.current || typeof storedTemplateExportSettingsByVaultId !== 'object' || storedTemplateExportSettingsByVaultId === null) return
+      const storedTemplateExportSettings = readStoredTemplateExportSettings((storedTemplateExportSettingsByVaultId as Record<string, unknown>)[openVaultId], openVaultDisplayName)
+      if (storedTemplateExportSettings !== null) setTemplateExportSettings(storedTemplateExportSettings)
+    })
+    return () => {
+      isTemplateSettingWanted = false
+    }
+  }, [openVaultId, openVaultDisplayName])
+  const changeTemplateExportSettings = (changedTemplateExportSettings: PapelizSettingsGearTemplateExportSettings) => {
+    hasChangedTemplateExportSettingsRef.current = true
+    setTemplateExportSettings(changedTemplateExportSettings)
+    if (openVaultId === null) return
+    void readPapelizUserSetting<unknown>(papelizTemplateExportSettingsSettingName, null).then((storedTemplateExportSettingsByVaultId) => {
+      const storedSettingsByVaultId: PapelizSettingsGearStoredTemplateExportSettings =
+        typeof storedTemplateExportSettingsByVaultId === 'object' && storedTemplateExportSettingsByVaultId !== null
+          ? (storedTemplateExportSettingsByVaultId as PapelizSettingsGearStoredTemplateExportSettings)
+          : {}
+      void writePapelizUserSetting(papelizTemplateExportSettingsSettingName, { ...storedSettingsByVaultId, [openVaultId]: changedTemplateExportSettings })
+    })
+  }
 
   // Ticks that still name a note in the vault (one may have been renamed or trashed meanwhile).
-  const tickedExportNoteCount = everyExportNoteRelativePath.filter((exportNoteRelativePath) => tickedVaultNoteRelativePaths.has(exportNoteRelativePath)).length
+  const tickedExportNoteRelativePaths = everyExportNoteRelativePath.filter((exportNoteRelativePath) => tickedVaultNoteRelativePaths.has(exportNoteRelativePath))
+  const tickedExportNoteCount = tickedExportNoteRelativePaths.length
+  // The note the template opens first: the one set, while it is ticked; else the open note; else the first ticked.
+  const shownTemplateFirstNotePath =
+    [templateExportSettings.templateExportFirstNotePath, activeVaultNoteRelativePath].find(
+      (firstNoteCandidatePath): firstNoteCandidatePath is string => firstNoteCandidatePath !== null && tickedVaultNoteRelativePaths.has(firstNoteCandidatePath),
+    ) ??
+    tickedExportNoteRelativePaths[0] ??
+    null
+  const templateExportDetailsProblem = findPapelizTemplateExportDetailsProblem({ ...templateExportSettings, templateExportFirstNotePath: shownTemplateFirstNotePath })
   const isEveryExportNoteTicked = everyExportNoteRelativePath.length > 0 && tickedExportNoteCount === everyExportNoteRelativePath.length
   const exportNoteSearchMatches = findExportNotesMatchingSearch(exportNoteTree, exportNoteSearchText)
   const isExportNoteSearchOn = exportNoteSearchText.trim() !== ''
@@ -459,7 +549,8 @@ export function PapelizSettingsGearExportPage() {
 
   const isExportRunning = exportRunState.exportRunKind === 'running'
   const isChosenExportFormatReady = chosenExportFormatRow?.isExportFormatReady === true
-  const canExport = isChosenExportFormatReady && isExportPaperChosen && tickedExportNoteCount > 0 && openVault !== null && !isExportRunning
+  const isTemplateExportReady = chosenExportFormat !== 'template' || templateExportDetailsProblem === null
+  const canExport = isChosenExportFormatReady && isExportPaperChosen && isTemplateExportReady && tickedExportNoteCount > 0 && openVault !== null && !isExportRunning
 
   // Loads the chosen format's engine and says what it will save.
   const prepareChosenExport = async (exportVaultNoteRelativePaths: readonly string[]): Promise<PapelizSettingsGearPreparedExport | null> => {
@@ -555,6 +646,37 @@ export function PapelizSettingsGearExportPage() {
         },
       }
     }
+    if (chosenExportFormat === 'template') {
+      const templateExportCategoryTag = templateExportSettings.templateExportCategoryTag
+      if (templateExportCategoryTag === null || shownTemplateFirstNotePath === null) return null
+      const templateExportModule = await import('../template-gallery/papeliz-template-export')
+      const templateExportFileKind = templateExportModule.describePapelizTemplateExportFile(templateExportSettings.templateExportName, papelizVaultDisplayName)
+      return {
+        exportFileName: templateExportFileKind.templateExportFileName,
+        exportFileKind: {
+          exportFileDescription: templateExportFileKind.templateExportFileDescription,
+          exportFileMediaType: templateExportFileKind.templateExportFileMediaType,
+          exportFileExtension: templateExportFileKind.templateExportFileExtension,
+        },
+        buildExportFile: async (onExportProgress, exportAbortSignal) => {
+          const { templateExportFileBlob, templateExportNotices } = await templateExportModule.exportPapelizVaultNotesAsTemplate({
+            templateExportVault: { vaultAdapter: papelizVaultAdapter, vaultDisplayName: papelizVaultDisplayName },
+            templateExportVaultNoteRelativePaths: exportVaultNoteRelativePaths,
+            templateExportOptionalNoteRelativePaths: new Set(templateExportSettings.templateExportOptionalNoteRelativePaths),
+            templateExportDetails: {
+              templateExportName: templateExportSettings.templateExportName,
+              templateExportDescription: templateExportSettings.templateExportDescription,
+              templateExportCategoryTag,
+              templateExportFirstNotePath: shownTemplateFirstNotePath,
+              templateExportLicenseId: templateExportSettings.templateExportLicenseId,
+            },
+            onTemplateExportProgress: onExportProgress,
+            templateExportAbortSignal: exportAbortSignal,
+          })
+          return { exportFileBlob: templateExportFileBlob, exportNotices: templateExportNotices }
+        },
+      }
+    }
     return null
   }
 
@@ -615,7 +737,9 @@ export function PapelizSettingsGearExportPage() {
         ? 'Export cancelled.'
         : exportRunState.exportRunKind === 'failed'
           ? describeExportFailureLine(exportRunState.exportFailureMessage)
-          : null
+          : chosenExportFormat === 'template' && tickedExportNoteCount > 0
+            ? templateExportDetailsProblem
+            : null
   const exportNotices = isChosenExportFormatReady && exportRunState.exportRunKind === 'saved' ? exportRunState.exportNotices : []
   const hiddenExportNoticeCount = exportNotices.length - papelizSettingsGearShownExportNoticeCount
 
@@ -646,6 +770,18 @@ export function PapelizSettingsGearExportPage() {
         </div>
       )
     })
+
+  if (isTemplateSettingsPageShown) {
+    return (
+      <PapelizSettingsGearExportTemplateSettings
+        templateExportSettings={templateExportSettings}
+        onTemplateExportSettingsChange={changeTemplateExportSettings}
+        tickedExportNoteRelativePaths={tickedExportNoteRelativePaths}
+        shownTemplateFirstNotePath={shownTemplateFirstNotePath}
+        onTemplateSettingsClose={() => setIsTemplateSettingsPageShown(false)}
+      />
+    )
+  }
 
   return (
     <div>
@@ -701,7 +837,17 @@ export function PapelizSettingsGearExportPage() {
 
       <div className="mt-3 mb-1.5 flex min-h-7 items-center justify-between gap-2">
         <p className="text-[12px] font-medium text-papeliz-ink-subtle">Format</p>
-        {chosenExportFormat !== 'html' && (
+        {chosenExportFormat === 'template' && (
+          <button
+            type="button"
+            onClick={() => setIsTemplateSettingsPageShown(true)}
+            className="flex h-7 flex-none items-center gap-1 rounded-full border border-papeliz-line-strong bg-papeliz-surface pr-2.5 pl-2 text-[12.5px] font-medium text-papeliz-ink transition-colors hover:bg-papeliz-hover pointer-coarse:h-9"
+          >
+            <Settings2 className="size-3.5 text-papeliz-ink-muted" aria-hidden="true" />
+            Template Settings
+          </button>
+        )}
+        {(chosenExportFormat === 'word' || chosenExportFormat === 'pdf') && (
           <div className="flex items-center gap-1.5">
             <span id={exportPaperLabelId} className="text-[12px] text-papeliz-ink-subtle">
               Paper
@@ -717,7 +863,7 @@ export function PapelizSettingsGearExportPage() {
           </div>
         )}
       </div>
-      {chosenExportFormat !== 'html' && exportPaperChoice === 'custom' && (
+      {(chosenExportFormat === 'word' || chosenExportFormat === 'pdf') && exportPaperChoice === 'custom' && (
         <div className="mb-2 rounded-xl border border-papeliz-line bg-papeliz-surface p-2">
           <div className="flex items-center gap-1.5">
             <input

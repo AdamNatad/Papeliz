@@ -326,6 +326,7 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
           '**Word**: an editable `.docx` for each note, with its headings, lists, tables, callouts, footnotes, pictures and diagrams. In a `.zip`, a link to another exported note opens that note’s file once the `.zip` is unpacked.',
           '**PDF**: pages for printing and sharing, written by Papeliz itself, with no print window. Text stays text you can search and copy, links work, and headings become bookmarks. Several notes download as one `.zip` of `.pdf` files.',
           '**HTML**: one note as a web page, several as a small website.',
+          '**Template**: the ticked notes as a template others can start a vault from, in one `.zip`. See **Export as a template** below.',
         ]),
         helpParagraph('A Word file also opens in Google Docs (**File › Open › Upload**) and imports into Notion (**Import › Word**).'),
         helpParagraph(
@@ -333,6 +334,14 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
         ),
         helpParagraph(
           'Pictures and diagrams go inside the Word or PDF file, without the details a camera or editor adds, such as where a photo was taken. In a PDF, most diagrams are sharp drawings with real text; a few kinds print as pictures. A picture whose website doesn’t share it shows as a line with its address, and the page says so when the export is done.',
+        ),
+      ]),
+      helpSection('Export as a template', [
+        helpParagraph(
+          'Pick **Template**, then **Template Settings**, at the right of **Format**. **Details** holds the template’s name, a short description, its category, the note it opens first and its license. **Files** marks each ticked note **Recommended** or **Optional**: Recommended notes always come, and Optional ones come only when someone chooses All or ticks them. Pictures and files a note links to come with it.',
+        ),
+        helpParagraph(
+          'Export downloads one `.zip` with the notes in their folders, a `papeliz-template.json` written from the settings and, for MIT, a `LICENSE`. For CC0 1.0 or CC BY 4.0, add that license as a file named `LICENSE` on GitHub. Put the files in a public GitHub repository, then share it with **Submit Template**. Papeliz keeps the settings for each vault.',
         ),
       ]),
       helpSection('On the start page', [

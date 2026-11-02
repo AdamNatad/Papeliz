@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type {
+  PapelizSyncAccountReading,
   PapelizSyncBillingPeriod,
   PapelizSyncEngine,
   PapelizSyncEngineSnapshot,
@@ -69,6 +70,12 @@ const getSyncFlowState = usePapelizSyncFlowStore.getState
 
 export function isPapelizSyncSubscriptionCurrent(syncSubscriptionState: PapelizSyncSubscriptionState | undefined): boolean {
   return syncSubscriptionState === 'active' || syncSubscriptionState === 'ends-at-period-end' || syncSubscriptionState === 'payment-past-due'
+}
+
+// An account that syncs now: on a paid plan whose subscription is current, or on Free, which every
+// account gets at sign-in and needs no subscription. Checkout still asks only about the subscription.
+export function canPapelizSyncAccountSync(syncAccount: Pick<PapelizSyncAccountReading, 'syncPlanName' | 'syncSubscriptionState'>): boolean {
+  return isPapelizSyncSubscriptionCurrent(syncAccount.syncSubscriptionState) || (syncAccount.syncPlanName === 'free' && syncAccount.syncSubscriptionState === 'not-subscribed')
 }
 
 // The sign-in started from a click, waiting for the other tab. One at a time: a new one replaces it.

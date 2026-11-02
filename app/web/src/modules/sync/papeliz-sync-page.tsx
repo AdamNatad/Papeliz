@@ -1,5 +1,6 @@
 import { Check, CirclePause, CloudOff, FolderOpen, History, Play, TriangleAlert, type LucideIcon } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
+import { PapelizSlidingChoiceGroup } from '../ui/papeliz-sliding-choice-group'
 import { PapelizPillButton } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { usePapelizWorkspaceStore } from '../workspace/papeliz-workspace-store'
@@ -7,8 +8,8 @@ import type { PapelizSyncAccountReading, PapelizSyncAccountVaultReading, Papeliz
 import { PapelizSyncEngineGate } from './papeliz-sync-engine-gate'
 import {
   cancelPapelizSyncSignIn,
+  canPapelizSyncAccountSync,
   describePapelizSyncSignInFromClickFailure,
-  isPapelizSyncSubscriptionCurrent,
   openPapelizSyncSetUpDialog,
   setPapelizSyncOldVersionsDialogShown,
   showPapelizSyncMissingFiles,
@@ -17,7 +18,6 @@ import {
 } from './papeliz-sync-flow-store'
 import { openPapelizSyncNewTabWhenAddressIsReady, papelizSyncBlockedNewTabWords } from './papeliz-sync-new-tab'
 import {
-  PapelizSyncChip,
   PapelizSyncFailureLine,
   PapelizSyncLoadingLine,
   PapelizSyncPageBox,
@@ -26,7 +26,6 @@ import {
   PapelizSyncPageRow,
   PapelizSyncPageSmallText,
   PapelizSyncPageText,
-  PapelizSyncPageTitle,
   PapelizSyncProgressBar,
   PapelizSyncSwitch,
   PapelizSyncTextButton,
@@ -42,19 +41,20 @@ import {
   describePapelizSyncTimeAgo,
   formatPapelizSyncByteSize,
   papelizSyncMissingFilesDialogWords,
-  papelizSyncPageIntro,
-  papelizSyncPlanDisplayNames,
   papelizSyncVaultEncryptionKindDisplayNames,
 } from './papeliz-sync-screen-words'
 import { papelizSyncStatusIcons } from './papeliz-sync-status-icons'
 import { PapelizSyncSyncedVaultsSection, type PapelizSyncAccountVaultDialogRequest } from './papeliz-sync-synced-vaults-section'
 import { usePapelizSyncClockTime } from './papeliz-sync-clock'
 import { getVaultNoteTitle } from '../vault/papeliz-vault-relative-paths'
+import { usePapelizSyncSettingsGearRequestStore } from './papeliz-sync-settings-gear-request-store'
 
-// The gear's Sync page in each of its states: the plans before subscribing (A), and on: this vault's
-// switch (turning it on opens Turn on Sync, which asks Standard or End-to-end), the synced vaults
-// with their kinds, what syncs, storage, Old versions and Pause on this device, with what to do when
-// storage is full, a payment failed, the subscription ended or an End-to-end vault is locked here.
+// The gear's Sync page, in two tabs. Plans: Free and the paid plans, with Sign In, Choose or Current
+// Plan. Settings: signed out, Sign In; signed in on Free or a plan, this vault's switch (turning it on
+// opens Turn on Sync, which asks Standard or End-to-end), the synced vaults with their kinds, what
+// syncs, storage, Old versions and Pause on this device, with what to do when storage is full, a
+// payment failed, the subscription ended or an End-to-end vault is locked here. It opens on Settings
+// once signed in, on Plans otherwise, or when a plan in the address asks.
 
 function PapelizSyncManageSubscriptionButton({ papelizSyncEngine, manageButtonLabel = 'Manage Subscription' }: { papelizSyncEngine: PapelizSyncEngine; manageButtonLabel?: string }) {
   const [manageFailureWords, setManageFailureWords] = useState<string | null>(null)
@@ -78,39 +78,25 @@ function PapelizSyncManageSubscriptionButton({ papelizSyncEngine, manageButtonLa
   )
 }
 
-// Before subscribing, and after a subscription ended: the plans, with Choose.
-function PapelizSyncPlansState({ papelizSyncEngine, syncEngineSnapshot, plansStateNotice }: { papelizSyncEngine: PapelizSyncEngine; syncEngineSnapshot: PapelizSyncEngineSnapshot; plansStateNotice?: ReactNode }) {
-  const [signInFailureWords, setSignInFailureWords] = useState<string | null>(null)
-  const syncSignInKind = syncEngineSnapshot.syncSignIn.syncSignInKind
+// The Plans tab: the plan cards, and, while a sign-in started from Free's card waits, how to cancel it.
+// A paid plan being paid for changes through the billing page.
+function PapelizSyncPlansTab({ papelizSyncEngine, syncEngineSnapshot }: { papelizSyncEngine: PapelizSyncEngine; syncEngineSnapshot: PapelizSyncEngineSnapshot }) {
   return (
     <div>
-      <PapelizSyncPageTitle pageTitleChip={<PapelizSyncChip syncChipTone="paid">Paid Add-on</PapelizSyncChip>}>Sync</PapelizSyncPageTitle>
-      <PapelizSyncPageText className="mt-1">{papelizSyncPageIntro}</PapelizSyncPageText>
-      {plansStateNotice}
-      <PapelizSyncPlanOffersSection papelizSyncEngine={papelizSyncEngine} syncEngineSnapshot={syncEngineSnapshot} />
-      {syncSignInKind === 'waiting-for-sign-in-page' ? (
+      <PapelizSyncPlanOffersSection
+        papelizSyncEngine={papelizSyncEngine}
+        syncEngineSnapshot={syncEngineSnapshot}
+        planOffersFooter={
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            <PapelizSyncManageSubscriptionButton papelizSyncEngine={papelizSyncEngine} manageButtonLabel="Change Plan" />
+          </div>
+        }
+      />
+      {syncEngineSnapshot.syncSignIn.syncSignInKind === 'waiting-for-sign-in-page' && (
         <PapelizSyncPageSmallText className="mt-1.5">
-          Finish signing in in the new tab.{' '}
-          <PapelizSyncTextButton onClick={cancelPapelizSyncSignIn}>Cancel</PapelizSyncTextButton>
+          Finish signing in in the new tab. <PapelizSyncTextButton onClick={cancelPapelizSyncSignIn}>Cancel</PapelizSyncTextButton>
         </PapelizSyncPageSmallText>
-      ) : (
-        syncSignInKind !== 'signed-in' && (
-          <PapelizSyncPageSmallText className="mt-1.5">
-            Already subscribed?{' '}
-            <PapelizSyncTextButton
-              onClick={() => {
-                setSignInFailureWords(null)
-                void startPapelizSyncSignInFromClick(papelizSyncEngine, null).then((signInFromClickOutcome) =>
-                  setSignInFailureWords(describePapelizSyncSignInFromClickFailure(signInFromClickOutcome)),
-                )
-              }}
-            >
-              Sign In
-            </PapelizSyncTextButton>
-          </PapelizSyncPageSmallText>
-        )
       )}
-      {signInFailureWords !== null && <PapelizSyncFailureLine className="mt-1.5">{signInFailureWords}</PapelizSyncFailureLine>}
     </div>
   )
 }
@@ -233,11 +219,8 @@ function PapelizSyncOnState({ papelizSyncEngine, syncEngineSnapshot, syncAccount
 
   return (
     <div>
-      <PapelizSyncPageTitle pageTitleChip={syncAccount.syncPlanName !== null && <PapelizSyncChip syncChipTone="plan">{papelizSyncPlanDisplayNames[syncAccount.syncPlanName]}</PapelizSyncChip>}>
-        Sync
-      </PapelizSyncPageTitle>
       {openVaultStatusDescription !== null && OpenVaultStatusIcon !== null ? (
-        <p className="mt-1.5 flex items-center gap-1.5 text-[12.5px]" title={openVaultStatusDescription.syncStatusTitle}>
+        <p className="flex items-center gap-1.5 text-[12.5px]" title={openVaultStatusDescription.syncStatusTitle}>
           <OpenVaultStatusIcon
             className={joinPapelizClassNames(
               'size-4 flex-none',
@@ -264,12 +247,7 @@ function PapelizSyncOnState({ papelizSyncEngine, syncEngineSnapshot, syncAccount
           Your subscription ends on {describePapelizSyncDay(syncAccount.syncSubscriptionEndsAt, currentTime)}. After that the synced copy stays readable for a while.
         </PapelizSyncPageNotice>
       )}
-      {isReadOnly && (
-        <>
-          {readSyncEndedNotice(syncAccount, currentTime)}
-          <PapelizSyncPlanOffersSection papelizSyncEngine={papelizSyncEngine} syncEngineSnapshot={syncEngineSnapshot} />
-        </>
-      )}
+      {isReadOnly && readSyncEndedNotice(syncAccount, currentTime)}
       {isOverStorage && !isReadOnly && (
         <PapelizSyncPageNotice syncPageNoticeAction={<PapelizSyncManageSubscriptionButton papelizSyncEngine={papelizSyncEngine} manageButtonLabel="Change Plan" />}>
           <b>Your Sync storage is full.</b> Uploads wait until there’s room; downloads go on, and every change stays saved on this device. Old versions count toward storage and
@@ -456,8 +434,20 @@ function PapelizSyncOnState({ papelizSyncEngine, syncEngineSnapshot, syncAccount
   )
 }
 
-function PapelizSyncPageForSnapshot({ papelizSyncEngine, syncEngineSnapshot }: { papelizSyncEngine: PapelizSyncEngine; syncEngineSnapshot: PapelizSyncEngineSnapshot }) {
+type PapelizSyncPageTab = 'plans' | 'settings'
+
+// The Settings tab for each sign-in state.
+function PapelizSyncSettingsTab({
+  papelizSyncEngine,
+  syncEngineSnapshot,
+  onSyncPlansTabShow,
+}: {
+  papelizSyncEngine: PapelizSyncEngine
+  syncEngineSnapshot: PapelizSyncEngineSnapshot
+  onSyncPlansTabShow: () => void
+}) {
   const currentTime = usePapelizSyncClockTime()
+  const [signInFailureWords, setSignInFailureWords] = useState<string | null>(null)
   const { syncSignIn, syncAccount, syncLinkedLocalVaults } = syncEngineSnapshot
   if (syncSignIn.syncSignInKind === 'device-removed') {
     return (
@@ -469,20 +459,84 @@ function PapelizSyncPageForSnapshot({ papelizSyncEngine, syncEngineSnapshot }: {
       </PapelizSyncCenteredStep>
     )
   }
-  if (syncSignIn.syncSignInKind !== 'signed-in') return <PapelizSyncPlansState papelizSyncEngine={papelizSyncEngine} syncEngineSnapshot={syncEngineSnapshot} />
+  if (syncSignIn.syncSignInKind !== 'signed-in') {
+    return (
+      <div>
+        <PapelizSyncPageText>Sign in to sync your vaults. Every account comes with Free.</PapelizSyncPageText>
+        {syncSignIn.syncSignInKind === 'waiting-for-sign-in-page' ? (
+          <PapelizSyncPageSmallText className="mt-2">
+            Finish signing in in the new tab. <PapelizSyncTextButton onClick={cancelPapelizSyncSignIn}>Cancel</PapelizSyncTextButton>
+          </PapelizSyncPageSmallText>
+        ) : (
+          <PapelizPillButton
+            pillButtonVariant="primary"
+            pillButtonSize="small"
+            className="mt-2.5"
+            onClick={() => {
+              setSignInFailureWords(null)
+              void startPapelizSyncSignInFromClick(papelizSyncEngine, null).then((signInFromClickOutcome) =>
+                setSignInFailureWords(describePapelizSyncSignInFromClickFailure(signInFromClickOutcome)),
+              )
+            }}
+          >
+            Sign In
+          </PapelizPillButton>
+        )}
+        {signInFailureWords !== null && <PapelizSyncFailureLine className="mt-1.5">{signInFailureWords}</PapelizSyncFailureLine>}
+      </div>
+    )
+  }
   if (syncAccount === null) return <PapelizSyncLoadingLine>Reading your account…</PapelizSyncLoadingLine>
   const isSubscriptionEnded = syncAccount.syncSubscriptionState === 'ended-read-only' || syncAccount.syncSubscriptionState === 'ended-held'
   // After a subscription ended, a device that syncs vaults still shows them, read-only.
-  if (!isPapelizSyncSubscriptionCurrent(syncAccount.syncSubscriptionState) && !(isSubscriptionEnded && syncLinkedLocalVaults.length > 0)) {
+  if (!canPapelizSyncAccountSync(syncAccount) && !(isSubscriptionEnded && syncLinkedLocalVaults.length > 0)) {
     return (
-      <PapelizSyncPlansState
-        papelizSyncEngine={papelizSyncEngine}
-        syncEngineSnapshot={syncEngineSnapshot}
-        plansStateNotice={isSubscriptionEnded ? readSyncEndedNotice(syncAccount, currentTime) : undefined}
-      />
+      <div>
+        {isSubscriptionEnded && readSyncEndedNotice(syncAccount, currentTime)}
+        <PapelizSyncPageText className="mt-1">
+          Choose a plan to start syncing. <PapelizSyncTextButton onClick={onSyncPlansTabShow}>See Plans</PapelizSyncTextButton>
+        </PapelizSyncPageText>
+      </div>
     )
   }
   return <PapelizSyncOnState papelizSyncEngine={papelizSyncEngine} syncEngineSnapshot={syncEngineSnapshot} syncAccount={syncAccount} />
+}
+
+function PapelizSyncPageForSnapshot({ papelizSyncEngine, syncEngineSnapshot }: { papelizSyncEngine: PapelizSyncEngine; syncEngineSnapshot: PapelizSyncEngineSnapshot }) {
+  const syncSignInKind = syncEngineSnapshot.syncSignIn.syncSignInKind
+  const isPlanPickedFromAddress = usePapelizSyncSettingsGearRequestStore((requestState) => (requestState.syncPlanPickedFromAddress?.pickedSyncPlanName ?? null) !== null)
+  const [chosenSyncPageTab, setChosenSyncPageTab] = useState<PapelizSyncPageTab>(() =>
+    (syncSignInKind === 'signed-in' || syncSignInKind === 'device-removed') && !isPlanPickedFromAddress ? 'settings' : 'plans',
+  )
+  // Signing in from Free's card or Settings goes on to Settings, where the account now shows.
+  const [lastSeenSyncSignInKind, setLastSeenSyncSignInKind] = useState(syncSignInKind)
+  if (syncSignInKind !== lastSeenSyncSignInKind) {
+    setLastSeenSyncSignInKind(syncSignInKind)
+    if (syncSignInKind === 'signed-in') setChosenSyncPageTab('settings')
+  }
+  return (
+    <div>
+      <PapelizSlidingChoiceGroup<PapelizSyncPageTab>
+        slidingChoiceGroupLabel="Sync"
+        slidingChoiceGroupRole="tablist"
+        slidingChoiceGroupTone="solid-blue"
+        slidingChoices={[
+          { slidingChoiceValue: 'plans', slidingChoiceContent: 'Plans' },
+          { slidingChoiceValue: 'settings', slidingChoiceContent: 'Settings' },
+        ]}
+        chosenSlidingChoiceValue={chosenSyncPageTab}
+        onSlidingChoiceSelect={setChosenSyncPageTab}
+        slidingChoiceGroupClassName="mb-2.5"
+      />
+      <div role="tabpanel" aria-label={chosenSyncPageTab === 'plans' ? 'Plans' : 'Settings'}>
+        {chosenSyncPageTab === 'plans' ? (
+          <PapelizSyncPlansTab papelizSyncEngine={papelizSyncEngine} syncEngineSnapshot={syncEngineSnapshot} />
+        ) : (
+          <PapelizSyncSettingsTab papelizSyncEngine={papelizSyncEngine} syncEngineSnapshot={syncEngineSnapshot} onSyncPlansTabShow={() => setChosenSyncPageTab('plans')} />
+        )}
+      </div>
+    </div>
+  )
 }
 
 export function PapelizSyncPage() {

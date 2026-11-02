@@ -3,9 +3,8 @@ import type { PapelizSyncStatusReading } from './papeliz-sync-engine-contract'
 import {
   countPapelizSyncPassphraseCharacters,
   describePapelizSyncFileCount,
-  describePapelizSyncFreePlanLimitLines,
   describePapelizSyncMissingFilesNotice,
-  describePapelizSyncPlanLimitLines,
+  describePapelizSyncPlanCardLine,
   describePapelizSyncPlanPrice,
   describePapelizSyncStatusForStatusBar,
   describePapelizSyncStoragePlaceLine,
@@ -14,7 +13,6 @@ import {
   introducePapelizSyncMissingFilesDialog,
   isPapelizSyncPassphraseLongEnough,
   papelizSyncMissingFilesDialogWords,
-  papelizSyncPageIntro,
   papelizSyncVaultEncryptionKindDisplayNames,
   papelizSyncVaultEncryptionKindReaderLines,
   papelizSyncVaultNameReadableLine,
@@ -53,11 +51,6 @@ describe('the Sync passphrase rule', () => {
 })
 
 describe('encryption, vault by vault', () => {
-  it('never says all of Sync is end-to-end encrypted, only the vaults chosen', () => {
-    expect(papelizSyncPageIntro).not.toMatch(/,\s*end-to-end encrypted\.?$/i)
-    expect(papelizSyncPageIntro).toContain('End-to-end encryption for the vaults you want')
-  })
-
   it('names both kinds and says plainly who can read each one', () => {
     expect(papelizSyncVaultEncryptionKindDisplayNames).toEqual({ standard: 'Standard', 'end-to-end': 'End-to-end' })
     expect(papelizSyncVaultEncryptionKindReaderLines.standard).toContain('Papeliz keeps the key, so it could read them')
@@ -105,7 +98,7 @@ describe('the storage place', () => {
 describe('the plans', () => {
   it('lists the visible limits in decimal units, as the plans count them', () => {
     expect(
-      describePapelizSyncPlanLimitLines({
+      describePapelizSyncPlanCardLine({
         syncStorageByteLimit: 100e9,
         syncedVaultLimit: 20,
         syncFilesPerVaultLimit: 250_000,
@@ -115,9 +108,9 @@ describe('the plans', () => {
         syncAttachmentHistoryDayCount: 30,
         syncConnectedDeviceLimit: 20,
       }),
-    ).toEqual(['100 GB, old versions included', '20 vaults · files up to 1 GB', '24 months of versions'])
+    ).toBe('100 GB · 20 vaults · Version History')
     expect(
-      describePapelizSyncFreePlanLimitLines({
+      describePapelizSyncPlanCardLine({
         syncStorageByteLimit: 10e6,
         syncedVaultLimit: 1,
         syncFilesPerVaultLimit: 10_000,
@@ -127,7 +120,7 @@ describe('the plans', () => {
         syncAttachmentHistoryDayCount: 7,
         syncConnectedDeviceLimit: 2,
       }),
-    ).toEqual(['10 MB, old versions included', '1 vault · files up to 5 MB', '7 days of versions', '2 devices'])
+    ).toBe('10 MB · 1 vault · Version History')
     expect(formatPapelizSyncByteSize(24.31e9)).toBe('24.3 GB')
     expect(formatPapelizSyncByteSize(512)).toBe('512 B')
   })
@@ -140,7 +133,7 @@ describe('the plans', () => {
 
   it('shows the price exactly as the engine gives it, with the period added', () => {
     expect(describePapelizSyncPlanPrice('0.00 XTS', 'monthly')).toBe('0.00 XTS a month')
-    expect(describePapelizSyncPlanPrice('0.00 XTS', 'yearly')).toBe('0.00 XTS a year')
+    expect(describePapelizSyncPlanPrice('0.00 XTS', 'yearly')).toBe('0.00 XTS a month, billed yearly')
   })
 })
 

@@ -694,6 +694,7 @@ export class PapelizSyncFakeEngine implements PapelizSyncEngine {
           syncPlanName,
           syncBillingPeriod,
           syncDisplayPrice: papelizSyncFakeEngineDisplayPrice,
+          syncDisplayPricePerMonth: papelizSyncFakeEngineDisplayPrice,
           syncPriceCurrencyCode: 'XTS',
           syncVisiblePlanLimits: papelizSyncFakeEnginePlanLimits[syncPlanName],
         })
