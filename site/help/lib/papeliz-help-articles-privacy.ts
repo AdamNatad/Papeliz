@@ -38,7 +38,7 @@ export const papelizHelpPrivacyArticles: readonly PapelizHelpArticle[] = [
       ]),
       helpSection('When you use the assistant', [
         helpParagraph(
-          'The assistant sends your message and the notes it reads to the provider you chose, and nothing goes until you send a message. See [[where-your-key-goes]].',
+          'The assistant sends your message and the notes it reads to the provider of the model you picked, and nothing goes until you send a message. See [[where-your-key-goes]].',
         ),
       ]),
     ],
@@ -47,27 +47,27 @@ export const papelizHelpPrivacyArticles: readonly PapelizHelpArticle[] = [
   {
     papelizHelpArticleSlug: 'where-your-key-goes',
     articleTitle: 'Where your API key goes',
-    articleSummary: 'Saved only in this browser, and sent only to the provider you picked.',
+    articleSummary: 'Saved only in this browser, each key sent only to its own provider.',
     papelizHelpGroupSlug: 'privacy',
     papelizHelpArticleAvailability: 'available',
     articleSections: [
       helpSection('Saved in this browser', [
         helpParagraph(
-          'Your key is saved in this browser’s storage (IndexedDB), with the provider you set it for. It isn’t sent to Papeliz, and Papeliz Sync never syncs it: you paste it on each device.',
+          'Your keys are saved in this browser’s storage (IndexedDB), each with the provider you set it for. They aren’t sent to Papeliz, and Papeliz Sync never syncs them: you paste them on each device.',
         ),
       ]),
       helpSection('Sent only to your provider', [
         helpParagraph(
-          'The key goes only to that provider’s base URL, with each request you make. The notes the assistant reads go there too, and that provider’s terms apply to them.',
+          'Each key goes only to its own provider’s base URL, with each request to one of that provider’s models. The notes the assistant reads go there too, and that provider’s terms apply to them. The address a key goes to shows under each provider’s name on the gear’s **AI Provider** page.',
         ),
-        helpParagraph('Papeliz is built never to log the key or put it in a web address.'),
+        helpParagraph('Papeliz is built never to log a key or put it in a web address, and hides a key if a provider’s error message repeats it.'),
       ]),
       helpSection('Remove it', [
-        helpParagraph('Choose **Forget This Key** on the gear’s **AI Provider** page, or clear this browser’s data for Papeliz.'),
+        helpParagraph('Choose the provider’s gear on the gear’s **AI Provider** page, then **Remove Provider**. Or clear this browser’s data for Papeliz.'),
       ]),
       helpSection('On a shared computer', [
         helpNote(
-          'Anyone who can use your browser profile can use a saved key. On a shared computer, forget the key when you’re done, or use a browser profile of your own.',
+          'Anyone who can use your browser profile can use a saved key. On a shared computer, remove your providers when you’re done, or use a browser profile of your own.',
         ),
         helpParagraph('A passphrase lock for saved keys is planned after launch.'),
       ]),

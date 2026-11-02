@@ -134,10 +134,17 @@ export const papelizSiteFeatureGroups: PapelizSiteFeatureGroup[] = [
     papelizSiteFeatureGroupAnchor: 'your-key',
     papelizSiteFeatureGroupIcon: KeyRound,
     papelizSiteFeatureGroupTitle: 'Your key, your provider',
-    papelizSiteFeatureGroupSummary: 'Bring an API key from the provider you like. It stays on your device.',
+    papelizSiteFeatureGroupSummary: 'Bring API keys from the providers you like. They stay on your device.',
     papelizSiteFeatureGroupPoints: [
-      { papelizSiteFeaturePointTitle: 'Any OpenAI-compatible provider', papelizSiteFeaturePointBody: 'Pick a preset, or paste any compatible base URL, hosted or running on your own machine.' },
-      { papelizSiteFeaturePointTitle: 'No Papeliz server', papelizSiteFeaturePointBody: 'Requests go straight from your device to your provider, never through Papeliz, and your key goes only to that provider.' },
+      {
+        papelizSiteFeaturePointTitle: 'Any OpenAI-compatible provider',
+        papelizSiteFeaturePointBody: 'Add a preset, such as Claude or OpenAI, or any compatible base URL, hosted or running on your own machine.',
+      },
+      {
+        papelizSiteFeaturePointTitle: 'Several at once',
+        papelizSiteFeaturePointBody: 'Save several providers, each tested before it’s saved, and switch on the models you want. The model chip picks one for each message.',
+      },
+      { papelizSiteFeaturePointTitle: 'No Papeliz server', papelizSiteFeaturePointBody: 'Requests go straight from your device to your provider, never through Papeliz, and each key goes only to its own provider.' },
       { papelizSiteFeaturePointTitle: 'You see what is sent', papelizSiteFeaturePointBody: 'Each message shows which notes go with it. Nothing leaves until you send it.' },
       { papelizSiteFeaturePointTitle: 'Keys kept out of errors', papelizSiteFeaturePointBody: 'If a provider’s error repeats your key, Papeliz hides it before the error is shown or saved.' },
     ],

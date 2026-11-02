@@ -34,9 +34,10 @@ export default function PapelizSiteProvidersPage() {
     <>
       <PapelizSitePageIntro papelizSitePageHeading="Bring your own AI provider">
         <p>
-          Papeliz’s assistant speaks the OpenAI-compatible format. Pick a preset, paste your API key, and
-          the assistant talks straight from your device to that provider. A preset only fills in the
-          base URL; you can change it, and the model, at any time.
+          Papeliz’s assistant speaks the OpenAI-compatible format. Add a provider, paste your API key, and
+          the assistant talks straight from your device to that provider. Save several providers at once,
+          each with its own key, and switch on the models you want; the assistant’s model chip picks one
+          for each message. A preset only fills in the base URL, which you can change under Advanced.
         </p>
       </PapelizSitePageIntro>
 
@@ -49,7 +50,7 @@ export default function PapelizSiteProvidersPage() {
           <div className="mt-6 rounded-3xl border border-papeliz-blue-line bg-papeliz-blue-soft p-6">
             <p className="max-w-3xl text-[15px] leading-relaxed">
               Papeliz’s assistant is built first around Meta’s Muse Spark models, and the Meta Model API is
-              the preset selected out of the box. Long context lets the assistant work across many notes at
+              the first, recommended preset. Long context lets the assistant work across many notes at
               once, and the API accepts calls straight from the app.
             </p>
             <dl className="mt-5 grid grid-cols-[110px_minmax(0,1fr)] gap-y-2 text-[15px]">
@@ -119,7 +120,7 @@ export default function PapelizSiteProvidersPage() {
             <KeyRound className="size-5 text-papeliz-blue" aria-hidden="true" />
             <h2 className="mt-3 text-lg font-semibold">Where your key goes</h2>
             <p className="mt-2 text-[15px] leading-relaxed text-papeliz-ink-muted">
-              Your key is stored only on your device and sent only to the provider you pick. There is no
+              Each key is stored only on your device and sent only to its own provider. There is no
               Papeliz server in between.{' '}
               <Link href="/privacy/" className="font-medium text-papeliz-blue hover:underline">
                 Read the privacy details

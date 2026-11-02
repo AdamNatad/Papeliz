@@ -31,7 +31,7 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
       ]),
       helpSection('No account needed', [
         helpParagraph(
-          'Papeliz needs no account: your notes stay on your device, and the assistant talks straight from your device to the AI provider you choose, with your own key. No Papeliz server is in between. See [[where-your-notes-live]].',
+          'Papeliz needs no account: your notes stay on your device, and the assistant talks straight from your device to the AI providers you add, each with your own key. No Papeliz server is in between. See [[where-your-notes-live]].',
         ),
         helpParagraph(
           'A free Papeliz account is only for Papeliz Sync, the optional add-on that keeps your vaults the same on all your devices. See [[sync-your-vaults]].',
@@ -323,7 +323,7 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
           '**Sync**: keep your vaults the same on all your devices, with the tabs **Plans** and **Settings**. Every account comes with Free. See [[sync-your-vaults]].',
           '**Settings**: the tabs **Vault**, the open vault’s name (a vault kept in your browser renames here; a folder vault takes its folder’s name), and **Key Bindings**, the shortcuts you can change. See [[keyboard-shortcuts]]. In a vault kept in your browser, a third tab, **Reminder**, holds the backup reminder and **Download Backup**. See [[keep-a-vault-in-your-browser]].',
           '**Accessibility**: the theme, how tabs show, how your notes’ text looks (font, size and width), and the **Lock All Notes** and **Focus Mode** switches. See [[text-settings-and-theme]], [[switch-views-and-lock]] and [[focus-mode|focus mode]].',
-          '**AI Provider**: choose the provider and add your key. See [[bring-your-own-key]].',
+          '**AI Provider**: your saved providers. Add one, or open one’s gear for its key, models and **Advanced**. See [[bring-your-own-key]].',
           '**Close Vault**, at the bottom: back to the start page. See [[open-a-folder]].',
         ]),
       ]),

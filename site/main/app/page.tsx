@@ -31,7 +31,7 @@ const papelizSiteFeatureCards = [
   {
     icon: KeyRound,
     title: 'Your key, your provider',
-    body: 'The assistant talks straight from your device to the AI provider you pick. No account needed, and no Papeliz server in between.',
+    body: 'The assistant talks straight from your device to the AI providers you add. No account needed, and no Papeliz server in between.',
   },
 ]
 
@@ -160,15 +160,15 @@ export default function PapelizSiteHomePage() {
         </PapelizSiteSection>
       </div>
 
-      <PapelizSiteSection papelizSiteSectionAnchor="providers" papelizSiteSectionTitle="Recommended: Muse Spark on the Meta Model API">
+      <PapelizSiteSection papelizSiteSectionAnchor="providers" papelizSiteSectionTitle="Recommended: the Meta Model API">
         <p className="mt-4 max-w-3xl text-lg text-papeliz-ink-muted">
           Papeliz’s assistant is built first around Meta’s Muse Spark models, and the Meta Model API is
-          the preset selected out of the box. Papeliz speaks the OpenAI-compatible format, so any other
-          compatible provider works too.
+          the first, recommended preset. Papeliz speaks the OpenAI-compatible format, so any other
+          compatible provider works too, and you can save several at once.
         </p>
         <div className="mt-8 grid gap-4 lg:grid-cols-[1.2fr_1fr]">
           <div className="rounded-3xl border border-papeliz-blue-line bg-papeliz-blue-soft p-6">
-            <h3 className="text-lg font-semibold">Muse Spark · Meta Model API</h3>
+            <h3 className="text-lg font-semibold">Meta Model API</h3>
             <dl className="mt-4 grid grid-cols-[110px_minmax(0,1fr)] gap-y-2 text-[15px]">
               <dt className="text-papeliz-ink-muted">Base URL</dt>
               <dd className="font-mono text-sm break-all">https://api.meta.ai/v1</dd>
@@ -195,7 +195,7 @@ export default function PapelizSiteHomePage() {
               ))}
             </ul>
             <p className="mt-4 text-[15px] text-papeliz-ink-muted">
-              Your key is stored only on your device and sent only to the provider you pick.
+              Each key is stored only on your device and sent only to its own provider.
             </p>
           </div>
         </div>

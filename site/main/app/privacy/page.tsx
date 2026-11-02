@@ -60,8 +60,8 @@ export default function PapelizSitePrivacyPage() {
 
       <PapelizLegalDocumentSection papelizLegalSectionTitle="Your API key">
         <p>
-          You bring your own key for the AI provider you choose. It is stored only in your browser and
-          is sent only to that provider, with your requests.
+          You bring your own key for each AI provider you add. Each key is stored only in your browser
+          and is sent only to its own provider, with your requests.
         </p>
       </PapelizLegalDocumentSection>
 

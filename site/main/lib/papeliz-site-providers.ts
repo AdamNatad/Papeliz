@@ -11,7 +11,7 @@ export type PapelizSiteProvider = {
 }
 
 export const papelizSiteRecommendedProvider = {
-  papelizSiteProviderName: 'Muse Spark · Meta Model API',
+  papelizSiteProviderName: 'Meta Model API',
   papelizSiteProviderBaseUrl: 'https://api.meta.ai/v1',
   papelizSiteProviderModelNames: ['muse-spark-1.3', 'muse-spark-1.1'],
   papelizSiteProviderKeyPageUrl: 'https://dev.meta.ai/',
@@ -19,6 +19,7 @@ export const papelizSiteRecommendedProvider = {
 }
 
 export const papelizSiteHostedProviders: readonly PapelizSiteProvider[] = [
+  { papelizSiteProviderName: 'Claude', papelizSiteProviderDescription: 'Anthropic’s Claude models.', papelizSiteProviderBaseUrl: 'https://api.anthropic.com/v1' },
   { papelizSiteProviderName: 'OpenAI', papelizSiteProviderDescription: 'OpenAI’s hosted models.', papelizSiteProviderBaseUrl: 'https://api.openai.com/v1' },
   { papelizSiteProviderName: 'OpenRouter', papelizSiteProviderDescription: 'Many hosted models behind one key.', papelizSiteProviderBaseUrl: 'https://openrouter.ai/api/v1' },
   { papelizSiteProviderName: 'Groq', papelizSiteProviderDescription: 'Fast hosted open-weights models.', papelizSiteProviderBaseUrl: 'https://api.groq.com/openai/v1' },
@@ -33,11 +34,11 @@ export const papelizSiteHostedProviders: readonly PapelizSiteProvider[] = [
 
 export const papelizSiteLocalProviders: readonly PapelizSiteProvider[] = [
   {
-    papelizSiteProviderName: 'Ollama',
+    papelizSiteProviderName: 'Ollama Local',
     papelizSiteProviderDescription: 'Models running on your computer. Allow Papeliz’s address in OLLAMA_ORIGINS first.',
     papelizSiteProviderBaseUrl: null,
   },
-  { papelizSiteProviderName: 'LM Studio', papelizSiteProviderDescription: 'Models from LM Studio’s server on your computer.', papelizSiteProviderBaseUrl: null },
+  { papelizSiteProviderName: 'LM Studio Local', papelizSiteProviderDescription: 'Models from LM Studio’s server on your computer.', papelizSiteProviderBaseUrl: null },
 ]
 
 // The short list of names on the home page: every preset after the recommended one, then Custom.

@@ -14,37 +14,42 @@ export const papelizHelpAssistantArticles: readonly PapelizHelpArticle[] = [
   {
     papelizHelpArticleSlug: 'bring-your-own-key',
     articleTitle: 'Bring your own key',
-    articleSummary: 'Connect the assistant to an AI provider with your own API key. No Papeliz account needed.',
+    articleSummary: 'Connect the assistant to one or more AI providers with your own API keys. No Papeliz account needed.',
     papelizHelpGroupSlug: 'assistant',
     papelizHelpArticleAvailability: 'available',
     articleSections: [
       helpSection('How it works', [
         helpParagraph(
-          'Papeliz has no AI service of its own. You pick a provider, paste an API key from your account with that provider, and the assistant sends its requests straight from your browser to that provider.',
+          'Papeliz has no AI service of its own. You add one or more providers, each with an API key from your account there, and the assistant sends each request straight from your browser to the provider of the model you picked.',
         ),
-        helpParagraph('The provider bills you for what you use, under its own terms.'),
+        helpParagraph('Each provider bills you for what you use, under its own terms.'),
       ]),
-      helpSection('Set it up', [
+      helpSection('Add a provider', [
         helpNumberedSteps([
-          'Open the gear at the right end of the top bar and choose **AI Provider**, or choose **Choose a Provider** in the Assistant panel. Both open the same page, with the tabs **Provider**, **Model** and **Price**.',
-          'On **Provider**, pick a provider, and its base URL fills in. See [[choose-a-provider]].',
-          'Paste your API key. Servers running on your own computer usually don’t need one.',
-          'On **Model**, choose **Load Models**, then pick a model from the provider’s list.',
-          'Back on **Provider**, choose **Test Connection**, beside the API key, to check that the key and model work, then **Save**. Save keeps what you set on every tab.',
+          'Open the gear at the right end of the top bar and choose **AI Provider**, or choose **Choose a Provider** in the Assistant panel. The page lists your **Saved Providers**.',
+          'Choose **Add Provider** and pick a provider. Its base URL fills in. See [[choose-a-provider]].',
+          'Paste your API key. Servers on your own computer usually don’t need one.',
+          'Choose **Test Connection**. It loads the provider’s models, switches on the recommended one, and sends one tiny request.',
+          'Choose **Add Provider**. It stays off until the test passes and a model is on.',
         ]),
-      ]),
-      helpSection('Models come from the provider’s list', [
         helpParagraph(
-          'For every preset except Custom, the model comes from the list the provider returns for your key, so a mistyped model name can’t be saved. Custom also takes a typed name.',
+          'Add as many providers as you like. They’re all in use at once: the model chip in the assistant lists the models you switched on, by provider. See [[chat-with-the-assistant]].',
+        ),
+      ]),
+      helpSection('Switch models on', [
+        helpParagraph(
+          'Under **Models** in a provider’s settings, switch on the models you want: they show on the model chip in the assistant. For every preset except Custom, models come from the list the provider returns for your key, so a mistyped name can’t be added. Custom also takes a typed name with **Add Model**.',
         ),
       ]),
       helpSection('Model price', [
         helpParagraph(
-          'Usage estimates what the assistant costs from each model’s listed price, taken from the provider’s price page. If you pay a different price, open the **Price** tab on the same page and type yours, per million input and output tokens. Leave both boxes empty to use the listed price. Papeliz itself is free; your provider bills you.',
+          'Usage estimates what the assistant costs from each model’s listed price, taken from the provider’s price page. If you pay a different price, choose **Price** beside the model in its provider’s settings and type yours, per million input and output tokens. Leave both boxes empty to use the listed price. Papeliz itself is free; your providers bill you.',
         ),
       ]),
-      helpSection('Change or remove a key', [
-        helpParagraph('Open the gear’s **AI Provider** page again to switch provider or model. **Forget This Key** removes the key from this browser.'),
+      helpSection('Change or remove a provider', [
+        helpParagraph(
+          'Choose a provider’s gear under **Saved Providers** to change its key, switch models on or off, or open **Advanced**: the base URL, the context window, the longest answer (**Max Output**) and the temperature. A new key or address must pass **Test Connection** before **Save**. **Remove Provider** erases its key and models from this browser.',
+        ),
       ]),
     ],
     relatedArticleSlugs: [papelizHelpProviderArticleSlug, 'where-your-key-goes', 'chat-with-the-assistant'],
@@ -56,9 +61,9 @@ export const papelizHelpAssistantArticles: readonly PapelizHelpArticle[] = [
     papelizHelpGroupSlug: 'assistant',
     papelizHelpArticleAvailability: 'available',
     articleSections: [
-      helpSection('Recommended: Muse Spark on the Meta Model API', [
+      helpSection('Recommended: the Meta Model API', [
         helpParagraph(
-          'The first preset, selected out of the box, is Muse Spark on the Meta Model API. Its long context lets the assistant work across many notes at once, and the API accepts calls straight from the browser.',
+          'The first preset is the Meta Model API, with the Muse Spark models (`muse-spark-1.3` and `muse-spark-1.1`). Their long context lets the assistant work across many notes at once, and the API accepts calls straight from the browser.',
         ),
         helpDetailList([
           ['Base URL', '`https://api.meta.ai/v1`'],
@@ -67,15 +72,13 @@ export const papelizHelpAssistantArticles: readonly PapelizHelpArticle[] = [
         ]),
       ]),
       helpSection('Other presets', [
-        helpParagraph('Papeliz speaks the OpenAI-compatible format, so any other compatible provider works too. The presets:'),
+        helpParagraph('Papeliz speaks the OpenAI-compatible format, so any other compatible provider works too. In **Add Provider**, the presets are grouped:'),
         helpBulletList([
-          '**OpenAI**.',
-          '**OpenRouter**: many hosted models behind one key.',
-          '**Groq**, **Together** and **Fireworks**: hosted open-weights models.',
-          '**Google Gemini**, through Google’s OpenAI-compatible endpoint.',
-          '**Ollama** and **LM Studio** running on your own computer, with no key.',
-          '**Custom**: any other OpenAI-compatible base URL.',
+          '**Hosted**: **Claude**, Anthropic’s Claude models (Papeliz sends Anthropic’s header for calls from a browser page with each Claude request); **OpenAI**; **OpenRouter**, many hosted models behind one key; **Groq**, **Together** and **Fireworks**, hosted open-weights models; **Google Gemini**, through Google’s OpenAI-compatible endpoint.',
+          '**On This Computer**: **Ollama Local** and **LM Studio Local**, with no key.',
+          '**Any Other**: **Custom**, any other OpenAI-compatible base URL.',
         ]),
+        helpParagraph('A provider you already saved shows **Saved** and can’t be added twice.'),
       ]),
       helpSection('Calls from the browser', [
         helpParagraph(
@@ -84,12 +87,12 @@ export const papelizHelpAssistantArticles: readonly PapelizHelpArticle[] = [
       ]),
       helpSection('Models on your own computer', [
         helpParagraph(
-          'To use Ollama on your computer, add Papeliz’s web address to Ollama’s `OLLAMA_ORIGINS` setting so it accepts calls from the page. For LM Studio, start its local server with CORS turned on in the server settings. Then pick the matching preset.',
+          'To use **Ollama Local**, add Papeliz’s web address to Ollama’s `OLLAMA_ORIGINS` setting so it accepts calls from the page. For **LM Studio Local**, start LM Studio’s local server with CORS turned on in the server settings. Then add the matching preset.',
         ),
       ]),
       helpSection('Custom', [
         helpParagraph(
-          'Choose **Custom** for any other service that speaks the OpenAI Chat Completions format. Enter its base URL, which usually ends in `/v1`, and a key if it needs one.',
+          'Choose **Custom** for any other service that speaks the OpenAI Chat Completions format. Enter its base URL, which usually ends in `/v1`, and a key if it needs one, then type its model names with **Add Model**.',
         ),
       ]),
     ],
@@ -128,6 +131,11 @@ export const papelizHelpAssistantArticles: readonly PapelizHelpArticle[] = [
           'While it answers, a message you send is read before its next step, or choose to send it when the answer ends. The chip beside the model sets the **Effort**: how long the model thinks before it answers.',
         ),
         helpParagraph('Add files or pictures with **+** beside the message box, or paste or drop them into it.'),
+      ]),
+      helpSection('Pick the model', [
+        helpParagraph(
+          'The model chip beside **Effort** lists every model you switched on, by provider, with **AI Provider** at the end to add more. The one you pick answers your next message and your inline edits, with its own provider’s key, and stays picked until you choose another. See [[bring-your-own-key]].',
+        ),
       ]),
       helpSection('What the assistant sees', [
         helpParagraph(
