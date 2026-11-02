@@ -44,7 +44,7 @@ function describeAssistantModeHint(assistantMode: PapelizAssistantMode, isBypass
 export function PapelizAssistantPanel({ onAssistantPanelClose }: PapelizAssistantPanelProps) {
   const assistantPanelTab = usePapelizAssistantPanelUiStore((panelUiState) => panelUiState.assistantPanelTab)
   const setAssistantPanelTab = usePapelizAssistantPanelUiStore((panelUiState) => panelUiState.setAssistantPanelTab)
-  const setProviderSettingsDialogOpen = usePapelizAssistantPanelUiStore((panelUiState) => panelUiState.setProviderSettingsDialogOpen)
+  const requestAssistantProviderSettingsPage = usePapelizAssistantPanelUiStore((panelUiState) => panelUiState.requestAssistantProviderSettingsPage)
   const startNewAssistantChat = usePapelizAssistantConversationStore((conversationState) => conversationState.startNewAssistantChat)
   const hasAssistantChatEntries = usePapelizAssistantConversationStore((conversationState) => conversationState.chatEntries.length > 0)
   const assistantMode = usePapelizAssistantRunOptionsStore((runOptionsState) => runOptionsState.assistantMode)
@@ -162,7 +162,7 @@ export function PapelizAssistantPanel({ onAssistantPanelClose }: PapelizAssistan
             hasAssistantChatEntries && (
               <div className="flex flex-none items-center gap-3 px-[18px] pb-2.5 text-[13px] text-papeliz-ink-muted">
                 <span className="min-w-0 flex-1">Set up a provider to keep chatting.</span>
-                <PapelizPillButton pillButtonVariant="primary" pillButtonSize="small" onClick={() => setProviderSettingsDialogOpen(true)}>
+                <PapelizPillButton pillButtonVariant="primary" pillButtonSize="small" onClick={() => requestAssistantProviderSettingsPage()}>
                   Choose a Provider
                 </PapelizPillButton>
               </div>

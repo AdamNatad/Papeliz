@@ -111,7 +111,7 @@ export function PapelizAssistantComposer({ composerPlacement }: PapelizAssistant
   const attachmentFileInputRef = useRef<HTMLInputElement>(null)
   const [isFileDraggedOverComposer, setIsFileDraggedOverComposer] = useState(false)
   const composerFocusRequestCount = usePapelizAssistantPanelUiStore((panelUiState) => panelUiState.composerFocusRequestCount)
-  const setProviderSettingsDialogOpen = usePapelizAssistantPanelUiStore((panelUiState) => panelUiState.setProviderSettingsDialogOpen)
+  const requestAssistantProviderSettingsPage = usePapelizAssistantPanelUiStore((panelUiState) => panelUiState.requestAssistantProviderSettingsPage)
 
   useEffect(() => {
     if (composerFocusRequestCount > 0) composerTextAreaRef.current?.focus()
@@ -186,7 +186,7 @@ export function PapelizAssistantComposer({ composerPlacement }: PapelizAssistant
             menuItemLabel: 'AI Provider',
             MenuItemIcon: Settings,
             menuItemGroupHeading: 'Settings',
-            onMenuItemSelect: () => setProviderSettingsDialogOpen(true),
+            onMenuItemSelect: () => requestAssistantProviderSettingsPage(),
           },
         ]
       : openComposerChipMenu?.composerChipMenuKind === 'effort'
@@ -399,7 +399,7 @@ export function PapelizAssistantComposer({ composerPlacement }: PapelizAssistant
           aria-haspopup={enabledProviderModelGroups.length > 0 ? 'menu' : undefined}
           aria-expanded={enabledProviderModelGroups.length > 0 ? openComposerChipMenu?.composerChipMenuKind === 'model' : undefined}
           aria-label={activeProviderModelName.length > 0 ? `Model: ${activeProviderModelName}` : undefined}
-          onClick={(clickEvent) => (enabledProviderModelGroups.length > 0 ? openComposerChipMenuBelow('model', clickEvent) : setProviderSettingsDialogOpen(true))}
+          onClick={(clickEvent) => (enabledProviderModelGroups.length > 0 ? openComposerChipMenuBelow('model', clickEvent) : requestAssistantProviderSettingsPage())}
           title="Model. Click to change."
           className={joinPapelizClassNames(papelizComposerQuietButtonClassName, 'max-w-[48%] flex-shrink')}
         >

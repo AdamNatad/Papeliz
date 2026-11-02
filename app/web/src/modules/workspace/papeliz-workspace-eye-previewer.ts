@@ -246,7 +246,7 @@ function putBackOutsideState(): void {
     heldOutsideState = null
   }
   clearAssistantConversation(null)
-  usePapelizAssistantPanelUiStore.setState({ assistantPanelTab: 'chat', isProviderSettingsDialogOpen: false })
+  usePapelizAssistantPanelUiStore.setState({ assistantPanelTab: 'chat', isAssistantProviderSettingsPageRequested: false })
   usePapelizWorkspaceEyePreviewerStore.setState({ heldWorkspaceEyePreviewerState: null })
   usePapelizStartScreenEyePreviewStore.setState({ heldStartScreenEyePreview: null })
 }
@@ -355,7 +355,7 @@ function previewProposals(): PapelizAssistantProposal[] {
 
 function applyAssistantPreviewState(previewVaultId: string, workspaceEyePreviewerState: PapelizVaultEyePreviewerState): void {
   usePapelizWorkspaceStore.getState().setAssistantPanelOpen(true)
-  usePapelizAssistantPanelUiStore.setState({ assistantPanelTab: 'chat', isProviderSettingsDialogOpen: false })
+  usePapelizAssistantPanelUiStore.setState({ assistantPanelTab: 'chat', isAssistantProviderSettingsPageRequested: false })
   setPreviewProviderReady(workspaceEyePreviewerState !== 'assistant-not-set-up')
   clearAssistantConversation(previewVaultId)
   if (workspaceEyePreviewerState === 'assistant-answered') {

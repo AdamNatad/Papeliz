@@ -83,7 +83,7 @@ export function canOfferPapelizInlineEdit(editorState: EditorState): boolean {
 export function openPapelizInlineEditForSelection(editorView: EditorView, inlineEditHandlers: { current: PapelizInlineEditEditorHandlers }): boolean {
   if (!canOfferPapelizInlineEdit(editorView.state)) return false
   if (getActivePapelizAssistantProviderConnection().providerConnectionOutcome !== 'ready') {
-    usePapelizAssistantPanelUiStore.getState().setProviderSettingsDialogOpen(true)
+    usePapelizAssistantPanelUiStore.getState().requestAssistantProviderSettingsPage()
     return true
   }
   const mainSelection = editorView.state.selection.main

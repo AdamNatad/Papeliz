@@ -117,14 +117,14 @@ export function PapelizSettingsGearButton({ settingsGearPlace }: PapelizSettings
     const openAssistantProviderSettingsPage = () => {
       const settingsGearButtonElement = settingsGearButtonRef.current
       if (settingsGearButtonElement === null) return
-      usePapelizAssistantPanelUiStore.getState().setProviderSettingsDialogOpen(false)
+      usePapelizAssistantPanelUiStore.getState().clearAssistantProviderSettingsPageRequest()
       setChosenSettingsGearPage('ai-assistant')
       setIsSettingsGearPageOpenOnPhone(true)
       setSettingsGearPanelAnchor(measureSettingsGearPanelAnchor(settingsGearButtonElement))
     }
-    if (usePapelizAssistantPanelUiStore.getState().isProviderSettingsDialogOpen) openAssistantProviderSettingsPage()
+    if (usePapelizAssistantPanelUiStore.getState().isAssistantProviderSettingsPageRequested) openAssistantProviderSettingsPage()
     return usePapelizAssistantPanelUiStore.subscribe((panelUiState, previousPanelUiState) => {
-      if (panelUiState.isProviderSettingsDialogOpen && !previousPanelUiState.isProviderSettingsDialogOpen) openAssistantProviderSettingsPage()
+      if (panelUiState.isAssistantProviderSettingsPageRequested && !previousPanelUiState.isAssistantProviderSettingsPageRequested) openAssistantProviderSettingsPage()
     })
   }, [isWorkspaceSettingsGear])
 
