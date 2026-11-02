@@ -26,15 +26,11 @@ export default function PapelizSitePrivacyPage() {
 
       <PapelizLegalDocumentSection papelizLegalSectionTitle="Templates">
         <p>
-          Papeliz contacts other services for templates only when you open Templates. It reads the list of
-          templates from Papeliz’s Templates server, and a template’s files from jsDelivr, or from GitHub
-          when jsDelivr can’t be reached. Its pictures and its author’s picture come from jsDelivr or GitHub.
-          Recheck and Submit Template ask GitHub for a template’s newest version. These services see the
-          request, as any website does, but never your notes or your key.
-        </p>
-        <p>
-          The Templates server keeps only the public list of template repositories, with their votes and
-          reports. It doesn’t log what a request carries or where it came from.
+          Papeliz contacts other services for templates only when you open Templates. The list of templates
+          is built into Papeliz. A template’s files come from jsDelivr, or from GitHub when jsDelivr can’t be
+          reached, and its pictures and its author’s picture from jsDelivr or GitHub. Check, in Submit
+          Template, asks GitHub and jsDelivr about the repository you paste. These services see the request,
+          as any website does, but never your notes or your key.
         </p>
       </PapelizLegalDocumentSection>
 
@@ -123,6 +119,16 @@ export default function PapelizSitePrivacyPage() {
             Papeliz Sync also keeps encrypted backups of these details and of your files, which are already
             encrypted on your device, so they can be restored after a failure. These backups may be kept
             outside your region.
+          </p>
+        </PapelizLegalDocumentSection>
+
+        <PapelizLegalDocumentSection papelizLegalSectionTitle="Papeliz’s Templates server">
+          <p>
+            More templates, submitting, votes, reports and Recheck come with Papeliz’s Templates server. Then
+            Papeliz reads the list of templates from it, and Recheck and Submit Template ask GitHub for a
+            template’s newest version. The Templates server keeps only the public list of template
+            repositories, with their votes and reports, and knows who submitted, voted or reported only by a
+            keyed hash of the account’s ID. It doesn’t log what a request carries or where it came from.
           </p>
         </PapelizLegalDocumentSection>
 

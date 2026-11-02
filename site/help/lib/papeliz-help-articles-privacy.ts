@@ -33,7 +33,7 @@ export const papelizHelpPrivacyArticles: readonly PapelizHelpArticle[] = [
       ]),
       helpSection('When you open Templates', [
         helpParagraph(
-          'Papeliz contacts other services for templates only when you open **Templates**: Papeliz’s Templates server for the list, and jsDelivr or GitHub for a template’s files and pictures. **Recheck** and **Submit Template** ask GitHub for the newest version. None of them receives your notes or your key.',
+          'Papeliz contacts other services for templates only when you open **Templates**: jsDelivr or GitHub for a template’s files and pictures. The list of templates is built into Papeliz. **Check**, in **Submit Template**, asks GitHub and jsDelivr about the repository you paste. None of them receives your notes or your key. **New**, **Top 100**, votes, **Report** and **Recheck** are Coming Soon, with Papeliz’s Templates server.',
         ),
       ]),
       helpSection('When you use the assistant', [

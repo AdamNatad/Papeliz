@@ -13,11 +13,11 @@ export const papelizSiteChangelogEntries: PapelizSiteChangelogEntry[] = [
     papelizSiteChangelogDate: '2026-11-02',
     papelizSiteChangelogMilestone: '0.2',
     papelizSiteChangelogTitle: 'Templates, imports, export settings, and a Free Sync plan',
-    papelizSiteChangelogNote: 'Templates start with one built in; submitting and voting are coming soon. The Free Sync plan and signing in are built, and open later.',
+    papelizSiteChangelogNote: 'Templates start with one built in; submitting, voting and Recheck are coming soon. The Free Sync plan and signing in are built, and open later.',
     papelizSiteChangelogChanges: [
       'Templates: start a vault from a template someone shares from a public GitHub repository, or import one into the vault you have open, in a folder of its own. Preview shows every file first.',
       'Bring a template’s recommended files, all of them, or only the ones you tick in its folder tree.',
-      'Papeliz checks a template before it makes the vault, strips its pictures’ hidden details, and lists every command its settings name. Recheck looks for a newer version and checks it too.',
+      'Papeliz checks a template before it makes the vault, strips its pictures’ hidden details, and lists every command its settings name.',
       'Export as Template: the notes you tick, each Recommended or Optional, with up to three tags, the first being its Category, and any license.',
       'Import from Files, Folder, Zip or Template, each into a new folder of its own. Nothing already in the vault changes.',
       'JSON, YAML, scripts and other text files show in the file list and open in MD Code, with JSON colors and folding.',

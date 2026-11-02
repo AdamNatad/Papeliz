@@ -121,7 +121,6 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
           'If the template’s agent settings or scripts name commands, Papeliz lists each one. Papeliz never runs them. Tick **I’ve read these commands**, then choose **Continue**.',
           'New Vault opens with the template at its top. Name the vault, choose **Folder Storage** or **Browser Storage**, then **Pick Folder** or **Create Vault**. The vault opens on the template’s first note.',
         ]),
-        helpParagraph('**Recheck**, on a template’s page or in Preview, asks GitHub for a newer version and checks it before Papeliz uses it.'),
         helpParagraph(
           'In a vault you already have, choose **Import** in the file list’s header, then **Import from Template**. **Import into This Vault** puts the template in a new folder named after it, at the top of the vault, and changes nothing else. The same **Recommended**, **All** and **Choose** apply.',
         ),
@@ -132,7 +131,7 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
           'To share a vault of your own as a template, use **Export as Template** in **Export**. See [[settings-gear]].',
         ),
         helpNote(
-          '**New**, **Top 100**, votes and **Report** open with the Templates server. Until then, **Submit Template** checks your own repository: paste its link and choose **Check**.',
+          '**New**, **Top 100**, submitting, votes, **Report** and **Recheck** are Coming Soon: they stay in their places, greyed. **Submit Template** can already check your own repository: paste its link and choose **Check**.',
         ),
       ]),
       helpSection('Come back with Recent Vaults', [
