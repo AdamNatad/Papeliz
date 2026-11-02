@@ -72,6 +72,17 @@ export default function PapelizSitePrivacyPage() {
           your browser straight to your provider. Each message shows which notes are included. The
           provider’s own privacy policy applies to that data.
         </p>
+        <p>
+          Pictures you make or change, their prompts, and audio you record or choose go from your browser
+          straight to the provider you chose, with your own key, as the chat does. Papeliz has no server for
+          them and keeps no copy. A picture or recording is saved only in your vault, and only when you save
+          it or accept the change.
+        </p>
+        <p>
+          The microphone is used only while you record, after you press Record and your browser asks you.
+          Remove C2PA, which takes content credentials and other hidden details out of a picture before it is
+          saved, runs in your browser: no picture is sent anywhere to be cleaned.
+        </p>
       </PapelizLegalDocumentSection>
 
       <PapelizLegalDocumentSection papelizLegalSectionTitle="No account needed, no tracking">

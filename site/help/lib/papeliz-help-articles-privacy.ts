@@ -48,6 +48,12 @@ export const papelizHelpPrivacyArticles: readonly PapelizHelpArticle[] = [
         helpParagraph(
           'The assistant sends your message and the notes it reads to the provider of the model you picked, and nothing goes until you send a message. See [[where-your-key-goes]].',
         ),
+        helpParagraph(
+          'Pictures, prompts and audio go from your browser straight to the provider you chose, with your own key, as the chat does. Papeliz has no server for them and keeps no copy. A picture or recording is saved only in your vault, and only when you save it or accept the change. See [[pictures-and-speech]].',
+        ),
+        helpParagraph(
+          'The microphone is used only while you record, after you press **Record** and your browser asks you. **Remove C2PA** runs in your browser: no picture is sent anywhere to be cleaned.',
+        ),
       ]),
     ],
     relatedArticleSlugs: ['where-your-key-goes', 'keep-a-vault-in-your-browser', 'saving-and-hidden-folders', 'safe-rendering'],

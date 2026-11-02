@@ -70,6 +70,9 @@ export const papelizHelpAssistantArticles: readonly PapelizHelpArticle[] = [
           ['Model', '`muse-spark-1.3`'],
           ['API key', 'From the Model API dashboard at `dev.meta.ai`'],
         ]),
+        helpParagraph(
+          'The same key makes and changes pictures with `muse-image-1.0` and turns speech into text with `muse-voice-transcribe-1.0`. Muse Spark writes up what you said and describes pictures. See [[pictures-and-speech]].',
+        ),
       ]),
       helpSection('Other presets', [
         helpParagraph('Papeliz speaks the OpenAI-compatible format, so any other compatible provider works too. In **Add Provider**’s **Provider** menu, the hosted presets come first, then **Local** and **Any Other**:'),
@@ -107,7 +110,7 @@ export const papelizHelpAssistantArticles: readonly PapelizHelpArticle[] = [
     articleSections: [
       helpSection('The Assistant panel', [
         helpParagraph(
-          'The Assistant panel docks on the right. The **AI Assistant** button in the top bar, left of **Export** and the gear, opens and closes it. Its header has **New Chat**, **Sessions** and **Usage**.',
+          'The Assistant panel docks on the right. The **AI Assistant** button in the top bar, left of **Export** and the gear, opens and closes it. Its header has **New Chat**, **Imagine**, **Sessions** and **Usage**.',
         ),
         helpParagraph(
           'Until a provider is set up, the panel offers **Choose a Provider**. See [[bring-your-own-key]]. The open note’s outline and backlinks are under the file list, in **This Note**. See [[backlinks-and-outline]].',
@@ -131,6 +134,7 @@ export const papelizHelpAssistantArticles: readonly PapelizHelpArticle[] = [
           'While it answers, a message you send is read before its next step, or choose to send it when the answer ends. The chip beside the model sets the **Effort**: how long the model thinks before it answers.',
         ),
         helpParagraph('Add files or pictures with **+** beside the message box, or paste or drop them into it.'),
+        helpParagraph('The microphone beside it puts what you say into the message box, and the picture button makes a picture of what you typed. See [[pictures-and-speech]].'),
       ]),
       helpSection('Pick the model', [
         helpParagraph(
@@ -205,6 +209,7 @@ export const papelizHelpAssistantArticles: readonly PapelizHelpArticle[] = [
           '**Rewrite**: a fresh version of the passage.',
           '**Fix Grammar**: spelling and grammar fixes.',
           '**Translate**: into your browser’s language, or into English if the text already is in it.',
+          '**Imagine** and **Transcribe**, and on a picture **Describe Picture** and **Edit Picture**. See [[pictures-and-speech]].',
         ]),
       ]),
       helpSection('Review the change', [
@@ -214,6 +219,59 @@ export const papelizHelpAssistantArticles: readonly PapelizHelpArticle[] = [
       ]),
     ],
     relatedArticleSlugs: ['proposed-edits', 'format-text', 'chat-with-the-assistant'],
+  },
+  {
+    papelizHelpArticleSlug: 'pictures-and-speech',
+    articleTitle: 'Pictures and speech with your provider',
+    articleSummary: 'Make, change and describe pictures, and turn speech into text, with your own provider and key.',
+    papelizHelpGroupSlug: 'assistant',
+    papelizHelpArticleAvailability: 'available',
+    articleSections: [
+      helpSection('Beside Rewrite', [
+        helpParagraph(
+          'Select text and press `Ctrl+K`, or right-click and choose **Edit with Assistant**. Beside **Shorter**, **Rewrite**, **Fix Grammar** and **Translate** are:',
+        ),
+        helpDetailList([
+          ['Imagine', 'Makes a picture of the selected words, or of what you type, and puts it after them.'],
+          [
+            'Transcribe',
+            'Turns what you say, or an audio file, into written text at that place. The text comes written up, with punctuation and paragraphs; turn off **Written Up** for the words as spoken.',
+          ],
+          ['Describe Picture', 'With the cursor on a picture, writes its alt text.'],
+          ['Edit Picture', 'Changes a picture as you ask. The changed picture is saved as a new file and the link points to it; the old file stays.'],
+        ]),
+        helpParagraph(
+          'The note’s right-click menu has them too: **Imagine Here** or **Imagine from Selection**, **Transcribe Here**, and on a picture **Describe Picture** and **Edit Picture**. Each shows the change to accept or reject, like any edit. See [[inline-edits]].',
+        ),
+      ]),
+      helpSection('In the chat box', [
+        helpBulletList([
+          '**Speak**, the microphone: record yourself, or choose an audio file. Your words go into the message box, to send as they are or after a change. When two or more people speak, each gets a label, such as Speaker A.',
+          '**Imagine a Picture**, the picture button: makes a picture of what you typed, right in the chat. **Save to Vault** keeps it, and **Put in Note** shows the change to the open note, to accept. Nothing goes to the chat’s model.',
+        ]),
+      ]),
+      helpSection('The Imagine gallery', [
+        helpParagraph(
+          '**Imagine**, at the top of the assistant, keeps every picture made or brought in. Make more there, with a prompt, a shape and one to four at a time, then save them to the vault or put them in a note. **Bring In a Picture**, or drop one in, to clean it and save it.',
+        ),
+        helpParagraph('Saved pictures go in the `Attachments` folder at the top of the vault.'),
+      ]),
+      helpSection('Which providers', [
+        helpParagraph(
+          'Each action uses a provider you added, with your own key. The recommended provider makes pictures, changes them and turns speech into text; its models are in [[choose-a-provider]]. Transcribe’s write-up and Describe Picture use the chat’s model.',
+        ),
+        helpParagraph(
+          'OpenAI, Google Gemini, OpenRouter and Together make pictures too, and they and Groq turn speech into text. **Edit Picture** works with the recommended provider. Pick the models for pictures and for speech in the Imagine gallery; the chat box and Edit with Assistant use the same ones.',
+        ),
+      ]),
+      helpSection('Remove C2PA', [
+        helpParagraph(
+          'Every picture has **Remove C2PA**, on by default. Before a picture is saved, it takes C2PA content credentials, EXIF, XMP, IPTC, text and comments out of the PNG, JPEG or WebP file, in your browser. The picture itself doesn’t change. Turn it off to keep a picture’s credentials.',
+        ),
+        helpNote('Pictures, prompts and audio go straight to your provider, and the microphone is used only while you record. See [[where-your-notes-live]].'),
+      ]),
+    ],
+    relatedArticleSlugs: ['inline-edits', 'chat-with-the-assistant', 'choose-a-provider'],
   },
   {
     papelizHelpArticleSlug: 'focus-mode',

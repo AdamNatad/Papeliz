@@ -18,7 +18,7 @@ export const papelizHelpGroups: readonly PapelizHelpGroup[] = [
   { papelizHelpGroupSlug: 'getting-started', groupTitle: 'Getting started', groupSummary: 'What Papeliz is, and your first vault.' },
   { papelizHelpGroupSlug: 'writing', groupTitle: 'Writing', groupSummary: 'MD Code, MD View, links, tags and formatting.' },
   { papelizHelpGroupSlug: 'files', groupTitle: 'Files', groupSummary: 'The file list, tabs, saving and the vault’s trash.' },
-  { papelizHelpGroupSlug: 'assistant', groupTitle: 'The assistant', groupSummary: 'Your own key, then chat, edits and focus mode.' },
+  { papelizHelpGroupSlug: 'assistant', groupTitle: 'The assistant', groupSummary: 'Your own key, then chat, edits, pictures and speech, and focus mode.' },
   { papelizHelpGroupSlug: 'privacy', groupTitle: 'Privacy and security', groupSummary: 'Where your notes and your key go.' },
   { papelizHelpGroupSlug: 'reference', groupTitle: 'Reference', groupSummary: 'Shortcuts, Markdown syntax and fixes.' },
 ]
