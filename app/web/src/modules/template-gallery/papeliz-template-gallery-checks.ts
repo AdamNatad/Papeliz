@@ -1,6 +1,9 @@
 import {
+  isPapelizTemplateCategoryTag,
+  papelizTemplateCategoryTags,
   papelizTemplateLicenseDisplayNames,
   papelizTemplateManifestFileName,
+  papelizTemplateTagPattern,
   type PapelizTemplateCheckId,
   type PapelizTemplateCheckOutcome,
   type PapelizTemplateCheckReport,
@@ -34,6 +37,11 @@ const papelizTemplateNameLongestLength = 80
 const papelizTemplateDescriptionLongestLength = 300
 const papelizTemplateMostTagCount = 5
 const papelizTemplateTagLongestLength = 30
+// "coding", "education" or "research".
+const papelizTemplateCategoryWords = `${papelizTemplateCategoryTags
+  .slice(0, -1)
+  .map((templateCategoryTag) => `"${templateCategoryTag}"`)
+  .join(', ')} or "${papelizTemplateCategoryTags.at(-1) ?? ''}"`
 // In each of templateIncludedPaths and templateExcludedPaths.
 const papelizTemplateMostPathPatternCount = 30
 // What jsDelivr serves from GitHub at most.
@@ -95,20 +103,36 @@ const papelizTemplateScriptFileExtensions: ReadonlySet<string> = new Set([
   'js', 'mjs', 'cjs', 'ts', 'mts', 'cts', 'py', 'rb', 'pl',
 ])
 
-// Settings an agent or editor reads, in any folder, compared in lower case: Claude Code's, Gemini
-// CLI's, Cursor's (with its hooks) and VS Code's, MCP servers, VS Code's tasks (some run when the folder
-// opens), and dev containers (`initializeCommand` runs on the computer itself).
+// Settings an agent or editor reads, in any folder, compared in lower case:
+// - Claude Code's, Gemini CLI's, Qwen Code's, Command Code's, Devin's, OpenCode's and Kilo Code's;
+// - Cursor's MCP servers, hooks and its CLI's permissions;
+// - MCP servers, and VS Code's tasks (some run when the folder opens);
+// - dev containers (`initializeCommand` runs on the computer itself);
+// - every agent's hooks file in a hidden folder: `hooks.json` (or `hooks.v1.json`), or a JSON file in
+//   its `hooks/` folder. These are Codex's, Copilot's (`.github/hooks/`), Antigravity's (`.agents/`),
+//   Devin's, Factory's, Kiro's, Grok's and others'.
 const papelizTemplateAgentSettingsFilePathPattern =
-  /(?:^|\/)(?:\.claude\/settings(?:\.local)?\.json|\.mcp\.json|\.gemini\/settings\.json|\.cursor\/(?:mcp|hooks)\.json|\.vscode\/(?:mcp|tasks)\.json|\.devcontainer\/(?:[^/]+\/)?devcontainer\.json|\.devcontainer\.json)$/
-// Files of an agent's own commands, each able to run shell lines when it's used, and settings that
-// aren't JSON; listed whole.
-const papelizTemplateAgentCommandFilePathPattern = /(?:^|\/)(?:(?:\.claude|\.gemini)\/commands\/|\.codex\/config\.toml$)/
-// Fields that hold a command: `command`, and any name ending in "Command" (`postCreateCommand`,
-// `initializeCommand`, `discoveryCommand`), and the helpers Claude Code runs.
-const papelizTemplateAgentSettingsCommandFieldNamePattern = /command$/i
+  /(?:^|\/)(?:\.claude\/settings(?:\.local)?\.json|\.mcp\.json|\.gemini\/settings\.json|\.qwen\/settings\.json|\.commandcode\/settings(?:\.local)?\.json|\.cursor\/(?:mcp|hooks|cli)\.json|\.devin\/config(?:\.local)?\.json|opencode\.jsonc?|\.kilo\/kilo\.jsonc?|\.vscode\/(?:mcp|tasks)\.json|\.devcontainer\/(?:[^/]+\/)?devcontainer\.json|\.devcontainer\.json|\.[^/]+\/hooks(?:\.v\d+)?\.json|\.[^/]+\/hooks\/[^/]+\.json)$/
+// Listed whole:
+// - files of an agent's own commands, each able to run shell lines when it's used;
+// - settings that aren't JSON: Codex's, its rules (which can let a command run without asking), and
+//   Aider's (its lint and test commands can run after every change).
+const papelizTemplateAgentCommandFilePathPattern = /(?:^|\/)(?:(?:\.claude|\.gemini|\.qwen)\/commands\/|\.codex\/config\.toml$|\.codex\/rules\/[^/]+\.rules$|\.aider\.conf\.ya?ml$)/
+// Fields that hold a command:
+// - `command`, with the form some agents give for Windows (`commandWindows`);
+// - any name ending in "Command" (`postCreateCommand`, `initializeCommand`, `discoveryCommand`,
+//   Kiro's `confirmCommand`);
+// - the helpers Claude Code runs;
+// - Copilot's fields named for what runs them: `bash`, `powershell`, and `exec` (with `args`).
+const papelizTemplateAgentSettingsCommandFieldNamePattern = /command(?:windows|linux|macos|osx)?$/i
 const papelizTemplateAgentSettingsHelperFieldNames: ReadonlySet<string> = new Set(['apiKeyHelper', 'awsAuthRefresh', 'awsCredentialExport', 'otelHeadersHelper'])
-// Permission modes that ask before a command runs, as they always do.
+const papelizTemplateAgentSettingsShellCommandFieldNames: ReadonlySet<string> = new Set(['bash', 'powershell', 'exec'])
+// The command fields whose `args` beside them are the command's arguments.
+const papelizTemplateAgentSettingsCommandWithArgumentsFieldNames: ReadonlySet<string> = new Set(['command', 'exec'])
+// Permission and approval modes that ask before a command runs, as they always do.
 const papelizTemplateAgentAskingPermissionModes: ReadonlySet<string> = new Set(['default', 'plan'])
+// Gemini CLI's and Qwen Code's approval modes.
+const papelizTemplateAgentApprovalModeFieldNames: ReadonlySet<string> = new Set(['approvalMode', 'defaultApprovalMode'])
 
 const papelizGitLfsPointerStart = 'version https://git-lfs.github.com/spec/'
 
@@ -292,9 +316,17 @@ export function parsePapelizTemplateManifest(templateManifestText: string): Pape
   if (
     !Array.isArray(templateTags) ||
     templateTags.length > papelizTemplateMostTagCount ||
-    templateTags.some((templateTag) => typeof templateTag !== 'string' || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(templateTag) || templateTag.length > papelizTemplateTagLongestLength)
+    templateTags.some((templateTag) => typeof templateTag !== 'string' || !papelizTemplateTagPattern.test(templateTag) || templateTag.length > papelizTemplateTagLongestLength)
   ) {
-    return manifestProblem(`The manifest’s templateTags must be a list of up to ${papelizTemplateMostTagCount} tags in lower case, such as "project-workflow".`)
+    return manifestProblem(`The manifest’s templateTags must be a list of up to ${papelizTemplateMostTagCount} tags in lower case, its category first, such as ["coding", "project-workflow"].`)
+  }
+  // The first tag is the template's Category; the rest are its subcategory and extra labels.
+  const templateCategoryTag = (templateTags as string[])[0]
+  if (templateCategoryTag === undefined) {
+    return manifestProblem(`The manifest’s templateTags must start with the template’s category: ${papelizTemplateCategoryWords}, such as ["coding", "project-workflow"].`)
+  }
+  if (!isPapelizTemplateCategoryTag(templateCategoryTag)) {
+    return manifestProblem(`The manifest’s first tag, “${templateCategoryTag}”, must be the template’s category: ${papelizTemplateCategoryWords}. Put one of them first, such as ["coding", "project-workflow"].`)
   }
   if (findTemplateRelativePathShapeProblem(templateFirstNotePath) || !isTemplateNoteRelativePath(templateFirstNotePath as string)) {
     return manifestProblem('The manifest’s templateFirstNotePath must be the path of a .md note in the repository, such as "START.md".')
@@ -570,13 +602,47 @@ function describeAgentSettingsCommandValue(agentSettingsCommandValue: unknown): 
   return typeof commandValueText === 'string' ? commandValueText : null
 }
 
+interface PapelizTemplateFoundAgentSetting {
+  agentSettingKind: PapelizTemplateAgentSettingKind
+  agentSettingText: string
+}
+
+// One step of reading a settings file: a value still to read, or a setting found in it.
+type PapelizTemplateAgentSettingsWalkStep = { walkedAgentSettingsValue: unknown } | PapelizTemplateFoundAgentSetting
+
+function createAgentSettingPermissionStep(agentSettingText: string): PapelizTemplateFoundAgentSetting {
+  return { agentSettingKind: 'agent-setting-permission', agentSettingText }
+}
+
+// OpenCode's and Kilo Code's `permission`: "allow" for every tool, or by tool, each "allow", "ask" or
+// "deny", or patterns with their own ({ "bash": { "*": "allow", "rm *": "deny" } }). What lets a
+// command run without asking is `bash` or `*` allowed, whole or by pattern. Anything else in it is
+// read as any setting is.
+function listAgentToolPermissionWalkSteps(agentToolPermissionValue: unknown): PapelizTemplateAgentSettingsWalkStep[] {
+  if (typeof agentToolPermissionValue === 'string') return agentToolPermissionValue === 'allow' ? [createAgentSettingPermissionStep('permission: allow')] : []
+  if (!isPlainAgentSettingsObject(agentToolPermissionValue)) return [{ walkedAgentSettingsValue: agentToolPermissionValue }]
+  const toolPermissionWalkSteps: PapelizTemplateAgentSettingsWalkStep[] = []
+  for (const [permissionToolName, permissionToolValue] of Object.entries(agentToolPermissionValue)) {
+    const isCommandRunningTool = permissionToolName.toLowerCase() === 'bash' || permissionToolName === '*'
+    if (typeof permissionToolValue === 'string') {
+      if (isCommandRunningTool && permissionToolValue === 'allow') toolPermissionWalkSteps.push(createAgentSettingPermissionStep(`${permissionToolName}: allow`))
+    } else if (isPlainAgentSettingsObject(permissionToolValue) && Object.values(permissionToolValue).every((permissionAction) => typeof permissionAction === 'string')) {
+      for (const [permissionPattern, permissionAction] of Object.entries(permissionToolValue)) {
+        if (isCommandRunningTool && permissionAction === 'allow') toolPermissionWalkSteps.push(createAgentSettingPermissionStep(`${permissionToolName} ${permissionPattern}: allow`))
+      }
+    } else {
+      toolPermissionWalkSteps.push({ walkedAgentSettingsValue: permissionToolValue })
+    }
+  }
+  return toolPermissionWalkSteps
+}
+
 // Everything in a parsed settings file that runs a command or changes how one runs, in the file's
 // order. It walks with a list, not by calling itself, so a file nested however deep is read to its
 // end: every command, environment variable, permission that skips asking, and plugin.
-function listAgentSettingsRunSettings(parsedAgentSettings: unknown): Array<{ agentSettingKind: PapelizTemplateAgentSettingKind; agentSettingText: string }> {
-  type AgentSettingsWalkStep = { walkedAgentSettingsValue: unknown } | { agentSettingKind: PapelizTemplateAgentSettingKind; agentSettingText: string }
-  const foundAgentSettings: Array<{ agentSettingKind: PapelizTemplateAgentSettingKind; agentSettingText: string }> = []
-  const pendingWalkSteps: AgentSettingsWalkStep[] = [{ walkedAgentSettingsValue: parsedAgentSettings }]
+function listAgentSettingsRunSettings(parsedAgentSettings: unknown): PapelizTemplateFoundAgentSetting[] {
+  const foundAgentSettings: PapelizTemplateFoundAgentSetting[] = []
+  const pendingWalkSteps: PapelizTemplateAgentSettingsWalkStep[] = [{ walkedAgentSettingsValue: parsedAgentSettings }]
   while (pendingWalkSteps.length > 0) {
     const walkStep = pendingWalkSteps.pop()
     if (walkStep === undefined) break
@@ -586,15 +652,18 @@ function listAgentSettingsRunSettings(parsedAgentSettings: unknown): Array<{ age
     }
     const { walkedAgentSettingsValue } = walkStep
     // This value's steps in order; pushed last to first, so the first comes off the list first.
-    const nextWalkSteps: AgentSettingsWalkStep[] = []
+    const nextWalkSteps: PapelizTemplateAgentSettingsWalkStep[] = []
     if (Array.isArray(walkedAgentSettingsValue)) {
       for (const agentSettingsItem of walkedAgentSettingsValue as unknown[]) nextWalkSteps.push({ walkedAgentSettingsValue: agentSettingsItem })
     } else if (isPlainAgentSettingsObject(walkedAgentSettingsValue)) {
       for (const [agentSettingsFieldName, agentSettingsFieldValue] of Object.entries(walkedAgentSettingsValue)) {
-        const isCommandField = papelizTemplateAgentSettingsCommandFieldNamePattern.test(agentSettingsFieldName) || papelizTemplateAgentSettingsHelperFieldNames.has(agentSettingsFieldName)
+        const isCommandField =
+          papelizTemplateAgentSettingsCommandFieldNamePattern.test(agentSettingsFieldName) ||
+          papelizTemplateAgentSettingsHelperFieldNames.has(agentSettingsFieldName) ||
+          papelizTemplateAgentSettingsShellCommandFieldNames.has(agentSettingsFieldName)
         const commandText = describeAgentSettingsCommandValue(agentSettingsFieldValue)
         if (isCommandField && commandText !== null) {
-          const commandArguments = agentSettingsFieldName === 'command' ? describeAgentSettingsCommandArguments(walkedAgentSettingsValue['args']) : []
+          const commandArguments = papelizTemplateAgentSettingsCommandWithArgumentsFieldNames.has(agentSettingsFieldName) ? describeAgentSettingsCommandArguments(walkedAgentSettingsValue['args']) : []
           nextWalkSteps.push({ agentSettingKind: 'agent-setting-command', agentSettingText: [commandText, ...commandArguments].join(' ').trim() })
         } else if (isCommandField && isPlainAgentSettingsObject(agentSettingsFieldValue)) {
           // A dev container's step as named commands: { "install": "npm ci", "build": ["make"] }.
@@ -613,10 +682,21 @@ function listAgentSettingsRunSettings(parsedAgentSettings: unknown): Array<{ age
           // Rules that deny or ask run nothing; ones that allow, and a mode that asks less, do.
           const { allow: allowedPermissionRules, defaultMode: permissionMode } = agentSettingsFieldValue
           for (const allowedPermissionRule of Array.isArray(allowedPermissionRules) ? (allowedPermissionRules as unknown[]) : []) {
-            nextWalkSteps.push({ agentSettingKind: 'agent-setting-permission', agentSettingText: typeof allowedPermissionRule === 'string' ? allowedPermissionRule : JSON.stringify(allowedPermissionRule) })
+            nextWalkSteps.push(createAgentSettingPermissionStep(typeof allowedPermissionRule === 'string' ? allowedPermissionRule : JSON.stringify(allowedPermissionRule)))
           }
           if (permissionMode !== undefined && !(typeof permissionMode === 'string' && papelizTemplateAgentAskingPermissionModes.has(permissionMode))) {
-            nextWalkSteps.push({ agentSettingKind: 'agent-setting-permission', agentSettingText: `defaultMode: ${typeof permissionMode === 'string' ? permissionMode : JSON.stringify(permissionMode)}` })
+            nextWalkSteps.push(createAgentSettingPermissionStep(`defaultMode: ${typeof permissionMode === 'string' ? permissionMode : JSON.stringify(permissionMode)}`))
+          }
+        } else if (agentSettingsFieldName === 'permission') {
+          nextWalkSteps.push(...listAgentToolPermissionWalkSteps(agentSettingsFieldValue))
+        } else if (agentSettingsFieldName === 'allowed' && Array.isArray(agentSettingsFieldValue)) {
+          // Gemini CLI's and Qwen Code's tools that run without asking: "run_shell_command(npm test)".
+          for (const allowedToolName of agentSettingsFieldValue as unknown[]) {
+            nextWalkSteps.push(createAgentSettingPermissionStep(typeof allowedToolName === 'string' ? allowedToolName : JSON.stringify(allowedToolName)))
+          }
+        } else if (papelizTemplateAgentApprovalModeFieldNames.has(agentSettingsFieldName)) {
+          if (!(typeof agentSettingsFieldValue === 'string' && papelizTemplateAgentAskingPermissionModes.has(agentSettingsFieldValue))) {
+            nextWalkSteps.push(createAgentSettingPermissionStep(`${agentSettingsFieldName}: ${typeof agentSettingsFieldValue === 'string' ? agentSettingsFieldValue : JSON.stringify(agentSettingsFieldValue)}`))
           }
         } else if (agentSettingsFieldName === 'enabledPlugins' && isPlainAgentSettingsObject(agentSettingsFieldValue)) {
           for (const [pluginName, isPluginEnabled] of Object.entries(agentSettingsFieldValue)) {
@@ -664,7 +744,12 @@ export function listPapelizTemplateRunCommands(includedTemplateFileBytesByRelati
         templateRunCommands.push(createTemplateRunCommand('agent-command-file', templateFileRelativePath, templateFileRelativePath))
         continue
       }
+      // A setting a file gives twice, such as one hook's Unix and Windows forms, is listed once.
+      const listedAgentSettingKeys = new Set<string>()
       for (const { agentSettingKind, agentSettingText } of listAgentSettingsRunSettings(parsedAgentSettings)) {
+        const listedAgentSettingKey = `${agentSettingKind}\n${agentSettingText}`
+        if (listedAgentSettingKeys.has(listedAgentSettingKey)) continue
+        listedAgentSettingKeys.add(listedAgentSettingKey)
         templateRunCommands.push(createTemplateRunCommand(agentSettingKind, templateFileRelativePath, agentSettingText))
       }
     } else if (papelizTemplateAgentCommandFilePathPattern.test(foldedRelativePath)) {

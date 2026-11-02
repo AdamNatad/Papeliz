@@ -27,6 +27,7 @@ export interface PapelizTemplateManifest {
   papelizTemplateManifestVersion: 1
   templateName: string
   templateDescription: string
+  // Up to 5: its Category first (`papelizTemplateCategoryTags`), then its subcategory and extra labels.
   templateTags: string[]
   // Opens first, in MD View: "START.md", "Guides/Read me first.md".
   templateFirstNotePath: string
@@ -49,22 +50,51 @@ export const papelizTemplateLicenseDisplayNames: Readonly<Record<PapelizTemplate
   MIT: 'MIT',
 }
 
-// The tags a template can carry, as the chips and a template's page show them, in A to Z order. The
-// manifest's check takes any tag of the right shape for now; the Templates Worker keeps this list.
-export const papelizTemplateGalleryTagDisplayNames: Readonly<Record<string, string>> = {
-  'ai-agents': 'AI Agents',
-  coding: 'Coding',
-  documentation: 'Documentation',
-  journal: 'Journal',
-  'knowledge-base': 'Knowledge Base',
-  personal: 'Personal',
-  planning: 'Planning',
-  'project-workflow': 'Project Workflow',
-  reading: 'Reading',
-  research: 'Research',
-  study: 'Study',
-  work: 'Work',
-  writing: 'Writing',
+// A template's tags: the first is its Category, one of these; the second, when there is one, is its
+// subcategory, and any further tags are extra labels. Every tag after the first is any tag of the
+// right shape ("project-workflow").
+export type PapelizTemplateCategoryTag = 'coding' | 'education' | 'research'
+export const papelizTemplateCategoryTags: readonly PapelizTemplateCategoryTag[] = ['coding', 'education', 'research']
+
+export function isPapelizTemplateCategoryTag(templateTag: string): templateTag is PapelizTemplateCategoryTag {
+  return (papelizTemplateCategoryTags as readonly string[]).includes(templateTag)
+}
+
+// The shape of every tag: lower-case letters and digits in words joined by single hyphens.
+export const papelizTemplateTagPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
+
+// Short forms a tag's words keep in capitals.
+const papelizTemplateTagAllCapsWords: ReadonlySet<string> = new Set(['ai', 'api', 'ui', 'ux', 'sql', 'css', 'html', 'json', 'cli', 'sdk'])
+
+// A tag as the chips and a template's page show it: every word with a capital first letter and the
+// hyphens as spaces, with short forms in capitals ("project-workflow" -> "Project Workflow", "ai-agents"
+// -> "AI Agents").
+export function formatPapelizTemplateTagDisplayName(templateTag: string): string {
+  return templateTag
+    .split('-')
+    .filter((templateTagWord) => templateTagWord.length > 0)
+    .map((templateTagWord) =>
+      papelizTemplateTagAllCapsWords.has(templateTagWord.toLowerCase()) ? templateTagWord.toUpperCase() : templateTagWord.charAt(0).toUpperCase() + templateTagWord.slice(1),
+    )
+    .join(' ')
+}
+
+// The fixed tag list's earlier export, kept until the screens and the Templates Worker call
+// `formatPapelizTemplateTagDisplayName`: every tag of the right shape is in it, named as that function
+// names it, so the Worker's own check of tags against it refuses none; listed, it gives the categories.
+export const papelizTemplateGalleryTagDisplayNames: Readonly<Record<string, string>> = new Proxy<Record<string, string>>(
+  {},
+  {
+    get: (_tagDisplayNamesTarget, templateTag) => (isPapelizTemplateTagShaped(templateTag) ? formatPapelizTemplateTagDisplayName(templateTag) : undefined),
+    has: (_tagDisplayNamesTarget, templateTag) => isPapelizTemplateTagShaped(templateTag),
+    getOwnPropertyDescriptor: (_tagDisplayNamesTarget, templateTag) =>
+      isPapelizTemplateTagShaped(templateTag) ? { value: formatPapelizTemplateTagDisplayName(templateTag), writable: false, enumerable: true, configurable: true } : undefined,
+    ownKeys: () => [...papelizTemplateCategoryTags],
+  },
+)
+
+function isPapelizTemplateTagShaped(templateTag: string | symbol): templateTag is string {
+  return typeof templateTag === 'string' && papelizTemplateTagPattern.test(templateTag)
 }
 
 // ---------------------------------------------------------------- a gallery row
@@ -162,16 +192,19 @@ export interface PapelizTemplateCheckResult {
   templateCheckSentence: string
 }
 
-// What an agent or editor reads from a template, at any depth and whatever its case: Claude Code's,
-// Gemini CLI's, Cursor's and VS Code's settings and MCP servers, VS Code's tasks and dev containers.
+// What an agent or editor reads from a template, at any depth and whatever its case: coding agents'
+// settings, hooks files and MCP servers (Claude Code's, Codex's, Copilot's, Gemini CLI's, Cursor's,
+// OpenCode's and others'), VS Code's tasks and dev containers.
 // - `agent-setting-command`: a command named there (a hook, an MCP server, a status line, a task, a
 //   dev container's step), as written.
 // - `agent-setting-environment`: an environment variable every command there gets, as "NAME=value".
-// - `agent-setting-permission`: a command an agent may run without asking ("Bash(npm test)"), or a
-//   permission mode that asks less ("defaultMode: bypassPermissions").
+// - `agent-setting-permission`: a command an agent may run without asking ("Bash(npm test)",
+//   "bash git status: allow"), or a mode that asks less ("defaultMode: bypassPermissions",
+//   "approvalMode: yolo").
 // - `agent-setting-plugin`: a plugin an agent turns on, which can bring commands of its own.
 // - `agent-command-file`: a file of an agent's own commands (`.claude/commands/…`), which can run
-//   shell lines when used; or settings Papeliz couldn't read through. The text is its path.
+//   shell lines when used; or settings Papeliz can't read through (`.codex/config.toml`, Codex's
+//   rules, Aider's settings, or a settings file that isn't JSON). The text is its path.
 // - `script-file`: a script among the files (`.sh`, `.ps1`, `.py`, ... or a file starting with `#!`).
 export type PapelizTemplateRunCommandKind =
   | 'agent-setting-command'

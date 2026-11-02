@@ -150,7 +150,7 @@ export const gardenJournalManifest = {
   papelizTemplateManifestVersion: 1,
   templateName: 'Garden Journal',
   templateDescription: 'A season of planting notes, with a page per crop.',
-  templateTags: ['gardening', 'journal'],
+  templateTags: ['education', 'gardening', 'journal'],
   templateFirstNotePath: 'Start here.md',
   templateIncludedPaths: ['**'],
   templateExcludedPaths: ['drafts/**'],
