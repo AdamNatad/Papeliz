@@ -20,10 +20,9 @@ export const papelizAccountRowActionsDialogButtonClassName =
   'flex min-h-[48px] w-full cursor-pointer items-center gap-3 rounded-[10px] border border-papeliz-line bg-papeliz-surface px-3.5 text-left text-[14.5px] font-semibold transition-colors hover:bg-papeliz-surface-soft active:bg-papeliz-press focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-papeliz-blue'
 
 // A row's actions on a computer: one Manage button whose menu holds the row's choices, a removal last
-// and in red (Adam, 2026-11-01: picked "One Manage menu" for vaults; "make it Manage too like our
-// Vault" for devices). It opens with the first choice focused; Up, Down, Home and End move between
-// them; Tab, Escape and a press outside close it. A choice puts focus back on Manage before it acts,
-// so a dialog it opens returns focus there.
+// and in red, the same for vaults and devices. It opens with the first choice focused; Up, Down, Home
+// and End move between them; Tab, Escape and a press outside close it. A choice puts focus back on
+// Manage before it acts, so a dialog it opens returns focus there.
 export function PapelizAccountManageMenu({ manageMenuLabel, manageMenuChoices }: { manageMenuLabel: string; manageMenuChoices: readonly PapelizAccountManageMenuChoice[] }) {
   const [manageMenuIsOpen, setManageMenuIsOpen] = useState(false)
   const closeManageMenu = useCallback(() => setManageMenuIsOpen(false), [])

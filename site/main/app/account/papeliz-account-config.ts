@@ -19,6 +19,13 @@ export const papelizAccountPagePath = '/account/'
 export const papelizAccountAppPath = '/app/'
 export const papelizAccountSupportPath = '/community/'
 
+// Signing in and signing up, the only things that load Clerk. The website ships before Sync does, so
+// every build keeps them closed until then: the page shows a notice in their place, collects nothing
+// and makes no Clerk call. The dev server keeps them open for local Sync runs. Switch this on in the
+// build that launches Sync.
+export const isPapelizAccountSignInSwitchedOnInBuilds = false
+export const isPapelizAccountSignInOpen = isPapelizAccountSignInSwitchedOnInBuilds || process.env.NODE_ENV === 'development'
+
 // Where Google or Apple sends the browser back to; the page finishes the sign-in there.
 export const papelizAccountSsoCallbackParameterName = 'papeliz-account-sso-callback'
 // Google or Apple made a sign-up that still needs a username (or a field this page doesn't ask for).
@@ -60,11 +67,11 @@ export function readPapelizAccountPasskeysAreOn(papelizAccountClerk: object): bo
   return (papelizAccountClerk as PapelizAccountClerkWithInstanceSettings).__internal_environment?.userSettings?.attributes?.passkey?.enabled === true
 }
 
-// As in the app: only Europe has a second line, which says where its notes are stored.
-export const papelizAccountStoragePlaceLabels: Record<PapelizSyncStoragePlace, { storagePlaceName: string; storagePlaceJurisdictionLine?: string }> = {
+// The places by name alone, with no second line: "Europe" already says where its notes are kept.
+export const papelizAccountStoragePlaceLabels: Record<PapelizSyncStoragePlace, { storagePlaceName: string }> = {
   enam: { storagePlaceName: 'Eastern North America' },
   wnam: { storagePlaceName: 'Western North America' },
-  eu: { storagePlaceName: 'Europe', storagePlaceJurisdictionLine: 'Stored in the EU' },
+  eu: { storagePlaceName: 'Europe' },
   apac: { storagePlaceName: 'Asia-Pacific' },
   oc: { storagePlaceName: 'Oceania' },
 }

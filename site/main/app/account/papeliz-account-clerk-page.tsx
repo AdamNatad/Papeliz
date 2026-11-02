@@ -21,6 +21,7 @@ import { PapelizAccountSignInCard } from './papeliz-account-sign-in-card'
 import { forgetPapelizAccountSsoPendingProvider, PapelizAccountSsoCallback, readPapelizAccountSsoPendingProvider } from './papeliz-account-sso-callback'
 import { PapelizAccountChooseUsernameStep } from './papeliz-account-choose-username-step'
 import { PapelizAccountAfterLoadingBar, PapelizAccountStateScreen } from './papeliz-account-state-screen'
+import { PapelizAccountSyncAccountGate } from './papeliz-account-sync-account-gate'
 import { readPapelizSyncSignInPageParameters } from './papeliz-account-sync-hand-over'
 import { PapelizAccountSyncHandOverScreen } from './papeliz-account-sync-hand-over-screen'
 import { papelizAccountSyncCheckoutFinishedParameterName, selectPapelizAccountSyncService } from './papeliz-account-sync-service'
@@ -28,7 +29,7 @@ import { papelizAccountSyncCheckoutFinishedParameterName, selectPapelizAccountSy
 // Clerk runs from the copy bundled into this page (`@clerk/clerk-js`, pinned), not from Clerk's
 // servers, and no Clerk screens load: every screen here is Papeliz's own. Its telemetry is off, so
 // the page talks to Clerk's Frontend API, and to Clerk Protect, the bot check whose scripts Clerk
-// loads from *.protect.clerk.com when the instance has it on (Adam, 2026-11-02).
+// loads from *.protect.clerk.com when the instance has it on.
 
 export function PapelizAccountClerkPage() {
   const papelizAccountPageHostname = window.location.hostname
@@ -69,9 +70,8 @@ function PapelizAccountPageContent({ isPapelizAccountProductionHost }: { isPapel
   const [papelizAccountPageSearchParameters] = useState(() => new URLSearchParams(window.location.search))
   const { isSignedIn } = useAuth()
   if (papelizAccountPageSearchParameters.has(papelizAccountSsoCallbackParameterName)) return <PapelizAccountSsoCallback />
-  if (isSignedIn && readPapelizSyncSignInPageParameters(papelizAccountPageSearchParameters)) {
-    return <PapelizAccountPageScreen isPapelizAccountProductionHost={isPapelizAccountProductionHost} />
-  }
+  // Signed in, the hand-over and the dashboard's Sync account gate each keep the bar on while they wait.
+  if (isSignedIn) return <PapelizAccountPageScreen isPapelizAccountProductionHost={isPapelizAccountProductionHost} />
   return (
     <PapelizAccountAfterLoadingBar>
       <PapelizAccountPageScreen isPapelizAccountProductionHost={isPapelizAccountProductionHost} />
@@ -172,13 +172,19 @@ function PapelizAccountPageScreen({ isPapelizAccountProductionHost }: { isPapeli
   }
 
   return (
-    <PapelizAccountDashboard
+    <PapelizAccountSyncAccountGate
       papelizAccountSyncService={papelizAccountSyncService}
-      isPapelizAccountDeleteOpenedAfterSignIn={isPapelizAccountDeleteOpenedAfterSignIn}
-      papelizSyncVaultIdToChangePassphraseAfterSignIn={papelizSyncVaultIdToChangePassphraseAfterSignIn}
-      papelizAccountProfileDetailToChangeAfterSignIn={papelizAccountProfileDetailToChangeAfterSignIn}
-      papelizAccountSyncChosenPlan={papelizAccountSyncChosenPlan}
-      isPapelizAccountSyncCheckoutReturn={isPapelizAccountSyncCheckoutReturn}
+      renderPapelizAccountDashboard={(syncBillingReadBeforeDashboard) => (
+        <PapelizAccountDashboard
+          papelizAccountSyncService={papelizAccountSyncService}
+          isPapelizAccountDeleteOpenedAfterSignIn={isPapelizAccountDeleteOpenedAfterSignIn}
+          papelizSyncVaultIdToChangePassphraseAfterSignIn={papelizSyncVaultIdToChangePassphraseAfterSignIn}
+          papelizAccountProfileDetailToChangeAfterSignIn={papelizAccountProfileDetailToChangeAfterSignIn}
+          papelizAccountSyncChosenPlan={papelizAccountSyncChosenPlan}
+          isPapelizAccountSyncCheckoutReturn={isPapelizAccountSyncCheckoutReturn}
+          syncBillingReadBeforeDashboard={syncBillingReadBeforeDashboard}
+        />
+      )}
     />
   )
 }

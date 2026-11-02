@@ -10,6 +10,7 @@ import {
   PapelizAccountCardFrame,
   PapelizAccountCardMark,
   PapelizAccountCardNotice,
+  PapelizAccountFieldError,
   PapelizAccountLegalLine,
   papelizAccountFieldLabelClassName,
   papelizAccountPrimaryButtonClassName,
@@ -17,7 +18,12 @@ import {
   papelizAccountTextLinkClassName,
 } from './papeliz-account-card-frame'
 import { papelizAccountClerkErrorCodes, readPapelizAccountClerkError } from './papeliz-account-clerk-errors'
-import { PapelizAccountCodeBoxes, papelizAccountEmailCodeLength } from './papeliz-account-code-boxes'
+import {
+  PapelizAccountCodeBoxes,
+  papelizAccountEmailCodeIncompleteMessage,
+  papelizAccountEmailCodeLength,
+  readPapelizAccountEmailCodeFieldErrorMessage,
+} from './papeliz-account-code-boxes'
 import {
   papelizAccountSignInWayStorageKey,
   papelizAccountSsoCallbackParameterName,
@@ -25,6 +31,7 @@ import {
   type PapelizAccountSignInWay,
 } from './papeliz-account-config'
 import { isPapelizAccountSignUpWaitingOnlyForUsername, PapelizAccountChooseUsernameStep } from './papeliz-account-choose-username-step'
+import { isPapelizAccountEmailAddressWellFormed, papelizAccountEmailAddressMalformedMessage } from './papeliz-account-email-address-check'
 import { papelizAccountSsoPendingProviderStorageKey } from './papeliz-account-sso-callback'
 import papelizAccountStyles from './papeliz-account.module.css'
 
@@ -32,6 +39,9 @@ type PapelizAccountSignInCardView = 'sign-in' | 'create' | 'sign-in-code' | 'cre
 type PapelizAccountSsoStrategy = 'oauth_google' | 'oauth_apple'
 
 const papelizAccountResendWaitMilliseconds = 30_000
+
+const papelizAccountSignInIdentifierErrorId = 'papeliz-account-sign-in-identifier-error'
+const papelizAccountEmailCodeErrorId = 'papeliz-account-email-code-error'
 
 function rememberPapelizAccountSignInWay(papelizAccountSignInWay: PapelizAccountSignInWay): void {
   try {
@@ -80,7 +90,8 @@ function readPapelizAccountReturnUrl(): URL {
 }
 
 // Signed out: sign in, or create an account, with Google, Apple, a passkey, or a code by email.
-// Passwords are off. Drawn by Papeliz on Clerk's custom-flow hooks.
+// Passwords are off. Drawn by Papeliz on Clerk's custom-flow hooks. A new account's last step keeps
+// the place it picked; the account page then makes its Sync account there.
 export function PapelizAccountSignInCard() {
   const papelizAccountClerk = useClerk()
   const { signIn, fetchStatus: signInFetchStatus } = useSignIn()
@@ -92,6 +103,12 @@ export function PapelizAccountSignInCard() {
   const [signInEmailCode, setSignInEmailCode] = useState('')
   const [signInErrorMessage, setSignInErrorMessage] = useState<string | null>(null)
   const [signInNoticeMessage, setSignInNoticeMessage] = useState<string | null>(null)
+  // The email-or-username field's own error and the code's, each drawn on its field (red, with its
+  // line under it) instead of in the card's notice.
+  const [signInIdentifierFieldErrorMessage, setSignInIdentifierFieldErrorMessage] = useState<string | null>(null)
+  const [signInEmailCodeFieldErrorMessage, setSignInEmailCodeFieldErrorMessage] = useState<string | null>(null)
+  const signInIdentifierFieldRef = useRef<HTMLInputElement>(null)
+  const signInEmailCodeFieldRef = useRef<HTMLInputElement>(null)
   const [signInIsWorking, setSignInIsWorking] = useState(false)
   const [emailCodeResendAvailableAt, setEmailCodeResendAvailableAt] = useState(0)
   const [currentTimeMilliseconds, setCurrentTimeMilliseconds] = useState(() => Date.now())
@@ -108,12 +125,32 @@ export function PapelizAccountSignInCard() {
     return () => window.clearInterval(resendCountdownTimer)
   }, [emailCodeResendAvailableAt])
 
+  // A field can't take focus while the card is busy, so an error Clerk answered with moves focus to
+  // its field once the card takes input again.
+  useEffect(() => {
+    if (signInCardIsBusy) return
+    if (signInIdentifierFieldErrorMessage) signInIdentifierFieldRef.current?.focus()
+    else if (signInEmailCodeFieldErrorMessage) signInEmailCodeFieldRef.current?.focus()
+  }, [signInCardIsBusy, signInIdentifierFieldErrorMessage, signInEmailCodeFieldErrorMessage])
+
+  function showPapelizAccountSignInIdentifierFieldError(signInIdentifierFieldError: string) {
+    setSignInIdentifierFieldErrorMessage(signInIdentifierFieldError)
+    signInIdentifierFieldRef.current?.focus()
+  }
+
+  function showPapelizAccountSignInEmailCodeFieldError(signInEmailCodeFieldError: string) {
+    setSignInEmailCodeFieldErrorMessage(signInEmailCodeFieldError)
+    signInEmailCodeFieldRef.current?.focus()
+  }
+
   async function runPapelizAccountSignInStep(signInStep: () => Promise<void>) {
     if (signInOperationIsRunningRef.current) return
     signInOperationIsRunningRef.current = true
     setSignInIsWorking(true)
     setSignInErrorMessage(null)
     setSignInNoticeMessage(null)
+    setSignInIdentifierFieldErrorMessage(null)
+    setSignInEmailCodeFieldErrorMessage(null)
     try {
       await signInStep()
     } catch (signInStepError) {
@@ -127,6 +164,16 @@ export function PapelizAccountSignInCard() {
   async function expectPapelizAccountClerkSuccess(clerkResultPromise: Promise<{ error: unknown }>) {
     const clerkResult = await clerkResultPromise
     if (clerkResult.error) throw clerkResult.error
+  }
+
+  // False when Clerk turned the code down as wrong or expired, which the boxes then show.
+  async function expectPapelizAccountEmailCodeAccepted(emailCodeVerifyResultPromise: Promise<{ error: unknown }>): Promise<boolean> {
+    const emailCodeVerifyResult = await emailCodeVerifyResultPromise
+    if (!emailCodeVerifyResult.error) return true
+    const emailCodeFieldErrorMessage = readPapelizAccountEmailCodeFieldErrorMessage(emailCodeVerifyResult.error)
+    if (emailCodeFieldErrorMessage === null) throw emailCodeVerifyResult.error
+    setSignInEmailCodeFieldErrorMessage(emailCodeFieldErrorMessage)
+    return false
   }
 
   // Makes the new session active, then reloads this address so the page starts signed in.
@@ -146,10 +193,14 @@ export function PapelizAccountSignInCard() {
     if (signInCreateResult.error) {
       const { clerkErrorCode } = readPapelizAccountClerkError(signInCreateResult.error)
       if (clerkErrorCode === papelizAccountClerkErrorCodes.identifierNotFound) {
-        if (!signInIdentifierIsEmailAddress) throw new Error('No account uses this username. Check it, or sign in with your email.')
+        if (!signInIdentifierIsEmailAddress) {
+          setSignInIdentifierFieldErrorMessage('No account uses this username. Check it, or sign in with your email.')
+          return
+        }
         morphPapelizAccountSignInCard(() => {
           setSignInCardView('create')
-          setSignInNoticeMessage('No account uses this email yet. Create one below.')
+          // No "above" or "below" to get wrong.
+          setSignInNoticeMessage('New here? Create your account with this email.')
         })
         return
       }
@@ -196,12 +247,12 @@ export function PapelizAccountSignInCard() {
 
   async function verifyPapelizAccountEmailCode(emailCodeToVerify: string) {
     if (signInCardView === 'sign-in-code') {
-      await expectPapelizAccountClerkSuccess(signIn.emailCode.verifyCode({ code: emailCodeToVerify }))
+      if (!(await expectPapelizAccountEmailCodeAccepted(signIn.emailCode.verifyCode({ code: emailCodeToVerify })))) return
       if (signIn.status !== 'complete') throw new Error('Your account needs a check this page doesn’t offer yet. Try Google or Apple.')
       await expectPapelizAccountClerkSuccess(signIn.finalize({ navigate: navigateAfterPapelizAccountSignIn }))
       return
     }
-    await expectPapelizAccountClerkSuccess(signUp.verifications.verifyEmailCode({ code: emailCodeToVerify }))
+    if (!(await expectPapelizAccountEmailCodeAccepted(signUp.verifications.verifyEmailCode({ code: emailCodeToVerify })))) return
     // The email is verified; the username comes next.
     if (isPapelizAccountSignUpWaitingOnlyForUsername(signUp)) {
       morphPapelizAccountSignInCard(() => setSignInCardView('create-username'))
@@ -213,14 +264,36 @@ export function PapelizAccountSignInCard() {
     await expectPapelizAccountClerkSuccess(signUp.finalize({ navigate: navigateAfterPapelizAccountSignIn }))
   }
 
+  // The card checks its field before asking Clerk, and shows what's missing on the field itself.
   function submitPapelizAccountSignInCard(submitEvent: FormEvent) {
     submitEvent.preventDefault()
-    void runPapelizAccountSignInStep(async () => {
-      if (signInCardIsCode) {
-        await verifyPapelizAccountEmailCode(signInEmailCode.trim())
+    if (signInOperationIsRunningRef.current) return
+    if (signInCardIsCode) {
+      const typedSignInEmailCode = signInEmailCode.trim()
+      if (typedSignInEmailCode.length !== papelizAccountEmailCodeLength) {
+        setSignInErrorMessage(null)
+        showPapelizAccountSignInEmailCodeFieldError(papelizAccountEmailCodeIncompleteMessage)
         return
       }
-      const trimmedSignInIdentifier = signInIdentifier.trim()
+      void runPapelizAccountSignInStep(() => verifyPapelizAccountEmailCode(typedSignInEmailCode))
+      return
+    }
+    const trimmedSignInIdentifier = signInIdentifier.trim()
+    // An identifier with an @ is an email to Clerk; a username can't have one.
+    const signInIdentifierFieldError =
+      trimmedSignInIdentifier === ''
+        ? signInCardIsCreating
+          ? 'Enter your email.'
+          : 'Enter your email or username.'
+        : (signInCardIsCreating || trimmedSignInIdentifier.includes('@')) && !isPapelizAccountEmailAddressWellFormed(trimmedSignInIdentifier)
+          ? papelizAccountEmailAddressMalformedMessage
+          : null
+    if (signInIdentifierFieldError) {
+      setSignInErrorMessage(null)
+      showPapelizAccountSignInIdentifierFieldError(signInIdentifierFieldError)
+      return
+    }
+    void runPapelizAccountSignInStep(async () => {
       if (signInCardIsCreating) await sendPapelizAccountSignUpEmailCode(trimmedSignInIdentifier)
       else await sendPapelizAccountSignInEmailCode(trimmedSignInIdentifier)
     })
@@ -285,7 +358,9 @@ export function PapelizAccountSignInCard() {
   const signInProviderButtonClassName =
     'flex min-h-[42px] min-w-0 cursor-pointer items-center justify-center gap-2 px-2 text-[12.5px] font-semibold whitespace-nowrap text-papeliz-ink transition-[background-color,scale] duration-150 ease-out enabled:hover:bg-papeliz-surface-gray enabled:active:scale-[0.98] enabled:active:bg-papeliz-surface-gray-hover disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-papeliz-blue'
 
-  if (signInCardView === 'create-username') return <PapelizAccountChooseUsernameStep papelizAccountVerifiedByProviderName={null} />
+  if (signInCardView === 'create-username') {
+    return <PapelizAccountChooseUsernameStep papelizAccountVerifiedByProviderName={null} />
+  }
 
   return (
     <PapelizAccountCardFrame>
@@ -338,7 +413,7 @@ export function PapelizAccountSignInCard() {
         </>
       )}
 
-      <form onSubmit={submitPapelizAccountSignInCard}>
+      <form noValidate onSubmit={submitPapelizAccountSignInCard}>
         <fieldset disabled={signInCardIsBusy} className="m-0 min-w-0 border-0 p-0">
           {signInCardIsCode ? (
             <>
@@ -348,14 +423,20 @@ export function PapelizAccountSignInCard() {
               <PapelizAccountCodeBoxes
                 papelizAccountCodeBoxesClassName={papelizAccountStyles.papelizAccountMorphField}
                 papelizAccountEmailCodeInputId="papeliz-account-email-code"
+                papelizAccountEmailCodeInputRef={signInEmailCodeFieldRef}
                 papelizAccountEmailCode={signInEmailCode}
+                papelizAccountEmailCodeErrorId={signInEmailCodeFieldErrorMessage ? papelizAccountEmailCodeErrorId : null}
                 onPapelizAccountEmailCodeChange={(nextEmailCode) => {
                   setSignInEmailCode(nextEmailCode)
+                  if (signInEmailCodeFieldErrorMessage) setSignInEmailCodeFieldErrorMessage(null)
                   if (nextEmailCode.length === papelizAccountEmailCodeLength && !signInOperationIsRunningRef.current) {
                     void runPapelizAccountSignInStep(() => verifyPapelizAccountEmailCode(nextEmailCode))
                   }
                 }}
               />
+              {signInEmailCodeFieldErrorMessage && (
+                <PapelizAccountFieldError papelizAccountFieldErrorId={papelizAccountEmailCodeErrorId}>{signInEmailCodeFieldErrorMessage}</PapelizAccountFieldError>
+              )}
             </>
           ) : (
             <>
@@ -363,6 +444,7 @@ export function PapelizAccountSignInCard() {
                 {signInCardIsCreating ? 'Email' : 'Email or username'}
               </label>
               <input
+                ref={signInIdentifierFieldRef}
                 id="papeliz-account-sign-in-identifier"
                 type={signInCardIsCreating ? 'email' : 'text'}
                 inputMode="email"
@@ -372,9 +454,17 @@ export function PapelizAccountSignInCard() {
                 spellCheck={false}
                 placeholder={signInCardIsCreating ? 'name@example.com' : 'Email or username'}
                 value={signInIdentifier}
-                onChange={(changeEvent) => setSignInIdentifier(changeEvent.target.value)}
+                aria-invalid={signInIdentifierFieldErrorMessage ? true : undefined}
+                aria-describedby={signInIdentifierFieldErrorMessage ? papelizAccountSignInIdentifierErrorId : undefined}
+                onChange={(changeEvent) => {
+                  setSignInIdentifier(changeEvent.target.value)
+                  if (signInIdentifierFieldErrorMessage) setSignInIdentifierFieldErrorMessage(null)
+                }}
                 className={`${papelizAccountStyles.papelizAccountMorphField} ${papelizAccountTextFieldClassName}`}
               />
+              {signInIdentifierFieldErrorMessage && (
+                <PapelizAccountFieldError papelizAccountFieldErrorId={papelizAccountSignInIdentifierErrorId}>{signInIdentifierFieldErrorMessage}</PapelizAccountFieldError>
+              )}
             </>
           )}
           <button type="submit" className={`${papelizAccountStyles.papelizAccountMorphSubmit} ${papelizAccountPrimaryButtonClassName} mt-3`}>

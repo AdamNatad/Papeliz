@@ -2,6 +2,8 @@ export type PapelizSiteChangelogEntry = {
   papelizSiteChangelogDate: string
   papelizSiteChangelogMilestone: string
   papelizSiteChangelogTitle: string
+  // A short line above the changes, for work that is built but not open yet.
+  papelizSiteChangelogNote?: string
   papelizSiteChangelogChanges: string[]
 }
 
@@ -11,6 +13,7 @@ export const papelizSiteChangelogEntries: PapelizSiteChangelogEntry[] = [
     papelizSiteChangelogDate: '2026-11-02',
     papelizSiteChangelogMilestone: '0.2',
     papelizSiteChangelogTitle: 'Templates, imports, export settings, and a Free Sync plan',
+    papelizSiteChangelogNote: 'Templates start with one built in; submitting and voting are coming soon. The Free Sync plan and signing in are built, and open later.',
     papelizSiteChangelogChanges: [
       'Templates: start a vault from a template someone shares from a public GitHub repository, or import one into the vault you have open, in a folder of its own. Preview shows every file first.',
       'Bring a template’s recommended files, all of them, or only the ones you tick in its folder tree.',
@@ -35,6 +38,7 @@ export const papelizSiteChangelogEntries: PapelizSiteChangelogEntry[] = [
     papelizSiteChangelogDate: '2026-11-01',
     papelizSiteChangelogMilestone: '0.3',
     papelizSiteChangelogTitle: 'Papeliz Sync and your Papeliz account',
+    papelizSiteChangelogNote: 'Built. Accounts and Sync open later.',
     papelizSiteChangelogChanges: [
       'Papeliz Sync, an optional add-on, keeps your vaults the same on your devices. For each vault you sync, choose Standard or End-to-end; either way its files are encrypted on your device before they’re uploaded.',
       'An End-to-end vault has its own passphrase, which Papeliz never receives. Change it in Papeliz or on your account page.',

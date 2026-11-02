@@ -5,6 +5,7 @@ import { ChevronRight, Globe, Laptop, Pencil, Smartphone, Trash2, type LucideIco
 import { useCallback, useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { papelizSiteSyncConnectedDeviceLimit } from '@/lib/papeliz-site-sync-plans'
 import {
+  PapelizAccountFieldError,
   papelizAccountCompactDangerButtonClassName,
   papelizAccountCompactPrimaryButtonClassName,
   papelizAccountFieldLabelClassName,
@@ -191,8 +192,7 @@ function PapelizAccountSyncDeviceLine({
 }
 
 // The account page's Devices section: every device signed in to Sync, with Rename and Remove under
-// Manage, like a vault's row (Adam, 2026-11-01: "make it Manage too like our Vault with option to
-// rename such device"). Remove signs a device out; its notes stay on it.
+// Manage, like a vault's row. Remove signs a device out; its notes stay on it.
 export function PapelizAccountDevicesSection({
   papelizAccountSyncService,
   papelizAccountSyncDeviceList,
@@ -208,6 +208,9 @@ export function PapelizAccountDevicesSection({
   const [syncDeviceRename, setSyncDeviceRename] = useState<PapelizAccountSyncDeviceRename | null>(null)
   const [syncDeviceWithActionsOpen, setSyncDeviceWithActionsOpen] = useState<PapelizAccountSyncDeviceRecord | null>(null)
   const [typedSyncDeviceName, setTypedSyncDeviceName] = useState('')
+  // The name field's own error, drawn on the field.
+  const [syncDeviceNameFieldErrorMessage, setSyncDeviceNameFieldErrorMessage] = useState<string | null>(null)
+  const syncDeviceNameFieldRef = useRef<HTMLInputElement>(null)
   const syncDeviceNameFieldId = useId()
   const syncDeviceRenameFormId = useId()
 
@@ -280,6 +283,7 @@ export function PapelizAccountDevicesSection({
 
   function openPapelizAccountSyncDeviceRename(syncDeviceRecord: PapelizAccountSyncDeviceRecord) {
     setTypedSyncDeviceName(syncDeviceRecord.syncDeviceName ?? '')
+    setSyncDeviceNameFieldErrorMessage(null)
     setSyncDeviceRename({ syncDeviceRecord, syncDeviceRenameStageKind: 'naming' })
   }
 
@@ -445,7 +449,13 @@ export function PapelizAccountDevicesSection({
                 noValidate
                 onSubmit={(renameSubmitEvent: FormEvent) => {
                   renameSubmitEvent.preventDefault()
-                  if (syncDeviceRenameIsRunning || !newSyncDeviceName || newSyncDeviceNameIsUnchanged) return
+                  if (syncDeviceRenameIsRunning) return
+                  if (!newSyncDeviceName) {
+                    setSyncDeviceNameFieldErrorMessage('Enter a name for this device.')
+                    syncDeviceNameFieldRef.current?.focus()
+                    return
+                  }
+                  if (newSyncDeviceNameIsUnchanged) return
                   void renameChosenPapelizAccountSyncDevice(syncDeviceRename.syncDeviceRecord, newSyncDeviceName)
                 }}
               >
@@ -453,6 +463,7 @@ export function PapelizAccountDevicesSection({
                   Name
                 </label>
                 <input
+                  ref={syncDeviceNameFieldRef}
                   id={syncDeviceNameFieldId}
                   type="text"
                   required
@@ -462,9 +473,17 @@ export function PapelizAccountDevicesSection({
                   placeholder={papelizAccountSyncDevicePlatformLabels[syncDeviceRename.syncDeviceRecord.syncDevicePlatform].syncDevicePlatformName}
                   value={typedSyncDeviceName}
                   disabled={syncDeviceRenameIsRunning}
-                  onChange={(nameChangeEvent) => setTypedSyncDeviceName(nameChangeEvent.target.value)}
+                  aria-invalid={syncDeviceNameFieldErrorMessage ? true : undefined}
+                  aria-describedby={syncDeviceNameFieldErrorMessage ? `${syncDeviceNameFieldId}-error` : undefined}
+                  onChange={(nameChangeEvent) => {
+                    setTypedSyncDeviceName(nameChangeEvent.target.value)
+                    if (syncDeviceNameFieldErrorMessage) setSyncDeviceNameFieldErrorMessage(null)
+                  }}
                   className={`${papelizAccountTextFieldClassName} disabled:opacity-60`}
                 />
+                {syncDeviceNameFieldErrorMessage && (
+                  <PapelizAccountFieldError papelizAccountFieldErrorId={`${syncDeviceNameFieldId}-error`}>{syncDeviceNameFieldErrorMessage}</PapelizAccountFieldError>
+                )}
               </form>
             </>
           )}

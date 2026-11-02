@@ -17,6 +17,7 @@ import {
   readPapelizSiteTemplateCategoryNames,
   type PapelizSiteTemplatesSnapshotRow,
 } from '@/lib/papeliz-site-templates'
+import { isPapelizSiteTemplatesOpen } from '@/lib/papeliz-site-config'
 
 function PapelizSiteTemplateDetail({ papelizSiteTemplateDetailLabel, children }: { papelizSiteTemplateDetailLabel: string; children: ReactNode }) {
   return (
@@ -31,7 +32,8 @@ const papelizSiteTemplateTextLinkClassName = 'font-medium text-papeliz-blue hove
 
 // One template's page (/templates/<owner>/<repository>/): what it is, who shares it, its Category and tags, its license, whether it
 // runs commands, and the commit Papeliz checked, with Open in Papeliz and View on GitHub. Every word
-// of its name, description and tags is the author's, shown as text.
+// of its name, description and tags is the author's, shown as text. While Templates are closed, a grey
+// Coming soon takes Open in Papeliz's place.
 export function PapelizSiteTemplatePage({
   papelizSiteTemplateRow,
   templateGallerySnapshotBuiltAt,
@@ -40,7 +42,7 @@ export function PapelizSiteTemplatePage({
   templateGallerySnapshotBuiltAt: number | null
 }) {
   const { templateCategoryDisplayName, templateSubcategoryDisplayName, templateExtraTagDisplayNames } = readPapelizSiteTemplateCategoryNames(papelizSiteTemplateRow)
-  const papelizSiteTemplateOpenInPapelizHref = createPapelizSiteTemplateOpenInPapelizHref(papelizSiteTemplateRow)
+  const papelizSiteTemplateOpenInPapelizHref = isPapelizSiteTemplatesOpen ? createPapelizSiteTemplateOpenInPapelizHref(papelizSiteTemplateRow) : null
 
   return (
     <article className="mx-auto max-w-4xl px-4 pt-10 pb-16 sm:px-6 sm:pt-14 sm:pb-20">
@@ -88,6 +90,14 @@ export function PapelizSiteTemplatePage({
           >
             Open in Papeliz
           </a>
+        )}
+        {!isPapelizSiteTemplatesOpen && (
+          <span
+            aria-disabled="true"
+            className="inline-flex min-h-12 items-center justify-center rounded-full border border-dashed border-papeliz-line-strong bg-papeliz-surface-gray px-6 text-base font-medium text-papeliz-ink-subtle"
+          >
+            Coming soon
+          </span>
         )}
         <a
           href={createPapelizSiteTemplateGitHubHref(papelizSiteTemplateRow)}

@@ -5,6 +5,8 @@ from the plan to the launch. The website's Changelog page shows the same list.
 
 ## 2026-11-02 — Templates, imports, export settings, and a Free Sync plan
 
+_Templates start with one built in; submitting and voting are coming soon. The Free Sync plan and signing in are built, and open later._
+
 - Templates: start a vault from a template someone shares from a public GitHub repository, or
   import one into the vault you have open, in a folder of its own. Preview shows every file first.
 - Bring a template’s recommended files, all of them, or only the ones you tick in its folder tree.
@@ -45,6 +47,8 @@ from the plan to the launch. The website's Changelog page shows the same list.
   for notes and folders.
 
 ## 2026-11-01 — Papeliz Sync and your Papeliz account
+
+_Built. Accounts and Sync open later._
 
 - Papeliz Sync, an optional add-on, keeps your vaults the same on your devices. For each vault you
   sync, choose Standard or End-to-end; either way its files are encrypted on your device before

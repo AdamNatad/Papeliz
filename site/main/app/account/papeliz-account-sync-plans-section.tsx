@@ -70,14 +70,14 @@ function PapelizAccountSyncPlanRow({
   )
 }
 
-// The current plan's button: Upgrade's own shape and size, muted blue, and not pressable (Adam,
-// 2026-11-03: "our current should be same button but muted but blue").
+// The current plan's button: the solid blue button's own shape and size, muted, and not pressable. It
+// stays a see-through blue with white text, since a pale blue fill vanishes on the blue row.
 function PapelizAccountSyncCurrentPlanMark() {
   return (
     <button
       type="button"
       disabled
-      className={`inline-flex min-h-[38px] shrink-0 cursor-default items-center justify-center rounded-lg border border-papeliz-blue-line bg-papeliz-blue-soft px-3.5 text-[13px] font-semibold whitespace-nowrap text-papeliz-blue ${papelizAccountRowActionWidthClassName}`}
+      className={`inline-flex min-h-[38px] shrink-0 cursor-default items-center justify-center rounded-lg bg-papeliz-blue/60 px-3.5 text-[13px] font-semibold whitespace-nowrap text-papeliz-on-blue ${papelizAccountRowActionWidthClassName}`}
     >
       Current
     </button>
@@ -85,11 +85,9 @@ function PapelizAccountSyncCurrentPlanMark() {
 }
 
 // The account page's Sync section: what Sync is, the Monthly / Yearly switch, then Free and the three
-// paid plans (Adam, 2026-10-31). The plans are rows like the app's Plans tab, each plan's limits in its
-// info tip (Adam, 2026-11-03: "make it like our webapp and those list make it a hover tool tip"). The
+// paid plans. The plans are rows like the app's Plans tab, each plan's limits in its info tip. The
 // blue row is the account's own plan, marked Current: its live paid plan, or else Free, which every
-// account has without a checkout; the other plans read Upgrade (Adam, 2026-11-03: "show free as blue
-// selected and make it call it Current … then the other options are Upgrade"). Upgrade opens checkout
+// account has without a checkout; the other plans read Upgrade. Upgrade opens checkout
 // here, after asking a new account where Sync keeps its notes. With a live paid plan the others read
 // Change Plan, which opens the subscription's own page, and Free that it comes with every account; a
 // failed payment or an ended subscription shows above the plans. The storage place dialog is the
@@ -101,9 +99,10 @@ export function PapelizAccountSyncPlansSection({
   papelizAccountSyncBillingState: PapelizAccountSyncBillingState
   papelizAccountSyncChosenPlan: PapelizSiteSyncChosenPlan | null
 }) {
-  const [chosenPapelizAccountSyncBillingPeriod, setChosenPapelizAccountSyncBillingPeriod] = useState<PapelizSiteSyncBillingPeriod>(
-    papelizAccountSyncChosenPlan?.chosenSyncBillingPeriod ?? papelizSiteSyncPreselectedBillingPeriod,
-  )
+  // Null until the switch is pressed. The page shows what is current, not always Yearly, so the switch
+  // opens on the live paid plan's period;
+  // otherwise on a plan chosen on the website's, and on Yearly for Free.
+  const [pressedPapelizAccountSyncBillingPeriod, setPressedPapelizAccountSyncBillingPeriod] = useState<PapelizSiteSyncBillingPeriod | null>(null)
   const [isChosenPlanPromptDismissed, setIsChosenPlanPromptDismissed] = useState(false)
   const {
     syncBillingStage,
@@ -118,6 +117,12 @@ export function PapelizAccountSyncPlansSection({
   const isSyncSubscriptionLive = syncBilling !== null && isPapelizAccountSyncPaidSubscriptionLive(syncBilling)
   // Free is the account's plan whenever no paid plan is live, a new account's included.
   const isSyncOnFreePlan = syncBilling !== null && !isSyncSubscriptionLive
+  const liveSyncPlanBillingPeriod = isSyncSubscriptionLive ? syncBilling.syncBillingPeriod : null
+  const chosenPapelizAccountSyncBillingPeriod =
+    pressedPapelizAccountSyncBillingPeriod ??
+    liveSyncPlanBillingPeriod ??
+    papelizAccountSyncChosenPlan?.chosenSyncBillingPeriod ??
+    papelizSiteSyncPreselectedBillingPeriod
   const isSyncCheckoutOpening = syncCheckoutStage.syncCheckoutStageKind === 'opening'
   // The chosen plan's checkout starts by itself (usePapelizAccountSyncBilling); this prompt shows it
   // opening, and stays as the way back to it when the start fails or the storage place is closed.
@@ -157,7 +162,7 @@ export function PapelizAccountSyncPlansSection({
           papelizSiteBillingPeriodSwitchVariant="compact"
           papelizSiteBillingPeriodSwitchLabel="Billing period"
           papelizSiteChosenBillingPeriod={chosenPapelizAccountSyncBillingPeriod}
-          onPapelizSiteBillingPeriodChoose={setChosenPapelizAccountSyncBillingPeriod}
+          onPapelizSiteBillingPeriodChoose={setPressedPapelizAccountSyncBillingPeriod}
           papelizSiteBillingPeriodChoices={[
             { papelizSiteBillingPeriodChoiceValue: 'monthly', papelizSiteBillingPeriodChoiceLabel: 'Monthly' },
             {
@@ -204,7 +209,12 @@ export function PapelizAccountSyncPlansSection({
           }
         />
         {papelizSiteSyncPlans.map((papelizSiteSyncPlan) => {
-          const isCurrentSyncPlan = isSyncSubscriptionLive && syncBilling?.syncPlanName === papelizSiteSyncPlan.papelizSiteSyncPlanId
+          // Current only in the plan's own period; the same plan's other period reads Change Plan. A
+          // live plan whose period Sync doesn't know is Current in both.
+          const isCurrentSyncPlan =
+            isSyncSubscriptionLive &&
+            syncBilling.syncPlanName === papelizSiteSyncPlan.papelizSiteSyncPlanId &&
+            (liveSyncPlanBillingPeriod === null || liveSyncPlanBillingPeriod === chosenPapelizAccountSyncBillingPeriod)
           const isThisPlanCheckoutOpening = isSyncCheckoutOpening && syncCheckoutStage.chosenSyncPlanId === papelizSiteSyncPlan.papelizSiteSyncPlanId
           const syncPlanMonthlyRate = formatPapelizSiteSyncUsd(readPapelizSiteSyncPlanMonthlyRateUsd(papelizSiteSyncPlan, chosenPapelizAccountSyncBillingPeriod))
           return (
@@ -223,7 +233,7 @@ export function PapelizAccountSyncPlansSection({
                   <button
                     type="button"
                     onClick={openPapelizAccountSyncBillingPortal}
-                    aria-label={`Change to ${papelizSiteSyncPlan.papelizSiteSyncPlanName}`}
+                    aria-label={`Change to ${papelizSiteSyncPlan.papelizSiteSyncPlanName}, billed ${chosenPapelizAccountSyncBillingPeriod}`}
                     className={`${papelizAccountSecondaryButtonClassName} ${papelizAccountRowActionWidthClassName}`}
                   >
                     Change Plan

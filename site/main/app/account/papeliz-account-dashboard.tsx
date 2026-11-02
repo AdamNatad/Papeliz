@@ -31,7 +31,7 @@ import { PapelizAccountPhoneLaunchButtons, PapelizAccountSidebarLaunchButton } f
 import { PapelizAccountEmailRow, PapelizAccountUsernameRow } from './papeliz-account-profile-details'
 import { PapelizAccountRow, PapelizAccountRowGroup, papelizAccountPhoneChevronRowActionClassName } from './papeliz-account-rows'
 import { PapelizAccountSyncStoragePlaceDialog, usePapelizAccountSyncBilling, type PapelizAccountSyncBillingState } from './papeliz-account-sync-billing'
-import type { PapelizAccountSyncService } from './papeliz-account-sync-service'
+import type { PapelizAccountSyncBilling, PapelizAccountSyncService } from './papeliz-account-sync-service'
 import { PapelizAccountSyncPlansSection } from './papeliz-account-sync-plans-section'
 import {
   PapelizAccountSyncedVaultsDialogs,
@@ -42,8 +42,7 @@ import {
 
 type PapelizAccountSectionId = 'profile' | 'sync' | 'synced-vaults' | 'devices' | 'billing'
 
-// Vaults, the synced vaults, sits between Sync and Devices (Adam, 2026-11-01: "on our account page
-// just call them Vaults").
+// Vaults, the synced vaults, sits between Sync and Devices.
 const papelizAccountSections: readonly { papelizAccountSectionId: PapelizAccountSectionId; papelizAccountSectionLabel: string; PapelizAccountSectionIcon: LucideIcon }[] = [
   { papelizAccountSectionId: 'profile', papelizAccountSectionLabel: 'Profile', PapelizAccountSectionIcon: UserRound },
   { papelizAccountSectionId: 'sync', papelizAccountSectionLabel: 'Sync', PapelizAccountSectionIcon: RefreshCw },
@@ -126,8 +125,7 @@ function PapelizAccountDeleteAccountRow({
         papelizAccountRowTitle="Delete Account"
         papelizAccountRowIsDanger
         papelizAccountRowAction={
-          // A row like Contact Support on a phone, its label and a chevron; it confirms in a dialog
-          // (Adam, 2026-10-31).
+          // A row like Contact Support on a phone, its label and a chevron; it confirms in a dialog.
           <button
             type="button"
             aria-haspopup="dialog"
@@ -179,8 +177,8 @@ function PapelizAccountDeleteAccountRow({
   )
 }
 
-// Connected, in muted green and the size of a row's button, so it lines up with Connect and Add
-// (Adam, 2026-10-31). A status, not a button: there is nothing to press.
+// Connected, in muted green and the size of a row's button, so it lines up with Connect and Add.
+// A status, not a button: there is nothing to press.
 function PapelizAccountSignInWayConnectedStatus() {
   return (
     <span
@@ -215,7 +213,7 @@ function PapelizAccountSignInWayLine({
 }) {
   return (
     <li className="flex items-center gap-3 border-t border-papeliz-line py-2.5 first:border-t-0 md:py-3">
-      {/* White behind the provider marks, not the page's gray (Adam, 2026-11-03: "look at the bg its not white enough"). */}
+      {/* White behind the provider marks, not the page's gray. */}
       <span className="grid size-8 shrink-0 place-items-center rounded-lg border border-papeliz-line bg-papeliz-surface">{signInWayIcon}</span>
       <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold">{signInWayName}</p>
@@ -238,7 +236,7 @@ function PapelizAccountProfileSection({
   isPapelizAccountDeleteOpenedAfterSignIn: boolean
   papelizAccountProfileDetailToChangeAfterSignIn: PapelizAccountProfileDetailKind | null
   // Back to Main Site and Sign Out, on a phone; on Profile it comes before Contact Support and
-  // Delete Account (Adam, 2026-10-31).
+  // Delete Account.
   papelizAccountPhoneLeaveCard: ReactNode
 }) {
   const papelizAccountClerk = useClerk()
@@ -296,14 +294,13 @@ function PapelizAccountProfileSection({
       <PapelizAccountRowGroup>
         <PapelizAccountEmailRow isEmailChangeOpenedAfterSignIn={papelizAccountProfileDetailToChangeAfterSignIn === 'email'} />
         <PapelizAccountUsernameRow isUsernameChangeOpenedAfterSignIn={papelizAccountProfileDetailToChangeAfterSignIn === 'username'} />
-        {/* Every way to sign in on one list, passkeys included (Adam, 2026-10-31). No Email code line:
-            the Email above always gets a code (Adam, 2026-11-01: "this is redundant … whatever is the
-            email is its email code"). */}
+        {/* Every way to sign in on one list, passkeys included. No Email code line: the Email above
+            always gets a code. */}
         <PapelizAccountRow
           papelizAccountRowTitle="Ways to sign in"
           papelizAccountRowExtra={
             <ul className="mt-1.5 md:mt-2.5">
-              {/* Google and Apple always show: Connected when linked, Connect when not (Adam, 2026-10-31). */}
+              {/* Google and Apple always show: Connected when linked, Connect when not. */}
               {papelizAccountSignInProviders.map(({ signInProvider, signInProviderName, SignInProviderIcon }) => {
                 const connectedExternalAccount = user.externalAccounts.find(
                   (externalAccount) => externalAccount.provider === signInProvider && externalAccount.verification?.status === 'verified',
@@ -391,9 +388,9 @@ function PapelizAccountProfileSection({
   )
 }
 
-// Sync shows the plans to buy; Vaults lists the synced vaults, with Change Passphrase and
-// Remove from Sync (Adam, 2026-11-01); Devices lists the devices signed in to Sync, with Remove (Adam,
-// 2026-10-31); Billing lists what it covers and opens the subscription's own page.
+// Sync shows the plans to buy; Vaults lists the synced vaults, with Change Passphrase and Remove from
+// Sync; Devices lists the devices signed in to Sync, with Remove; Billing lists what it covers and opens
+// the subscription's own page.
 function PapelizAccountPlansVaultsDevicesAndBillingSection({
   papelizAccountSectionId,
   papelizAccountSyncService,
@@ -434,6 +431,7 @@ export function PapelizAccountDashboard({
   papelizAccountProfileDetailToChangeAfterSignIn = null,
   papelizAccountSyncChosenPlan = null,
   isPapelizAccountSyncCheckoutReturn = false,
+  syncBillingReadBeforeDashboard = null,
 }: {
   papelizAccountSyncService: PapelizAccountSyncService
   isPapelizAccountDeleteOpenedAfterSignIn?: boolean
@@ -445,6 +443,8 @@ export function PapelizAccountDashboard({
   papelizAccountSyncChosenPlan?: PapelizSiteSyncChosenPlan | null
   // Back from checkout: Sync opens and reads the subscription until it shows.
   isPapelizAccountSyncCheckoutReturn?: boolean
+  // The subscription as the page read it just before the dashboard opened.
+  syncBillingReadBeforeDashboard?: PapelizAccountSyncBilling | null
 }) {
   const papelizAccountClerk = useClerk()
   const [chosenPapelizAccountSectionId, setChosenPapelizAccountSectionId] = useState<PapelizAccountSectionId>(
@@ -453,7 +453,12 @@ export function PapelizAccountDashboard({
   const [papelizAccountIsSigningOut, setPapelizAccountIsSigningOut] = useState(false)
   const papelizAccountSyncedVaults = usePapelizAccountSyncedVaults(papelizAccountSyncService, papelizSyncVaultIdToChangePassphraseAfterSignIn)
   const papelizAccountSyncDeviceList = usePapelizAccountSyncDeviceList(papelizAccountSyncService)
-  const papelizAccountSyncBillingState = usePapelizAccountSyncBilling(papelizAccountSyncService, isPapelizAccountSyncCheckoutReturn, papelizAccountSyncChosenPlan)
+  const papelizAccountSyncBillingState = usePapelizAccountSyncBilling(
+    papelizAccountSyncService,
+    isPapelizAccountSyncCheckoutReturn,
+    papelizAccountSyncChosenPlan,
+    syncBillingReadBeforeDashboard,
+  )
 
   function signOutOfPapelizAccount() {
     setPapelizAccountIsSigningOut(true)
@@ -462,7 +467,7 @@ export function PapelizAccountDashboard({
 
   const papelizAccountPhoneCardActionClassName =
     'flex min-h-[52px] w-full cursor-pointer items-center gap-3 border-b border-papeliz-line px-3.5 text-left text-[14.5px] font-semibold text-papeliz-ink transition-colors last:border-b-0 hover:bg-papeliz-hover active:bg-papeliz-press disabled:cursor-wait disabled:opacity-60 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-papeliz-blue'
-  // Back to Main Site and Sign Out in a card of their own on a phone (Adam, 2026-10-31): before
+  // Back to Main Site and Sign Out in a card of their own on a phone: before
   // Contact Support on Profile, under the section everywhere else.
   const papelizAccountPhoneLeaveCard = (
     <PapelizAccountRowGroup isPapelizAccountRowGroupPhoneOnly>

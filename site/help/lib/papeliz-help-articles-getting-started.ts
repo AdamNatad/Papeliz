@@ -371,7 +371,7 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
     articleTitle: 'Sync your vaults',
     articleSummary: 'Sign in, turn on Papeliz Sync for a vault, and open it on your other devices.',
     papelizHelpGroupSlug: 'getting-started',
-    papelizHelpArticleAvailability: 'available',
+    papelizHelpArticleAvailability: 'in-development',
     articleSections: [
       helpSection('What it is', [
         helpParagraph(

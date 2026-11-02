@@ -24,6 +24,12 @@ export const papelizSiteAccountUrl: string | null = '/account/'
 // The Templates pages (app/templates/), which ship with the Templates Worker. While null, the header
 // leaves the Templates link out; the pages are still built.
 export const papelizSiteTemplatesUrl: string | null = '/templates/'
+// Templates need the Templates Worker, which opens with Papeliz Sync. While this is false, every build
+// shows the Templates pages ready but closed: only the build's stand-in list, a grey Coming soon in place
+// of Open in Papeliz, and no read of the Worker's list. The dev server keeps them open. Opening Templates
+// in builds is this one line.
+const isPapelizSiteTemplatesSwitchedOnInBuilds = false
+export const isPapelizSiteTemplatesOpen = isPapelizSiteTemplatesSwitchedOnInBuilds || process.env.NODE_ENV === 'development'
 export const papelizSiteGitHubRepositoryUrl: string | null = 'https://github.com/AdamNatad/Papeliz'
 // GitHub's Discussions and Issues for the repository. Discussions are turned off on the repository
 // for now, so their link shows "Coming soon" until they are turned on.

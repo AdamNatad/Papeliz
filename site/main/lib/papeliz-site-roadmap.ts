@@ -59,10 +59,10 @@ export const papelizSiteRoadmapMilestones: PapelizSiteRoadmapMilestone[] = [
         papelizSiteRoadmapStepTitle: 'Templates',
         papelizSiteRoadmapStepStatus: 'done',
         papelizSiteRoadmapStepItems: [
-          'Start a vault from a template shared on GitHub',
+          'Start a vault from P1-Workflow, the first template, built in',
           'Import a template into the vault you have open',
           'Recommended, All or Choose over a template’s files',
-          'Checks before use, Preview and Recheck',
+          'Checks before use, and Preview',
         ],
       },
       {
@@ -86,12 +86,12 @@ export const papelizSiteRoadmapMilestones: PapelizSiteRoadmapMilestone[] = [
   {
     papelizSiteRoadmapMilestoneVersion: '1.1',
     papelizSiteRoadmapMilestoneTitle: 'Papeliz Sync',
-    papelizSiteRoadmapMilestoneStatus: 'done',
+    papelizSiteRoadmapMilestoneStatus: 'in-progress',
     papelizSiteRoadmapMilestoneSummary: 'Your knowledge base on every device, as an optional add-on with a Free plan.',
     papelizSiteRoadmapMilestoneSteps: [
       {
         papelizSiteRoadmapStepTitle: 'Papeliz Sync',
-        papelizSiteRoadmapStepStatus: 'done',
+        papelizSiteRoadmapStepStatus: 'in-progress',
         papelizSiteRoadmapStepItems: [
           'Keep your vaults in sync across web, desktop and mobile',
           'Edits from two devices merge instead of overwriting each other',
@@ -107,7 +107,7 @@ export const papelizSiteRoadmapMilestones: PapelizSiteRoadmapMilestone[] = [
     papelizSiteRoadmapMilestoneVersion: 'Next',
     papelizSiteRoadmapMilestoneTitle: 'Sharing templates',
     papelizSiteRoadmapMilestoneStatus: 'up-next',
-    papelizSiteRoadmapMilestoneSummary: 'Templates work today. Sharing your own and voting come next, with a free Papeliz account.',
+    papelizSiteRoadmapMilestoneSummary: 'One template is built in today. More templates, sharing your own and voting are coming soon, with a free Papeliz account.',
     papelizSiteRoadmapMilestoneSteps: [
       {
         papelizSiteRoadmapStepTitle: 'Sharing templates',

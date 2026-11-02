@@ -10,10 +10,10 @@ import {
   type PapelizSiteSyncPlanId,
 } from '@/lib/papeliz-site-sync-plans'
 import { papelizAccountCompactPrimaryButtonClassName, papelizAccountSecondaryButtonClassName } from './papeliz-account-card-frame'
-import { papelizAccountNearestStoragePlaceBadgeClassName, papelizAccountStoragePlaceLabels, readPapelizAccountNearestStoragePlace } from './papeliz-account-config'
+import { readPapelizAccountNearestStoragePlace } from './papeliz-account-config'
 import { papelizAccountSyncUnreachableMessage } from './papeliz-account-devices-section'
 import { PapelizAccountDialog } from './papeliz-account-dialog'
-import { papelizSyncStoragePlaces, type PapelizSyncStoragePlace } from './papeliz-account-sync-hand-over'
+import type { PapelizSyncStoragePlace } from './papeliz-account-sync-hand-over'
 import {
   isPapelizAccountSyncPaidSubscriptionLive,
   papelizAccountSyncFreePlanName,
@@ -21,6 +21,11 @@ import {
   type PapelizAccountSyncPlanName,
   type PapelizAccountSyncService,
 } from './papeliz-account-sync-service'
+import { usePapelizAccountSyncStoragePlaceChoice } from './papeliz-account-sync-storage-place-choice-store'
+import { PapelizAccountSyncStoragePlaceChoices } from './papeliz-account-sync-storage-place-choices'
+
+// Checkout's dialog's storage place radio group.
+const papelizAccountSyncCheckoutStoragePlaceGroupName = 'papeliz-account-sync-storage-place'
 
 // The account page's billing: the subscription's state, read once and again after checkout comes
 // back; Subscribe, which opens checkout in this tab (asking first where Sync keeps notes, for a new
@@ -62,17 +67,29 @@ export interface PapelizAccountSyncBillingState {
 const papelizAccountSyncCheckoutReturnReadMilliseconds = 3000
 const papelizAccountSyncCheckoutReturnReadCount = 10
 
+// Whether a plan chosen on the website has had its checkout started, once for the whole page load. It
+// lives outside the hook, so a dashboard mounted again (while developing, each save can remount it) doesn't
+// start it again and reopen the storage place dialog on the nearest place, saving that place in place
+// of the one chosen.
+const papelizAccountSyncChosenPlanCheckoutStart = { isStartedThisPageLoad: false }
+
+// `syncBillingReadBeforeDashboard`: the subscription as the page read it just before the dashboard
+// opened (papeliz-account-sync-account-gate.tsx), so the first read isn't made twice.
 export function usePapelizAccountSyncBilling(
   papelizAccountSyncService: PapelizAccountSyncService,
   isSyncCheckoutReturn: boolean,
   syncChosenPlanFromAddress: PapelizSiteSyncChosenPlan | null,
+  syncBillingReadBeforeDashboard: PapelizAccountSyncBilling | null = null,
 ): PapelizAccountSyncBillingState {
   const { getToken } = useAuth()
-  const [syncBillingStage, setSyncBillingStage] = useState<PapelizAccountSyncBillingStage>({ syncBillingStageKind: 'loading' })
+  const [syncBillingStage, setSyncBillingStage] = useState<PapelizAccountSyncBillingStage>(() =>
+    syncBillingReadBeforeDashboard === null ? { syncBillingStageKind: 'loading' } : { syncBillingStageKind: 'read', syncBilling: syncBillingReadBeforeDashboard },
+  )
   const [isSyncCheckoutReturnWaiting, setIsSyncCheckoutReturnWaiting] = useState(isSyncCheckoutReturn)
   const [syncCheckoutStage, setSyncCheckoutStage] = useState<PapelizAccountSyncCheckoutStage>({ syncCheckoutStageKind: 'idle' })
-  const [isSyncChosenPlanCheckoutStarted, setIsSyncChosenPlanCheckoutStarted] = useState(false)
-  const isSyncChosenPlanCheckoutStartedRef = useRef(false)
+  // Already started when this dashboard is a remount: the plans then show the "Subscribe to …?" prompt
+  // as the way back, not the dialog.
+  const [isSyncChosenPlanCheckoutStarted, setIsSyncChosenPlanCheckoutStarted] = useState(() => papelizAccountSyncChosenPlanCheckoutStart.isStartedThisPageLoad)
   const [syncBillingPortalFailureMessage, setSyncBillingPortalFailureMessage] = useState<string | null>(null)
   const syncBillingReadCountRef = useRef(0)
 
@@ -160,16 +177,17 @@ export function usePapelizAccountSyncBilling(
     let isSyncBillingReadingStopped = false
     let syncBillingReadTimer: ReturnType<typeof setTimeout> | undefined
     const readSyncBillingUntilSubscribed = async () => {
-      const syncBilling = await readPapelizAccountSyncBilling()
+      const syncBilling =
+        syncBillingReadCountRef.current === 0 && syncBillingReadBeforeDashboard !== null ? syncBillingReadBeforeDashboard : await readPapelizAccountSyncBilling()
       if (isSyncBillingReadingStopped) return
       syncBillingReadCountRef.current += 1
       // A plan chosen on the website's Sync or Pricing page goes straight to checkout once the
-      // subscription is read, with no stop on this page (Adam, 2026-11-03: "after login it redirects into
-      // an account page instead of the actual checkout"); a new account is asked where Sync keeps its
-      // notes first. Once per page, and the plan has already left the address, so Back from checkout
-      // doesn't start it again. A live paid plan keeps its own page.
-      if (syncChosenPlanFromAddress !== null && !isSyncChosenPlanCheckoutStartedRef.current) {
-        isSyncChosenPlanCheckoutStartedRef.current = true
+      // subscription is read, with no stop on this page, even right after signing in; a new account
+      // is asked where Sync keeps its notes first. Once per page load, even when the dashboard is
+      // mounted again, and the plan has already left the address, so Back from checkout doesn't start
+      // it again. A live paid plan keeps its own page.
+      if (syncChosenPlanFromAddress !== null && !papelizAccountSyncChosenPlanCheckoutStart.isStartedThisPageLoad) {
+        papelizAccountSyncChosenPlanCheckoutStart.isStartedThisPageLoad = true
         setIsSyncChosenPlanCheckoutStarted(true)
         if (syncBilling !== null && !isPapelizAccountSyncPaidSubscriptionLive(syncBilling)) {
           openPapelizAccountSyncCheckoutForBilling(syncChosenPlanFromAddress.chosenSyncPlanId, syncChosenPlanFromAddress.chosenSyncBillingPeriod, null, syncBilling)
@@ -187,7 +205,7 @@ export function usePapelizAccountSyncBilling(
       isSyncBillingReadingStopped = true
       clearTimeout(syncBillingReadTimer)
     }
-  }, [isSyncCheckoutReturn, readPapelizAccountSyncBilling, syncChosenPlanFromAddress, openPapelizAccountSyncCheckoutForBilling])
+  }, [isSyncCheckoutReturn, readPapelizAccountSyncBilling, syncChosenPlanFromAddress, openPapelizAccountSyncCheckoutForBilling, syncBillingReadBeforeDashboard])
 
   const closePapelizAccountSyncCheckout = useCallback(() => setSyncCheckoutStage({ syncCheckoutStageKind: 'idle' }), [])
 
@@ -325,7 +343,10 @@ export function PapelizAccountSyncSubscriptionNotice({ papelizAccountSyncBilling
 export function PapelizAccountSyncStoragePlaceDialog({ papelizAccountSyncBillingState }: { papelizAccountSyncBillingState: PapelizAccountSyncBillingState }) {
   const { syncCheckoutStage, startPapelizAccountSyncCheckout, closePapelizAccountSyncCheckout } = papelizAccountSyncBillingState
   const [nearestPapelizSyncStoragePlace] = useState(readPapelizAccountNearestStoragePlace)
-  const [chosenPapelizSyncStoragePlace, setChosenPapelizSyncStoragePlace] = useState<PapelizSyncStoragePlace>(nearestPapelizSyncStoragePlace)
+  const [chosenPapelizSyncStoragePlace, setChosenPapelizSyncStoragePlace] = usePapelizAccountSyncStoragePlaceChoice(
+    papelizAccountSyncCheckoutStoragePlaceGroupName,
+    nearestPapelizSyncStoragePlace,
+  )
   if (syncCheckoutStage.syncCheckoutStageKind !== 'choosing-storage-place') return null
   return (
     <PapelizAccountDialog
@@ -349,33 +370,12 @@ export function PapelizAccountSyncStoragePlaceDialog({ papelizAccountSyncBilling
       <p>
         Your notes are encrypted on your devices before they’re stored. <b className="font-semibold text-papeliz-ink">You can’t change this later.</b>
       </p>
-      <fieldset className="m-0 grid gap-2 border-0 p-0">
-        <legend className="sr-only">Storage place</legend>
-        {papelizSyncStoragePlaces.map((papelizSyncStoragePlace) => (
-          <label
-            key={papelizSyncStoragePlace}
-            className={`flex cursor-pointer items-center gap-3 rounded-[10px] border px-3.5 py-2.5 ${
-              chosenPapelizSyncStoragePlace === papelizSyncStoragePlace ? 'border-papeliz-blue bg-papeliz-blue-soft' : 'border-papeliz-line bg-papeliz-surface hover:bg-papeliz-surface-soft'
-            }`}
-          >
-            <input
-              type="radio"
-              name="papeliz-account-sync-storage-place"
-              value={papelizSyncStoragePlace}
-              checked={chosenPapelizSyncStoragePlace === papelizSyncStoragePlace}
-              onChange={() => setChosenPapelizSyncStoragePlace(papelizSyncStoragePlace)}
-              className="size-4 accent-papeliz-gradient-start"
-            />
-            <span className="min-w-0 flex-1">
-              <span className="block text-sm font-semibold text-papeliz-ink">{papelizAccountStoragePlaceLabels[papelizSyncStoragePlace].storagePlaceName}</span>
-              {papelizAccountStoragePlaceLabels[papelizSyncStoragePlace].storagePlaceJurisdictionLine && (
-                <span className="block text-xs text-papeliz-ink-muted">{papelizAccountStoragePlaceLabels[papelizSyncStoragePlace].storagePlaceJurisdictionLine}</span>
-              )}
-            </span>
-            {papelizSyncStoragePlace === nearestPapelizSyncStoragePlace && <span className={papelizAccountNearestStoragePlaceBadgeClassName}>Nearest You</span>}
-          </label>
-        ))}
-      </fieldset>
+      <PapelizAccountSyncStoragePlaceChoices
+        syncStoragePlaceChoicesGroupName={papelizAccountSyncCheckoutStoragePlaceGroupName}
+        chosenPapelizSyncStoragePlace={chosenPapelizSyncStoragePlace}
+        nearestPapelizSyncStoragePlace={nearestPapelizSyncStoragePlace}
+        onPapelizSyncStoragePlaceChoose={setChosenPapelizSyncStoragePlace}
+      />
     </PapelizAccountDialog>
   )
 }

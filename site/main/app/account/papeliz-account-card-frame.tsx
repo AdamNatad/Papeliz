@@ -1,3 +1,4 @@
+import { CircleAlert } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { PapelizMark } from '@/components/logo/papeliz-mark'
 import papelizAccountStyles from './papeliz-account.module.css'
@@ -19,14 +20,29 @@ export const papelizAccountCompactDangerButtonClassName =
 // A row's action button on a computer: wide enough that a column of them lines up.
 export const papelizAccountRowActionWidthClassName = 'min-w-[84px] md:min-w-[112px]'
 
-// The white button, such as Cancel and Close, with an outline strong enough to read as a button
-// (Adam, 2026-11-01: "make cancel button clear like all white button like cancel add some proper
-// outline"). Hovered, it turns soft blue with a blue outline and blue text, not gray (Adam,
-// 2026-11-01: "making it gray is a weird hover color"; his pick, "A · Soft blue, blue text").
+// The white button, such as Cancel and Close, with an outline strong enough to read as a button.
+// Hovered, it turns soft blue with a blue outline and blue text, not gray.
 export const papelizAccountSecondaryButtonClassName =
   'inline-flex min-h-[38px] shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-papeliz-line-strong bg-papeliz-surface px-3.5 text-[13px] font-semibold whitespace-nowrap text-papeliz-ink shadow-[0_1px_2px_rgb(16_24_40/0.08)] transition-colors enabled:hover:border-papeliz-blue-line enabled:hover:bg-papeliz-blue-soft enabled:hover:text-papeliz-blue disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-papeliz-blue'
+// A field marked `aria-invalid` turns red, with a soft red ring, focused or not; the site's blue focus
+// outline (`globals.css`) gives way to it there, so the red ring alone shows focus.
 export const papelizAccountTextFieldClassName =
-  'block min-h-[42px] w-full rounded-[9px] border border-papeliz-line-strong bg-papeliz-surface px-3 text-sm text-papeliz-ink outline-none transition-[border-color,box-shadow] duration-150 ease-out placeholder:text-papeliz-ink-subtle focus:border-papeliz-blue focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--color-papeliz-blue)_25%,transparent)]'
+  'block min-h-[42px] w-full rounded-[9px] border border-papeliz-line-strong bg-papeliz-surface px-3 text-sm text-papeliz-ink outline-none transition-[border-color,box-shadow] duration-150 ease-out placeholder:text-papeliz-ink-subtle focus:border-papeliz-blue focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--color-papeliz-blue)_25%,transparent)] aria-invalid:border-papeliz-diff-removed-ink aria-invalid:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-papeliz-diff-removed-ink)_16%,transparent)] aria-invalid:focus:border-papeliz-diff-removed-ink aria-invalid:focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-papeliz-diff-removed-ink)_24%,transparent)] aria-invalid:outline-none!'
+
+// A field's own error, in red under it with an alert mark, in place of the browser's own bubble; the
+// field itself turns red too. Its field points at it with `aria-describedby` and is `aria-invalid`.
+export function PapelizAccountFieldError({ papelizAccountFieldErrorId, children }: { papelizAccountFieldErrorId: string; children: ReactNode }) {
+  return (
+    <p
+      id={papelizAccountFieldErrorId}
+      role="alert"
+      className={`${papelizAccountStyles.papelizAccountNoticeEnter} mt-1.5 flex items-start gap-1.5 text-[13px] leading-snug font-medium text-papeliz-diff-removed-ink`}
+    >
+      <CircleAlert className="mt-px size-4 shrink-0" aria-hidden="true" />
+      <span>{children}</span>
+    </p>
+  )
+}
 
 export const papelizAccountFieldLabelClassName = 'mb-2 block text-[10.5px] font-bold tracking-[0.12em] text-papeliz-ink-subtle uppercase'
 
@@ -80,7 +96,7 @@ export function PapelizAccountCardFrame({ children }: { children: ReactNode }) {
   )
 }
 
-// A message under the fields: an error, or a notice that a code went out.
+// A message under the fields: an error, or a blue notice, centered under the button.
 export function PapelizAccountCardNotice({ papelizAccountNoticeTone, children }: { papelizAccountNoticeTone: 'error' | 'notice'; children: ReactNode }) {
   return (
     <p
@@ -88,7 +104,7 @@ export function PapelizAccountCardNotice({ papelizAccountNoticeTone, children }:
       className={`${papelizAccountStyles.papelizAccountNoticeEnter} mt-3 rounded-[9px] border px-3 py-2 text-[13px] leading-snug text-pretty ${
         papelizAccountNoticeTone === 'error'
           ? 'border-papeliz-diff-removed-ink/40 bg-papeliz-diff-removed text-papeliz-diff-removed-ink'
-          : 'border-papeliz-blue-line bg-papeliz-blue-soft text-papeliz-blue'
+          : 'border-papeliz-blue-line bg-papeliz-blue-soft text-center text-papeliz-blue'
       }`}
     >
       {children}

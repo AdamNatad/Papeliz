@@ -30,6 +30,7 @@ export const papelizSiteHostedProviders: readonly PapelizSiteProvider[] = [
     papelizSiteProviderDescription: 'Gemini models through Google’s OpenAI-compatible endpoint.',
     papelizSiteProviderBaseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
   },
+  { papelizSiteProviderName: 'DeepSeek', papelizSiteProviderDescription: 'DeepSeek’s V4 models, Flash and Pro.', papelizSiteProviderBaseUrl: 'https://api.deepseek.com' },
 ]
 
 export const papelizSiteLocalProviders: readonly PapelizSiteProvider[] = [

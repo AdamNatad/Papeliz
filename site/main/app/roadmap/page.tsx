@@ -5,7 +5,7 @@ import { createPapelizSitePageMetadata } from '@/lib/papeliz-site-seo'
 
 export const metadata = createPapelizSitePageMetadata({
   papelizSitePageTitle: 'Roadmap',
-  papelizSitePageDescription: 'What’s in Papeliz today, Papeliz Sync and templates included, what comes next, and the ideas after that.',
+  papelizSitePageDescription: 'What’s in Papeliz today, templates included, Papeliz Sync in progress, what comes next, and the ideas after that.',
   papelizSitePagePath: '/roadmap/',
 })
 

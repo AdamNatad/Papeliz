@@ -1,3 +1,4 @@
+import { isPapelizSiteTemplatesOpen } from './papeliz-site-config'
 import { readPapelizSiteTemplatesSnapshot, type PapelizSiteTemplatesSnapshot } from './papeliz-site-templates'
 
 // The Templates list the site build turns into pages, read once per build process. Only the build
@@ -60,6 +61,11 @@ async function readPapelizSiteTemplatesSnapshotFrom(papelizSiteTemplatesSnapshot
 }
 
 async function readPapelizSiteTemplatesBuildSnapshotOnce(): Promise<PapelizSiteTemplatesSnapshot> {
+  // Closed Templates read no Worker, so a build made beside the local test Workers never takes their list.
+  if (!isPapelizSiteTemplatesOpen) {
+    console.log(` [templates] Templates are closed in this build; it uses its stand-in list (P1-Workflow).`)
+    return papelizSiteTemplatesStandInSnapshot
+  }
   const papelizSiteTemplatesSnapshotUrls = [process.env[papelizSiteTemplatesSnapshotUrlVariableName], papelizSiteLocalTemplatesWorkerSnapshotUrl].filter(
     (papelizSiteTemplatesSnapshotUrl): papelizSiteTemplatesSnapshotUrl is string => typeof papelizSiteTemplatesSnapshotUrl === 'string' && papelizSiteTemplatesSnapshotUrl !== '',
   )

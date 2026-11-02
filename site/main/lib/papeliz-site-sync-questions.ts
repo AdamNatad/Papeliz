@@ -1,3 +1,4 @@
+import { isPapelizAccountSignInOpen } from '@/app/account/papeliz-account-config'
 import { papelizSiteHelpUrl } from './papeliz-site-config'
 import {
   papelizSiteSyncConnectedDeviceLimit,
@@ -17,7 +18,8 @@ export type PapelizSiteQuestion = {
   papelizSiteQuestionAnswerParts: PapelizSiteQuestionAnswerPart[]
 }
 
-// The Pricing page's questions.
+// The Pricing page's questions. While the account page keeps signing in closed, the answers that walk
+// through signing in start by saying when it opens.
 export const papelizSitePricingQuestions: PapelizSiteQuestion[] = [
   {
     papelizSiteQuestionAnchor: 'commercial-use',
@@ -37,7 +39,7 @@ export const papelizSitePricingQuestions: PapelizSiteQuestion[] = [
     papelizSiteQuestionAnchor: 'how-do-i-sign-up',
     papelizSiteQuestionText: 'How do I sign up for Sync?',
     papelizSiteQuestionAnswerParts: [
-      'Choose a plan on this page, or in Papeliz under Settings › Sync. You sign in and pick where your synced notes are stored. Free starts right away; a paid plan then goes to checkout.',
+      `${isPapelizAccountSignInOpen ? 'Choose' : 'Accounts open when Sync launches. Then choose'} a plan on this page, or in Papeliz under Settings › Sync. You sign in and pick where your synced notes are stored. Free starts right away; a paid plan then goes to checkout.`,
     ],
   },
   {
@@ -131,7 +133,7 @@ export const papelizSiteSyncQuestions: PapelizSiteQuestion[] = [
     papelizSiteQuestionAnchor: 'how-do-i-sign-in',
     papelizSiteQuestionText: 'How do I sign in on a device?',
     papelizSiteQuestionAnswerParts: [
-      'In Papeliz, choose Sign In in the Settings gear’s Sync or Account page, or on the start page’s Synced Vaults. Papeliz opens papeliz.com/account in a new tab. If your browser blocks the tab, press the Sign In link that shows instead. The device then stays signed in until you sign it out, remove it, or delete your account.',
+      `${isPapelizAccountSignInOpen ? '' : 'Signing in opens when Sync launches. '}In Papeliz, choose Sign In in the Settings gear’s Sync or Account page, or on the start page’s Synced Vaults. Papeliz opens papeliz.com/account in a new tab. If your browser blocks the tab, press the Sign In link that shows instead. The device then stays signed in until you sign it out, remove it, or delete your account.`,
     ],
   },
   {

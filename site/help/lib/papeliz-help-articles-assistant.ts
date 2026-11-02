@@ -27,10 +27,10 @@ export const papelizHelpAssistantArticles: readonly PapelizHelpArticle[] = [
       helpSection('Add a provider', [
         helpNumberedSteps([
           'Open the gear at the right end of the top bar and choose **AI Provider**, or choose **Choose a Provider** in the Assistant panel. The page lists your **Saved Providers**.',
-          'Choose **Add Provider** and pick a provider. Its base URL fills in. See [[choose-a-provider]].',
+          'Choose **Add Provider**. One window opens, with the **Provider** menu at the top: pick a provider there, or type to search for one. Its key, models and settings show under the menu, and its base URL fills in. See [[choose-a-provider]].',
           'Paste your API key. Servers on your own computer usually don’t need one.',
           'Choose **Test Connection**. It loads the provider’s models, switches on the recommended one, and sends one tiny request.',
-          'Choose **Add Provider**. It stays off until the test passes and a model is on.',
+          'Choose **Add Provider** at the bottom of the window. It stays off until the test passes and a model is on.',
         ]),
         helpParagraph(
           'Add as many providers as you like. They’re all in use at once: the model chip in the assistant lists the models you switched on, by provider. See [[chat-with-the-assistant]].',
@@ -72,10 +72,10 @@ export const papelizHelpAssistantArticles: readonly PapelizHelpArticle[] = [
         ]),
       ]),
       helpSection('Other presets', [
-        helpParagraph('Papeliz speaks the OpenAI-compatible format, so any other compatible provider works too. In **Add Provider**, the presets are grouped:'),
+        helpParagraph('Papeliz speaks the OpenAI-compatible format, so any other compatible provider works too. In **Add Provider**’s **Provider** menu, the hosted presets come first, then **Local** and **Any Other**:'),
         helpBulletList([
-          '**Hosted**: **Claude**, Anthropic’s Claude models (Papeliz sends Anthropic’s header for calls from a browser page with each Claude request); **OpenAI**; **OpenRouter**, many hosted models behind one key; **Groq**, **Together** and **Fireworks**, hosted open-weights models; **Google Gemini**, through Google’s OpenAI-compatible endpoint.',
-          '**On This Computer**: **Ollama Local** and **LM Studio Local**, with no key.',
+          'The hosted presets: **Claude**, Anthropic’s Claude models (Papeliz sends Anthropic’s header for calls from a browser page with each Claude request); **OpenAI**; **OpenRouter**, many hosted models behind one key; **Groq**, **Together** and **Fireworks**, hosted open-weights models; **Google Gemini**, through Google’s OpenAI-compatible endpoint; **DeepSeek**, DeepSeek’s V4 models, Flash and Pro.',
+          '**Local**: **Ollama Local** and **LM Studio Local**, on your own computer, with no key.',
           '**Any Other**: **Custom**, any other OpenAI-compatible base URL.',
         ]),
         helpParagraph('A provider you already saved shows **Saved** and can’t be added twice.'),

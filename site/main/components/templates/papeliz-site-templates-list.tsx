@@ -14,6 +14,7 @@ import {
   type PapelizSiteTemplateCategoryTag,
   type PapelizSiteTemplatesSnapshot,
 } from '@/lib/papeliz-site-templates'
+import { isPapelizSiteTemplatesOpen } from '@/lib/papeliz-site-config'
 import { PapelizSiteTemplateCategoryBadge, PapelizSiteTemplateLetterTile, PapelizSiteTemplateStatusBadges } from './papeliz-site-template-badges'
 
 type PapelizSiteTemplatesListProps = {
@@ -32,12 +33,14 @@ const papelizSiteTemplatesCategoryChipClassName = 'inline-flex min-h-9 items-cen
 // then a row per template, Featured first. Once on the
 // page it reads the same hourly list the app reads, from this site's own address, so the counts and
 // any template listed since the build show without a new build. If that read fails, the build's list
-// stays.
+// stays. While Templates are closed, it reads nothing, and each row shows a grey Coming soon in place of
+// Open in Papeliz.
 export function PapelizSiteTemplatesList({ papelizSiteTemplatesBuildSnapshot, papelizSiteTemplateIdsWithPages }: PapelizSiteTemplatesListProps) {
   const [papelizSiteTemplatesSnapshot, setPapelizSiteTemplatesSnapshot] = useState(papelizSiteTemplatesBuildSnapshot)
   const [papelizSiteTemplatesCategoryChoice, setPapelizSiteTemplatesCategoryChoice] = useState<PapelizSiteTemplatesCategoryChoice>('all')
 
   useEffect(() => {
+    if (!isPapelizSiteTemplatesOpen) return
     const snapshotReadController = new AbortController()
     void (async () => {
       try {
@@ -91,7 +94,7 @@ export function PapelizSiteTemplatesList({ papelizSiteTemplatesBuildSnapshot, pa
         <ul className="mt-8 grid gap-3">
           {papelizSiteTemplatesShown.map((papelizSiteTemplateRow) => {
             const papelizSiteTemplateHasPage = papelizSiteTemplateIdsWithPagesSet.has(papelizSiteTemplateRow.papelizTemplateGalleryId)
-            const papelizSiteTemplateOpenInPapelizHref = createPapelizSiteTemplateOpenInPapelizHref(papelizSiteTemplateRow)
+            const papelizSiteTemplateOpenInPapelizHref = isPapelizSiteTemplatesOpen ? createPapelizSiteTemplateOpenInPapelizHref(papelizSiteTemplateRow) : null
             return (
               <li
                 key={papelizSiteTemplateRow.papelizTemplateGalleryId}
@@ -149,6 +152,14 @@ export function PapelizSiteTemplatesList({ papelizSiteTemplatesBuildSnapshot, pa
                   >
                     Open in Papeliz
                   </a>
+                )}
+                {!isPapelizSiteTemplatesOpen && (
+                  <span
+                    aria-disabled="true"
+                    className="inline-flex min-h-11 shrink-0 items-center justify-center self-start rounded-full border border-dashed border-papeliz-line-strong bg-papeliz-surface-gray px-5 text-[15px] font-medium text-papeliz-ink-subtle sm:self-center"
+                  >
+                    Coming soon
+                  </span>
                 )}
               </li>
             )

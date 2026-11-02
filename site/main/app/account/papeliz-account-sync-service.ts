@@ -1,5 +1,6 @@
 import {
   isPapelizSyncDeviceSessionReply,
+  papelizSyncStoragePlaces,
   type PapelizSyncDeviceSession,
   type PapelizSyncDeviceSessionReply,
   type PapelizSyncStoragePlace,
@@ -16,6 +17,10 @@ import { isPapelizAccountSyncPassphraseWrappedVaultKey, type PapelizAccountSyncP
 export const papelizAccountSyncDeviceSessionsPath = '/api/account/v1/device-sessions'
 export const papelizAccountSyncDevicesPath = '/api/account/v1/devices'
 export const papelizAccountSyncAccountDeletionFromSignInPagePath = '/api/account/v1/account/deletion-from-sign-in-page'
+// The account's Sync account, made at sign-up, from a sign-in token and no device: POST with
+// `{ papelizSyncStoragePlaceForNewAccount }` answers `{ papelizSyncStoragePlace, isNewPapelizSyncAccount }`,
+// the account made on Free in that place. An account that has one keeps its own place.
+export const papelizAccountSyncAccountFromSignInPagePath = '/api/account/v1/account-from-sign-in-page'
 // The Devices section's list, Rename and Remove, from a sign-in token and no device: GET answers
 // `{ syncDeviceRecords }` (an empty list when the sign-in has no Sync account); PUT
 // `…/:papelizSyncDeviceId/name` with `{ syncDeviceName }` answers `{ syncDeviceRecord }`; DELETE with a
@@ -50,6 +55,11 @@ export type PapelizAccountSyncDeviceSessionOutcome =
   | { syncDeviceSessionOutcomeKind: 'created'; papelizSyncDeviceSessionReply: PapelizSyncDeviceSessionReply }
   | { syncDeviceSessionOutcomeKind: 'storage-place-required' }
   | { syncDeviceSessionOutcomeKind: 'refused'; syncDeviceSessionRefusalMessage: string }
+
+// `created` also for an account that had its Sync account already, with the place it keeps.
+export type PapelizAccountSyncAccountCreationOutcome =
+  | { syncAccountCreationOutcomeKind: 'created'; papelizSyncStoragePlace: PapelizSyncStoragePlace }
+  | { syncAccountCreationOutcomeKind: 'refused'; syncAccountCreationRefusalMessage: string }
 
 // `deleted` also when the sign-in never set up Sync: the Account Worker answers both the same, so it
 // never tells whether an account exists.
@@ -144,6 +154,8 @@ export type PapelizAccountSyncPlanName = PapelizSiteSyncPlanId | PapelizSiteSync
 export interface PapelizAccountSyncBilling {
   hasPapelizSyncAccount: boolean
   syncPlanName: PapelizAccountSyncPlanName | null
+  // The paid plan's billing period; null on Free, and when Sync doesn't know it.
+  syncBillingPeriod: PapelizSiteSyncBillingPeriod | null
   syncSubscriptionState: PapelizAccountSyncSubscriptionState
   syncSubscriptionRenewsAt: number | null
   syncSubscriptionEndsAt: number | null
@@ -183,6 +195,8 @@ export type PapelizAccountSyncBillingPortalOutcome =
 export interface PapelizAccountSyncService {
   papelizAccountSyncServiceIsLocalFake: boolean
   // `signInToken` is a fresh session token from Clerk, sent in `Authorization: Bearer`.
+  // The account's Sync account on Free, in the place chosen at sign-up; once made, its place stays.
+  createPapelizSyncAccount(signInToken: string, papelizSyncStoragePlaceForNewAccount: PapelizSyncStoragePlace): Promise<PapelizAccountSyncAccountCreationOutcome>
   createPapelizSyncDeviceSession(signInToken: string, deviceSessionRequest: PapelizAccountSyncDeviceSessionRequest): Promise<PapelizAccountSyncDeviceSessionOutcome>
   // Removes a device this page made when the app's tab never took its session.
   removePapelizSyncDevice(papelizSyncDeviceSession: PapelizSyncDeviceSession): Promise<void>
@@ -316,12 +330,15 @@ function isPapelizAccountSyncTime(timeCandidate: unknown): timeCandidate is numb
   return timeCandidate === null || (Number.isSafeInteger(timeCandidate) && (timeCandidate as number) >= 0)
 }
 
+const papelizAccountSyncBillingPeriods: readonly PapelizSiteSyncBillingPeriod[] = ['monthly', 'yearly']
+
 // Null for anything not laid out as Sync's billing reply.
 function readPapelizAccountSyncBilling(billingReplyCandidate: unknown): PapelizAccountSyncBilling | null {
   if (typeof billingReplyCandidate !== 'object' || billingReplyCandidate === null) return null
   const {
     hasPapelizSyncAccount,
     syncPlanName,
+    syncBillingPeriod,
     syncSubscriptionState,
     syncSubscriptionRenewsAt,
     syncSubscriptionEndsAt,
@@ -333,6 +350,8 @@ function readPapelizAccountSyncBilling(billingReplyCandidate: unknown): PapelizA
     typeof hasPapelizSyncAccount !== 'boolean' ||
     typeof hasSyncPaymentCustomer !== 'boolean' ||
     (syncPlanName !== null && !papelizAccountSyncPlanNames.includes(syncPlanName as PapelizAccountSyncPlanName)) ||
+    // Left out by an Account Worker from before it reported the period.
+    (syncBillingPeriod !== undefined && syncBillingPeriod !== null && !papelizAccountSyncBillingPeriods.includes(syncBillingPeriod as PapelizSiteSyncBillingPeriod)) ||
     !papelizAccountSyncSubscriptionStates.includes(syncSubscriptionState as PapelizAccountSyncSubscriptionState) ||
     !isPapelizAccountSyncTime(syncSubscriptionRenewsAt) ||
     !isPapelizAccountSyncTime(syncSubscriptionEndsAt) ||
@@ -344,6 +363,7 @@ function readPapelizAccountSyncBilling(billingReplyCandidate: unknown): PapelizA
   return {
     hasPapelizSyncAccount,
     syncPlanName: syncPlanName as PapelizAccountSyncPlanName | null,
+    syncBillingPeriod: (syncBillingPeriod ?? null) as PapelizSiteSyncBillingPeriod | null,
     syncSubscriptionState: syncSubscriptionState as PapelizAccountSyncSubscriptionState,
     syncSubscriptionRenewsAt,
     syncSubscriptionEndsAt,
@@ -377,6 +397,32 @@ function readPapelizSyncErrorReplyMessage(errorReplyCandidate: unknown): { syncE
 
 // The Account Worker's answer, or null when nothing on this origin answers the route as Sync does:
 // a 404 without a Sync error reply (the site's own previews have no Workers).
+async function requestPapelizSyncAccountCreationFromAccountWorker(
+  signInToken: string,
+  papelizSyncStoragePlaceForNewAccount: PapelizSyncStoragePlace,
+): Promise<PapelizAccountSyncAccountCreationOutcome | null> {
+  const accountCreationResponse = await fetch(papelizAccountSyncAccountFromSignInPagePath, {
+    method: 'POST',
+    credentials: 'omit',
+    cache: 'no-store',
+    headers: { Authorization: `Bearer ${signInToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ papelizSyncStoragePlaceForNewAccount }),
+  })
+  const accountCreationReplyBody: unknown = await accountCreationResponse.json().catch(() => null)
+  const papelizSyncStoragePlace =
+    typeof accountCreationReplyBody === 'object' && accountCreationReplyBody !== null ? (accountCreationReplyBody as Record<string, unknown>)['papelizSyncStoragePlace'] : null
+  if (accountCreationResponse.ok && papelizSyncStoragePlaces.includes(papelizSyncStoragePlace as PapelizSyncStoragePlace)) {
+    return { syncAccountCreationOutcomeKind: 'created', papelizSyncStoragePlace: papelizSyncStoragePlace as PapelizSyncStoragePlace }
+  }
+  const { syncErrorCode, syncErrorMessage } = readPapelizSyncErrorReplyMessage(accountCreationReplyBody)
+  if (accountCreationResponse.status === 404 && syncErrorCode === null) return null
+  return {
+    syncAccountCreationOutcomeKind: 'refused',
+    syncAccountCreationRefusalMessage: syncErrorMessage ?? `Papeliz Sync answered ${accountCreationResponse.status}.`,
+  }
+}
+
+// The Account Worker's answer, or null when no Account Worker is on this origin (as above).
 async function requestPapelizSyncDeviceSessionFromAccountWorker(
   signInToken: string,
   deviceSessionRequest: PapelizAccountSyncDeviceSessionRequest,
@@ -612,6 +658,14 @@ async function requestPapelizSyncBillingPortalPageFromAccountWorker(signInToken:
 
 const papelizAccountSyncWorkerService: PapelizAccountSyncService = {
   papelizAccountSyncServiceIsLocalFake: false,
+  async createPapelizSyncAccount(signInToken, papelizSyncStoragePlaceForNewAccount) {
+    return (
+      (await requestPapelizSyncAccountCreationFromAccountWorker(signInToken, papelizSyncStoragePlaceForNewAccount)) ?? {
+        syncAccountCreationOutcomeKind: 'refused',
+        syncAccountCreationRefusalMessage: 'Papeliz Sync answered 404.',
+      }
+    )
+  },
   async createPapelizSyncDeviceSession(signInToken, deviceSessionRequest) {
     return (
       (await requestPapelizSyncDeviceSessionFromAccountWorker(signInToken, deviceSessionRequest)) ?? {
@@ -721,8 +775,19 @@ interface PapelizAccountLocalFakeSyncAccount {
   // one is written into the fake's storage by hand.
   papelizSyncVaultRecords?: PapelizAccountSyncVaultRecord[]
   // The fake's subscription: its checkout comes straight back here as paid, and its state can be
-  // written into the fake's storage by hand to preview a failed payment or an ended subscription.
-  papelizSyncFakeSubscription?: { syncPlanName: PapelizSiteSyncPlanId; syncSubscriptionState: PapelizAccountSyncSubscriptionState }
+  // written into the fake's storage by hand to preview a failed payment or an ended subscription. Its
+  // billing period is missing for subscriptions the fake kept before it recorded one.
+  papelizSyncFakeSubscription?: {
+    syncPlanName: PapelizSiteSyncPlanId
+    syncBillingPeriod?: PapelizSiteSyncBillingPeriod
+    syncSubscriptionState: PapelizAccountSyncSubscriptionState
+  }
+}
+
+// The place an account ID names (`pzacct_<place>_…`), as Sync's account IDs carry it.
+function readPapelizAccountLocalFakeStoragePlace(papelizSyncAccountId: string): PapelizSyncStoragePlace | null {
+  const papelizSyncStoragePlaceCandidate = papelizSyncAccountId.split('_')[1]
+  return papelizSyncStoragePlaces.includes(papelizSyncStoragePlaceCandidate as PapelizSyncStoragePlace) ? (papelizSyncStoragePlaceCandidate as PapelizSyncStoragePlace) : null
 }
 
 function createPapelizAccountLocalFakeBase32Part(): string {
@@ -762,6 +827,21 @@ function writePapelizAccountLocalFakeSyncAccounts(localFakeSyncAccounts: Record<
 
 export const papelizAccountLocalFakeSyncService: PapelizAccountSyncService = {
   papelizAccountSyncServiceIsLocalFake: true,
+  // On Free, with no device; an account the fake has keeps its place.
+  async createPapelizSyncAccount(signInToken, papelizSyncStoragePlaceForNewAccount) {
+    const localFakeSignInSubject = readPapelizAccountLocalFakeSignInSubject(signInToken)
+    const localFakeSyncAccounts = readPapelizAccountLocalFakeSyncAccounts()
+    const localFakeSyncAccount = localFakeSyncAccounts[localFakeSignInSubject] ?? {
+      papelizSyncAccountId: `pzacct_${papelizSyncStoragePlaceForNewAccount}_${createPapelizAccountLocalFakeBase32Part()}`,
+      papelizSyncDeviceIds: [],
+    }
+    localFakeSyncAccounts[localFakeSignInSubject] = localFakeSyncAccount
+    writePapelizAccountLocalFakeSyncAccounts(localFakeSyncAccounts)
+    return {
+      syncAccountCreationOutcomeKind: 'created',
+      papelizSyncStoragePlace: readPapelizAccountLocalFakeStoragePlace(localFakeSyncAccount.papelizSyncAccountId) ?? papelizSyncStoragePlaceForNewAccount,
+    }
+  },
   async createPapelizSyncDeviceSession(signInToken, deviceSessionRequest) {
     const localFakeSignInSubject = readPapelizAccountLocalFakeSignInSubject(signInToken)
     const localFakeSyncAccounts = readPapelizAccountLocalFakeSyncAccounts()
@@ -901,8 +981,9 @@ export const papelizAccountLocalFakeSyncService: PapelizAccountSyncService = {
       syncBillingOutcomeKind: 'read',
       syncBilling: {
         hasPapelizSyncAccount: localFakeSyncAccount !== undefined,
-        // A fake account with no paid subscription is on Free, as the Account Worker's accounts will be.
+        // A fake account with no paid subscription is on Free, as the Account Worker's accounts are.
         syncPlanName: localFakeSubscription?.syncPlanName ?? (localFakeSyncAccount !== undefined ? papelizAccountSyncFreePlanName : null),
+        syncBillingPeriod: localFakeSubscription?.syncBillingPeriod ?? null,
         syncSubscriptionState: localFakeSubscription?.syncSubscriptionState ?? 'not-subscribed',
         syncSubscriptionRenewsAt: localFakeSubscription?.syncSubscriptionState === 'active' ? Date.now() + 30 * localFakeDayMilliseconds : null,
         syncSubscriptionEndsAt: localFakeSubscription?.syncSubscriptionState === 'ends-at-period-end' ? Date.now() + 12 * localFakeDayMilliseconds : null,
@@ -913,7 +994,7 @@ export const papelizAccountLocalFakeSyncService: PapelizAccountSyncService = {
     }
   },
   // No payment provider here: the checkout counts as paid at once and comes straight back to this page.
-  async createPapelizSyncCheckoutPage(signInToken, papelizSiteSyncPlanId, _papelizSiteSyncBillingPeriod, papelizSyncStoragePlaceForNewAccount) {
+  async createPapelizSyncCheckoutPage(signInToken, papelizSiteSyncPlanId, papelizSiteSyncBillingPeriod, papelizSyncStoragePlaceForNewAccount) {
     const localFakeSignInSubject = readPapelizAccountLocalFakeSignInSubject(signInToken)
     const localFakeSyncAccounts = readPapelizAccountLocalFakeSyncAccounts()
     let localFakeSyncAccount = localFakeSyncAccounts[localFakeSignInSubject]
@@ -921,7 +1002,7 @@ export const papelizAccountLocalFakeSyncService: PapelizAccountSyncService = {
       if (papelizSyncStoragePlaceForNewAccount === null) return { syncCheckoutOutcomeKind: 'storage-place-required' }
       localFakeSyncAccount = { papelizSyncAccountId: `pzacct_${papelizSyncStoragePlaceForNewAccount}_${createPapelizAccountLocalFakeBase32Part()}`, papelizSyncDeviceIds: [] }
     }
-    localFakeSyncAccount.papelizSyncFakeSubscription = { syncPlanName: papelizSiteSyncPlanId, syncSubscriptionState: 'active' }
+    localFakeSyncAccount.papelizSyncFakeSubscription = { syncPlanName: papelizSiteSyncPlanId, syncBillingPeriod: papelizSiteSyncBillingPeriod, syncSubscriptionState: 'active' }
     localFakeSyncAccounts[localFakeSignInSubject] = localFakeSyncAccount
     writePapelizAccountLocalFakeSyncAccounts(localFakeSyncAccounts)
     const localFakeCheckoutReturnAddress = new URL('/account/', window.location.origin)
@@ -942,6 +1023,12 @@ function createPapelizAccountSyncServiceWithLocalFakeFallback(): PapelizAccountS
   return {
     get papelizAccountSyncServiceIsLocalFake() {
       return papelizAccountChosenSyncService === papelizAccountLocalFakeSyncService
+    },
+    async createPapelizSyncAccount(signInToken, papelizSyncStoragePlaceForNewAccount) {
+      if (papelizAccountChosenSyncService !== null) return papelizAccountChosenSyncService.createPapelizSyncAccount(signInToken, papelizSyncStoragePlaceForNewAccount)
+      const accountWorkerOutcome = await requestPapelizSyncAccountCreationFromAccountWorker(signInToken, papelizSyncStoragePlaceForNewAccount)
+      papelizAccountChosenSyncService = accountWorkerOutcome === null ? papelizAccountLocalFakeSyncService : papelizAccountSyncWorkerService
+      return accountWorkerOutcome ?? papelizAccountLocalFakeSyncService.createPapelizSyncAccount(signInToken, papelizSyncStoragePlaceForNewAccount)
     },
     async createPapelizSyncDeviceSession(signInToken, deviceSessionRequest) {
       if (papelizAccountChosenSyncService !== null) return papelizAccountChosenSyncService.createPapelizSyncDeviceSession(signInToken, deviceSessionRequest)

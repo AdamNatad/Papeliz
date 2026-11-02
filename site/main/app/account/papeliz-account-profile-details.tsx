@@ -4,6 +4,7 @@ import { useClerk, useSession, useUser } from '@clerk/react'
 import { ChevronRight } from 'lucide-react'
 import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import {
+  PapelizAccountFieldError,
   papelizAccountCompactPrimaryButtonClassName,
   papelizAccountFieldLabelClassName,
   papelizAccountRowActionWidthClassName,
@@ -11,7 +12,12 @@ import {
   papelizAccountTextFieldClassName,
   papelizAccountTextLinkClassName,
 } from './papeliz-account-card-frame'
-import { PapelizAccountCodeBoxes, papelizAccountEmailCodeLength } from './papeliz-account-code-boxes'
+import {
+  PapelizAccountCodeBoxes,
+  papelizAccountEmailCodeIncompleteMessage,
+  papelizAccountEmailCodeLength,
+  readPapelizAccountEmailCodeFieldErrorMessage,
+} from './papeliz-account-code-boxes'
 import { papelizAccountClerkErrorCodes, readPapelizAccountClerkError } from './papeliz-account-clerk-errors'
 import {
   isPapelizAccountSignInFresh,
@@ -21,15 +27,14 @@ import {
   type PapelizAccountProfileDetailKind,
 } from './papeliz-account-config'
 import { PapelizAccountDialog } from './papeliz-account-dialog'
+import { isPapelizAccountEmailAddressWellFormed, papelizAccountEmailAddressMalformedMessage } from './papeliz-account-email-address-check'
 import { PapelizAccountRow, papelizAccountPhoneChevronRowActionClassName } from './papeliz-account-rows'
 
-// Profile's Email and Username rows, each with Change (Adam, 2026-11-01: "can we make changing email
-// and Username available? … does clerk has some kind of option to send an otp to the new mail?"). A
-// new email gets a 6-digit code from Clerk and replaces the old one only once the code is entered; a
-// username follows the same rules as at sign-up. Both need a sign-in from the last 10 minutes, as
-// Delete Account does (Adam, 2026-11-01: "changing email and username must require a recent signin or
-// signin confirmation like delete account"): checked when the dialog opens and before each change, and
-// answered too when Clerk itself asks. Signing in again opens the dialog again.
+// Profile's Email and Username rows, each with Change. A new email gets a 6-digit code from Clerk and
+// replaces the old one only once the code is entered; a username follows the same rules as at sign-up.
+// Both need a sign-in from the last 10 minutes, as Delete Account does: checked when the dialog opens
+// and before each change, and answered too when Clerk itself asks. Signing in again opens the dialog
+// again.
 
 type PapelizAccountUser = NonNullable<ReturnType<typeof useUser>['user']>
 type PapelizAccountUserEmailAddress = PapelizAccountUser['emailAddresses'][number]
@@ -39,7 +44,11 @@ const papelizAccountProfileDetailNames: Record<PapelizAccountProfileDetailKind, 
 // The wait before Send a new code works again, as on the sign-in card.
 const papelizAccountEmailChangeResendWaitMilliseconds = 30_000
 
-const papelizAccountEmailAddressPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+// Clerk's `form_` errors are about what was typed, so they go on the dialog's field rather than
+// under it as the dialog's own failure.
+function isPapelizAccountClerkFieldErrorCode(clerkErrorCode: string | null): boolean {
+  return clerkErrorCode?.startsWith('form_') === true
+}
 
 // A row's Change: a white button on a computer; on a phone the row's chevron, the whole row taking
 // the tap, like Contact Support and Delete Account.
@@ -128,6 +137,11 @@ function PapelizAccountEmailChangeDialog({ user, closeEmailChangeDialog }: { use
   const [typedNewEmailAddress, setTypedNewEmailAddress] = useState('')
   const [typedEmailChangeCode, setTypedEmailChangeCode] = useState('')
   const [emailChangeFailureMessage, setEmailChangeFailureMessage] = useState<string | null>(null)
+  // The new address's own error and the code's, each drawn on its field.
+  const [newEmailAddressFieldErrorMessage, setNewEmailAddressFieldErrorMessage] = useState<string | null>(null)
+  const [emailChangeCodeFieldErrorMessage, setEmailChangeCodeFieldErrorMessage] = useState<string | null>(null)
+  const newEmailAddressFieldRef = useRef<HTMLInputElement>(null)
+  const emailChangeCodeFieldRef = useRef<HTMLInputElement>(null)
   const [emailChangeIsWorking, setEmailChangeIsWorking] = useState(false)
   const emailChangeIsWorkingRef = useRef(false)
   const [emailChangeResendAvailableAt, setEmailChangeResendAvailableAt] = useState(0)
@@ -144,6 +158,19 @@ function PapelizAccountEmailChangeDialog({ user, closeEmailChangeDialog }: { use
     return () => window.clearInterval(emailChangeResendTimer)
   }, [emailChangeResendAvailableAt])
 
+  // The address field can't take focus while a step runs, so an error Clerk answered with moves focus
+  // to its field once the step ends.
+  useEffect(() => {
+    if (emailChangeIsWorking) return
+    if (newEmailAddressFieldErrorMessage) newEmailAddressFieldRef.current?.focus()
+    else if (emailChangeCodeFieldErrorMessage) emailChangeCodeFieldRef.current?.focus()
+  }, [emailChangeIsWorking, newEmailAddressFieldErrorMessage, emailChangeCodeFieldErrorMessage])
+
+  function showPapelizAccountNewEmailAddressFieldError(newEmailAddressFieldError: string) {
+    setNewEmailAddressFieldErrorMessage(newEmailAddressFieldError)
+    newEmailAddressFieldRef.current?.focus()
+  }
+
   // One step at a time; Clerk's answers become this dialog's words.
   async function runPapelizAccountEmailChangeStep(emailChangeStep: () => Promise<void>) {
     if (emailChangeIsWorkingRef.current) return
@@ -154,22 +181,23 @@ function PapelizAccountEmailChangeDialog({ user, closeEmailChangeDialog }: { use
     emailChangeIsWorkingRef.current = true
     setEmailChangeIsWorking(true)
     setEmailChangeFailureMessage(null)
+    setNewEmailAddressFieldErrorMessage(null)
+    setEmailChangeCodeFieldErrorMessage(null)
     try {
       await emailChangeStep()
     } catch (emailChangeError) {
       const { clerkErrorCode, clerkErrorMessage } = readPapelizAccountClerkError(emailChangeError)
+      const emailChangeCodeFieldError = readPapelizAccountEmailCodeFieldErrorMessage(emailChangeError)
       if (clerkErrorCode === papelizAccountClerkErrorCodes.reverificationRequired) {
         setEmailChangeStage({ emailChangeStageKind: 'fresh-sign-in-needed' })
-      } else {
-        setEmailChangeFailureMessage(
-          clerkErrorCode === papelizAccountClerkErrorCodes.identifierAlreadyUsed
-            ? 'Another account already uses that email.'
-            : clerkErrorCode === papelizAccountClerkErrorCodes.codeIncorrect
-              ? 'That code isn’t right. Check it and try again.'
-              : clerkErrorCode === papelizAccountClerkErrorCodes.codeExpired
-                ? 'That code has expired. Send a new one.'
-                : clerkErrorMessage,
+      } else if (emailChangeStage.emailChangeStageKind === 'verifying' && (emailChangeCodeFieldError || isPapelizAccountClerkFieldErrorCode(clerkErrorCode))) {
+        setEmailChangeCodeFieldErrorMessage(emailChangeCodeFieldError ?? clerkErrorMessage)
+      } else if (emailChangeStage.emailChangeStageKind === 'entering' && isPapelizAccountClerkFieldErrorCode(clerkErrorCode)) {
+        setNewEmailAddressFieldErrorMessage(
+          clerkErrorCode === papelizAccountClerkErrorCodes.identifierAlreadyUsed ? 'Another account already uses that email.' : clerkErrorMessage,
         )
+      } else {
+        setEmailChangeFailureMessage(clerkErrorMessage)
       }
     } finally {
       emailChangeIsWorkingRef.current = false
@@ -196,12 +224,14 @@ function PapelizAccountEmailChangeDialog({ user, closeEmailChangeDialog }: { use
   function sendPapelizAccountEmailChangeCode(submitEvent?: FormEvent) {
     submitEvent?.preventDefault()
     const newEmailAddress = typedNewEmailAddress.trim()
-    if (!papelizAccountEmailAddressPattern.test(newEmailAddress)) {
-      setEmailChangeFailureMessage('Enter an email address, like name@example.com.')
+    if (!isPapelizAccountEmailAddressWellFormed(newEmailAddress)) {
+      setEmailChangeFailureMessage(null)
+      showPapelizAccountNewEmailAddressFieldError(papelizAccountEmailAddressMalformedMessage)
       return
     }
     if (currentEmailAddress && newEmailAddress.toLowerCase() === currentEmailAddress.toLowerCase()) {
-      setEmailChangeFailureMessage('That’s already your email.')
+      setEmailChangeFailureMessage(null)
+      showPapelizAccountNewEmailAddressFieldError('That’s already your email.')
       return
     }
     void runPapelizAccountEmailChangeStep(async () => {
@@ -223,11 +253,20 @@ function PapelizAccountEmailChangeDialog({ user, closeEmailChangeDialog }: { use
 
   function confirmPapelizAccountEmailChangeCode(emailChangeCode: string, submitEvent?: FormEvent) {
     submitEvent?.preventDefault()
-    if (emailChangeStage.emailChangeStageKind !== 'verifying' || emailChangeCode.length !== papelizAccountEmailCodeLength) return
+    if (emailChangeStage.emailChangeStageKind !== 'verifying' || emailChangeIsWorkingRef.current) return
+    if (emailChangeCode.length !== papelizAccountEmailCodeLength) {
+      setEmailChangeFailureMessage(null)
+      setEmailChangeCodeFieldErrorMessage(papelizAccountEmailCodeIncompleteMessage)
+      emailChangeCodeFieldRef.current?.focus()
+      return
+    }
     const { newEmailAddressRecord } = emailChangeStage
     void runPapelizAccountEmailChangeStep(async () => {
       const verifiedEmailAddressRecord = await newEmailAddressRecord.attemptVerification({ code: emailChangeCode })
-      if (verifiedEmailAddressRecord.verification.status !== 'verified') throw new Error('That code didn’t confirm the email. Try again.')
+      if (verifiedEmailAddressRecord.verification.status !== 'verified') {
+        setEmailChangeCodeFieldErrorMessage('That code didn’t confirm the email. Try again.')
+        return
+      }
       await makePapelizAccountEmailAddressPrimary(verifiedEmailAddressRecord)
     })
   }
@@ -300,13 +339,19 @@ function PapelizAccountEmailChangeDialog({ user, closeEmailChangeDialog }: { use
           </label>
           <PapelizAccountCodeBoxes
             papelizAccountEmailCodeInputId={emailChangeCodeFieldId}
+            papelizAccountEmailCodeInputRef={emailChangeCodeFieldRef}
             papelizAccountEmailCode={typedEmailChangeCode}
+            papelizAccountEmailCodeErrorId={emailChangeCodeFieldErrorMessage ? `${emailChangeCodeFieldId}-error` : null}
             onPapelizAccountEmailCodeChange={(nextEmailChangeCode) => {
               setTypedEmailChangeCode(nextEmailChangeCode)
               if (emailChangeFailureMessage) setEmailChangeFailureMessage(null)
+              if (emailChangeCodeFieldErrorMessage) setEmailChangeCodeFieldErrorMessage(null)
               if (nextEmailChangeCode.length === papelizAccountEmailCodeLength) confirmPapelizAccountEmailChangeCode(nextEmailChangeCode)
             }}
           />
+          {emailChangeCodeFieldErrorMessage && (
+            <PapelizAccountFieldError papelizAccountFieldErrorId={`${emailChangeCodeFieldId}-error`}>{emailChangeCodeFieldErrorMessage}</PapelizAccountFieldError>
+          )}
         </form>
         {emailChangeFailureMessage && <PapelizAccountProfileDetailFailure>{emailChangeFailureMessage}</PapelizAccountProfileDetailFailure>}
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-[13px]">
@@ -315,6 +360,7 @@ function PapelizAccountEmailChangeDialog({ user, closeEmailChangeDialog }: { use
             disabled={emailChangeIsWorking}
             onClick={() => {
               setEmailChangeFailureMessage(null)
+              setEmailChangeCodeFieldErrorMessage(null)
               setEmailChangeStage({ emailChangeStageKind: 'entering' })
             }}
             className={papelizAccountTextLinkClassName}
@@ -362,6 +408,7 @@ function PapelizAccountEmailChangeDialog({ user, closeEmailChangeDialog }: { use
           New Email
         </label>
         <input
+          ref={newEmailAddressFieldRef}
           id={newEmailAddressFieldId}
           type="email"
           required
@@ -372,12 +419,18 @@ function PapelizAccountEmailChangeDialog({ user, closeEmailChangeDialog }: { use
           placeholder="name@example.com"
           value={typedNewEmailAddress}
           disabled={emailChangeIsWorking}
+          aria-invalid={newEmailAddressFieldErrorMessage ? true : undefined}
+          aria-describedby={newEmailAddressFieldErrorMessage ? `${newEmailAddressFieldId}-error` : undefined}
           onChange={(changeEvent) => {
             setTypedNewEmailAddress(changeEvent.target.value)
             if (emailChangeFailureMessage) setEmailChangeFailureMessage(null)
+            if (newEmailAddressFieldErrorMessage) setNewEmailAddressFieldErrorMessage(null)
           }}
           className={`${papelizAccountTextFieldClassName} disabled:opacity-60`}
         />
+        {newEmailAddressFieldErrorMessage && (
+          <PapelizAccountFieldError papelizAccountFieldErrorId={`${newEmailAddressFieldId}-error`}>{newEmailAddressFieldErrorMessage}</PapelizAccountFieldError>
+        )}
       </form>
       {emailChangeFailureMessage && <PapelizAccountProfileDetailFailure>{emailChangeFailureMessage}</PapelizAccountProfileDetailFailure>}
     </PapelizAccountDialog>
@@ -389,6 +442,9 @@ function PapelizAccountUsernameChangeDialog({ user, closeUsernameChangeDialog }:
   const { session } = useSession()
   const [typedNewUsername, setTypedNewUsername] = useState(() => user.username ?? '')
   const [usernameChangeFailureMessage, setUsernameChangeFailureMessage] = useState<string | null>(null)
+  // The new username's own error, drawn on its field.
+  const [newUsernameFieldErrorMessage, setNewUsernameFieldErrorMessage] = useState<string | null>(null)
+  const newUsernameFieldRef = useRef<HTMLInputElement>(null)
   const [usernameChangeIsWorking, setUsernameChangeIsWorking] = useState(false)
   const [usernameChangeNeedsFreshSignIn, setUsernameChangeNeedsFreshSignIn] = useState(() => !isPapelizAccountSignInFresh(session?.factorVerificationAge))
   const newUsernameFieldId = useId()
@@ -396,22 +452,37 @@ function PapelizAccountUsernameChangeDialog({ user, closeUsernameChangeDialog }:
   const newUsername = typedNewUsername.trim()
   const newUsernameIsUnchanged = newUsername === (user.username ?? '')
 
+  // The field can't take focus while saving, so an error Clerk answered with moves focus to it after.
+  useEffect(() => {
+    if (!usernameChangeIsWorking && newUsernameFieldErrorMessage) newUsernameFieldRef.current?.focus()
+  }, [usernameChangeIsWorking, newUsernameFieldErrorMessage])
+
   async function savePapelizAccountUsername(submitEvent: FormEvent) {
     submitEvent.preventDefault()
-    if (usernameChangeIsWorking || !newUsername || newUsernameIsUnchanged) return
+    if (usernameChangeIsWorking) return
+    if (!newUsername) {
+      setUsernameChangeFailureMessage(null)
+      setNewUsernameFieldErrorMessage('Enter a username.')
+      newUsernameFieldRef.current?.focus()
+      return
+    }
+    if (newUsernameIsUnchanged) return
     if (!isPapelizAccountSignInFresh(session?.factorVerificationAge)) {
       setUsernameChangeNeedsFreshSignIn(true)
       return
     }
     setUsernameChangeIsWorking(true)
     setUsernameChangeFailureMessage(null)
+    setNewUsernameFieldErrorMessage(null)
     try {
       await user.update({ username: newUsername })
       closeUsernameChangeDialog()
     } catch (usernameChangeError) {
       const { clerkErrorCode, clerkErrorMessage } = readPapelizAccountClerkError(usernameChangeError)
       if (clerkErrorCode === papelizAccountClerkErrorCodes.reverificationRequired) setUsernameChangeNeedsFreshSignIn(true)
-      else setUsernameChangeFailureMessage(clerkErrorCode === papelizAccountClerkErrorCodes.identifierAlreadyUsed ? 'That username is taken. Try another.' : clerkErrorMessage)
+      else if (isPapelizAccountClerkFieldErrorCode(clerkErrorCode)) {
+        setNewUsernameFieldErrorMessage(clerkErrorCode === papelizAccountClerkErrorCodes.identifierAlreadyUsed ? 'That username is taken. Try another.' : clerkErrorMessage)
+      } else setUsernameChangeFailureMessage(clerkErrorMessage)
       setUsernameChangeIsWorking(false)
     }
   }
@@ -448,6 +519,7 @@ function PapelizAccountUsernameChangeDialog({ user, closeUsernameChangeDialog }:
           New Username
         </label>
         <input
+          ref={newUsernameFieldRef}
           id={newUsernameFieldId}
           type="text"
           required
@@ -457,12 +529,18 @@ function PapelizAccountUsernameChangeDialog({ user, closeUsernameChangeDialog }:
           spellCheck={false}
           value={typedNewUsername}
           disabled={usernameChangeIsWorking}
+          aria-invalid={newUsernameFieldErrorMessage ? true : undefined}
+          aria-describedby={newUsernameFieldErrorMessage ? `${newUsernameFieldId}-error` : undefined}
           onChange={(changeEvent) => {
             setTypedNewUsername(changeEvent.target.value)
             if (usernameChangeFailureMessage) setUsernameChangeFailureMessage(null)
+            if (newUsernameFieldErrorMessage) setNewUsernameFieldErrorMessage(null)
           }}
           className={`${papelizAccountTextFieldClassName} disabled:opacity-60`}
         />
+        {newUsernameFieldErrorMessage && (
+          <PapelizAccountFieldError papelizAccountFieldErrorId={`${newUsernameFieldId}-error`}>{newUsernameFieldErrorMessage}</PapelizAccountFieldError>
+        )}
       </form>
       {usernameChangeFailureMessage && <PapelizAccountProfileDetailFailure>{usernameChangeFailureMessage}</PapelizAccountProfileDetailFailure>}
     </PapelizAccountDialog>

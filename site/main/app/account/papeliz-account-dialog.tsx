@@ -4,10 +4,10 @@ import { useEffect, useId, useRef, type ReactNode } from 'react'
 import papelizAccountStyles from './papeliz-account.module.css'
 
 // The account page's dialog: a title, the body, then the footer's buttons: Cancel or Close at the
-// left edge, the main action at the right edge, the same width (Adam, 2026-11-01: "move the cancel to
-// the opposite side and make them uniform"); a lone button sits on the right, and on a phone the two
-// share the row. Escape, a click outside it and the footer's Close all close it, and focus goes back
-// to the button that opened it. A dialog asking to sign in again closes only from its own buttons.
+// left edge, the main action at the right edge, the same width; a lone button sits on the right, and
+// on a phone the two share the row. Escape, a click outside it and the footer's Close all close it,
+// and focus goes back to the button that opened it. A dialog asking to sign in again closes only from
+// its own buttons.
 // The title and the body break a long unbroken word, such as a 128-character device or vault name,
 // so the dialog never scrolls sideways.
 export function PapelizAccountDialog({

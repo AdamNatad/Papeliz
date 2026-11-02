@@ -3,16 +3,9 @@
 import { useAuth, useUser } from '@clerk/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { PapelizAccountCardFrame, PapelizAccountCardMark, papelizAccountPrimaryButtonClassName, papelizAccountTextLinkClassName } from './papeliz-account-card-frame'
-import {
-  papelizAccountAppPath,
-  papelizAccountNearestStoragePlaceBadgeClassName,
-  papelizAccountSignInWayStorageKey,
-  papelizAccountStoragePlaceLabels,
-  readPapelizAccountNearestStoragePlace,
-} from './papeliz-account-config'
+import { papelizAccountAppPath, papelizAccountSignInWayStorageKey, readPapelizAccountNearestStoragePlace } from './papeliz-account-config'
 import { PapelizAccountAfterLoadingBar, PapelizAccountStateScreen } from './papeliz-account-state-screen'
 import {
-  papelizSyncStoragePlaces,
   postPapelizSyncSignInFailure,
   startPapelizSyncDeviceSessionHandOver,
   type PapelizSyncSignInMethod,
@@ -20,6 +13,11 @@ import {
   type PapelizSyncStoragePlace,
 } from './papeliz-account-sync-hand-over'
 import type { PapelizAccountSyncService } from './papeliz-account-sync-service'
+import { usePapelizAccountSyncStoragePlaceChoice } from './papeliz-account-sync-storage-place-choice-store'
+import { PapelizAccountSyncStoragePlaceChoices } from './papeliz-account-sync-storage-place-choices'
+
+// The hand-over card's storage place radio group.
+const papelizAccountSyncHandOverStoragePlaceGroupName = 'papeliz-sync-storage-place'
 
 type PapelizSyncHandOverStage =
   | { syncHandOverStageKind: 'creating-device-session' }
@@ -52,8 +50,9 @@ export function PapelizAccountSyncHandOverScreen({ papelizSyncSignInPageParamete
   const { user } = useUser()
   const [syncHandOverStage, setSyncHandOverStage] = useState<PapelizSyncHandOverStage>({ syncHandOverStageKind: 'creating-device-session' })
   const [nearestPapelizSyncStoragePlace] = useState(readPapelizAccountNearestStoragePlace)
-  const [chosenPapelizSyncStoragePlace, setChosenPapelizSyncStoragePlace] = useState<PapelizSyncStoragePlace>(
-    () => papelizSyncSignInPageParameters.papelizSyncStoragePlaceForNewAccount ?? nearestPapelizSyncStoragePlace,
+  const [chosenPapelizSyncStoragePlace, setChosenPapelizSyncStoragePlace] = usePapelizAccountSyncStoragePlaceChoice(
+    papelizAccountSyncHandOverStoragePlaceGroupName,
+    papelizSyncSignInPageParameters.papelizSyncStoragePlaceForNewAccount ?? nearestPapelizSyncStoragePlace,
   )
   const syncHandOverHasStartedRef = useRef(false)
   const stopSyncHandOverRef = useRef<(() => void) | null>(null)
@@ -137,33 +136,12 @@ export function PapelizAccountSyncHandOverScreen({ papelizSyncSignInPageParamete
               void createPapelizSyncDeviceSession(chosenPapelizSyncStoragePlace)
             }}
           >
-            <fieldset className="m-0 grid gap-2 border-0 p-0">
-              <legend className="sr-only">Storage place</legend>
-              {papelizSyncStoragePlaces.map((papelizSyncStoragePlace) => (
-                <label
-                  key={papelizSyncStoragePlace}
-                  className={`flex cursor-pointer items-center gap-3 rounded-[10px] border px-3.5 py-2.5 ${
-                    chosenPapelizSyncStoragePlace === papelizSyncStoragePlace ? 'border-papeliz-blue bg-papeliz-blue-soft' : 'border-papeliz-line bg-papeliz-surface hover:bg-papeliz-surface-soft'
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="papeliz-sync-storage-place"
-                    value={papelizSyncStoragePlace}
-                    checked={chosenPapelizSyncStoragePlace === papelizSyncStoragePlace}
-                    onChange={() => setChosenPapelizSyncStoragePlace(papelizSyncStoragePlace)}
-                    className="size-4 accent-papeliz-gradient-start"
-                  />
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-semibold">{papelizAccountStoragePlaceLabels[papelizSyncStoragePlace].storagePlaceName}</span>
-                    {papelizAccountStoragePlaceLabels[papelizSyncStoragePlace].storagePlaceJurisdictionLine && (
-                      <span className="block text-xs text-papeliz-ink-muted">{papelizAccountStoragePlaceLabels[papelizSyncStoragePlace].storagePlaceJurisdictionLine}</span>
-                    )}
-                  </span>
-                  {papelizSyncStoragePlace === nearestPapelizSyncStoragePlace && <span className={papelizAccountNearestStoragePlaceBadgeClassName}>Nearest You</span>}
-                </label>
-              ))}
-            </fieldset>
+            <PapelizAccountSyncStoragePlaceChoices
+              syncStoragePlaceChoicesGroupName={papelizAccountSyncHandOverStoragePlaceGroupName}
+              chosenPapelizSyncStoragePlace={chosenPapelizSyncStoragePlace}
+              nearestPapelizSyncStoragePlace={nearestPapelizSyncStoragePlace}
+              onPapelizSyncStoragePlaceChoose={setChosenPapelizSyncStoragePlace}
+            />
             <button type="submit" className={`${papelizAccountPrimaryButtonClassName} mt-4`}>
               Continue
             </button>

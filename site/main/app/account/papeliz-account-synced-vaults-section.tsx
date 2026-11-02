@@ -5,6 +5,7 @@ import { ChevronRight, Cloud, KeyRound, Lock, Trash2, type LucideIcon } from 'lu
 import { useCallback, useEffect, useId, useRef, useState, type FormEvent, type ReactNode, type Ref } from 'react'
 import { PapelizSitePillSwitch } from '@/components/controls/papeliz-site-pill-switch'
 import {
+  PapelizAccountFieldError,
   papelizAccountCompactDangerButtonClassName,
   papelizAccountCompactPrimaryButtonClassName,
   papelizAccountFieldLabelClassName,
@@ -27,9 +28,8 @@ import {
 } from './papeliz-account-sync-vault-key-wrap'
 import { describePapelizAccountPastDay } from './papeliz-account-time-descriptions'
 
-// The account page's Vaults section (Adam, 2026-11-01: rows like Devices, under a Standard /
-// End-to-end tab switch; "on our account page just call them Vaults"): every vault synced with
-// Papeliz Sync, Remove from Sync on each ("rename this Remove from Sync not Delete from Sync"), and
+// The account page's Vaults section, rows like Devices under a Standard / End-to-end tab switch: every
+// vault synced with Papeliz Sync, Remove from Sync on each (it leaves the vault on its devices), and
 // Change Passphrase on an End-to-end one, which runs in this browser. The passphrases never leave it.
 
 export type PapelizAccountSyncVaultListStage =
@@ -267,11 +267,10 @@ export function PapelizAccountSyncedVaultsSection({ papelizAccountSyncedVaults }
 
   return (
     <>
-      {/* What every vault shares, then under the switch who holds the chosen kind's key (Adam,
-          2026-11-01: the tip's words on the page instead, "so no more tooltip then"). */}
+      {/* What every vault shares, then under the switch who holds the chosen kind's key, on the page
+          rather than in a tip. */}
       <PapelizAccountSectionIntro>Every vault is encrypted on your device before it uploads, and travels over HTTPS.</PapelizAccountSectionIntro>
-      {/* The site's pill switch, as tabs, with its bounce (Adam, 2026-11-01: "standard to end to end
-          swatch on accounts should have our swatch bounce animation"). */}
+      {/* The site's pill switch, as tabs, with its bounce. */}
       <div className="mb-3 md:mt-4 md:mb-1 md:w-[340px]">
         <PapelizSitePillSwitch
           papelizSitePillSwitchLabel="Vault encryption"
@@ -445,8 +444,7 @@ export function PapelizAccountSyncedVaultsDialogs({
 }
 
 // A vault row's actions on a computer: Change Passphrase (End-to-end only) and Remove from Sync, the
-// same choices a tap on the row gives on a phone (Adam, 2026-11-01, picking "One Manage menu" over
-// white, soft, solid, icon and text buttons).
+// same choices a tap on the row gives on a phone, in one Manage menu.
 function PapelizAccountSyncVaultManageMenu({
   syncVaultRecord,
   chooseSyncVaultDialog,
@@ -568,9 +566,7 @@ function PapelizAccountSyncVaultPassphraseField({
         className={`${papelizAccountTextFieldClassName} disabled:opacity-60`}
       />
       {syncVaultPassphraseFieldError && (
-        <p id={`${syncVaultPassphraseFieldId}-error`} className="mt-1.5 text-[13px] text-papeliz-diff-removed-ink">
-          {syncVaultPassphraseFieldError}
-        </p>
+        <PapelizAccountFieldError papelizAccountFieldErrorId={`${syncVaultPassphraseFieldId}-error`}>{syncVaultPassphraseFieldError}</PapelizAccountFieldError>
       )}
     </div>
   )
@@ -867,6 +863,9 @@ function PapelizAccountSyncVaultDeletionDialog({
   const papelizAccountClerk = useClerk()
   const { getToken } = useAuth()
   const [typedSyncVaultName, setTypedSyncVaultName] = useState('')
+  // The typed name's own error, drawn on its field when Enter is pressed before it matches.
+  const [typedSyncVaultNameFieldErrorMessage, setTypedSyncVaultNameFieldErrorMessage] = useState<string | null>(null)
+  const typedSyncVaultNameFieldRef = useRef<HTMLInputElement>(null)
   const [syncVaultDeletionStageKind, setSyncVaultDeletionStageKind] = useState<PapelizAccountSyncVaultDeletionStageKind>('confirming')
   const [syncVaultDeletionFailureMessage, setSyncVaultDeletionFailureMessage] = useState('')
   const typedSyncVaultNameFieldId = useId()
@@ -948,6 +947,11 @@ function PapelizAccountSyncVaultDeletionDialog({
         noValidate
         onSubmit={(deletionSubmitEvent) => {
           deletionSubmitEvent.preventDefault()
+          if (!typedSyncVaultNameMatches && !syncVaultDeletionIsRunning) {
+            setTypedSyncVaultNameFieldErrorMessage('That doesn’t match the vault’s name.')
+            typedSyncVaultNameFieldRef.current?.focus()
+            return
+          }
           void deletePapelizAccountSyncVault()
         }}
       >
@@ -955,17 +959,26 @@ function PapelizAccountSyncVaultDeletionDialog({
           Type the vault’s name to confirm
         </label>
         <input
+          ref={typedSyncVaultNameFieldRef}
           id={typedSyncVaultNameFieldId}
           type="text"
           value={typedSyncVaultName}
-          onChange={(typedNameChangeEvent) => setTypedSyncVaultName(typedNameChangeEvent.target.value)}
+          onChange={(typedNameChangeEvent) => {
+            setTypedSyncVaultName(typedNameChangeEvent.target.value)
+            if (typedSyncVaultNameFieldErrorMessage) setTypedSyncVaultNameFieldErrorMessage(null)
+          }}
           placeholder={syncVaultName}
           autoComplete="off"
           autoCapitalize="off"
           spellCheck={false}
           disabled={syncVaultDeletionIsRunning}
+          aria-invalid={typedSyncVaultNameFieldErrorMessage ? true : undefined}
+          aria-describedby={typedSyncVaultNameFieldErrorMessage ? `${typedSyncVaultNameFieldId}-error` : undefined}
           className={`${papelizAccountTextFieldClassName} disabled:opacity-60`}
         />
+        {typedSyncVaultNameFieldErrorMessage && (
+          <PapelizAccountFieldError papelizAccountFieldErrorId={`${typedSyncVaultNameFieldId}-error`}>{typedSyncVaultNameFieldErrorMessage}</PapelizAccountFieldError>
+        )}
       </form>
       {syncVaultDeletionStageKind === 'failed' && (
         <p role="alert" className="text-papeliz-diff-removed-ink">

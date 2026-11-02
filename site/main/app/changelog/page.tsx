@@ -35,6 +35,9 @@ export default function PapelizSiteChangelogPage() {
             </div>
             <div>
               <h2 className="text-xl font-semibold tracking-tight">{papelizSiteChangelogEntry.papelizSiteChangelogTitle}</h2>
+              {papelizSiteChangelogEntry.papelizSiteChangelogNote && (
+                <p className="mt-3 rounded-xl bg-papeliz-blue-soft px-3.5 py-2 text-[15px] leading-relaxed text-papeliz-ink">{papelizSiteChangelogEntry.papelizSiteChangelogNote}</p>
+              )}
               <ul className="mt-3 list-disc space-y-1.5 pl-5 text-[15px] leading-relaxed text-papeliz-ink-muted marker:text-papeliz-line-strong">
                 {papelizSiteChangelogEntry.papelizSiteChangelogChanges.map((papelizSiteChangelogChange) => (
                   <li key={papelizSiteChangelogChange}>{papelizSiteChangelogChange}</li>
