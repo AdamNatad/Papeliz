@@ -292,13 +292,13 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
   {
     papelizHelpArticleSlug: 'settings-gear',
     articleTitle: 'The Settings gear',
-    articleSummary: 'Appearance, accessibility, key bindings, backups, export, locking, focus mode and closing the vault, in one panel.',
+    articleSummary: 'Accessibility, key bindings, backups, export, locking, focus mode and closing the vault, in one panel.',
     papelizHelpGroupSlug: 'getting-started',
     papelizHelpArticleAvailability: 'available',
     articleSections: [
       helpSection('Open it', [
         helpParagraph(
-          'The gear at the right end of the top bar opens a panel: a list on the left, and the page you choose on the right. It opens on **Appearance**. `Esc` or a click outside closes it.',
+          'The gear at the right end of the top bar opens a panel: a list on the left, and the page you choose on the right. It opens on **Accessibility**. `Esc` or a click outside closes it.',
         ),
         helpParagraph('In a narrow window the list fills the panel. Each page opens over it, and the back arrow returns to the list.'),
       ]),
@@ -308,8 +308,7 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
           '**Sync**: keep your vaults in sync across web, desktop and mobile, with end-to-end encryption for the vaults you choose. A paid add-on, coming soon.',
           '**Settings**: the tabs **Vault**, the open vault’s name (a vault kept in your browser renames here; a folder vault takes its folder’s name), and **Key Bindings**, the shortcuts you can change. See [[keyboard-shortcuts]]. In a vault kept in your browser, a third tab, **Reminder**, holds the backup reminder and **Download Backup**. See [[keep-a-vault-in-your-browser]].',
           '**Export**: download notes as Word, PDF or HTML files. See **Export** below.',
-          '**Appearance**: the theme, and how note tabs show. See [[text-settings-and-theme]].',
-          '**Accessibility**: how your notes’ text looks: font, size and width. See [[text-settings-and-theme]].',
+          '**Accessibility**: the theme, how note tabs show, and how your notes’ text looks: font, size and width. See [[text-settings-and-theme]].',
           '**AI Assistant**: choose the provider and add your key. See [[bring-your-own-key]].',
           '**Lock All Notes**: a switch that locks every note in the vault. See [[switch-views-and-lock]].',
           '**Focus Mode**: a switch for [[focus-mode|focus mode]].',
@@ -320,7 +319,9 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
         helpParagraph(
           'Tick the notes you want. The open note comes ticked, and opening a folder lets you pick single notes inside it. Then pick a format and press **Export**. One note downloads as one file; several download as one `.zip`, folders kept.',
         ),
-        helpParagraph('For Word and PDF, pick the **Paper**: Letter or A4. Papeliz starts with your region’s paper and remembers the one you pick.'),
+        helpParagraph(
+          'For Word and PDF, choose the paper from **Paper**, at the right of **Format**: Letter, A4 and the other sizes Google Docs offers, or **Custom** for your own width and height, from 3 to 22 inches a side (76.2 to 558.8 mm). Papeliz starts with your region’s paper and remembers the one you pick.',
+        ),
         helpBulletList([
           '**Word**: an editable `.docx` for each note, with its headings, lists, tables, callouts, footnotes, pictures and diagrams. In a `.zip`, a link to another exported note opens that note’s file once the `.zip` is unpacked.',
           '**PDF**: pages for printing and sharing, written by Papeliz itself, with no print window. Text stays text you can search and copy, links work, and headings become bookmarks. Several notes download as one `.zip` of `.pdf` files.',
@@ -335,7 +336,7 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
         ),
       ]),
       helpSection('On the start page', [
-        helpParagraph('The start page has a gear too, with **Account**, **Sync** and **Appearance**. With no vault open, Appearance holds only the theme.'),
+        helpParagraph('The start page has a gear too, with **Account**, **Sync** and **Accessibility**. With no vault open, Accessibility holds only the theme.'),
       ]),
     ],
     relatedArticleSlugs: ['text-settings-and-theme', 'keyboard-shortcuts', 'switch-views-and-lock'],

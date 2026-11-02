@@ -1,9 +1,19 @@
 import { ChevronDown, ChevronRight, Download, FilePen, FileText, Folder, Globe, LoaderCircle, Printer, Search } from 'lucide-react'
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
-import { choosePapelizExportDefaultPageSize, type PapelizExportPageSize } from '../export-print-style/papeliz-export-print-style'
+import {
+  choosePapelizExportDefaultPageSize,
+  isPapelizExportCustomPageSideInRange,
+  isPapelizExportPresetPageSize,
+  papelizExportCustomPageSideRangePoints,
+  papelizExportPresetPageSizesInPoints,
+  type PapelizExportCustomPageSize,
+  type PapelizExportPageSize,
+  type PapelizExportPresetPageSize,
+} from '../export-print-style/papeliz-export-print-style'
 import type { PapelizPdfExportLocalFontData } from '../pdf-export/papeliz-pdf-export-computer-fonts'
 import { papelizExportPaperSizeSettingName, readPapelizUserSetting, writePapelizUserSetting } from '../settings/papeliz-user-settings'
 import { PapelizPillButton } from '../ui/papeliz-buttons'
+import { PapelizListboxSelect, type PapelizListboxSelectOption } from '../ui/papeliz-listbox-select'
 import { PapelizSlidingChoiceGroup } from '../ui/papeliz-sliding-choice-group'
 import { describePapelizErrorSentence } from '../vault/papeliz-failure-code-words'
 import { PapelizVaultOperationError } from '../vault/papeliz-vault-adapter'
@@ -69,14 +79,102 @@ interface PapelizSettingsGearPreparedExport {
 // The notices shown under a saved export; the rest are counted.
 const papelizSettingsGearShownExportNoticeCount = 3
 
-// The paper Word and PDF print on; HTML has no pages.
-const papelizSettingsGearExportPaperChoices: ReadonlyArray<{ exportPaperSize: PapelizExportPageSize; exportPaperLabel: string }> = [
-  { exportPaperSize: 'letter', exportPaperLabel: 'Letter' },
-  { exportPaperSize: 'a4', exportPaperLabel: 'A4' },
+// The paper Word and PDF print on (HTML has no pages): the sizes Google Docs offers, in its order,
+// then Custom, a width and height of the person's own.
+type PapelizSettingsGearExportPaperChoice = PapelizExportPresetPageSize | 'custom'
+type PapelizSettingsGearExportCustomPaperUnit = 'in' | 'mm'
+
+const papelizSettingsGearExportPresetPaperRows: ReadonlyArray<{
+  exportPresetPaperSize: PapelizExportPresetPageSize
+  exportPaperLabel: string
+  exportPaperUnit: PapelizSettingsGearExportCustomPaperUnit
+}> = [
+  { exportPresetPaperSize: 'letter', exportPaperLabel: 'Letter', exportPaperUnit: 'in' },
+  { exportPresetPaperSize: 'tabloid', exportPaperLabel: 'Tabloid', exportPaperUnit: 'in' },
+  { exportPresetPaperSize: 'legal', exportPaperLabel: 'Legal', exportPaperUnit: 'in' },
+  { exportPresetPaperSize: 'statement', exportPaperLabel: 'Statement', exportPaperUnit: 'in' },
+  { exportPresetPaperSize: 'executive', exportPaperLabel: 'Executive', exportPaperUnit: 'in' },
+  { exportPresetPaperSize: 'folio', exportPaperLabel: 'Folio', exportPaperUnit: 'in' },
+  { exportPresetPaperSize: 'a3', exportPaperLabel: 'A3', exportPaperUnit: 'mm' },
+  { exportPresetPaperSize: 'a4', exportPaperLabel: 'A4', exportPaperUnit: 'mm' },
+  { exportPresetPaperSize: 'a5', exportPaperLabel: 'A5', exportPaperUnit: 'mm' },
+  { exportPresetPaperSize: 'b4', exportPaperLabel: 'B4', exportPaperUnit: 'mm' },
+  { exportPresetPaperSize: 'b5', exportPaperLabel: 'B5', exportPaperUnit: 'mm' },
 ]
 
-function isPapelizExportPageSize(storedExportPaperSize: unknown): storedExportPaperSize is PapelizExportPageSize {
-  return storedExportPaperSize === 'letter' || storedExportPaperSize === 'a4'
+const papelizSettingsGearExportPointsPerCustomPaperUnit: Record<PapelizSettingsGearExportCustomPaperUnit, number> = { in: 72, mm: 72 / 25.4 }
+
+// "8.5", "215.9": a page side in a unit, to two decimals in inches and one in millimeters.
+function formatExportPaperSide(pageSidePoints: number, exportPaperUnit: PapelizSettingsGearExportCustomPaperUnit): string {
+  const sideDecimalScale = exportPaperUnit === 'in' ? 100 : 10
+  return String(Math.round((pageSidePoints / papelizSettingsGearExportPointsPerCustomPaperUnit[exportPaperUnit]) * sideDecimalScale) / sideDecimalScale)
+}
+
+function describePresetPaperDimensions(exportPresetPaperSize: PapelizExportPresetPageSize, exportPaperUnit: PapelizSettingsGearExportCustomPaperUnit): string {
+  const { pageWidthPoints, pageHeightPoints } = papelizExportPresetPageSizesInPoints[exportPresetPaperSize]
+  return `${formatExportPaperSide(pageWidthPoints, exportPaperUnit)} × ${formatExportPaperSide(pageHeightPoints, exportPaperUnit)} ${exportPaperUnit}`
+}
+
+const papelizSettingsGearExportPaperListboxOptions: readonly PapelizListboxSelectOption[] = [
+  ...papelizSettingsGearExportPresetPaperRows.map((presetPaperRow) => ({
+    listboxOptionValue: presetPaperRow.exportPresetPaperSize,
+    listboxOptionLabel: presetPaperRow.exportPaperLabel,
+    listboxOptionNote: describePresetPaperDimensions(presetPaperRow.exportPresetPaperSize, presetPaperRow.exportPaperUnit),
+  })),
+  { listboxOptionValue: 'custom', listboxOptionLabel: 'Custom', listboxOptionNote: 'Your own size' },
+]
+
+// A custom paper as typed: each side as written, and their unit.
+interface PapelizSettingsGearExportCustomPaper {
+  customPaperWidthText: string
+  customPaperHeightText: string
+  customPaperUnit: PapelizSettingsGearExportCustomPaperUnit
+}
+
+// The remembered paper: a named size, or a custom one in its unit.
+type PapelizSettingsGearStoredExportPaper =
+  | PapelizExportPresetPageSize
+  | { exportCustomPaperWidth: number; exportCustomPaperHeight: number; exportCustomPaperUnit: PapelizSettingsGearExportCustomPaperUnit }
+
+function isPapelizSettingsGearStoredExportPaper(storedExportPaper: unknown): storedExportPaper is PapelizSettingsGearStoredExportPaper {
+  if (isPapelizExportPresetPageSize(storedExportPaper)) return true
+  if (typeof storedExportPaper !== 'object' || storedExportPaper === null) return false
+  const { exportCustomPaperWidth, exportCustomPaperHeight, exportCustomPaperUnit } = storedExportPaper as Record<string, unknown>
+  return typeof exportCustomPaperWidth === 'number' && typeof exportCustomPaperHeight === 'number' && (exportCustomPaperUnit === 'in' || exportCustomPaperUnit === 'mm')
+}
+
+// A typed side in points, or null when it isn't a plain number ("8.5", "8,5" and "210" are).
+function readExportCustomPaperSidePoints(customPaperSideText: string, customPaperUnit: PapelizSettingsGearExportCustomPaperUnit): number | null {
+  const customPaperSideNumberText = customPaperSideText.trim().replace(',', '.')
+  if (!/^(\d+\.?\d*|\.\d+)$/.test(customPaperSideNumberText)) return null
+  return Number(customPaperSideNumberText) * papelizSettingsGearExportPointsPerCustomPaperUnit[customPaperUnit]
+}
+
+// The custom paper's page, or null while a side is missing or out of range.
+function readExportCustomPaperPageSize(exportCustomPaper: PapelizSettingsGearExportCustomPaper): PapelizExportCustomPageSize | null {
+  const customPageWidthPoints = readExportCustomPaperSidePoints(exportCustomPaper.customPaperWidthText, exportCustomPaper.customPaperUnit)
+  const customPageHeightPoints = readExportCustomPaperSidePoints(exportCustomPaper.customPaperHeightText, exportCustomPaper.customPaperUnit)
+  if (customPageWidthPoints === null || customPageHeightPoints === null) return null
+  if (!isPapelizExportCustomPageSideInRange(customPageWidthPoints) || !isPapelizExportCustomPageSideInRange(customPageHeightPoints)) return null
+  return { customPageWidthPoints, customPageHeightPoints }
+}
+
+// Custom starts as the named paper shown before it, in that paper's own unit.
+function startExportCustomPaperFrom(exportPresetPaperSize: PapelizExportPresetPageSize): PapelizSettingsGearExportCustomPaper {
+  const customPaperUnit =
+    papelizSettingsGearExportPresetPaperRows.find((presetPaperRow) => presetPaperRow.exportPresetPaperSize === exportPresetPaperSize)?.exportPaperUnit ?? 'mm'
+  const { pageWidthPoints, pageHeightPoints } = papelizExportPresetPageSizesInPoints[exportPresetPaperSize]
+  return {
+    customPaperWidthText: formatExportPaperSide(pageWidthPoints, customPaperUnit),
+    customPaperHeightText: formatExportPaperSide(pageHeightPoints, customPaperUnit),
+    customPaperUnit,
+  }
+}
+
+// "Each side from 3 to 22 in." in the unit typed.
+function describeExportCustomPaperSideRange(customPaperUnit: PapelizSettingsGearExportCustomPaperUnit): string {
+  const { smallestPageSidePoints, largestPageSidePoints } = papelizExportCustomPageSideRangePoints
+  return `Each side from ${formatExportPaperSide(smallestPageSidePoints, customPaperUnit)} to ${formatExportPaperSide(largestPageSidePoints, customPaperUnit)} ${customPaperUnit}.`
 }
 
 // A failed export's line: "The export stopped.", then why as a sentence of its own, capitalized and
@@ -268,22 +366,71 @@ export function PapelizSettingsGearExportPage() {
   const [chosenExportFormat, setChosenExportFormat] = useState<PapelizSettingsGearExportFormat>('word')
   const [computerFontsQuestion, setComputerFontsQuestion] = useState<PapelizSettingsGearComputerFontsQuestion | null>(null)
   // The region's paper until the person picks one, which is then remembered.
-  const [exportPaperSize, setExportPaperSize] = useState<PapelizExportPageSize>(() => choosePapelizExportDefaultPageSize(navigator.languages))
-  const hasChosenExportPaperSizeRef = useRef(false)
+  const [exportPaperChoice, setExportPaperChoice] = useState<PapelizSettingsGearExportPaperChoice>(() => choosePapelizExportDefaultPageSize(navigator.languages))
+  const [exportCustomPaper, setExportCustomPaper] = useState<PapelizSettingsGearExportCustomPaper>(() =>
+    startExportCustomPaperFrom(choosePapelizExportDefaultPageSize(navigator.languages)),
+  )
+  const hasChosenExportPaperRef = useRef(false)
+  const exportPaperLabelId = useId()
+  const exportPaperTriggerId = useId()
   useEffect(() => {
     let isPaperSettingWanted = true
-    void readPapelizUserSetting<unknown>(papelizExportPaperSizeSettingName, null).then((storedExportPaperSize) => {
-      if (isPaperSettingWanted && !hasChosenExportPaperSizeRef.current && isPapelizExportPageSize(storedExportPaperSize)) setExportPaperSize(storedExportPaperSize)
+    void readPapelizUserSetting<unknown>(papelizExportPaperSizeSettingName, null).then((storedExportPaper) => {
+      if (!isPaperSettingWanted || hasChosenExportPaperRef.current || !isPapelizSettingsGearStoredExportPaper(storedExportPaper)) return
+      if (typeof storedExportPaper === 'string') {
+        setExportPaperChoice(storedExportPaper)
+        return
+      }
+      setExportCustomPaper({
+        customPaperWidthText: String(storedExportPaper.exportCustomPaperWidth),
+        customPaperHeightText: String(storedExportPaper.exportCustomPaperHeight),
+        customPaperUnit: storedExportPaper.exportCustomPaperUnit,
+      })
+      setExportPaperChoice('custom')
     })
     return () => {
       isPaperSettingWanted = false
     }
   }, [])
-  const chooseExportPaperSize = (chosenExportPaperSize: PapelizExportPageSize) => {
-    hasChosenExportPaperSizeRef.current = true
-    setExportPaperSize(chosenExportPaperSize)
-    void writePapelizUserSetting(papelizExportPaperSizeSettingName, chosenExportPaperSize)
+  // A custom paper is remembered once both sides fit.
+  const rememberExportCustomPaper = (changedExportCustomPaper: PapelizSettingsGearExportCustomPaper) => {
+    hasChosenExportPaperRef.current = true
+    if (readExportCustomPaperPageSize(changedExportCustomPaper) === null) return
+    void writePapelizUserSetting(papelizExportPaperSizeSettingName, {
+      exportCustomPaperWidth: Number(changedExportCustomPaper.customPaperWidthText.trim().replace(',', '.')),
+      exportCustomPaperHeight: Number(changedExportCustomPaper.customPaperHeightText.trim().replace(',', '.')),
+      exportCustomPaperUnit: changedExportCustomPaper.customPaperUnit,
+    } satisfies PapelizSettingsGearStoredExportPaper)
   }
+  const chooseExportPaper = (chosenExportPaperChoice: PapelizSettingsGearExportPaperChoice) => {
+    hasChosenExportPaperRef.current = true
+    if (chosenExportPaperChoice !== 'custom') {
+      setExportPaperChoice(chosenExportPaperChoice)
+      void writePapelizUserSetting(papelizExportPaperSizeSettingName, chosenExportPaperChoice satisfies PapelizSettingsGearStoredExportPaper)
+      return
+    }
+    const startingExportCustomPaper = exportPaperChoice === 'custom' ? exportCustomPaper : startExportCustomPaperFrom(exportPaperChoice)
+    setExportCustomPaper(startingExportCustomPaper)
+    setExportPaperChoice('custom')
+    rememberExportCustomPaper(startingExportCustomPaper)
+  }
+  const changeExportCustomPaper = (changedExportCustomPaper: PapelizSettingsGearExportCustomPaper) => {
+    setExportCustomPaper(changedExportCustomPaper)
+    rememberExportCustomPaper(changedExportCustomPaper)
+  }
+  // Switching the unit converts both sides when they read as numbers.
+  const changeExportCustomPaperUnit = (chosenCustomPaperUnit: PapelizSettingsGearExportCustomPaperUnit) => {
+    const customPageWidthPoints = readExportCustomPaperSidePoints(exportCustomPaper.customPaperWidthText, exportCustomPaper.customPaperUnit)
+    const customPageHeightPoints = readExportCustomPaperSidePoints(exportCustomPaper.customPaperHeightText, exportCustomPaper.customPaperUnit)
+    changeExportCustomPaper({
+      customPaperWidthText: customPageWidthPoints === null ? exportCustomPaper.customPaperWidthText : formatExportPaperSide(customPageWidthPoints, chosenCustomPaperUnit),
+      customPaperHeightText: customPageHeightPoints === null ? exportCustomPaper.customPaperHeightText : formatExportPaperSide(customPageHeightPoints, chosenCustomPaperUnit),
+      customPaperUnit: chosenCustomPaperUnit,
+    })
+  }
+  // What Word and the PDF print on; null while a custom side is missing or out of range.
+  const exportPaperSize: PapelizExportPageSize | null = exportPaperChoice === 'custom' ? readExportCustomPaperPageSize(exportCustomPaper) : exportPaperChoice
+  const isExportPaperChosen = chosenExportFormat === 'html' || exportPaperSize !== null
 
   // Ticks that still name a note in the vault (one may have been renamed or trashed meanwhile).
   const tickedExportNoteCount = everyExportNoteRelativePath.filter((exportNoteRelativePath) => tickedVaultNoteRelativePaths.has(exportNoteRelativePath)).length
@@ -293,7 +440,9 @@ export function PapelizSettingsGearExportPage() {
   const chosenExportFormatRow =
     papelizSettingsGearExportFormatRows.find((exportFormatRow) => exportFormatRow.exportFormat === chosenExportFormat) ?? papelizSettingsGearExportFormatRows[0]
   const chosenExportFormatLabel = chosenExportFormatRow?.exportFormatLabel ?? ''
-  const exportButtonLabel = isEveryExportNoteTicked
+  // The button just says Export (the summary above says what downloads); its name for screen readers
+  // keeps the count and the format.
+  const exportButtonAccessibleName = isEveryExportNoteTicked
     ? `Export All Notes as ${chosenExportFormatLabel}`
     : tickedExportNoteCount > 1
       ? `Export ${tickedExportNoteCount} Notes as ${chosenExportFormatLabel}`
@@ -310,13 +459,14 @@ export function PapelizSettingsGearExportPage() {
 
   const isExportRunning = exportRunState.exportRunKind === 'running'
   const isChosenExportFormatReady = chosenExportFormatRow?.isExportFormatReady === true
-  const canExport = isChosenExportFormatReady && tickedExportNoteCount > 0 && openVault !== null && !isExportRunning
+  const canExport = isChosenExportFormatReady && isExportPaperChosen && tickedExportNoteCount > 0 && openVault !== null && !isExportRunning
 
   // Loads the chosen format's engine and says what it will save.
   const prepareChosenExport = async (exportVaultNoteRelativePaths: readonly string[]): Promise<PapelizSettingsGearPreparedExport | null> => {
     if (openVault === null) return null
     const { papelizVaultAdapter, papelizVaultDisplayName } = openVault
     if (chosenExportFormat === 'word') {
+      if (exportPaperSize === null) return null
       const docxExportModule = await import('../docx-export/papeliz-docx-export')
       const docxExportFileKind = docxExportModule.describePapelizDocxExportFile(papelizVaultDisplayName, exportVaultNoteRelativePaths)
       return {
@@ -341,6 +491,7 @@ export function PapelizSettingsGearExportPage() {
       }
     }
     if (chosenExportFormat === 'pdf') {
+      if (exportPaperSize === null) return null
       const pdfExportModule = await import('../pdf-export/papeliz-pdf-export')
       const pdfExportFileKind = pdfExportModule.describePapelizPdfExportFile(papelizVaultDisplayName, exportVaultNoteRelativePaths)
       return {
@@ -548,32 +699,79 @@ export function PapelizSettingsGearExportPage() {
       </div>
       <p className="mt-2 text-[12px] leading-[1.4] text-papeliz-ink-muted">{exportSelectionSummary}</p>
 
-      <p className="mt-3 mb-1.5 text-[12px] font-medium text-papeliz-ink-subtle">Format</p>
+      <div className="mt-3 mb-1.5 flex min-h-7 items-center justify-between gap-2">
+        <p className="text-[12px] font-medium text-papeliz-ink-subtle">Format</p>
+        {chosenExportFormat !== 'html' && (
+          <div className="flex items-center gap-1.5">
+            <span id={exportPaperLabelId} className="text-[12px] text-papeliz-ink-subtle">
+              Paper
+            </span>
+            <PapelizListboxSelect
+              listboxSelectSize="compact"
+              listboxSelectTriggerId={exportPaperTriggerId}
+              listboxSelectLabelId={exportPaperLabelId}
+              listboxSelectOptions={papelizSettingsGearExportPaperListboxOptions}
+              chosenListboxOptionValue={exportPaperChoice}
+              onListboxOptionChoose={(chosenListboxOptionValue) => chooseExportPaper(isPapelizExportPresetPageSize(chosenListboxOptionValue) ? chosenListboxOptionValue : 'custom')}
+            />
+          </div>
+        )}
+      </div>
+      {chosenExportFormat !== 'html' && exportPaperChoice === 'custom' && (
+        <div className="mb-2 rounded-xl border border-papeliz-line bg-papeliz-surface p-2">
+          <div className="flex items-center gap-1.5">
+            <input
+              type="text"
+              inputMode="decimal"
+              aria-label="Paper width"
+              value={exportCustomPaper.customPaperWidthText}
+              onChange={(changeEvent) => changeExportCustomPaper({ ...exportCustomPaper, customPaperWidthText: changeEvent.target.value })}
+              className="h-8 w-16 min-w-0 rounded-lg border border-papeliz-line-strong bg-papeliz-surface px-2 text-center text-[12.5px] text-papeliz-ink tabular-nums outline-none focus-visible:border-papeliz-blue"
+            />
+            <span aria-hidden="true" className="text-[12px] text-papeliz-ink-subtle">
+              ×
+            </span>
+            <input
+              type="text"
+              inputMode="decimal"
+              aria-label="Paper height"
+              value={exportCustomPaper.customPaperHeightText}
+              onChange={(changeEvent) => changeExportCustomPaper({ ...exportCustomPaper, customPaperHeightText: changeEvent.target.value })}
+              className="h-8 w-16 min-w-0 rounded-lg border border-papeliz-line-strong bg-papeliz-surface px-2 text-center text-[12.5px] text-papeliz-ink tabular-nums outline-none focus-visible:border-papeliz-blue"
+            />
+            <PapelizSlidingChoiceGroup<PapelizSettingsGearExportCustomPaperUnit>
+              slidingChoiceGroupLabel="Paper unit"
+              slidingChoiceGroupRole="radiogroup"
+              chosenSlidingChoiceValue={exportCustomPaper.customPaperUnit}
+              onSlidingChoiceSelect={changeExportCustomPaperUnit}
+              slidingChoiceGroupClassName="min-w-0 flex-1"
+              slidingChoices={[
+                { slidingChoiceValue: 'in', slidingChoiceContent: 'in' },
+                { slidingChoiceValue: 'mm', slidingChoiceContent: 'mm' },
+              ]}
+            />
+          </div>
+          <p className={`mt-1.5 text-[11.5px] leading-[1.4] ${exportPaperSize === null ? 'text-papeliz-error-notice-ink' : 'text-papeliz-ink-subtle'}`}>
+            Width × height. {describeExportCustomPaperSideRange(exportCustomPaper.customPaperUnit)}
+          </p>
+        </div>
+      )}
       <PapelizSettingsGearExportFormatList chosenExportFormat={chosenExportFormat} onExportFormatSelect={setChosenExportFormat} />
 
-      {chosenExportFormat !== 'html' && (
-        <>
-          <p className="mt-3 mb-1.5 text-[12px] font-medium text-papeliz-ink-subtle">Paper</p>
-          <PapelizSlidingChoiceGroup
-            slidingChoiceGroupLabel="Paper"
-            slidingChoiceGroupRole="radiogroup"
-            chosenSlidingChoiceValue={exportPaperSize}
-            onSlidingChoiceSelect={chooseExportPaperSize}
-            slidingChoices={papelizSettingsGearExportPaperChoices.map(({ exportPaperSize: paperChoiceSize, exportPaperLabel }) => ({
-              slidingChoiceValue: paperChoiceSize,
-              slidingChoiceContent: exportPaperLabel,
-            }))}
-          />
-        </>
-      )}
-
-      <PapelizPillButton pillButtonVariant="primary" pillButtonSize="small" disabled={!canExport} onClick={() => void exportTickedNotes()} className="mt-3 w-full pointer-coarse:h-10">
+      <PapelizPillButton
+        pillButtonVariant="primary"
+        pillButtonSize="small"
+        disabled={!canExport}
+        aria-label={isExportRunning ? undefined : exportButtonAccessibleName}
+        onClick={() => void exportTickedNotes()}
+        className="mt-3 w-full pointer-coarse:h-10"
+      >
         {isExportRunning ? <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" /> : <Download className="size-3.5" aria-hidden="true" />}
         {exportRunState.exportRunKind === 'running'
           ? exportRunState.exportNoteCount > 1
             ? `Exporting ${exportRunState.exportedNoteCount} of ${exportRunState.exportNoteCount}…`
             : 'Exporting…'
-          : exportButtonLabel}
+          : 'Export'}
       </PapelizPillButton>
       {isExportRunning && computerFontsQuestion !== null && (
         <div className="mt-2 rounded-xl border border-papeliz-line bg-papeliz-surface p-2.5 text-[12px] leading-[1.45] text-papeliz-ink-muted">

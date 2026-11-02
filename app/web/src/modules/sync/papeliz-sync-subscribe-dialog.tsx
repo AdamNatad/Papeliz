@@ -81,10 +81,7 @@ export function PapelizSyncSubscribeDialog({ papelizSyncEngine, syncEngineSnapsh
         <div role="radiogroup" aria-label="Storage place" className="mt-4 divide-y divide-papeliz-line overflow-hidden rounded-2xl border border-papeliz-line">
           {papelizSyncStoragePlaceDescriptions.map((storagePlaceDescription) => {
             const isStoragePlaceChosen = syncSubscribeStep.chosenSyncStoragePlace === storagePlaceDescription.papelizSyncStoragePlace
-            const storagePlaceDetails = [
-              storagePlaceDescription.isStoragePlaceGuaranteed ? 'Stays in the European Union, guaranteed' : null,
-              storagePlaceDescription.papelizSyncStoragePlace === nearestSyncStoragePlace ? 'Nearest to you' : null,
-            ].filter((storagePlaceDetail): storagePlaceDetail is string => storagePlaceDetail !== null)
+            const isStoragePlaceNearest = storagePlaceDescription.papelizSyncStoragePlace === nearestSyncStoragePlace
             return (
               <label
                 key={storagePlaceDescription.papelizSyncStoragePlace}
@@ -100,8 +97,9 @@ export function PapelizSyncSubscribeDialog({ papelizSyncEngine, syncEngineSnapsh
                 />
                 <span className="min-w-0 flex-1">
                   <span className="block text-[13px] font-medium">{storagePlaceDescription.storagePlaceDisplayName}</span>
-                  {storagePlaceDetails.length > 0 && <span className="block text-[12px] text-papeliz-ink-subtle">{storagePlaceDetails.join(' · ')}</span>}
+                  {storagePlaceDescription.isStoragePlaceGuaranteed && <span className="block text-[12px] text-papeliz-ink-subtle">Stays in the European Union, guaranteed</span>}
                 </span>
+                {isStoragePlaceNearest && <span className="flex-none rounded-full bg-papeliz-blue px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap text-white">Nearest You</span>}
               </label>
             )
           })}

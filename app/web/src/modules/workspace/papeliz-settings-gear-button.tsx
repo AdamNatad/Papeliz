@@ -1,4 +1,4 @@
-import { Accessibility, ChevronLeft, ChevronRight, FolderX, Lock, LockOpen, Maximize2, Palette, RefreshCw, Settings, Share, User, WandSparkles, type LucideIcon } from 'lucide-react'
+import { Accessibility, ChevronLeft, ChevronRight, FolderX, Lock, LockOpen, Maximize2, RefreshCw, Settings, Share, User, WandSparkles, type LucideIcon } from 'lucide-react'
 import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { usePapelizAssistantPanelUiStore } from '../assistant/papeliz-assistant-panel-ui-store'
@@ -11,14 +11,13 @@ import { usePapelizKeyBindingShortcutLabel } from './papeliz-key-bindings-store'
 import { PapelizSettingsGearExportPage } from './papeliz-settings-gear-export-page'
 import {
   PapelizSettingsGearAccessibilityPage,
-  PapelizSettingsGearAppearancePage,
   PapelizSettingsGearSettingsPage,
   PapelizSettingsGearTeaserPage,
 } from './papeliz-settings-gear-pages'
 import { PapelizTopbarFrostedSquareButton } from './papeliz-topbar-frosted-square-button'
 import { usePapelizWorkspaceStore } from './papeliz-workspace-store'
 
-type PapelizSettingsGearPage = 'account' | 'sync' | 'settings' | 'export' | 'appearance' | 'accessibility' | 'ai-assistant'
+type PapelizSettingsGearPage = 'account' | 'sync' | 'settings' | 'export' | 'accessibility' | 'ai-assistant'
 
 // Settings › AI Assistant, loaded when it is opened, so the start page's gear carries none of it.
 const PapelizAssistantProviderSettingsPage = lazy(() =>
@@ -32,20 +31,19 @@ const papelizSettingsGearPageChoices: Record<PapelizSettingsGearPage, { settings
   sync: { settingsGearPageLabel: 'Sync', SettingsGearPageIcon: RefreshCw },
   settings: { settingsGearPageLabel: 'Settings', SettingsGearPageIcon: Settings },
   export: { settingsGearPageLabel: 'Export', SettingsGearPageIcon: Share },
-  appearance: { settingsGearPageLabel: 'Appearance', SettingsGearPageIcon: Palette },
   accessibility: { settingsGearPageLabel: 'Accessibility', SettingsGearPageIcon: Accessibility },
   'ai-assistant': { settingsGearPageLabel: 'AI Assistant', SettingsGearPageIcon: WandSparkles },
 }
 
-// The list's groups, split by lines: Account | Sync, Settings, Export | Appearance, Accessibility, AI
-// Assistant (then the switches and Close Vault in the workspace). The start page has no vault, so no
-// Settings, Export, Accessibility (a note's text) or AI Assistant.
+// The list's groups, split by lines: Account | Sync, Settings, Export | Accessibility, AI Assistant
+// (then the switches and Close Vault in the workspace). The start page has no vault, so no Settings,
+// Export or AI Assistant, and its Accessibility has only the theme.
 const papelizSettingsGearWorkspacePageGroups: ReadonlyArray<ReadonlyArray<PapelizSettingsGearPage>> = [
   ['account'],
   ['sync', 'settings', 'export'],
-  ['appearance', 'accessibility', 'ai-assistant'],
+  ['accessibility', 'ai-assistant'],
 ]
-const papelizSettingsGearStartPagePageGroups: ReadonlyArray<ReadonlyArray<PapelizSettingsGearPage>> = [['account'], ['sync'], ['appearance']]
+const papelizSettingsGearStartPagePageGroups: ReadonlyArray<ReadonlyArray<PapelizSettingsGearPage>> = [['account'], ['sync'], ['accessibility']]
 
 const papelizSettingsGearRowClassName =
   'flex h-9 w-full flex-none items-center gap-2.5 rounded-full px-2.5 text-left text-[13px] font-medium whitespace-nowrap transition-colors hover:bg-papeliz-hover focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-papeliz-blue pointer-coarse:h-11'
@@ -91,12 +89,12 @@ function measureSettingsGearPanelAnchor(settingsGearButtonElement: HTMLElement):
 
 interface PapelizSettingsGearButtonProps {
   // The workspace's gear has every page, the switches and Close Vault; the start page's has Account,
-  // Sync and Appearance (the theme only), since no vault is open there.
+  // Sync and Accessibility (the theme only), since no vault is open there.
   settingsGearPlace: 'workspace' | 'start-page'
 }
 
 // The Settings gear in the blue top bar. It opens a panel: the list on the left, the chosen page on
-// the right, opening on Appearance (on Sync when the status bar's Sync state or a plan in the
+// the right, opening on Accessibility (on Sync when the status bar's Sync state or a plan in the
 // address asks). Below the md breakpoint the list fills the panel and each page opens over it with a
 // back arrow. Esc, a click outside or a change in window width closes it.
 export function PapelizSettingsGearButton({ settingsGearPlace }: PapelizSettingsGearButtonProps) {
@@ -109,7 +107,7 @@ export function PapelizSettingsGearButton({ settingsGearPlace }: PapelizSettings
   const setVaultCloseConfirmationShown = usePapelizWorkspaceStore((workspaceState) => workspaceState.setVaultCloseConfirmationShown)
   const focusModeShortcutLabel = usePapelizKeyBindingShortcutLabel('focus-mode-toggle')
   const [settingsGearPanelAnchor, setSettingsGearPanelAnchor] = useState<{ anchorRight: number; anchorTop: number } | null>(null)
-  const [chosenSettingsGearPage, setChosenSettingsGearPage] = useState<PapelizSettingsGearPage>('appearance')
+  const [chosenSettingsGearPage, setChosenSettingsGearPage] = useState<PapelizSettingsGearPage>('accessibility')
   // Phones only: a page is open over the list.
   const [isSettingsGearPageOpenOnPhone, setIsSettingsGearPageOpenOnPhone] = useState(false)
   const settingsGearPanelRef = useRef<HTMLDivElement>(null)
@@ -197,7 +195,6 @@ export function PapelizSettingsGearButton({ settingsGearPlace }: PapelizSettings
     if (chosenSettingsGearPage === 'account' || chosenSettingsGearPage === 'sync') return <PapelizSettingsGearTeaserPage settingsGearTeaser={chosenSettingsGearPage} />
     if (chosenSettingsGearPage === 'settings') return <PapelizSettingsGearSettingsPage />
     if (chosenSettingsGearPage === 'export') return <PapelizSettingsGearExportPage />
-    if (chosenSettingsGearPage === 'accessibility') return <PapelizSettingsGearAccessibilityPage />
     if (chosenSettingsGearPage === 'ai-assistant') {
       return (
         <Suspense fallback={null}>
@@ -205,7 +202,7 @@ export function PapelizSettingsGearButton({ settingsGearPlace }: PapelizSettings
         </Suspense>
       )
     }
-    return <PapelizSettingsGearAppearancePage isNoteTabsLayoutShown={isWorkspaceSettingsGear} />
+    return <PapelizSettingsGearAccessibilityPage areVaultNoteSettingsShown={isWorkspaceSettingsGear} />
   }
 
   const settingsGearList = (
@@ -294,7 +291,7 @@ export function PapelizSettingsGearButton({ settingsGearPlace }: PapelizSettings
             closeSettingsGearPanel()
             return
           }
-          setChosenSettingsGearPage('appearance')
+          setChosenSettingsGearPage('accessibility')
           setIsSettingsGearPageOpenOnPhone(false)
           setSettingsGearPanelAnchor(measureSettingsGearPanelAnchor(clickEvent.currentTarget))
         }}

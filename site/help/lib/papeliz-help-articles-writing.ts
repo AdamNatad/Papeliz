@@ -257,11 +257,11 @@ tags: [garden, plans]
         ),
       ]),
       helpSection('Theme', [
-        helpParagraph('**Theme**, at the top of the gear’s **Appearance** page, picks **Light**, **Dark**, or **Device**, which follows your device’s setting. The start page’s gear has it too.'),
+        helpParagraph('**Theme**, at the top of the gear’s **Accessibility** page, picks **Light**, **Dark**, or **Device**, which follows your device’s setting. The start page’s gear has it too.'),
       ]),
       helpSection('Note tabs', [
         helpParagraph(
-          '**Note Tabs**, also on the **Appearance** page, picks how tabs show when they don’t fit in one row. **Scroll** keeps one row that scrolls sideways, and **Stack** wraps them onto more rows, so every tab shows.',
+          '**Note Tabs**, also on the **Accessibility** page, picks how tabs show when they don’t fit in one row. **Scroll** keeps one row that scrolls sideways, and **Stack** wraps them onto more rows, so every tab shows.',
         ),
       ]),
       helpSection('Panels', [

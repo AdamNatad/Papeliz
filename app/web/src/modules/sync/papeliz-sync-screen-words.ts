@@ -68,8 +68,8 @@ export interface PapelizSyncStoragePlaceDescription {
 }
 
 export const papelizSyncStoragePlaceDescriptions: readonly PapelizSyncStoragePlaceDescription[] = [
-  { papelizSyncStoragePlace: 'enam', storagePlaceDisplayName: 'North America, East', isStoragePlaceGuaranteed: false },
-  { papelizSyncStoragePlace: 'wnam', storagePlaceDisplayName: 'North America, West', isStoragePlaceGuaranteed: false },
+  { papelizSyncStoragePlace: 'enam', storagePlaceDisplayName: 'Eastern North America', isStoragePlaceGuaranteed: false },
+  { papelizSyncStoragePlace: 'wnam', storagePlaceDisplayName: 'Western North America', isStoragePlaceGuaranteed: false },
   { papelizSyncStoragePlace: 'eu', storagePlaceDisplayName: 'Europe', isStoragePlaceGuaranteed: true },
   { papelizSyncStoragePlace: 'apac', storagePlaceDisplayName: 'Asia-Pacific', isStoragePlaceGuaranteed: false },
   { papelizSyncStoragePlace: 'oc', storagePlaceDisplayName: 'Oceania', isStoragePlaceGuaranteed: false },
@@ -134,13 +134,23 @@ export function describePapelizSyncFileCount(syncFileCount: number): string {
   return `${syncFileCount.toLocaleString('en-US')} ${syncFileCount === 1 ? 'file' : 'files'}`
 }
 
-// A plan's visible limits as the plan list shows them, three lines.
+// A plan's visible limits as the plan list shows them, three lines. A plan that keeps versions for
+// less than a month (Free) counts them in days.
 export function describePapelizSyncPlanLimitLines(syncVisiblePlanLimits: PapelizSyncVisiblePlanLimits): string[] {
+  const { syncedVaultLimit, syncNoteHistoryMonthCount, syncNoteHistoryDayCount } = syncVisiblePlanLimits
   return [
     `${formatPapelizSyncByteSize(syncVisiblePlanLimits.syncStorageByteLimit)}, old versions included`,
-    `${syncVisiblePlanLimits.syncedVaultLimit.toLocaleString('en-US')} vaults · files up to ${formatPapelizSyncByteSize(syncVisiblePlanLimits.syncLargestFileByteLimit)}`,
-    `${syncVisiblePlanLimits.syncNoteHistoryMonthCount} months of versions`,
+    `${syncedVaultLimit.toLocaleString('en-US')} ${syncedVaultLimit === 1 ? 'vault' : 'vaults'} · files up to ${formatPapelizSyncByteSize(syncVisiblePlanLimits.syncLargestFileByteLimit)}`,
+    syncNoteHistoryMonthCount > 0
+      ? `${syncNoteHistoryMonthCount} months of versions`
+      : `${syncNoteHistoryDayCount} ${syncNoteHistoryDayCount === 1 ? 'day' : 'days'} of versions`,
   ]
+}
+
+// The Free card's lines: the plan lines, then its device limit, which the paid plans share at a far
+// higher number.
+export function describePapelizSyncFreePlanLimitLines(syncFreePlanLimits: PapelizSyncVisiblePlanLimits): string[] {
+  return [...describePapelizSyncPlanLimitLines(syncFreePlanLimits), `${syncFreePlanLimits.syncConnectedDeviceLimit.toLocaleString('en-US')} devices`]
 }
 
 // The engine's formatted price, shown as it is, with the period added.

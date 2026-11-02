@@ -5,9 +5,12 @@ import {
   choosePapelizExportDefaultPageSize,
   getPapelizExportCalloutPrintColors,
   getPapelizExportPrintColor,
+  isPapelizExportCustomPageSideInRange,
+  isPapelizExportPresetPageSize,
   mixPapelizExportPrintColorsInOklab,
   papelizExportPrintColorsByToken,
   papelizExportPrintTextSizesInPoints,
+  readPapelizExportPageSizeInPoints,
   scalePapelizMdViewPixelsToPrintPoints,
 } from './papeliz-export-print-style'
 
@@ -80,5 +83,29 @@ describe('choosePapelizExportDefaultPageSize', () => {
     expect(choosePapelizExportDefaultPageSize(['en'])).toBe('a4')
     expect(choosePapelizExportDefaultPageSize(['not a language tag', 'fr-CA'])).toBe('letter')
     expect(choosePapelizExportDefaultPageSize([])).toBe('a4')
+  })
+})
+
+describe('readPapelizExportPageSizeInPoints', () => {
+  it('measures the named papers in points, inch papers exactly and metric ones to two decimals', () => {
+    expect(readPapelizExportPageSizeInPoints('letter')).toEqual({ pageWidthPoints: 612, pageHeightPoints: 792 })
+    expect(readPapelizExportPageSizeInPoints('a4')).toEqual({ pageWidthPoints: 595.28, pageHeightPoints: 841.89 })
+    expect(readPapelizExportPageSizeInPoints('executive')).toEqual({ pageWidthPoints: 522, pageHeightPoints: 756 })
+    expect(readPapelizExportPageSizeInPoints('b5')).toEqual({ pageWidthPoints: 498.9, pageHeightPoints: 708.66 })
+  })
+
+  it('takes a custom page as it is', () => {
+    expect(readPapelizExportPageSizeInPoints({ customPageWidthPoints: 432, customPageHeightPoints: 648 })).toEqual({ pageWidthPoints: 432, pageHeightPoints: 648 })
+  })
+
+  it('names only its own papers, and keeps custom sides between 3 and 22 inches', () => {
+    expect(isPapelizExportPresetPageSize('tabloid')).toBe(true)
+    expect(isPapelizExportPresetPageSize('custom')).toBe(false)
+    expect(isPapelizExportPresetPageSize('toString')).toBe(false)
+    expect(isPapelizExportCustomPageSideInRange(216)).toBe(true)
+    expect(isPapelizExportCustomPageSideInRange(1584)).toBe(true)
+    expect(isPapelizExportCustomPageSideInRange(215)).toBe(false)
+    expect(isPapelizExportCustomPageSideInRange(1600)).toBe(false)
+    expect(isPapelizExportCustomPageSideInRange(Number.NaN)).toBe(false)
   })
 })

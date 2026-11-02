@@ -47,7 +47,7 @@ export const papelizHelpFilesArticles: readonly PapelizHelpArticle[] = [
         ),
         helpParagraph('The lock at the front of a tab locks that note. See [[switch-views-and-lock]].'),
         helpParagraph(
-          'When tabs don’t fit in one row, they scroll sideways. To wrap them onto more rows instead, choose **Stack** under **Note Tabs** on the gear’s **Appearance** page. See [[text-settings-and-theme]].',
+          'When tabs don’t fit in one row, they scroll sideways. To wrap them onto more rows instead, choose **Stack** under **Note Tabs** on the gear’s **Accessibility** page. See [[text-settings-and-theme]].',
         ),
       ]),
       helpSection('Keyboard', [

@@ -3,11 +3,67 @@
 // CSS sizes scaled to an 11 pt body, so a printed note keeps MD View's proportions. The test beside
 // this file checks every color against the stylesheet.
 
-export type PapelizExportPageSize = 'a4' | 'letter'
+// The named papers are the page sizes Google Docs offers; any other size is a custom one, which Word
+// and the PDF take just the same.
+export type PapelizExportPresetPageSize = 'letter' | 'tabloid' | 'legal' | 'statement' | 'executive' | 'folio' | 'a3' | 'a4' | 'a5' | 'b4' | 'b5'
 
-export const papelizExportPageSizesInPoints: Readonly<Record<PapelizExportPageSize, { pageWidthPoints: number; pageHeightPoints: number }>> = {
-  a4: { pageWidthPoints: 595.28, pageHeightPoints: 841.89 },
-  letter: { pageWidthPoints: 612, pageHeightPoints: 792 },
+export interface PapelizExportCustomPageSize {
+  customPageWidthPoints: number
+  customPageHeightPoints: number
+}
+
+export type PapelizExportPageSize = PapelizExportPresetPageSize | PapelizExportCustomPageSize
+
+export interface PapelizExportPageSizeInPoints {
+  pageWidthPoints: number
+  pageHeightPoints: number
+}
+
+const papelizExportPointsPerInch = 72
+const papelizExportPointsPerMillimeter = 72 / 25.4
+
+function measurePapelizExportPageInInches(pageWidthInches: number, pageHeightInches: number): PapelizExportPageSizeInPoints {
+  return { pageWidthPoints: pageWidthInches * papelizExportPointsPerInch, pageHeightPoints: pageHeightInches * papelizExportPointsPerInch }
+}
+
+// Two decimals, as A4 has always been written (595.28 × 841.89).
+function measurePapelizExportPageInMillimeters(pageWidthMillimeters: number, pageHeightMillimeters: number): PapelizExportPageSizeInPoints {
+  return {
+    pageWidthPoints: Math.round(pageWidthMillimeters * papelizExportPointsPerMillimeter * 100) / 100,
+    pageHeightPoints: Math.round(pageHeightMillimeters * papelizExportPointsPerMillimeter * 100) / 100,
+  }
+}
+
+export const papelizExportPresetPageSizesInPoints: Readonly<Record<PapelizExportPresetPageSize, PapelizExportPageSizeInPoints>> = {
+  letter: measurePapelizExportPageInInches(8.5, 11),
+  tabloid: measurePapelizExportPageInInches(11, 17),
+  legal: measurePapelizExportPageInInches(8.5, 14),
+  statement: measurePapelizExportPageInInches(5.5, 8.5),
+  executive: measurePapelizExportPageInInches(7.25, 10.5),
+  folio: measurePapelizExportPageInInches(8.5, 13),
+  a3: measurePapelizExportPageInMillimeters(297, 420),
+  a4: measurePapelizExportPageInMillimeters(210, 297),
+  a5: measurePapelizExportPageInMillimeters(148, 210),
+  b4: measurePapelizExportPageInMillimeters(250, 353),
+  b5: measurePapelizExportPageInMillimeters(176, 250),
+}
+
+export function isPapelizExportPresetPageSize(exportPageSizeName: unknown): exportPageSizeName is PapelizExportPresetPageSize {
+  return typeof exportPageSizeName === 'string' && Object.hasOwn(papelizExportPresetPageSizesInPoints, exportPageSizeName)
+}
+
+// A custom page from 3 to 22 inches a side: Word's largest page, and room for the margins and a
+// column of text on the smallest.
+export const papelizExportCustomPageSideRangePoints = { smallestPageSidePoints: 3 * papelizExportPointsPerInch, largestPageSidePoints: 22 * papelizExportPointsPerInch } as const
+
+export function isPapelizExportCustomPageSideInRange(pageSidePoints: number): boolean {
+  const { smallestPageSidePoints, largestPageSidePoints } = papelizExportCustomPageSideRangePoints
+  return Number.isFinite(pageSidePoints) && pageSidePoints >= smallestPageSidePoints - 0.005 && pageSidePoints <= largestPageSidePoints + 0.005
+}
+
+export function readPapelizExportPageSizeInPoints(exportPageSize: PapelizExportPageSize): PapelizExportPageSizeInPoints {
+  if (typeof exportPageSize === 'string') return papelizExportPresetPageSizesInPoints[exportPageSize]
+  return { pageWidthPoints: exportPageSize.customPageWidthPoints, pageHeightPoints: exportPageSize.customPageHeightPoints }
 }
 
 export const papelizExportPageMarginsInMillimeters = { topMillimeters: 20, rightMillimeters: 20, bottomMillimeters: 22, leftMillimeters: 20 } as const
@@ -20,7 +76,7 @@ export const papelizExportFooterTextSizePoints = 8
 const papelizExportLetterPaperRegionCodes: ReadonlySet<string> = new Set(['US', 'CA', 'MX', 'PH', 'CL', 'CO', 'VE', 'CR', 'GT', 'PA', 'DO', 'PR'])
 
 // The paper a person's region uses, from the browser's languages ("en-US" -> Letter, "de-DE" -> A4).
-export function choosePapelizExportDefaultPageSize(browserLanguageTags: readonly string[]): PapelizExportPageSize {
+export function choosePapelizExportDefaultPageSize(browserLanguageTags: readonly string[]): PapelizExportPresetPageSize {
   for (const browserLanguageTag of browserLanguageTags) {
     let browserRegionCode: string | undefined
     try {

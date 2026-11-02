@@ -3,6 +3,7 @@ import type { PapelizSyncStatusReading } from './papeliz-sync-engine-contract'
 import {
   countPapelizSyncPassphraseCharacters,
   describePapelizSyncFileCount,
+  describePapelizSyncFreePlanLimitLines,
   describePapelizSyncMissingFilesNotice,
   describePapelizSyncPlanLimitLines,
   describePapelizSyncPlanPrice,
@@ -115,6 +116,18 @@ describe('the plans', () => {
         syncConnectedDeviceLimit: 20,
       }),
     ).toEqual(['100 GB, old versions included', '20 vaults · files up to 1 GB', '24 months of versions'])
+    expect(
+      describePapelizSyncFreePlanLimitLines({
+        syncStorageByteLimit: 10e6,
+        syncedVaultLimit: 1,
+        syncFilesPerVaultLimit: 10_000,
+        syncLargestFileByteLimit: 5e6,
+        syncNoteHistoryMonthCount: 0,
+        syncNoteHistoryDayCount: 7,
+        syncAttachmentHistoryDayCount: 7,
+        syncConnectedDeviceLimit: 2,
+      }),
+    ).toEqual(['10 MB, old versions included', '1 vault · files up to 5 MB', '7 days of versions', '2 devices'])
     expect(formatPapelizSyncByteSize(24.31e9)).toBe('24.3 GB')
     expect(formatPapelizSyncByteSize(512)).toBe('512 B')
   })

@@ -1,7 +1,7 @@
 import {
   papelizExportFooterDistanceFromPageEdgeMillimeters,
   papelizExportPageMarginsInMillimeters,
-  papelizExportPageSizesInPoints,
+  readPapelizExportPageSizeInPoints,
   type PapelizExportPageSize,
 } from '../export-print-style/papeliz-export-print-style'
 
@@ -22,7 +22,7 @@ export interface PapelizPdfExportPageArea {
 const papelizPdfExportPointsPerMillimeter = 72 / 25.4
 
 export function getPapelizPdfExportPageArea(pdfExportPageSize: PapelizExportPageSize): PapelizPdfExportPageArea {
-  const { pageWidthPoints, pageHeightPoints } = papelizExportPageSizesInPoints[pdfExportPageSize]
+  const { pageWidthPoints, pageHeightPoints } = readPapelizExportPageSizeInPoints(pdfExportPageSize)
   const { topMillimeters, rightMillimeters, bottomMillimeters, leftMillimeters } = papelizExportPageMarginsInMillimeters
   const contentLeftPoints = leftMillimeters * papelizPdfExportPointsPerMillimeter
   const contentTopPoints = topMillimeters * papelizPdfExportPointsPerMillimeter

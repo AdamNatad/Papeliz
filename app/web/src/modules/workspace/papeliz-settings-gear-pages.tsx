@@ -45,17 +45,16 @@ function PapelizSettingsGearFieldLabel({ children, isFirstField = false }: { chi
   return <p className={`${isFirstField ? '' : 'mt-3 '}mb-1.5 text-[12px] font-medium text-papeliz-ink-subtle`}>{children}</p>
 }
 
-interface PapelizSettingsGearAppearancePageProps {
-  // The workspace adds the note tabs; the start page has only the theme.
-  isNoteTabsLayoutShown: boolean
+interface PapelizSettingsGearAccessibilityPageProps {
+  // The workspace adds the note tabs and a note's text; the start page has only the theme.
+  areVaultNoteSettingsShown: boolean
 }
 
-// Appearance: how Papeliz looks, the theme and the note tabs. Changes show at once and are remembered.
-export function PapelizSettingsGearAppearancePage({ isNoteTabsLayoutShown }: PapelizSettingsGearAppearancePageProps) {
+// Accessibility: the theme, the note tabs, and how a note's text reads (its font, size and width,
+// with a reset). Changes show at once and are remembered.
+export function PapelizSettingsGearAccessibilityPage({ areVaultNoteSettingsShown }: PapelizSettingsGearAccessibilityPageProps) {
   const papelizThemePreference = usePapelizThemeStore((themeState) => themeState.papelizThemePreference)
   const setPapelizThemePreference = usePapelizThemeStore((themeState) => themeState.setPapelizThemePreference)
-  const noteTabsLayout = usePapelizNoteTabsLayoutStore((noteTabsLayoutState) => noteTabsLayoutState.noteTabsLayout)
-  const setNoteTabsLayout = usePapelizNoteTabsLayoutStore((noteTabsLayoutState) => noteTabsLayoutState.setNoteTabsLayout)
 
   return (
     <div>
@@ -75,30 +74,15 @@ export function PapelizSettingsGearAppearancePage({ isNoteTabsLayoutShown }: Pap
           ),
         }))}
       />
-
-      {isNoteTabsLayoutShown && (
-        <>
-          <PapelizSettingsGearFieldLabel>Note Tabs</PapelizSettingsGearFieldLabel>
-          <PapelizSlidingChoiceGroup
-            slidingChoiceGroupLabel="Note Tabs"
-            slidingChoiceGroupRole="radiogroup"
-            chosenSlidingChoiceValue={noteTabsLayout}
-            onSlidingChoiceSelect={setNoteTabsLayout}
-            slidingChoices={papelizNoteTabsLayoutChoices.map((tabsLayoutChoice) => ({
-              slidingChoiceValue: tabsLayoutChoice.noteTabsLayout,
-              slidingChoiceContent: tabsLayoutChoice.tabsLayoutChoiceLabel,
-              slidingChoiceTitle: tabsLayoutChoice.tabsLayoutChoiceTitle,
-            }))}
-          />
-        </>
-      )}
+      {areVaultNoteSettingsShown && <PapelizSettingsGearVaultNoteSettings />}
     </div>
   )
 }
 
-// Accessibility: how a note's text reads, its font, size and width, with a reset. Workspace only.
-// Changes show at once and are remembered.
-export function PapelizSettingsGearAccessibilityPage() {
+// The workspace's part of Accessibility: the note tabs, then a note's text.
+function PapelizSettingsGearVaultNoteSettings() {
+  const noteTabsLayout = usePapelizNoteTabsLayoutStore((noteTabsLayoutState) => noteTabsLayoutState.noteTabsLayout)
+  const setNoteTabsLayout = usePapelizNoteTabsLayoutStore((noteTabsLayoutState) => noteTabsLayoutState.setNoteTabsLayout)
   const noteFontFamily = usePapelizNoteTypographyStore((typographyState) => typographyState.noteFontFamily)
   const noteFontSize = usePapelizNoteTypographyStore((typographyState) => typographyState.noteFontSize)
   const noteColumnWidth = usePapelizNoteTypographyStore((typographyState) => typographyState.noteColumnWidth)
@@ -109,8 +93,21 @@ export function PapelizSettingsGearAccessibilityPage() {
     noteColumnWidth === papelizDefaultNoteTypography.noteColumnWidth
 
   return (
-    <div>
-      <PapelizSettingsGearFieldLabel isFirstField>Font</PapelizSettingsGearFieldLabel>
+    <>
+      <PapelizSettingsGearFieldLabel>Note Tabs</PapelizSettingsGearFieldLabel>
+      <PapelizSlidingChoiceGroup
+        slidingChoiceGroupLabel="Note Tabs"
+        slidingChoiceGroupRole="radiogroup"
+        chosenSlidingChoiceValue={noteTabsLayout}
+        onSlidingChoiceSelect={setNoteTabsLayout}
+        slidingChoices={papelizNoteTabsLayoutChoices.map((tabsLayoutChoice) => ({
+          slidingChoiceValue: tabsLayoutChoice.noteTabsLayout,
+          slidingChoiceContent: tabsLayoutChoice.tabsLayoutChoiceLabel,
+          slidingChoiceTitle: tabsLayoutChoice.tabsLayoutChoiceTitle,
+        }))}
+      />
+
+      <PapelizSettingsGearFieldLabel>Font</PapelizSettingsGearFieldLabel>
       <PapelizSlidingChoiceGroup
         slidingChoiceGroupLabel="Font"
         slidingChoiceGroupRole="radiogroup"
@@ -148,7 +145,7 @@ export function PapelizSettingsGearAccessibilityPage() {
         <RotateCcw className="size-3.5" aria-hidden="true" />
         Reset Text Settings
       </button>
-    </div>
+    </>
   )
 }
 

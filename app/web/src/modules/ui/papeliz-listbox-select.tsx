@@ -21,8 +21,14 @@ interface PapelizListboxSelectProps {
   isListboxSelectDisabled?: boolean
   // Classes for the outer box, such as its margin or its flex size.
   className?: string
+  // Regular: a full-width field. Compact: a small pill as wide as its words, beside a heading, whose
+  // list opens wider than it, at its right edge; the trigger shows the label without its note.
+  listboxSelectSize?: 'regular' | 'compact'
   onListboxOptionChoose: (listboxOptionValue: string) => void
 }
+
+// The compact select's list, wide enough for a label and its note.
+const papelizCompactListboxSelectListboxWidth = 236
 
 interface PapelizListboxSelectPlacement {
   isListboxShownAboveTrigger: boolean
@@ -72,8 +78,10 @@ export function PapelizListboxSelect({
   listboxSelectPlaceholder = '',
   isListboxSelectDisabled = false,
   className,
+  listboxSelectSize = 'regular',
   onListboxOptionChoose,
 }: PapelizListboxSelectProps) {
+  const isListboxSelectCompact = listboxSelectSize === 'compact'
   const listboxSelectRef = useRef<HTMLDivElement>(null)
   const listboxSelectTriggerRef = useRef<HTMLButtonElement>(null)
   const listboxElementRef = useRef<HTMLDivElement>(null)
@@ -226,12 +234,15 @@ export function PapelizListboxSelect({
             closeListbox(true)
           }
         }}
-        className="flex h-10 w-full items-center gap-2 rounded-full border border-papeliz-line-strong bg-papeliz-surface pr-3 pl-4 text-left text-sm text-papeliz-ink disabled:text-papeliz-ink-subtle"
+        className={joinPapelizClassNames(
+          'flex items-center rounded-full border border-papeliz-line-strong bg-papeliz-surface text-left text-papeliz-ink transition-colors disabled:text-papeliz-ink-subtle',
+          isListboxSelectCompact ? 'h-7 gap-1 pr-1.5 pl-2.5 text-[12.5px] font-medium hover:bg-papeliz-hover pointer-coarse:h-9' : 'h-10 w-full gap-2 pr-3 pl-4 text-sm',
+        )}
       >
         <span className={joinPapelizClassNames('min-w-0 flex-1 truncate', chosenListboxOption === undefined && 'text-papeliz-ink-subtle')}>
           {chosenListboxOption?.listboxOptionLabel ?? listboxSelectPlaceholder}
         </span>
-        {chosenListboxOption?.listboxOptionNote !== undefined && (
+        {!isListboxSelectCompact && chosenListboxOption?.listboxOptionNote !== undefined && (
           <span className="flex-none text-[12px] text-papeliz-ink-subtle">{chosenListboxOption.listboxOptionNote}</span>
         )}
         <ChevronDown
@@ -253,10 +264,11 @@ export function PapelizListboxSelect({
             if (focusEvent.relatedTarget instanceof Node && listboxSelectRef.current?.contains(focusEvent.relatedTarget) !== true) setOpenListboxPlacement(null)
           }}
           className={joinPapelizClassNames(
-            'papeliz-pop-enter absolute inset-x-0 z-20 overflow-y-auto overscroll-contain rounded-2xl border border-papeliz-line bg-papeliz-surface p-1 shadow-papeliz-pop select-none focus-visible:outline-none [scrollbar-width:thin]',
+            'papeliz-pop-enter absolute z-20 overflow-y-auto overscroll-contain rounded-2xl border border-papeliz-line bg-papeliz-surface p-1 shadow-papeliz-pop select-none focus-visible:outline-none [scrollbar-width:thin]',
+            isListboxSelectCompact ? 'right-0' : 'inset-x-0',
             openListboxPlacement.isListboxShownAboveTrigger ? 'bottom-full mb-1.5' : 'top-full mt-1.5',
           )}
-          style={{ maxHeight: openListboxPlacement.listboxMaxHeight }}
+          style={{ maxHeight: openListboxPlacement.listboxMaxHeight, width: isListboxSelectCompact ? papelizCompactListboxSelectListboxWidth : undefined }}
         >
           {listboxSelectOptions.map((listboxSelectOption, listboxOptionIndex) => {
             const isChosenListboxOption = listboxOptionIndex === chosenListboxOptionIndex
@@ -271,7 +283,8 @@ export function PapelizListboxSelect({
                 }}
                 onClick={() => chooseListboxOption(listboxOptionIndex)}
                 className={joinPapelizClassNames(
-                  'flex h-9 cursor-pointer items-center gap-2.5 rounded-full px-3 text-sm text-papeliz-ink hover:bg-papeliz-hover',
+                  'flex h-9 cursor-pointer items-center gap-2.5 rounded-full px-3 text-papeliz-ink hover:bg-papeliz-hover',
+                  isListboxSelectCompact ? 'text-[13px]' : 'text-sm',
                   listboxOptionIndex === shownHighlightedListboxOptionIndex && 'bg-papeliz-hover',
                 )}
               >

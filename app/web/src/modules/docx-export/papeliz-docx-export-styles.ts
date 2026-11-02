@@ -20,11 +20,11 @@ import {
   papelizExportFooterDistanceFromPageEdgeMillimeters,
   papelizExportFooterTextSizePoints,
   papelizExportPageMarginsInMillimeters,
-  papelizExportPageSizesInPoints,
   papelizExportPrintColorsByToken,
   papelizExportPrintLineHeights,
   papelizExportPrintSpacingInPoints,
   papelizExportPrintTextSizesInPoints,
+  readPapelizExportPageSizeInPoints,
   type PapelizExportPageSize,
   type PapelizExportPrintColorToken,
 } from '../export-print-style/papeliz-export-print-style'
@@ -260,16 +260,16 @@ export function buildPapelizDocxExportNumbering(numberedListStarts: ReadonlySet<
 // The page's text width, for the footer's right tab and tables at full width.
 export function getPapelizDocxExportTextWidthTwips(docxExportPageSize: PapelizExportPageSize): number {
   const { leftMillimeters, rightMillimeters } = papelizExportPageMarginsInMillimeters
-  return toDocxTwips(papelizExportPageSizesInPoints[docxExportPageSize].pageWidthPoints) - convertMillimetersToTwip(leftMillimeters) - convertMillimetersToTwip(rightMillimeters)
+  return toDocxTwips(readPapelizExportPageSizeInPoints(docxExportPageSize).pageWidthPoints) - convertMillimetersToTwip(leftMillimeters) - convertMillimetersToTwip(rightMillimeters)
 }
 
 export function getPapelizDocxExportTextHeightTwips(docxExportPageSize: PapelizExportPageSize): number {
   const { topMillimeters, bottomMillimeters } = papelizExportPageMarginsInMillimeters
-  return toDocxTwips(papelizExportPageSizesInPoints[docxExportPageSize].pageHeightPoints) - convertMillimetersToTwip(topMillimeters) - convertMillimetersToTwip(bottomMillimeters)
+  return toDocxTwips(readPapelizExportPageSizeInPoints(docxExportPageSize).pageHeightPoints) - convertMillimetersToTwip(topMillimeters) - convertMillimetersToTwip(bottomMillimeters)
 }
 
 export function buildPapelizDocxExportPageProperties(docxExportPageSize: PapelizExportPageSize): ISectionPropertiesOptions {
-  const { pageWidthPoints, pageHeightPoints } = papelizExportPageSizesInPoints[docxExportPageSize]
+  const { pageWidthPoints, pageHeightPoints } = readPapelizExportPageSizeInPoints(docxExportPageSize)
   const { topMillimeters, rightMillimeters, bottomMillimeters, leftMillimeters } = papelizExportPageMarginsInMillimeters
   return {
     page: {

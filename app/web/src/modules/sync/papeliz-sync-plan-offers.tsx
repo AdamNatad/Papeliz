@@ -3,14 +3,20 @@ import { PapelizPillButton } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { PapelizSlidingChoiceGroup } from '../ui/papeliz-sliding-choice-group'
 import type { PapelizSyncBillingPeriod, PapelizSyncEngine, PapelizSyncEngineSnapshot, PapelizSyncPlanOfferReading } from './papeliz-sync-engine-contract'
-import { choosePapelizSyncPlan } from './papeliz-sync-flow-store'
-import { PapelizSyncFailureLine, PapelizSyncLoadingLine, PapelizSyncPageSmallText, PapelizSyncTextButton } from './papeliz-sync-page-parts'
-import { describePapelizSyncActionFailureNow, describePapelizSyncPlanLimitLines, describePapelizSyncPlanPrice, papelizSyncPlanDisplayNames } from './papeliz-sync-screen-words'
+import { choosePapelizSyncPlan, describePapelizSyncSignInFromClickFailure, startPapelizSyncSignInFromClick } from './papeliz-sync-flow-store'
+import { PapelizSyncChip, PapelizSyncFailureLine, PapelizSyncLoadingLine, PapelizSyncPageSmallText, PapelizSyncTextButton } from './papeliz-sync-page-parts'
+import {
+  describePapelizSyncActionFailureNow,
+  describePapelizSyncFreePlanLimitLines,
+  describePapelizSyncPlanLimitLines,
+  describePapelizSyncPlanPrice,
+  papelizSyncPlanDisplayNames,
+} from './papeliz-sync-screen-words'
 import { findPapelizSyncPlanOffersFirstBillingPeriod, usePapelizSyncSettingsGearRequestStore } from './papeliz-sync-settings-gear-request-store'
 
-// The plans in the gear (A): each with its limits, its price as the engine gives it, and Choose,
-// which goes on to checkout. The engine reads them from its own table, with no request, so they
-// show as soon as the Sync page opens, signed out or offline. A plan picked on the website's pricing
+// The plans in the gear (A): Free first, then each paid plan with its limits, its price as the engine
+// gives it, and Choose, which goes on to checkout. The engine reads them from its own table, with no
+// request, so they show as soon as the Sync page opens, signed out or offline. A plan picked on the website's pricing
 // page (in the address) is drawn picked, on its billing period, and scrolled to.
 
 type PapelizSyncPlanOffersState =
@@ -24,6 +30,51 @@ const papelizSyncDefaultHighlightedPlanName = 'plus'
 interface PapelizSyncPlanOffersSectionProps {
   papelizSyncEngine: PapelizSyncEngine
   syncEngineSnapshot: PapelizSyncEngineSnapshot
+}
+
+// Free, at the top of the list on both billing periods: its limits from the engine's table, no price
+// and no checkout, since every account gets it at sign-in. Signed out it offers Sign In; on Free it
+// says so.
+function PapelizSyncFreePlanCard({ papelizSyncEngine, syncEngineSnapshot }: PapelizSyncPlanOffersSectionProps) {
+  const [freePlanSignInFailureWords, setFreePlanSignInFailureWords] = useState<string | null>(null)
+  const syncSignInKind = syncEngineSnapshot.syncSignIn.syncSignInKind
+  const isSyncAccountOnFreePlan = syncSignInKind === 'signed-in' && syncEngineSnapshot.syncAccount?.syncPlanName === 'free'
+  return (
+    <li className="rounded-xl border border-papeliz-line bg-papeliz-surface px-3 py-2.5">
+      <div className="flex items-center gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="text-[13px] font-semibold">{papelizSyncPlanDisplayNames.free}</p>
+          <p className="text-[12px] text-papeliz-ink-muted">No card needed</p>
+        </div>
+        {isSyncAccountOnFreePlan ? (
+          <PapelizSyncChip syncChipTone="plan">Current Plan</PapelizSyncChip>
+        ) : (
+          syncSignInKind !== 'signed-in' && (
+            <PapelizPillButton
+              pillButtonVariant="line"
+              pillButtonSize="small"
+              aria-label={`Sign In for ${papelizSyncPlanDisplayNames.free}`}
+              disabled={syncSignInKind === 'waiting-for-sign-in-page'}
+              onClick={() => {
+                setFreePlanSignInFailureWords(null)
+                void startPapelizSyncSignInFromClick(papelizSyncEngine, null).then((signInFromClickOutcome) =>
+                  setFreePlanSignInFailureWords(describePapelizSyncSignInFromClickFailure(signInFromClickOutcome)),
+                )
+              }}
+            >
+              Sign In
+            </PapelizPillButton>
+          )
+        )}
+      </div>
+      <ul className="mt-1.5 list-disc pl-4 text-[12px] leading-[1.5] text-papeliz-ink-muted marker:text-papeliz-ink-subtle">
+        {describePapelizSyncFreePlanLimitLines(papelizSyncEngine.readSyncFreePlanLimits()).map((planLimitLine) => (
+          <li key={planLimitLine}>{planLimitLine}</li>
+        ))}
+      </ul>
+      {freePlanSignInFailureWords !== null && <PapelizSyncFailureLine className="mt-1.5">{freePlanSignInFailureWords}</PapelizSyncFailureLine>}
+    </li>
+  )
 }
 
 export function PapelizSyncPlanOffersSection({ papelizSyncEngine, syncEngineSnapshot }: PapelizSyncPlanOffersSectionProps) {
@@ -87,6 +138,7 @@ export function PapelizSyncPlanOffersSection({ papelizSyncEngine, syncEngineSnap
         ]}
       />
       <ul className="mt-2.5 flex flex-col gap-2">
+        <PapelizSyncFreePlanCard papelizSyncEngine={papelizSyncEngine} syncEngineSnapshot={syncEngineSnapshot} />
         {shownSyncPlanOffers.map((syncPlanOffer) => {
           const isPlanHighlighted = syncPlanOffer.syncPlanName === highlightedSyncPlanName
           const syncPlanDisplayName = papelizSyncPlanDisplayNames[syncPlanOffer.syncPlanName]

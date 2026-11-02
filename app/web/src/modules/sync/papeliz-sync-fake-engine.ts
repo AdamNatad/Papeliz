@@ -702,6 +702,10 @@ export class PapelizSyncFakeEngine implements PapelizSyncEngine {
     return createFakeDoneOutcome(syncPlanOffers)
   }
 
+  readSyncFreePlanLimits(): PapelizSyncVisiblePlanLimits {
+    return { ...papelizSyncFakeEnginePlanLimits.free }
+  }
+
   startSyncSignIn(syncSignInOptions: PapelizSyncSignInOptions): PapelizSyncSignInAttempt {
     this.fakeEngineCallNames.push('startSyncSignIn')
     this.fakeLastSignInOptions = syncSignInOptions

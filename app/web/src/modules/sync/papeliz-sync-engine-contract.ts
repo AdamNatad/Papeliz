@@ -394,6 +394,8 @@ export interface PapelizSyncEngine {
   // Account: plans, sign in, devices.
   // From the engine's built-in table: no request, so it works signed out and offline.
   listSyncPlanOffers(): Promise<PapelizSyncActionOutcome<PapelizSyncPlanOfferReading[]>>
+  // The Free plan's limits, from the same table: no request, no price and no checkout.
+  readSyncFreePlanLimits(): PapelizSyncVisiblePlanLimits
   startSyncSignIn(syncSignInOptions: PapelizSyncSignInOptions): PapelizSyncSignInAttempt
   // Ends this device's session on the service and forgets the keys here. Notes stay.
   signOutOfSync(): Promise<PapelizSyncActionOutcome>
