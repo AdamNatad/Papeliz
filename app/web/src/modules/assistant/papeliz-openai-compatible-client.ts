@@ -1,6 +1,9 @@
+import { redactPapelizAssistantProviderErrorText } from './papeliz-assistant-provider-error-redaction'
+
 // The one client the assistant uses: OpenAI Chat Completions over `fetch`, streamed as server-sent
 // events, with tool calls. It talks only to the base URL the user set, with the user's key in the
-// Authorization header. The key is never logged and never part of an error message or a URL.
+// Authorization header. The key is never logged and never part of an error message or a URL: every
+// error the client throws is cleaned of it (papeliz-assistant-provider-error-redaction.ts).
 // Each answer also says how many tokens it used: the provider's own count when it gives one, or an
 // estimate (marked as one) when it does not.
 
@@ -91,17 +94,36 @@ function describeProviderHost(providerBaseUrl: string): string {
   }
 }
 
-async function readProviderErrorMessage(providerResponse: Response): Promise<string> {
+// The provider's own words: the message of a JSON error body, or the start of its text. A provider
+// or proxy may repeat the key in them, so they are cleaned of it before they go into an error.
+async function readProviderErrorMessage(providerResponse: Response, providerApiKey: string): Promise<string> {
   const providerResponseText = await providerResponse.text().catch(() => '')
+  let providerErrorBodyMessage: string | null = null
   try {
     const providerErrorBody = JSON.parse(providerResponseText) as { error?: { message?: unknown } | string; message?: unknown }
-    if (typeof providerErrorBody.error === 'string') return providerErrorBody.error
-    if (typeof providerErrorBody.error?.message === 'string') return providerErrorBody.error.message
-    if (typeof providerErrorBody.message === 'string') return providerErrorBody.message
+    if (typeof providerErrorBody.error === 'string') providerErrorBodyMessage = providerErrorBody.error
+    else if (typeof providerErrorBody.error?.message === 'string') providerErrorBodyMessage = providerErrorBody.error.message
+    else if (typeof providerErrorBody.message === 'string') providerErrorBodyMessage = providerErrorBody.message
   } catch {
-    // Not JSON: fall through to the raw text.
+    // Not JSON: the raw text is used.
   }
-  return providerResponseText.slice(0, 300)
+  if (providerErrorBodyMessage !== null) return redactPapelizAssistantProviderErrorText(providerErrorBodyMessage, providerApiKey)
+  // Cleaned before it is cut short, so a key across the cut is still found whole.
+  return redactPapelizAssistantProviderErrorText(providerResponseText.slice(0, 4000), providerApiKey).slice(0, 300)
+}
+
+// A successful answer that isn't JSON (a proxy's web page, say). The browser's own parse error would
+// quote a piece of the body, so a sentence of Papeliz's own is used instead.
+async function readProviderJsonBody(providerConnection: PapelizAssistantProviderConnection, providerResponse: Response): Promise<unknown> {
+  try {
+    return await providerResponse.json()
+  } catch (providerBodyReadError) {
+    if (providerBodyReadError instanceof DOMException && providerBodyReadError.name === 'AbortError') throw providerBodyReadError
+    throw new PapelizAssistantProviderError(
+      `${describeProviderHost(providerConnection.providerBaseUrl)} answered with something other than JSON. Check the base URL.`,
+      providerResponse.status,
+    )
+  }
 }
 
 function explainProviderStatus(providerHttpStatus: number, providerErrorMessage: string): string {
@@ -130,7 +152,10 @@ async function sendProviderRequest(
     )
   }
   if (!providerResponse.ok) {
-    throw new PapelizAssistantProviderError(explainProviderStatus(providerResponse.status, await readProviderErrorMessage(providerResponse)), providerResponse.status)
+    throw new PapelizAssistantProviderError(
+      explainProviderStatus(providerResponse.status, await readProviderErrorMessage(providerResponse, providerConnection.providerApiKey)),
+      providerResponse.status,
+    )
   }
   return providerResponse
 }
@@ -245,9 +270,30 @@ function isOptionalRequestFieldRejection(providerRequestError: unknown, rejected
 const papelizStreamUsageOptionFieldPattern = /stream_options|include_usage/i
 const papelizReasoningEffortFieldPattern = /reasoning_effort|reasoning effort|reasoning/i
 
+// Every error that leaves the client is cleaned of the key, not only the provider's own words: a
+// stream that breaks, or the browser, may quote what was sent too. Stop stays an `AbortError`.
+async function runProviderCallWithKeyHiddenInErrors<ProviderCallResult>(
+  providerConnection: PapelizAssistantProviderConnection,
+  providerCall: () => Promise<ProviderCallResult>,
+): Promise<ProviderCallResult> {
+  try {
+    return await providerCall()
+  } catch (providerCallError) {
+    if (!(providerCallError instanceof Error) || (providerCallError instanceof DOMException && providerCallError.name === 'AbortError')) throw providerCallError
+    throw new PapelizAssistantProviderError(
+      redactPapelizAssistantProviderErrorText(providerCallError.message, providerConnection.providerApiKey),
+      providerCallError instanceof PapelizAssistantProviderError ? providerCallError.providerHttpStatus : null,
+    )
+  }
+}
+
 // Streams one chat completion. Text arrives through `onAssistantTextDelta` as it is written; tool
 // calls arrive in pieces and are put back together before they are returned.
-export async function streamPapelizChatCompletion(chatCompletionRequest: PapelizChatCompletionRequest): Promise<PapelizChatCompletionResult> {
+export function streamPapelizChatCompletion(chatCompletionRequest: PapelizChatCompletionRequest): Promise<PapelizChatCompletionResult> {
+  return runProviderCallWithKeyHiddenInErrors(chatCompletionRequest.providerConnection, () => streamChatCompletionFromProvider(chatCompletionRequest))
+}
+
+async function streamChatCompletionFromProvider(chatCompletionRequest: PapelizChatCompletionRequest): Promise<PapelizChatCompletionResult> {
   const fetchFunction = chatCompletionRequest.fetchFunction ?? ((requestUrl, requestInit) => fetch(requestUrl, requestInit))
   const requestBody: Record<string, unknown> = {
     model: chatCompletionRequest.providerConnection.providerModelName,
@@ -333,7 +379,7 @@ export async function streamPapelizChatCompletion(chatCompletionRequest: Papeliz
   const isEventStream = (providerResponse.headers.get('content-type') ?? '').includes('text/event-stream')
   if (!isEventStream || providerResponse.body === null) {
     // Some servers ignore `stream: true` and answer with one JSON body.
-    takeChunk((await providerResponse.json()) as PapelizStreamedChunk)
+    takeChunk((await readProviderJsonBody(chatCompletionRequest.providerConnection, providerResponse)) as PapelizStreamedChunk)
   } else {
     const streamReader = providerResponse.body.getReader()
     const streamDecoder = new TextDecoder()
@@ -391,12 +437,14 @@ export async function listPapelizProviderModelNames(
   providerConnection: PapelizAssistantProviderConnection,
   fetchFunction: PapelizFetchFunction = (requestUrl, requestInit) => fetch(requestUrl, requestInit),
 ): Promise<string[]> {
-  const providerResponse = await sendProviderRequest(providerConnection, 'models', { method: 'GET', headers: buildProviderHeaders(providerConnection) }, fetchFunction)
-  const modelListBody = (await providerResponse.json()) as { data?: Array<{ id?: unknown }> }
-  return (modelListBody.data ?? [])
-    .map((modelListEntry) => (typeof modelListEntry.id === 'string' ? modelListEntry.id : ''))
-    .filter((providerModelName) => providerModelName.length > 0)
-    .sort((firstModelName, secondModelName) => firstModelName.localeCompare(secondModelName))
+  return runProviderCallWithKeyHiddenInErrors(providerConnection, async () => {
+    const providerResponse = await sendProviderRequest(providerConnection, 'models', { method: 'GET', headers: buildProviderHeaders(providerConnection) }, fetchFunction)
+    const modelListBody = (await readProviderJsonBody(providerConnection, providerResponse)) as { data?: Array<{ id?: unknown }> }
+    return (modelListBody.data ?? [])
+      .map((modelListEntry) => (typeof modelListEntry.id === 'string' ? modelListEntry.id : ''))
+      .filter((providerModelName) => providerModelName.length > 0)
+      .sort((firstModelName, secondModelName) => firstModelName.localeCompare(secondModelName))
+  })
 }
 
 // A tiny request that proves the base URL, key and model work together.

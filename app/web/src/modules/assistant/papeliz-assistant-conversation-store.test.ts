@@ -162,6 +162,58 @@ describe('the assistant conversation', () => {
     expect(userMessageEntries.map((chatEntry) => chatEntry.chatEntryContextLabel)).toEqual(['Inbox', null])
   })
 
+  it('shows and saves a provider error without the key, also when the stream breaks', async () => {
+    const fakeCustomProxyApiKey = 'papeliz-fake-proxy-test-key-0000'
+    let providerRequestCount = 0
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        providerRequestCount += 1
+        if (providerRequestCount === 1) return Response.json({ error: { message: `Invalid API key ${fakeCustomProxyApiKey}` } }, { status: 401 })
+        // The answer starts, then its stream fails with a message that quotes the key.
+        return new Response(
+          new ReadableStream({
+            start(streamController) {
+              streamController.error(new TypeError(`The stream for key ${fakeCustomProxyApiKey} was cut off.`))
+            },
+          }),
+          { status: 200, headers: { 'content-type': 'text/event-stream' } },
+        )
+      }),
+    )
+    const vaultAdapter = new PapelizInMemoryVaultAdapter([{ vaultNoteRelativePath: 'Inbox.md', vaultNoteText: 'Buy seeds.' }])
+    await usePapelizWorkspaceStore.getState().openVaultInWorkspace(
+      { papelizVaultId: 'provider-error-vault', papelizVaultDisplayName: 'Test vault', papelizVaultAdapter: vaultAdapter },
+      { firstVaultNoteRelativePathToOpen: null, firstNoteViewMode: 'md-view', expandAllTopLevelFolders: false },
+    )
+    usePapelizAssistantProviderSettingsStore.setState({
+      activeAssistantProviderId: 'custom',
+      providerSettingsByProviderId: {
+        custom: { papelizAssistantProviderId: 'custom', providerBaseUrl: 'https://proxy.test/v1', providerModelName: 'test-model', providerApiKey: fakeCustomProxyApiKey },
+      },
+    })
+    usePapelizAssistantRunOptionsStore.setState({ assistantMode: 'ask' })
+    await waitUntil(() => Object.keys(usePapelizWorkspaceStore.getState().vaultTreeEntries).length > 0)
+
+    await usePapelizAssistantConversationStore.getState().sendAssistantMessage('Hello')
+    await usePapelizAssistantConversationStore.getState().sendAssistantMessage('Again')
+    const errorNoticeTexts = usePapelizAssistantConversationStore
+      .getState()
+      .chatEntries.flatMap((chatEntry) => (chatEntry.chatEntryKind === 'notice' && chatEntry.isChatEntryError ? [chatEntry.chatEntryText] : []))
+    expect(errorNoticeTexts).toEqual(['The provider refused the API key (401). The provider said: Invalid API key [hidden]', 'The stream for key [hidden] was cut off.'])
+
+    // The chat is saved after each answer; this waits for the save after the second one.
+    let savedChatSessionText = ''
+    for (let attempt = 0; attempt < 100 && !savedChatSessionText.includes('was cut off'); attempt += 1) {
+      await new Promise((resolveWait) => setTimeout(resolveWait, 10))
+      const chatSessionVaultNoteRelativePath = usePapelizAssistantConversationStore.getState().chatSessionVaultNoteRelativePath
+      savedChatSessionText = chatSessionVaultNoteRelativePath === null ? '' : await vaultAdapter.readVaultNoteText(chatSessionVaultNoteRelativePath).catch(() => '')
+    }
+    expect(savedChatSessionText).toContain('> - The provider refused the API key (401). The provider said: Invalid API key [hidden]')
+    expect(savedChatSessionText).toContain('> - The stream for key [hidden] was cut off.')
+    expect(savedChatSessionText).not.toContain('papeliz-fake')
+  })
+
   it('reopens a saved chat with its messages', async () => {
     const stopVaultKnowledgeSync = startPapelizVaultKnowledgeSync()
     const vaultAdapter = new PapelizInMemoryVaultAdapter([

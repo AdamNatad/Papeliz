@@ -37,6 +37,7 @@ import {
   readPapelizAssistantQuestionToolCall,
   type PapelizAssistantQuestion,
 } from './papeliz-assistant-question-tool'
+import { redactPapelizAssistantProviderErrorText } from './papeliz-assistant-provider-error-redaction'
 import { usePapelizAssistantRunOptionsStore, type PapelizAssistantMode } from './papeliz-assistant-run-options-store'
 import { findPapelizAssistantVaultEntryTrashProblem } from './papeliz-assistant-vault-entry-trash'
 import { executePapelizAssistantVaultTool, papelizAssistantVaultToolDefinitions, type PapelizAssistantProposalDraft, type PapelizAssistantToolActivityKind } from './papeliz-assistant-vault-tools'
@@ -749,10 +750,16 @@ export const usePapelizAssistantConversationStore = create<PapelizAssistantConve
             }),
           )
         }
+        // The notice is shown and saved in the chat file, so it is cleaned of the key first.
         appendChatEntry({
           chatEntryId: createChatEntryId(),
           chatEntryKind: 'notice',
-          chatEntryText: wasStopped ? 'Stopped.' : assistantRunError instanceof Error ? assistantRunError.message : 'The assistant could not answer.',
+          chatEntryText: wasStopped
+            ? 'Stopped.'
+            : redactPapelizAssistantProviderErrorText(
+                assistantRunError instanceof Error ? assistantRunError.message : 'The assistant could not answer.',
+                activeProviderConnection.providerConnection.providerApiKey,
+              ),
           isChatEntryError: !wasStopped,
         })
       } finally {
