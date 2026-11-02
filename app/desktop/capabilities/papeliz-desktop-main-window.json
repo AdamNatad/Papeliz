@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "papeliz-desktop-main-window",
-  "description": "What the Papeliz page may ask of the desktop app: its own window's buttons, the system's file dialogs, the folders the person picks, links in the system browser, updates, and calls to the providers a web page can't reach.",
+  "description": "What the Papeliz page may ask of the desktop app: its own window's buttons, the folders and files the person picks in the app's own dialogs (opened from Rust), links in the system browser, updates, and calls to the providers a web page can't reach.",
   "windows": ["main"],
   "permissions": [
     "core:default",
@@ -10,7 +10,6 @@
     "core:window:allow-close",
     "core:window:allow-start-dragging",
     "core:window:allow-destroy",
-    "dialog:default",
     "fs:default",
     "fs:allow-read-dir",
     "fs:allow-read-file",

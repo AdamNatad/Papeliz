@@ -8,7 +8,6 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { sep } from '@tauri-apps/api/path'
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import { save } from '@tauri-apps/plugin-dialog'
 import { copyFile, exists, mkdir, readDir, readFile, readTextFile, remove, rename, stat, writeFile, writeTextFile } from '@tauri-apps/plugin-fs'
 import { fetch as fetchFromTauriNativeSide } from '@tauri-apps/plugin-http'
 import { openUrl } from '@tauri-apps/plugin-opener'
@@ -33,7 +32,9 @@ type PapelizDesktopAppDistribution = PapelizDesktopPlatform['desktopAppDistribut
 const papelizDesktopRustCommandNames = {
   getAppDistribution: 'get_papeliz_desktop_app_distribution',
   pickVaultFolder: 'pick_papeliz_desktop_vault_folder',
+  rememberVaultFolder: 'remember_papeliz_desktop_vault_folder',
   forgetVaultFolder: 'forget_papeliz_desktop_vault_folder',
+  pickSaveFilePath: 'pick_papeliz_desktop_save_file_path',
   setMaximizeButtonBounds: 'set_papeliz_desktop_maximize_button_bounds',
 } as const
 const papelizDesktopMaximizeButtonPointerStateEventName = 'papeliz-desktop-maximize-button-pointer-state'
@@ -245,16 +246,19 @@ export async function loadPapelizDesktopPlatform(): Promise<PapelizDesktopPlatfo
     desktopFileSystem: papelizTauriDesktopFileSystem,
     pickDesktopFolderPath: (desktopFolderPickerTitle) =>
       invoke<string | null>(papelizDesktopRustCommandNames.pickVaultFolder, { folderPickerTitle: desktopFolderPickerTitle }),
+    // Refused as a forbidden path, so a no-permission failure, unless the folder is at or inside one
+    // picked in this session, or already remembered.
+    rememberDesktopVaultFolderPath: withPapelizDesktopFileSystemFailures((desktopVaultFolderPath: string) =>
+      invoke<void>(papelizDesktopRustCommandNames.rememberVaultFolder, { vaultFolderPath: desktopVaultFolderPath }),
+    ),
     forgetDesktopVaultFolderPath: (desktopVaultFolderPath) =>
       invoke(papelizDesktopRustCommandNames.forgetVaultFolder, { vaultFolderPath: desktopVaultFolderPath }),
-    // The Save dialog lets the app write that one file for the rest of the session.
+    // The Save dialog opens from Rust, which then lets the app write that one file and its
+    // `.papeliz-saving` sibling for the rest of the session.
     pickDesktopSaveFilePath: (desktopSaveFileRequest) =>
-      save({
-        defaultPath: desktopSaveFileRequest.suggestedDesktopFileName,
-        filters: desktopSaveFileRequest.desktopFileTypeFilters.map((desktopFileTypeFilter) => ({
-          name: desktopFileTypeFilter.desktopFileTypeName,
-          extensions: desktopFileTypeFilter.desktopFileExtensions,
-        })),
+      invoke<string | null>(papelizDesktopRustCommandNames.pickSaveFilePath, {
+        suggestedDesktopFileName: desktopSaveFileRequest.suggestedDesktopFileName,
+        desktopFileTypeFilters: desktopSaveFileRequest.desktopFileTypeFilters,
       }),
     async openLinkInSystemBrowser(externalLinkUrl) {
       const externalLinkProtocol = new URL(externalLinkUrl).protocol

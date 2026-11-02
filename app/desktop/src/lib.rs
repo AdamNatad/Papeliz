@@ -3,6 +3,7 @@
 // (capabilities/papeliz-desktop-main-window.json).
 
 mod papeliz_desktop_app_distribution;
+mod papeliz_desktop_save_files;
 mod papeliz_desktop_snap_layouts;
 mod papeliz_desktop_vault_folders;
 
@@ -36,10 +37,13 @@ pub fn run_papeliz_desktop_app() {
     }
 
     papeliz_desktop_app_builder
+        .manage(papeliz_desktop_vault_folders::PapelizDesktopPickedVaultFolders::default())
         .invoke_handler(tauri::generate_handler![
             papeliz_desktop_app_distribution::get_papeliz_desktop_app_distribution,
             papeliz_desktop_vault_folders::pick_papeliz_desktop_vault_folder,
+            papeliz_desktop_vault_folders::remember_papeliz_desktop_vault_folder,
             papeliz_desktop_vault_folders::forget_papeliz_desktop_vault_folder,
+            papeliz_desktop_save_files::pick_papeliz_desktop_save_file_path,
             papeliz_desktop_snap_layouts::set_papeliz_desktop_maximize_button_bounds,
         ])
         .setup(|app| {
