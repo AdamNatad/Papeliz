@@ -1,5 +1,6 @@
 import { AppWindow, BookOpen, CloudCheck, CloudDownload, Code, Download, Ellipsis, Eye, EyeOff, FolderOpen, FolderPlus, HardDrive, History, LayoutTemplate, Lock, Pencil, RefreshCw, RotateCcw, Search, Trash2, type LucideIcon } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type Ref } from 'react'
+import { isPapelizDesktopApp } from 'virtual:papeliz-desktop-platform-availability'
 import { isPapelizSyncEngineInThisBuild } from 'virtual:papeliz-sync-engine-availability'
 import type { PapelizSyncVaultEncryptionKind } from '../sync/papeliz-sync-engine-contract'
 import { isPapelizSyncUsedOnThisDevice, readPapelizSyncDevFakeEngineScenarioText, usePapelizSyncEngineSnapshot, usePapelizSyncEngineStore } from '../sync/papeliz-sync-engine-store'
@@ -47,11 +48,13 @@ import {
 } from '../vault/papeliz-open-vault'
 import {
   deletePapelizRecentVault,
+  isPapelizRecentDesktopFolderVault,
   isPapelizRecentVaultHidden,
   listPapelizRecentVaults,
   reopenPapelizRecentVault,
   setPapelizRecentVaultHidden,
   type PapelizRecentVault,
+  type PapelizStartScreenRecentVault,
 } from '../vault/papeliz-recent-vaults'
 import { isVaultFolderDeleteSupported } from '../vault/papeliz-remembered-vault-folders'
 import { describePapelizFailureMessage } from '../vault/papeliz-failure-code-words'
@@ -92,6 +95,7 @@ const papelizRelativeTimeFormat = new Intl.RelativeTimeFormat(undefined, { numer
 // The reload's ring stays at least this long, so a quick reload is still seen to happen.
 const papelizRecentVaultListReloadMinimumMilliseconds = 600
 
+
 // Restore and Delete in the Hidden list, and Delete All: Restore outlined like a Cancel, the two deletes
 // outlined in red and filled soft red on hover, with a slight give when pressed. None is solid, so no
 // delete reads as the page's main action.
@@ -131,7 +135,7 @@ const papelizVaultRowWordTooltips: Record<PapelizVaultRowWordKind, { vaultRowWor
 
 // A vault row's words, in order: where it's kept, then (where Sync is in the build) its sync badges.
 // `recentVaultSyncEncryptionKind` is undefined where there are no sync badges.
-function listVaultRowWordKinds(recentVault: PapelizRecentVault, recentVaultSyncEncryptionKind: PapelizSyncVaultEncryptionKind | null | undefined): PapelizVaultRowWordKind[] {
+function listVaultRowWordKinds(recentVault: PapelizStartScreenRecentVault, recentVaultSyncEncryptionKind: PapelizSyncVaultEncryptionKind | null | undefined): PapelizVaultRowWordKind[] {
   const vaultRowStorageWordKind: PapelizVaultRowWordKind = recentVault.papelizRecentVaultKind === 'browser-vault-in-opfs' ? 'browser-storage' : 'folder-storage'
   if (recentVaultSyncEncryptionKind === undefined) return [vaultRowStorageWordKind]
   if (recentVaultSyncEncryptionKind === null) return [vaultRowStorageWordKind, 'local']
@@ -156,7 +160,7 @@ function PapelizVaultRowWord({ vaultRowWordKind, className, children }: { vaultR
 }
 
 // Where a recent vault is kept, under its name: Browser Storage or Folder Storage, New Vault's names.
-function PapelizRecentVaultPlace({ recentVault }: { recentVault: PapelizRecentVault }) {
+function PapelizRecentVaultPlace({ recentVault }: { recentVault: PapelizStartScreenRecentVault }) {
   const isBrowserVault = recentVault.papelizRecentVaultKind === 'browser-vault-in-opfs'
   return (
     <PapelizVaultRowWord vaultRowWordKind={isBrowserVault ? 'browser-storage' : 'folder-storage'} className="inline-flex items-center gap-1">
@@ -171,7 +175,7 @@ const papelizHiddenVaultCountBadgeClassName =
   'grid place-items-center rounded-full border border-papeliz-line bg-papeliz-surface leading-none font-bold text-papeliz-ink-muted tabular-nums'
 
 // "Hidden 12 minutes ago", on a hidden vault's row.
-function describeHiddenVaultTime(recentVault: PapelizRecentVault): string {
+function describeHiddenVaultTime(recentVault: PapelizStartScreenRecentVault): string {
   return `Hidden ${describeTimeSince(recentVault.papelizVaultHiddenAt ?? recentVault.papelizVaultLastOpenedAt).toLowerCase()}`
 }
 
@@ -300,8 +304,8 @@ function PapelizRecentVaultSyncBadges({ recentVaultSyncEncryptionKind }: { recen
 
 // What the delete dialog is about to delete: one hidden vault, or every hidden vault (Delete All).
 type PapelizRecentVaultDeleteRequest =
-  | { recentVaultDeleteScope: 'one-vault'; recentVault: PapelizRecentVault }
-  | { recentVaultDeleteScope: 'all-hidden-vaults'; recentVaults: readonly PapelizRecentVault[] }
+  | { recentVaultDeleteScope: 'one-vault'; recentVault: PapelizStartScreenRecentVault }
+  | { recentVaultDeleteScope: 'all-hidden-vaults'; recentVaults: readonly PapelizStartScreenRecentVault[] }
 
 // The delete dialog's first words: what goes, and from where. Nothing deleted goes to the Recycle Bin.
 function describeRecentVaultDeleteRequest(recentVaultDeleteRequest: PapelizRecentVaultDeleteRequest): string {
@@ -326,8 +330,10 @@ function describeRecentVaultDeleteRequest(recentVaultDeleteRequest: PapelizRecen
 // the browser. Hide only takes a vault off Recent vaults; Delete in the Hidden list erases it, from
 // the disk or from this browser, once its name is typed. In a browser that can keep neither kind, the
 // actions say so on a badge, on hover and in a toast; where only folders are missing, Open Vault goes.
-// In development builds the eye previewer in an open vault's file list can hold it in any of its
-// states, with made-up vaults; nothing on the disk or in the browser's storage changes then.
+// In Papeliz for Windows every vault is a real folder, picked in Windows' own folder picker: New Vault
+// makes no browser vault and the lists show none; the sample stays. In development builds the eye
+// previewer in an open vault's file list can hold it in any of its states, with made-up vaults;
+// nothing on the disk or in the browser's storage changes then.
 export function PapelizWelcomeScreen() {
   const heldStartScreenEyePreview = usePapelizStartScreenEyePreviewStore((eyePreviewState) => eyePreviewState.heldStartScreenEyePreview)
   return (
@@ -346,7 +352,7 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
   const openVaultInWorkspace = usePapelizWorkspaceStore((workspaceState) => workspaceState.openVaultInWorkspace)
   const showWorkspaceNotice = usePapelizWorkspaceStore((workspaceState) => workspaceState.showWorkspaceNotice)
   const askBrowserToKeepStorage = usePapelizBrowserStorageStore((browserStorageState) => browserStorageState.askBrowserToKeepStorage)
-  const [recentVaults, setRecentVaults] = useState<PapelizRecentVault[]>(
+  const [recentVaults, setRecentVaults] = useState<PapelizStartScreenRecentVault[]>(
     () => startScreenEyePreview?.previewRememberedVaultFolders ?? [],
   )
   const [recentVaultSearchText, setRecentVaultSearchText] = useState(startScreenEyePreview?.previewRecentVaultSearchText ?? '')
@@ -402,14 +408,18 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
   const startPagePanelRef = useRef<HTMLElement>(null)
   // The recent vault whose menu is open (from a right-click or its "…" button), and where.
   const [recentVaultMenu, setRecentVaultMenu] = useState<{
-    recentVault: PapelizRecentVault
+    recentVault: PapelizStartScreenRecentVault
     recentVaultMenuPosition: PapelizPopoverMenuPosition
   } | null>(null)
   // The folder window failed to open from a click of the user's own: opening a folder is off for
   // this page until Try again.
   const [isFolderChooserUnavailable, setFolderChooserUnavailable] = useState(startScreenEyePreview?.previewFolderAccessOffReason === 'chooser-unavailable')
 
-  const detectedFolderAccessSupport = useMemo(() => detectPapelizFolderAccessSupport(), [])
+  // Papeliz for Windows opens folders through its native side, whatever its web view supports.
+  const detectedFolderAccessSupport = useMemo(
+    () => (isPapelizDesktopApp ? { isFolderAccessOn: true, folderAccessOffReason: null } : detectPapelizFolderAccessSupport()),
+    [],
+  )
   // In a preview, what the browser is said to support; a closed folder window is this page's own,
   // so Try again turns it back on as it does for real.
   const detectedFolderAccessOffReason =
@@ -435,7 +445,8 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
       isProbeAnswerWanted = false
     }
   }, [])
-  const isBrowserVaultOn = browserVaultOffReason === null
+  // Papeliz for Windows lists and makes no browser vault: every vault there is a real folder.
+  const isBrowserVaultOn = !isPapelizDesktopApp && browserVaultOffReason === null
   const browserVaultOffReasonText = browserVaultOffReason === null ? null : describePapelizBrowserVaultOffReason(browserVaultOffReason)
   // New Vault: a folder, a browser vault, or (Chrome and Edge) a choice of the two.
   const isFolderVaultOn = folderAccessOffReason === null
@@ -445,7 +456,7 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
   const browserVaultRecords = useMemo(
     () =>
       recentVaults.filter(
-        (recentVault): recentVault is Extract<PapelizRecentVault, { papelizRecentVaultKind: 'browser-vault-in-opfs' }> =>
+        (recentVault): recentVault is Extract<PapelizStartScreenRecentVault, { papelizRecentVaultKind: 'browser-vault-in-opfs' }> =>
           recentVault.papelizRecentVaultKind === 'browser-vault-in-opfs',
       ),
     [recentVaults],
@@ -584,10 +595,15 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
       .filter((syncLinkedLocalVault) => syncLinkedLocalVault.isFirstDownloadUnfinished)
       .map((syncLinkedLocalVault) => syncLinkedLocalVault.papelizVaultId)
       .join('\n') ?? ''
+  // Sync's downloads go into a folder opened in the browser or a browser vault, never a folder by path.
+  const syncDownloadRecentVaults = useMemo(
+    () => recentVaults.filter((recentVault): recentVault is PapelizRecentVault => !isPapelizRecentDesktopFolderVault(recentVault)),
+    [recentVaults],
+  )
   useEffect(() => {
     if (loadedSyncEngine === null || startScreenEyePreview !== null || unfinishedSyncDownloadVaultIdsText === '') return
-    void resumePapelizSyncStartScreenDownloads(loadedSyncEngine, recentVaults)
-  }, [loadedSyncEngine, startScreenEyePreview, unfinishedSyncDownloadVaultIdsText, recentVaults])
+    void resumePapelizSyncStartScreenDownloads(loadedSyncEngine, syncDownloadRecentVaults)
+  }, [loadedSyncEngine, startScreenEyePreview, unfinishedSyncDownloadVaultIdsText, syncDownloadRecentVaults])
   // Every vault this device holds, hidden ones too: the Synced Vaults page calls a synced vault copied into
   // one of them on this device.
   const recentVaultIds = useMemo(() => new Set(recentVaults.map((recentVault) => recentVault.papelizVaultId)), [recentVaults])
@@ -697,7 +713,8 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
       return
     }
     setNewVaultFormRequest(null)
-    if (chosenNewVaultPlace === 'folder-on-disk') {
+    // Papeliz for Windows makes every new vault a folder.
+    if (chosenNewVaultPlace === 'folder-on-disk' || isPapelizDesktopApp) {
       await pickPlaceAndOpenNewFolderVault(typedNewVaultName)
       return
     }
@@ -782,7 +799,7 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
     }
   }
 
-  const reopenRecentVault = async (recentVault: PapelizRecentVault) => {
+  const reopenRecentVault = async (recentVault: PapelizStartScreenRecentVault) => {
     if (startScreenEyePreview !== null) {
       showStartScreenPreviewOnlyNotice()
       return
@@ -815,7 +832,7 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
   }
 
   // Hides a vault into the Hidden list or restores it; the folder and its notes stay on the disk.
-  const setRecentVaultHidden = (recentVault: PapelizRecentVault, isVaultHidden: boolean) => {
+  const setRecentVaultHidden = (recentVault: PapelizStartScreenRecentVault, isVaultHidden: boolean) => {
     if (startScreenEyePreview !== null) {
       showStartScreenPreviewOnlyNotice()
       return
@@ -874,10 +891,11 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
         ? recentVaultDeleteRequest.recentVault.papelizVaultDisplayName
         : String(recentVaultDeleteRequest.recentVaults.length)
   const isVaultDeleteConfirmationTyped = recentVaultDeleteRequest !== null && typedVaultDeleteConfirmation.trim() === expectedVaultDeleteConfirmation
-  // A browser vault can always be deleted; a folder only where the browser can erase folders.
-  const canDeleteRecentVault = (recentVault: PapelizRecentVault) => recentVault.papelizRecentVaultKind === 'browser-vault-in-opfs' || isVaultFolderDeleteSupported()
+  // A browser vault can always be deleted, and so can a folder by path (Papeliz for Windows' native
+  // side erases it); a folder opened in the browser only where the browser can erase folders.
+  const canDeleteRecentVault = (recentVault: PapelizStartScreenRecentVault) => recentVault.papelizRecentVaultKind !== 'folder-on-disk' || isVaultFolderDeleteSupported()
   const canDeleteEveryHiddenRecentVault = hiddenRecentVaults.every(canDeleteRecentVault)
-  const isFolderVaultListed = listedRecentVaults.some((recentVault) => recentVault.papelizRecentVaultKind === 'folder-on-disk')
+  const isFolderVaultListed = listedRecentVaults.some((recentVault) => recentVault.papelizRecentVaultKind !== 'browser-vault-in-opfs')
   const isBrowserVaultListed = listedRecentVaults.some((recentVault) => recentVault.papelizRecentVaultKind === 'browser-vault-in-opfs')
 
   // Rename's dialog confirmed, for a browser vault.

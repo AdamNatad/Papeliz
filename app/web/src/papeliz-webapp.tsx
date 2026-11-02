@@ -1,4 +1,6 @@
 import { lazy, Suspense, useEffect } from 'react'
+import { loadPapelizDesktopPlatformOnce } from './modules/desktop/papeliz-desktop-platform-store'
+import { sendPapelizDesktopExternalLinksToSystemBrowser } from './modules/desktop/papeliz-desktop-external-links'
 import { PapelizWelcomeScreen } from './modules/workspace/papeliz-welcome-screen'
 import { hasUnsavedPapelizVaultNotes, usePapelizWorkspaceStore } from './modules/workspace/papeliz-workspace-store'
 
@@ -11,6 +13,23 @@ const PapelizWorkspace = lazy(() =>
 // The whole app: the start page until a vault is open, then the workspace.
 export function PapelizWebapp() {
   const openVault = usePapelizWorkspaceStore((workspaceState) => workspaceState.openVault)
+
+  // Papeliz for Windows' native side starts loading at once (in a browser this does nothing). Flows
+  // that need it wait for it, so nothing runs before it is there; one that fails to load leaves the
+  // browser's own way in place.
+  useEffect(() => {
+    let stopSendingExternalLinksToSystemBrowser: (() => void) | null = null
+    let isPapelizWebappShown = true
+    void loadPapelizDesktopPlatformOnce()
+      .then((papelizDesktopPlatform) => {
+        if (papelizDesktopPlatform !== null && isPapelizWebappShown) stopSendingExternalLinksToSystemBrowser = sendPapelizDesktopExternalLinksToSystemBrowser(papelizDesktopPlatform)
+      })
+      .catch(() => null)
+    return () => {
+      isPapelizWebappShown = false
+      stopSendingExternalLinksToSystemBrowser?.()
+    }
+  }, [])
 
   useEffect(() => {
     document.title = openVault === null ? 'Papeliz' : `${openVault.papelizVaultDisplayName} · Papeliz`

@@ -1,4 +1,5 @@
 import { AppWindow, FolderOpen, type LucideIcon } from 'lucide-react'
+import { isPapelizDesktopApp } from 'virtual:papeliz-desktop-platform-availability'
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { papelizMainActionButtonColorClassName, papelizOutlineButtonColorClassName } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
@@ -24,6 +25,13 @@ interface PapelizNewVaultPlaceDescription {
   newVaultPlaceBadgeText: string
   newVaultPlaceBadgeTone: PapelizNewVaultPlaceBadgeTone
   newVaultPlaceLine: string
+}
+
+// Papeliz for Windows keeps every vault in a real folder, so its New Vault offers only that card.
+function listShownPapelizNewVaultPlaceDescriptions(): readonly PapelizNewVaultPlaceDescription[] {
+  return isPapelizDesktopApp
+    ? papelizNewVaultPlaceDescriptions.filter((newVaultPlaceDescription) => newVaultPlaceDescription.newVaultPlace === 'folder-on-disk')
+    : papelizNewVaultPlaceDescriptions
 }
 
 const papelizNewVaultPlaceDescriptions: readonly PapelizNewVaultPlaceDescription[] = [
@@ -273,7 +281,7 @@ export function PapelizNewVaultForm({
           Choose where to keep this vault.
         </p>
         <div role="radiogroup" aria-labelledby={newVaultPlacePromptId} className="flex flex-col gap-2">
-          {papelizNewVaultPlaceDescriptions.map((newVaultPlaceDescription) => {
+          {listShownPapelizNewVaultPlaceDescriptions().map((newVaultPlaceDescription) => {
             const { newVaultPlace, NewVaultPlaceIcon } = newVaultPlaceDescription
             const isNewVaultPlaceChosen = newVaultPlace === chosenNewVaultPlace
             const newVaultPlaceOffReasonText = newVaultPlaceOffReasonTexts[newVaultPlace]
@@ -342,7 +350,9 @@ export function PapelizNewVaultForm({
 
         {/* The comparison: what each place means, side by side; the chosen place's column lights up. Every
             cell stays on one line. Too narrow for that (a phone), each place gets its own short list,
-            one under the other, the chosen one lit. */}
+            one under the other, the chosen one lit. Papeliz for Windows offers one place, so it has none. */}
+        {!isPapelizDesktopApp && (
+        <>
         <div className="flex flex-none flex-col gap-2 sm:hidden">
           {papelizNewVaultPlaceDescriptions.map(({ newVaultPlace, NewVaultPlaceIcon, newVaultPlaceTitle }) => (
             <div
@@ -439,6 +449,8 @@ export function PapelizNewVaultForm({
             </tbody>
           </table>
         </div>
+        </>
+        )}
       </div>
 
       {/* Cancel at the left edge, the action at the right, so the two never sit side by side. */}

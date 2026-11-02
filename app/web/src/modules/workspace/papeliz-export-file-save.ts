@@ -1,3 +1,5 @@
+import type { PapelizDesktopPlatform } from '../desktop/papeliz-desktop-platform-contract'
+import { usePapelizDesktopPlatformStore } from '../desktop/papeliz-desktop-platform-store'
 import { describePapelizFailureCode } from '../vault/papeliz-failure-code-words'
 import { describePapelizVaultError } from '../vault/papeliz-vault-adapter'
 
@@ -105,6 +107,23 @@ function downloadPapelizExportFile(exportFileName: string, exportFileBlob: Blob)
   window.setTimeout(() => URL.revokeObjectURL(exportFileObjectUrl), 60_000)
 }
 
+// Papeliz for Windows saves through Windows' own Save dialog and writes the file there itself, with no
+// time limit after the click. A file it can't write fails the export, as nothing downloads in the app.
+async function savePapelizExportFileWithDesktopDialog(
+  papelizDesktopPlatform: PapelizDesktopPlatform,
+  exportFileName: string,
+  exportFileKind: PapelizExportFileKind,
+  exportFileBlob: Blob,
+): Promise<PapelizExportFileSaveOutcome> {
+  const chosenDesktopFilePath = await papelizDesktopPlatform.pickDesktopSaveFilePath({
+    suggestedDesktopFileName: exportFileName,
+    desktopFileTypeFilters: [{ desktopFileTypeName: exportFileKind.exportFileDescription, desktopFileExtensions: [exportFileKind.exportFileExtension.replace(/^\./, '')] }],
+  })
+  if (chosenDesktopFilePath === null) return 'save-dialog-closed'
+  await papelizDesktopPlatform.desktopFileSystem.writeDesktopFileBytes(chosenDesktopFilePath, new Uint8Array(await exportFileBlob.arrayBuffer()))
+  return 'saved-to-chosen-file'
+}
+
 // Builds the export, then saves it: the save dialog opens only once the file is ready, so stopping
 // or failing while it is built creates no file. When the chosen file can't be written, the same file
 // downloads instead, so the export still lands.
@@ -114,6 +133,13 @@ export async function buildThenSavePapelizExportFile<PapelizBuiltExport extends 
   buildExportFile: () => Promise<PapelizBuiltExport>,
 ): Promise<{ builtExport: PapelizBuiltExport; exportFileSaveOutcome: PapelizExportFileSaveOutcome }> {
   const builtExport = await buildExportFile()
+  const papelizDesktopPlatform = usePapelizDesktopPlatformStore.getState().papelizDesktopPlatform
+  if (papelizDesktopPlatform !== null) {
+    return {
+      builtExport,
+      exportFileSaveOutcome: await savePapelizExportFileWithDesktopDialog(papelizDesktopPlatform, exportFileName, exportFileKind, builtExport.exportFileBlob),
+    }
+  }
   const exportFileDestination = await choosePapelizExportFileDestination(exportFileName, exportFileKind)
   if (exportFileDestination === null) return { builtExport, exportFileSaveOutcome: 'save-dialog-closed' }
   if (exportFileDestination.exportFileDestinationKind === 'chosen-file') {

@@ -5,6 +5,9 @@
 const papelizBrowserDatabaseName = 'papeliz-browser-database'
 const papelizBrowserDatabaseVersion = 6
 
+// The folders the user opened (papeliz-remembered-vault-folders.ts). A row holds a folder handle, or
+// in Papeliz for Windows the folder's path, under the same key: rows saved before paths were kept
+// carry no kind and read as handles, so the store needed no new version.
 export const papelizVaultFolderHandlesStoreName = 'papelizVaultFolderHandles'
 export const papelizUserSettingsStoreName = 'papelizUserSettings'
 export const papelizAssistantProviderKeysStoreName = 'papelizAssistantProviderKeys'

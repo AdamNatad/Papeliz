@@ -4,32 +4,85 @@ import {
   papelizVaultFolderHandlesStoreName,
   putPapelizBrowserDatabaseRecord,
   readAllPapelizBrowserDatabaseRecords,
+  readPapelizBrowserDatabaseRecord,
 } from '../browser-database/papeliz-browser-database'
+import type { PapelizDesktopPlatform } from '../desktop/papeliz-desktop-platform-contract'
+import { loadPapelizDesktopPlatformOnce, usePapelizDesktopPlatformStore } from '../desktop/papeliz-desktop-platform-store'
 import { deletePapelizRememberedNoteTabs } from './papeliz-remembered-note-tabs'
 import { describePapelizFailureCodeMessage, describePapelizFailureMessage } from './papeliz-failure-code-words'
+import { isPapelizVaultEntryMissingError } from './papeliz-vault-adapter'
 
-// One row of `papelizVaultFolderHandles`: a folder the user opened, so the welcome screen can offer
-// it again. The browser keeps the handle; permission is asked again when the folder is reopened.
-export interface PapelizRememberedVaultFolder {
+// What every row of `papelizVaultFolderHandles` holds: a folder the user opened, so the welcome
+// screen can offer it again.
+interface PapelizRememberedVaultFolderListing {
   papelizVaultId: string
   papelizVaultDisplayName: string
-  papelizVaultFolderHandle: FileSystemDirectoryHandle
   papelizVaultLastOpenedAt: number
   // When the vault was hidden from Recent vaults into the Hidden list; null (or missing, on rows
   // saved before there was a Hidden list) while it is on Recent vaults.
   papelizVaultHiddenAt?: number | null
 }
 
+// A folder opened in the browser. The browser keeps the handle; permission is asked again when the
+// folder is reopened.
+export interface PapelizRememberedBrowserHandleVaultFolder extends PapelizRememberedVaultFolderListing {
+  // Missing on rows saved before Papeliz for Windows remembered folders by path: every such row
+  // holds a handle.
+  papelizRememberedVaultFolderKind?: 'browser-folder-handle'
+  papelizVaultFolderHandle: FileSystemDirectoryHandle
+}
+
+// A folder opened in Papeliz for Windows, by its absolute path. The desktop app's native side keeps
+// it reachable at every start, so there is no permission to ask for.
+export interface PapelizRememberedDesktopPathVaultFolder extends PapelizRememberedVaultFolderListing {
+  papelizRememberedVaultFolderKind: 'desktop-folder-path'
+  desktopVaultFolderPath: string
+}
+
+// One row of `papelizVaultFolderHandles`. Both kinds share the store and its key, so rows saved by
+// an older Papeliz read as they always did.
+export type PapelizRememberedVaultFolder = PapelizRememberedBrowserHandleVaultFolder | PapelizRememberedDesktopPathVaultFolder
+
+export function isRememberedDesktopPathVaultFolder(
+  rememberedVaultFolder: PapelizRememberedVaultFolder,
+): rememberedVaultFolder is PapelizRememberedDesktopPathVaultFolder {
+  return rememberedVaultFolder.papelizRememberedVaultFolderKind === 'desktop-folder-path'
+}
+
+// Papeliz for Windows' native side once it has loaded, or null in the web app (and when it failed
+// to load, so the browser's own way still works).
+export async function waitForPapelizDesktopPlatform(): Promise<PapelizDesktopPlatform | null> {
+  await loadPapelizDesktopPlatformOnce().catch(() => null)
+  return usePapelizDesktopPlatformStore.getState().papelizDesktopPlatform
+}
+
+// The vault's name for a folder reached by path: its last segment ("C:\Users\Ada\Field Notes" ->
+// "Field Notes"), as a folder handle's name is. A drive root keeps its whole path.
+export function readDesktopVaultFolderName(desktopVaultFolderPath: string): string {
+  return desktopVaultFolderPath.split(/[\\/]+/).filter((desktopPathName) => desktopPathName.length > 0).at(-1) ?? desktopVaultFolderPath
+}
+
+// Windows compares paths without case, with either separator, and with or without a trailing one.
+function isSameDesktopVaultFolderPath(firstDesktopVaultFolderPath: string, secondDesktopVaultFolderPath: string): boolean {
+  const normalizeDesktopVaultFolderPath = (desktopVaultFolderPath: string) => desktopVaultFolderPath.replace(/[\\/]+/g, '\\').replace(/\\$/, '').toLowerCase()
+  return normalizeDesktopVaultFolderPath(firstDesktopVaultFolderPath) === normalizeDesktopVaultFolderPath(secondDesktopVaultFolderPath)
+}
+
 export function isFolderOnDiskVaultSupported(): boolean {
   return typeof window !== 'undefined' && typeof window.showDirectoryPicker === 'function' && window.isSecureContext
 }
 
+// Most recently opened first. A folder remembered by path opens only in Papeliz for Windows, so a
+// browser never lists one.
 export async function listRememberedVaultFolders(): Promise<PapelizRememberedVaultFolder[]> {
   if (!isPapelizBrowserDatabaseAvailable()) return []
-  const rememberedVaultFolders = await readAllPapelizBrowserDatabaseRecords<PapelizRememberedVaultFolder>(papelizVaultFolderHandlesStoreName)
-  return rememberedVaultFolders.sort(
-    (firstVaultFolder, secondVaultFolder) => secondVaultFolder.papelizVaultLastOpenedAt - firstVaultFolder.papelizVaultLastOpenedAt,
-  )
+  const [rememberedVaultFolders, papelizDesktopPlatform] = await Promise.all([
+    readAllPapelizBrowserDatabaseRecords<PapelizRememberedVaultFolder>(papelizVaultFolderHandlesStoreName),
+    waitForPapelizDesktopPlatform(),
+  ])
+  return rememberedVaultFolders
+    .filter((rememberedVaultFolder) => papelizDesktopPlatform !== null || !isRememberedDesktopPathVaultFolder(rememberedVaultFolder))
+    .sort((firstVaultFolder, secondVaultFolder) => secondVaultFolder.papelizVaultLastOpenedAt - firstVaultFolder.papelizVaultLastOpenedAt)
 }
 
 // Saves the folder (or refreshes its "last opened" time when the same folder was opened before).
@@ -37,6 +90,7 @@ export async function rememberVaultFolder(papelizVaultFolderHandle: FileSystemDi
   const rememberedVaultFolders = await listRememberedVaultFolders().catch(() => [])
   let sameRememberedVaultFolder: PapelizRememberedVaultFolder | undefined
   for (const rememberedVaultFolder of rememberedVaultFolders) {
+    if (isRememberedDesktopPathVaultFolder(rememberedVaultFolder)) continue
     if (await rememberedVaultFolder.papelizVaultFolderHandle.isSameEntry(papelizVaultFolderHandle).catch(() => false)) {
       sameRememberedVaultFolder = rememberedVaultFolder
       break
@@ -56,9 +110,41 @@ export async function rememberVaultFolder(papelizVaultFolderHandle: FileSystemDi
   return updatedRememberedVaultFolder
 }
 
+// The same for a folder opened in Papeliz for Windows, found again by its path.
+export async function rememberDesktopVaultFolderPath(desktopVaultFolderPath: string): Promise<PapelizRememberedDesktopPathVaultFolder> {
+  const rememberedVaultFolders = await listRememberedVaultFolders().catch(() => [])
+  const sameRememberedVaultFolder = rememberedVaultFolders.find(
+    (rememberedVaultFolder) =>
+      isRememberedDesktopPathVaultFolder(rememberedVaultFolder) && isSameDesktopVaultFolderPath(rememberedVaultFolder.desktopVaultFolderPath, desktopVaultFolderPath),
+  )
+  const updatedRememberedVaultFolder: PapelizRememberedDesktopPathVaultFolder = {
+    papelizRememberedVaultFolderKind: 'desktop-folder-path',
+    papelizVaultId: sameRememberedVaultFolder?.papelizVaultId ?? crypto.randomUUID(),
+    papelizVaultDisplayName: readDesktopVaultFolderName(desktopVaultFolderPath),
+    desktopVaultFolderPath,
+    papelizVaultLastOpenedAt: Date.now(),
+    // Opening a folder again takes it off the Hidden list.
+    papelizVaultHiddenAt: null,
+  }
+  if (isPapelizBrowserDatabaseAvailable()) {
+    await putPapelizBrowserDatabaseRecord(papelizVaultFolderHandlesStoreName, updatedRememberedVaultFolder)
+  }
+  return updatedRememberedVaultFolder
+}
+
+// Takes a folder off the list. A folder remembered by path is also let go on the desktop app's native
+// side, so the app stops reaching it; the folder itself stays.
 export async function forgetRememberedVaultFolder(papelizVaultId: string): Promise<void> {
   if (!isPapelizBrowserDatabaseAvailable()) return
+  const forgottenVaultFolder = await readPapelizBrowserDatabaseRecord<PapelizRememberedVaultFolder>(papelizVaultFolderHandlesStoreName, papelizVaultId).catch(
+    () => undefined,
+  )
   await deletePapelizBrowserDatabaseRecord(papelizVaultFolderHandlesStoreName, papelizVaultId)
+  if (forgottenVaultFolder === undefined || !isRememberedDesktopPathVaultFolder(forgottenVaultFolder)) return
+  const papelizDesktopPlatform = await waitForPapelizDesktopPlatform()
+  // The row is gone either way; a native side that can't let go now only keeps reaching a folder no
+  // vault on the list names.
+  await papelizDesktopPlatform?.forgetDesktopVaultFolderPath(forgottenVaultFolder.desktopVaultFolderPath).catch(() => undefined)
 }
 
 export function isRememberedVaultFolderHidden(rememberedVaultFolder: PapelizRememberedVaultFolder): boolean {
@@ -89,6 +175,7 @@ export type PapelizVaultFolderDeleteResult =
 // and one click allows one prompt, so in Delete All a folder that still needs one stays for the
 // next click.
 export async function deleteRememberedVaultFolderFromDisk(rememberedVaultFolder: PapelizRememberedVaultFolder): Promise<PapelizVaultFolderDeleteResult> {
+  if (isRememberedDesktopPathVaultFolder(rememberedVaultFolder)) return deleteRememberedDesktopVaultFolderFromDisk(rememberedVaultFolder)
   const { papelizVaultDisplayName, papelizVaultFolderHandle } = rememberedVaultFolder
   if (typeof papelizVaultFolderHandle.remove !== 'function') {
     return {
@@ -107,6 +194,35 @@ export async function deleteRememberedVaultFolderFromDisk(rememberedVaultFolder:
   } catch (vaultFolderDeleteError) {
     // A folder that is already gone from the disk only needs to leave the list.
     if (!(vaultFolderDeleteError instanceof DOMException && vaultFolderDeleteError.name === 'NotFoundError')) {
+      return {
+        vaultFolderDeleteOutcome: 'failed',
+        vaultFolderDeleteFailureMessage: describePapelizFailureMessage(`Couldn’t delete “${papelizVaultDisplayName}”`, vaultFolderDeleteError),
+      }
+    }
+  }
+  await forgetRememberedVaultFolder(rememberedVaultFolder.papelizVaultId)
+  void deletePapelizRememberedNoteTabs(rememberedVaultFolder.papelizVaultId).catch(() => undefined)
+  return { vaultFolderDeleteOutcome: 'deleted' }
+}
+
+// The same in Papeliz for Windows: the native side erases the folder by its path, with no permission
+// to ask for, then the folder leaves the list and the native side lets it go.
+async function deleteRememberedDesktopVaultFolderFromDisk(rememberedVaultFolder: PapelizRememberedDesktopPathVaultFolder): Promise<PapelizVaultFolderDeleteResult> {
+  const { papelizVaultDisplayName, desktopVaultFolderPath } = rememberedVaultFolder
+  const papelizDesktopPlatform = await waitForPapelizDesktopPlatform()
+  if (papelizDesktopPlatform === null) {
+    return {
+      vaultFolderDeleteOutcome: 'failed',
+      vaultFolderDeleteFailureMessage: describePapelizFailureCodeMessage(`Couldn’t delete “${papelizVaultDisplayName}”`, 'Not Supported Yet'),
+    }
+  }
+  try {
+    // A folder that is already gone from the disk only needs to leave the list.
+    if ((await papelizDesktopPlatform.desktopFileSystem.readDesktopEntry(desktopVaultFolderPath)) !== null) {
+      await papelizDesktopPlatform.desktopFileSystem.removeDesktopEntry(desktopVaultFolderPath)
+    }
+  } catch (vaultFolderDeleteError) {
+    if (!isPapelizVaultEntryMissingError(vaultFolderDeleteError)) {
       return {
         vaultFolderDeleteOutcome: 'failed',
         vaultFolderDeleteFailureMessage: describePapelizFailureMessage(`Couldn’t delete “${papelizVaultDisplayName}”`, vaultFolderDeleteError),

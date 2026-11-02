@@ -105,9 +105,14 @@ export interface PapelizDesktopPlatform {
   // updated by the Store, so it has no update check.
   desktopAppDistribution: 'direct-download' | 'microsoft-store'
   desktopFileSystem: PapelizDesktopFileSystem
-  // The folder picker, for a vault: the folder's absolute path, or null when the person cancels. The
-  // native side lets the app reach that folder, now and at every later start, until it is forgotten.
+  // The folder picker, for a vault or the place for a new one: the folder's absolute path, or null when
+  // the person cancels. The app may reach that folder, and what is inside it, for this session only.
   pickDesktopFolderPath(desktopFolderPickerTitle: string): Promise<string | null>
+  // A vault's own folder, once it opens: the folder picked, or one made inside a folder picked in this
+  // session. The native side then lets the app reach it at every later start, until it is forgotten;
+  // any other path fails as 'no-permission'. So the place picked for New Vault (Documents, say) is
+  // never reachable again, only the vault made inside it.
+  rememberDesktopVaultFolderPath(desktopVaultFolderPath: string): Promise<void>
   // A recent vault removed from the list: the app stops reaching its folder. The folder itself stays.
   forgetDesktopVaultFolderPath(desktopVaultFolderPath: string): Promise<void>
   // The Save dialog: the chosen file's absolute path, or null when the person cancels.

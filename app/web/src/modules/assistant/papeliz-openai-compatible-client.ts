@@ -1,3 +1,4 @@
+import { fetchFromPapelizProviderAddress } from './papeliz-assistant-provider-fetch'
 import { redactPapelizAssistantProviderErrorText } from './papeliz-assistant-provider-error-redaction'
 
 // The one client the assistant uses: OpenAI Chat Completions over `fetch`, streamed as server-sent
@@ -299,7 +300,7 @@ export function streamPapelizChatCompletion(chatCompletionRequest: PapelizChatCo
 }
 
 async function streamChatCompletionFromProvider(chatCompletionRequest: PapelizChatCompletionRequest): Promise<PapelizChatCompletionResult> {
-  const fetchFunction = chatCompletionRequest.fetchFunction ?? ((requestUrl, requestInit) => fetch(requestUrl, requestInit))
+  const fetchFunction = chatCompletionRequest.fetchFunction ?? fetchFromPapelizProviderAddress
   const requestBody: Record<string, unknown> = {
     model: chatCompletionRequest.providerConnection.providerModelName,
     messages: chatCompletionRequest.chatMessages,
@@ -442,7 +443,7 @@ async function streamChatCompletionFromProvider(chatCompletionRequest: PapelizCh
 // Asks the provider which models this key can use (`GET /models`). Not every provider offers it.
 export async function listPapelizProviderModelNames(
   providerConnection: PapelizAssistantProviderConnection,
-  fetchFunction: PapelizFetchFunction = (requestUrl, requestInit) => fetch(requestUrl, requestInit),
+  fetchFunction: PapelizFetchFunction = fetchFromPapelizProviderAddress,
 ): Promise<string[]> {
   return runProviderCallWithKeyHiddenInErrors(providerConnection, async () => {
     const providerResponse = await sendProviderRequest(providerConnection, 'models', { method: 'GET', headers: buildProviderHeaders(providerConnection) }, fetchFunction)

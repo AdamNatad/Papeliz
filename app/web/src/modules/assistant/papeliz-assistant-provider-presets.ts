@@ -1,3 +1,5 @@
+import { isPapelizDesktopApp } from 'virtual:papeliz-desktop-platform-availability'
+
 // The providers offered in settings. Each speaks the OpenAI Chat Completions format; a preset only
 // fills in the base URL and suggests models, and the user can change both. The first one is
 // preselected. "Browser access confirmed" means a call straight from a browser page was checked
@@ -5,7 +7,8 @@
 // may send Authorization and Content-Type to its chat and model list. Meta, OpenAI, OpenRouter,
 // Groq, Together, Fireworks and Google Gemini allow it. Ollama Cloud refuses it (405, no
 // permission header) and OpenCode Zen and Go refuse it for chat (404), so a web page can't reach
-// them; an app outside the browser could. Claude's API (checked 2026-11-03 the same way) allows
+// them; Papeliz for Windows offers them, calling them through its native side
+// (papeliz-assistant-provider-fetch.ts). Claude's API (checked 2026-11-03 the same way) allows
 // papeliz.com its chat and model list only when the request also sends Anthropic's header for calls
 // from a browser page, which the Claude preset adds (`providerExtraRequestHeaders`). DeepSeek
 // (checked 2026-11-03 the same way) allows it.
@@ -203,19 +206,20 @@ export const papelizAssistantProviderPresets: readonly PapelizAssistantProviderP
 
 export const papelizDefaultAssistantProviderId = papelizAssistantProviderPresets[0]?.papelizAssistantProviderId ?? papelizCustomAssistantProviderId
 
-// Providers whose servers refuse calls from a web page (checked 2026-10-29, above). Settings hides
-// them until they allow it; a desktop app, outside the browser, could offer them.
+// Providers whose servers refuse calls from a web page (checked 2026-10-29, above). The web app's
+// settings hide them until they allow it; Papeliz for Windows offers them.
 export const papelizBrowserBlockedAssistantProviderIds: readonly string[] = ['ollama-cloud', 'opencode-zen', 'opencode-go']
 
 // Providers whose answers carry what each request cost, which Usage counts before any price.
 export const papelizRequestCostReportingAssistantProviderIds: readonly string[] = ['openrouter']
 
 // The providers settings offers: the Meta Model API first, then Claude and OpenAI, then every other
-// provider a web page can reach, those on this computer and Custom. A hidden one stays defined, so
-// settings saved for it still open, and it stays listed while it is the one chosen.
+// provider this app can reach (in the web app, those a web page can), those on this computer and
+// Custom. A hidden one stays defined, so settings saved for it still open, and it stays listed while it
+// is the one chosen.
 export const papelizOfferedAssistantProviderIds: readonly string[] = papelizAssistantProviderPresets
   .map((providerPreset) => providerPreset.papelizAssistantProviderId)
-  .filter((papelizAssistantProviderId) => !papelizBrowserBlockedAssistantProviderIds.includes(papelizAssistantProviderId))
+  .filter((papelizAssistantProviderId) => isPapelizDesktopApp || !papelizBrowserBlockedAssistantProviderIds.includes(papelizAssistantProviderId))
 
 export function listPapelizOfferedAssistantProviderPresets(chosenAssistantProviderId: string): readonly PapelizAssistantProviderPreset[] {
   return papelizAssistantProviderPresets.filter(

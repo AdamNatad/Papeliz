@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { PapelizDesktopPlatform, PapelizDesktopSaveFileRequest } from '../desktop/papeliz-desktop-platform-contract'
+import { usePapelizDesktopPlatformStore } from '../desktop/papeliz-desktop-platform-store'
 import { PapelizVaultOperationError } from '../vault/papeliz-vault-adapter'
 import { buildThenSavePapelizExportFile, describePapelizExportErrorSentence, type PapelizExportFileKind } from './papeliz-export-file-save'
 
@@ -155,5 +157,46 @@ describe('the sentence a failed export shows', () => {
   it('keeps a full disk’s sentence and an export’s own reason as they are', () => {
     expect(describePapelizExportErrorSentence(new DOMException('Not enough space.', 'QuotaExceededError'))).toBe('The disk is full. Free some space, then try again.')
     expect(describePapelizExportErrorSentence(new PapelizVaultOperationError('a picture couldn’t be read'))).toBe('a picture couldn’t be read')
+  })
+})
+
+describe('an export in Papeliz for Windows', () => {
+  afterEach(() => {
+    usePapelizDesktopPlatformStore.setState({ papelizDesktopPlatform: null })
+  })
+
+  function setTestDesktopSaveDialog(chosenDesktopFilePath: string | null, desktopWriteFailure: Error | null = null) {
+    const desktopSaveSteps: string[] = []
+    usePapelizDesktopPlatformStore.setState({
+      papelizDesktopPlatform: {
+        pickDesktopSaveFilePath: async (desktopSaveFileRequest: PapelizDesktopSaveFileRequest) => {
+          desktopSaveSteps.push(`dialog ${desktopSaveFileRequest.suggestedDesktopFileName} ${desktopSaveFileRequest.desktopFileTypeFilters[0]?.desktopFileExtensions.join(',')}`)
+          return chosenDesktopFilePath
+        },
+        desktopFileSystem: {
+          writeDesktopFileBytes: async (desktopFilePath: string, desktopFileBytes: Uint8Array) => {
+            if (desktopWriteFailure !== null) throw desktopWriteFailure
+            desktopSaveSteps.push(`write ${desktopFilePath} ${desktopFileBytes.length}`)
+          },
+        },
+      } as unknown as PapelizDesktopPlatform,
+    })
+    return desktopSaveSteps
+  }
+
+  it('saves through Windows’ Save dialog, once the file is built', async () => {
+    const desktopSaveSteps = setTestDesktopSaveDialog('C:\\Users\\Ana\\Notes.pdf')
+    const { exportFileSaveOutcome } = await buildThenSavePapelizExportFile('Notes.pdf', testExportFileKind, async () => ({ exportFileBlob: new Blob(['%PDF']) }))
+    expect(exportFileSaveOutcome).toBe('saved-to-chosen-file')
+    expect(desktopSaveSteps).toEqual(['dialog Notes.pdf pdf', 'write C:\\Users\\Ana\\Notes.pdf 4'])
+  })
+
+  it('saves nothing when the dialog is closed, and fails the export when the file can’t be written', async () => {
+    setTestDesktopSaveDialog(null)
+    expect((await buildThenSavePapelizExportFile('Notes.pdf', testExportFileKind, async () => ({ exportFileBlob: new Blob(['%PDF']) }))).exportFileSaveOutcome).toBe(
+      'save-dialog-closed',
+    )
+    setTestDesktopSaveDialog('C:\\Locked\\Notes.pdf',Object.assign(new Error('Access is denied. (os error 5)'), { desktopFileSystemFailureKind: 'no-permission' }))
+    await expect(buildThenSavePapelizExportFile('Notes.pdf', testExportFileKind, async () => ({ exportFileBlob: new Blob(['%PDF']) }))).rejects.toThrow('Access is denied')
   })
 })
