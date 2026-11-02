@@ -3,6 +3,25 @@
 What changed in Papeliz, newest first, in plain words. These entries record what has been built,
 from the plan to the launch. The website's Changelog page shows the same list.
 
+## 2026-11-03 — Pictures and video in MD View, and pictures and speech in the assistant
+
+- MD View shows pictures from your vault and the web, inside links too, while you edit and on a
+  locked note.
+- Video files, .mp4 and .webm, show with their controls and never play by themselves.
+- A YouTube link on a line of its own shows as a poster. Nothing loads from YouTube until you press
+  play, and then it plays from YouTube’s privacy-enhanced player.
+- Beside Rewrite and on the note’s right-click menu: Imagine makes a picture, Transcribe turns speech
+  or an audio file into text, Describe Picture writes a picture’s alt text, and Edit Picture changes a
+  picture. Each is a change to accept.
+- In the chat box, the microphone puts what you say into the message, and the picture button makes a
+  picture of what you typed.
+- The Imagine button in the assistant keeps every picture made or brought in, to make more, save them
+  or put them in a note.
+- Pictures work with the recommended provider, OpenAI, Google Gemini, OpenRouter and Together, and
+  speech with those and Groq.
+- Remove C2PA, on by default, takes a picture’s content credentials and other hidden details out in
+  your browser before it’s saved.
+
 ## 2026-11-02 — Templates, imports, export settings, and a Free Sync plan
 
 _Templates start with one built in; submitting, voting and Recheck are coming soon. The Free Sync plan and signing in are built, and open later._

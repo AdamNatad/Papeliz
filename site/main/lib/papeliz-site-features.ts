@@ -64,6 +64,10 @@ export const papelizSiteFeatureGroups: PapelizSiteFeatureGroup[] = [
       { papelizSiteFeaturePointTitle: 'Wikilinks and tags', papelizSiteFeaturePointBody: '[[Links]] open the note they name, and #tags stand out.' },
       { papelizSiteFeaturePointTitle: 'Properties and callouts', papelizSiteFeaturePointBody: 'YAML frontmatter shows as property chips; > [!note] blocks show as callouts.' },
       {
+        papelizSiteFeaturePointTitle: 'Pictures and video',
+        papelizSiteFeaturePointBody: 'Pictures from your vault or the web, inside links too, and .mp4 and .webm videos. A YouTube link shows as a poster, and nothing loads from YouTube until you press play.',
+      },
+      {
         papelizSiteFeaturePointTitle: 'Safe by default',
         papelizSiteFeaturePointBody: 'Every note is sanitized before display, so a note can never run code in the page, and a diagram loads nothing from other sites.',
       },
@@ -125,6 +129,10 @@ export const papelizSiteFeatureGroups: PapelizSiteFeatureGroup[] = [
       { papelizSiteFeaturePointTitle: 'Answers that cite your notes', papelizSiteFeaturePointBody: 'Ask about a note, a selection or the whole vault. Answers link to the notes they draw on.' },
       { papelizSiteFeaturePointTitle: 'Edits as diffs', papelizSiteFeaturePointBody: 'Every change the assistant proposes shows as a diff. Accept writes the file; Reject drops it.' },
       { papelizSiteFeaturePointTitle: 'Inline edits', papelizSiteFeaturePointBody: 'Select text for Shorter, Rewrite, Fix Grammar or Translate, right where you are writing.' },
+      {
+        papelizSiteFeaturePointTitle: 'Pictures and speech',
+        papelizSiteFeaturePointBody: 'With your provider’s image and speech models, Imagine makes a picture and Transcribe turns speech into text, in the chat or in your note, and Describe Picture and Edit Picture work on a note’s pictures. Remove C2PA cleans a picture before it’s saved.',
+      },
       { papelizSiteFeaturePointTitle: 'Links and tags across notes', papelizSiteFeaturePointBody: 'Ask for link and tag suggestions over many notes, then review each change.' },
       { papelizSiteFeaturePointTitle: 'Files and pictures', papelizSiteFeaturePointBody: 'Add files and pictures to a message. A picture from another site in an answer loads only when you press Show.' },
       { papelizSiteFeaturePointTitle: 'Sessions and Usage', papelizSiteFeaturePointBody: 'Every chat is saved in the vault as a note. Usage shows the tokens and cost of each model.' },

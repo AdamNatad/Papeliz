@@ -14,6 +14,9 @@ export const papelizSiteRecommendedProvider = {
   papelizSiteProviderName: 'Meta Model API',
   papelizSiteProviderBaseUrl: 'https://api.meta.ai/v1',
   papelizSiteProviderModelNames: ['muse-spark-1.3', 'muse-spark-1.1'],
+  // The models behind Imagine, Edit Picture and Transcribe, with the same key.
+  papelizSiteProviderPictureModelName: 'muse-image-1.0',
+  papelizSiteProviderSpeechModelName: 'muse-voice-transcribe-1.0',
   papelizSiteProviderKeyPageUrl: 'https://dev.meta.ai/',
   papelizSiteProviderKeyPageLabel: 'Model API dashboard',
 }

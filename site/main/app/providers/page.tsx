@@ -51,13 +51,18 @@ export default function PapelizSiteProvidersPage() {
             <p className="max-w-3xl text-[15px] leading-relaxed">
               Papeliz’s assistant is built first around Meta’s Muse Spark models, and the Meta Model API is
               the first, recommended preset. Long context lets the assistant work across many notes at
-              once, and the API accepts calls straight from the app.
+              once, and the API accepts calls straight from the app. The same key makes and changes pictures
+              for Imagine and Edit Picture, and turns speech into text for Transcribe.
             </p>
             <dl className="mt-5 grid grid-cols-[110px_minmax(0,1fr)] gap-y-2 text-[15px]">
               <dt className="text-papeliz-ink-muted">Base URL</dt>
               <dd className="font-mono text-sm break-all">{papelizSiteRecommendedProvider.papelizSiteProviderBaseUrl}</dd>
               <dt className="text-papeliz-ink-muted">Models</dt>
               <dd className="font-mono text-sm">{papelizSiteRecommendedProvider.papelizSiteProviderModelNames.join(', ')}</dd>
+              <dt className="text-papeliz-ink-muted">Pictures</dt>
+              <dd className="font-mono text-sm break-all">{papelizSiteRecommendedProvider.papelizSiteProviderPictureModelName}</dd>
+              <dt className="text-papeliz-ink-muted">Speech</dt>
+              <dd className="font-mono text-sm break-all">{papelizSiteRecommendedProvider.papelizSiteProviderSpeechModelName}</dd>
               <dt className="text-papeliz-ink-muted">API key</dt>
               <dd>
                 From the{' '}
