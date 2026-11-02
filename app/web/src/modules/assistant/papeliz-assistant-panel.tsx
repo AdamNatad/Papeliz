@@ -1,10 +1,11 @@
-import { ArrowLeft, ChartNoAxesColumn, History, ListChecks, MessageCircleQuestion, PenLine, SquarePen, WandSparkles, X } from 'lucide-react'
+import { ArrowLeft, ChartNoAxesColumn, History, ImagePlus, ListChecks, MessageCircleQuestion, PenLine, SquarePen, WandSparkles, X } from 'lucide-react'
 import { PapelizIconButton, PapelizPillButton } from '../ui/papeliz-buttons'
 import { PapelizSlidingChoiceGroup } from '../ui/papeliz-sliding-choice-group'
 import { PapelizAssistantChatView } from './papeliz-assistant-chat-view'
 import { PapelizAssistantComposer } from './papeliz-assistant-composer'
 import { usePapelizAssistantConversationStore } from './papeliz-assistant-conversation-store'
-import { usePapelizAssistantPanelUiStore } from './papeliz-assistant-panel-ui-store'
+import { PapelizAssistantImagineView } from './papeliz-assistant-imagine-view'
+import { usePapelizAssistantPanelUiStore, type PapelizAssistantPanelTab } from './papeliz-assistant-panel-ui-store'
 import { getActivePapelizAssistantProviderConnection, usePapelizAssistantProviderSettingsStore } from './papeliz-assistant-provider-settings-store'
 import { usePapelizAssistantRunOptionsStore, type PapelizAssistantMode } from './papeliz-assistant-run-options-store'
 import { PapelizAssistantSessionsView } from './papeliz-assistant-sessions-view'
@@ -24,6 +25,13 @@ const papelizAssistantModeChoices: ReadonlyArray<{
   { assistantMode: 'write', assistantModeLabel: 'Write', AssistantModeIcon: PenLine },
 ]
 
+// The heading over each view that opens in place of the chat.
+const papelizAssistantPanelViewTitles: Readonly<Record<Exclude<PapelizAssistantPanelTab, 'chat'>, string>> = {
+  imagine: 'Imagine',
+  sessions: 'Sessions',
+  usage: 'Usage',
+}
+
 // On a phone's touch screen the panel fills the screen, and its header buttons grow to 40 px (the
 // header to 48 px) so a finger finds them.
 const papelizAssistantPanelHeaderButtonTouchClassName = 'max-md:pointer-coarse:size-10'
@@ -36,8 +44,9 @@ function describeAssistantModeHint(assistantMode: PapelizAssistantMode, isBypass
 }
 
 // The docked AI Assistant panel, for the AI only. The chat answers in one of three modes, Ask, Plan
-// and Write, picked in the switch at the top. Sessions (every chat saved in this vault) and Usage
-// (the tokens and cost the assistant used here) open from the header, in place of the chat. The
+// and Write, picked in the switch at the top. Imagine (every picture made or brought in, to make more,
+// clean and save), Sessions (every chat saved in this vault) and Usage (the tokens and cost the
+// assistant used here) open from the header, in place of the chat. The
 // open note's Outline and Backlinks are under the file list, as This note. The key button opens the
 // provider settings. Until a provider is set up there is nothing to type into: the chat shows the
 // setup card.
@@ -56,8 +65,8 @@ export function PapelizAssistantPanel({ onAssistantPanelClose }: PapelizAssistan
   usePapelizAssistantProviderSettingsStore((settingsState) => settingsState.providerSettingsByProviderId)
   const isAssistantProviderReady = getActivePapelizAssistantProviderConnection().providerConnectionOutcome === 'ready'
 
-  // Sessions and Usage open in place of the chat; pressed again, they go back to it.
-  const toggleAssistantPanelView = (assistantPanelView: 'sessions' | 'usage') =>
+  // Imagine, Sessions and Usage open in place of the chat; pressed again, they go back to it.
+  const toggleAssistantPanelView = (assistantPanelView: Exclude<PapelizAssistantPanelTab, 'chat'>) =>
     setAssistantPanelTab(assistantPanelTab === assistantPanelView ? 'chat' : assistantPanelView)
 
   return (
@@ -66,9 +75,9 @@ export function PapelizAssistantPanel({ onAssistantPanelClose }: PapelizAssistan
         <span className="grid size-[22px] flex-none place-items-center rounded-full bg-linear-to-r from-papeliz-gradient-start to-papeliz-gradient-end text-white">
           <WandSparkles className="size-3" aria-hidden="true" />
         </span>
-        <h2 className="text-[15px] font-semibold">AI Assistant</h2>
-        {/* New chat, Sessions, Usage and Close. The provider's settings open from the gear's AI
-            Assistant page and from the composer's model chip. */}
+        <h2 className="min-w-0 truncate text-[15px] font-semibold">AI Assistant</h2>
+        {/* New chat, Imagine, Sessions, Usage and Close. The provider's settings open from the gear's
+            AI Assistant page and from the composer's model chip. */}
         <div className="ml-auto flex items-center gap-0.5">
           <PapelizIconButton
             iconButtonLabel="New Chat"
@@ -80,6 +89,15 @@ export function PapelizAssistantPanel({ onAssistantPanelClose }: PapelizAssistan
             }}
           >
             <SquarePen className="size-[15px]" aria-hidden="true" />
+          </PapelizIconButton>
+          <PapelizIconButton
+            iconButtonLabel="Imagine"
+            iconButtonSize="small"
+            className={papelizAssistantPanelHeaderButtonTouchClassName}
+            aria-pressed={assistantPanelTab === 'imagine'}
+            onClick={() => toggleAssistantPanelView('imagine')}
+          >
+            <ImagePlus className="size-[15px]" aria-hidden="true" />
           </PapelizIconButton>
           <PapelizIconButton
             iconButtonLabel="Sessions"
@@ -145,7 +163,7 @@ export function PapelizAssistantPanel({ onAssistantPanelClose }: PapelizAssistan
           >
             <ArrowLeft className="size-[15px]" aria-hidden="true" />
           </PapelizIconButton>
-          <h3 className="text-[14px] font-semibold">{assistantPanelTab === 'sessions' ? 'Sessions' : 'Usage'}</h3>
+          <h3 className="text-[14px] font-semibold">{papelizAssistantPanelViewTitles[assistantPanelTab]}</h3>
         </div>
       )}
 
@@ -170,6 +188,7 @@ export function PapelizAssistantPanel({ onAssistantPanelClose }: PapelizAssistan
           )}
         </>
       )}
+      {assistantPanelTab === 'imagine' && <PapelizAssistantImagineView />}
       {assistantPanelTab === 'sessions' && <PapelizAssistantSessionsView />}
       {assistantPanelTab === 'usage' && <PapelizAssistantUsageView />}
     </aside>

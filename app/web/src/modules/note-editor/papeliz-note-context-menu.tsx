@@ -30,6 +30,7 @@ import {
 } from 'lucide-react'
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { listPapelizInlineAssistantHereMenuEntries, openPapelizInlineAssistantHere } from '../assistant/papeliz-assistant-inline-edit-extension'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { PapelizColorPicker } from '../ui/papeliz-color-picker'
 import { subscribeToPapelizWindowWidthChange } from '../ui/papeliz-window-width-change'
@@ -639,6 +640,19 @@ export function PapelizNoteContextMenu({
             }}
           />
         )}
+        {/* The assistant's picture and speech actions here: each opens the same inline card. */}
+        {listPapelizInlineAssistantHereMenuEntries(noteEditorView.state).map(({ assistantHereAction, hereMenuEntryLabel, HereMenuEntryIcon }) => (
+          <PapelizNoteContextMenuItem
+            key={assistantHereAction}
+            menuItemLabel={hereMenuEntryLabel}
+            MenuItemIcon={HereMenuEntryIcon}
+            onMenuItemSelect={() => {
+              onNoteContextMenuClose()
+              noteEditorView.focus()
+              openPapelizInlineAssistantHere(noteEditorView, assistantHereAction)
+            }}
+          />
+        ))}
         <PapelizNoteContextMenuItem
           menuItemLabel="Ask Assistant"
           MenuItemIcon={MessageSquare}

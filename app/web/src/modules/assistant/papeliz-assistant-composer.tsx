@@ -22,6 +22,7 @@ import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { PapelizPopoverMenu, type PapelizPopoverMenuItem, type PapelizPopoverMenuPosition } from '../ui/papeliz-popover-menu'
 import { getVaultNoteTitle } from '../vault/papeliz-vault-relative-paths'
 import { selectActiveVaultMarkdownNoteRelativePath, usePapelizWorkspaceStore } from '../workspace/papeliz-workspace-store'
+import { PapelizAssistantComposerMediaButtons } from './papeliz-assistant-composer-media-buttons'
 import { PapelizAssistantContextWindowGauge } from './papeliz-assistant-context-window-gauge'
 import { usePapelizAssistantConversationStore } from './papeliz-assistant-conversation-store'
 import { usePapelizAssistantPanelUiStore } from './papeliz-assistant-panel-ui-store'
@@ -365,6 +366,7 @@ export function PapelizAssistantComposer({ composerPlacement }: PapelizAssistant
         >
           <Plus className="size-4" aria-hidden="true" />
         </button>
+        <PapelizAssistantComposerMediaButtons />
         <button
           type="button"
           onClick={() => setAssistantContextMode(assistantContextMode === 'active-note' ? 'whole-vault' : 'active-note')}

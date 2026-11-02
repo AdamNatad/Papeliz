@@ -12,6 +12,7 @@ import {
   type PapelizAssistantChatEntry,
   type PapelizAssistantReplyProviderModel,
 } from './papeliz-assistant-conversation-store'
+import { PapelizAssistantChatImaginePictures } from './papeliz-assistant-chat-imagine-pictures'
 import { PapelizAssistantMessageMarkdown } from './papeliz-assistant-message-markdown'
 import { usePapelizAssistantPanelUiStore } from './papeliz-assistant-panel-ui-store'
 import { PapelizAssistantProposalCard } from './papeliz-assistant-proposal-card'
@@ -191,6 +192,8 @@ function PapelizAssistantChatEntryView({ chatEntry }: { chatEntry: PapelizAssist
       )
     case 'tool-activity':
       return <PapelizAssistantToolActivityRow chatEntry={chatEntry} />
+    case 'imagine-pictures':
+      return <PapelizAssistantChatImaginePictures chatImagineRunId={chatEntry.chatImagineRunId} imaginePromptText={chatEntry.imaginePromptText} />
     case 'proposal':
       return <PapelizAssistantProposalCard assistantProposalId={chatEntry.assistantProposalId} />
     case 'question':

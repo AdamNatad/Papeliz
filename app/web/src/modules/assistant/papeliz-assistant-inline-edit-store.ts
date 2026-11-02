@@ -14,6 +14,8 @@ interface PapelizInlineEditState {
   inlineEditInstruction: string
   replacementPassageText: string
   inlineEditProblem: string | null
+  // Goes up each time a card opens, for what follows the card (papeliz-assistant-inline-media-store.ts).
+  inlineEditOpenCount: number
   openInlineEdit: (inlineEditEditorView: EditorView, selectedPassageText: string, vaultNoteTitle: string) => void
   setInlineEditInstruction: (inlineEditInstruction: string) => void
   runInlineEdit: (inlineEditInstruction: string) => Promise<void>
@@ -31,10 +33,12 @@ export const usePapelizInlineEditStore = create<PapelizInlineEditState>()((setIn
   inlineEditInstruction: '',
   replacementPassageText: '',
   inlineEditProblem: null,
+  inlineEditOpenCount: 0,
 
   openInlineEdit: (inlineEditEditorView, selectedPassageText, vaultNoteTitle) => {
     activeInlineEditAbortController?.abort()
-    setInlineEditState({
+    setInlineEditState((inlineEditState) => ({
+      inlineEditOpenCount: inlineEditState.inlineEditOpenCount + 1,
       inlineEditEditorView,
       selectedPassageText,
       vaultNoteTitle,
@@ -42,7 +46,7 @@ export const usePapelizInlineEditStore = create<PapelizInlineEditState>()((setIn
       inlineEditInstruction: '',
       replacementPassageText: '',
       inlineEditProblem: null,
-    })
+    }))
   },
 
   setInlineEditInstruction: (inlineEditInstruction) => setInlineEditState({ inlineEditInstruction }),

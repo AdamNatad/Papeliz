@@ -1,5 +1,8 @@
-import { Prec, StateEffect, StateField, type EditorState, type Extension } from '@codemirror/state'
+import { Facet, Prec, StateEffect, StateField, type EditorState, type Extension } from '@codemirror/state'
 import { Decoration, EditorView, keymap, WidgetType } from '@codemirror/view'
+import { ImagePlus, Mic, Paintbrush, ScanEye, type LucideIcon } from 'lucide-react'
+import { requestPapelizInlineMediaActionForNextCard } from './papeliz-assistant-inline-media-request'
+import { findPapelizNotePictureLinkAround } from './papeliz-assistant-note-picture-links'
 import { isPapelizKeyBindingPressed } from '../workspace/papeliz-key-bindings-store'
 import { usePapelizAssistantPanelUiStore } from './papeliz-assistant-panel-ui-store'
 import { getActivePapelizAssistantProviderConnection } from './papeliz-assistant-provider-settings-store'
@@ -93,6 +96,69 @@ export function openPapelizInlineEditForSelection(editorView: EditorView, inline
   return true
 }
 
+// The assistant's actions at a place in the note, beside Edit with Assistant on the note's right-click
+// menu: each opens the inline card there, like an edit of a selection, and its result is a change to
+// accept or reject in place.
+export type PapelizInlineAssistantHereAction = 'transcribe-here' | 'imagine-here' | 'describe-picture' | 'edit-picture'
+
+export interface PapelizInlineAssistantHereMenuEntry {
+  assistantHereAction: PapelizInlineAssistantHereAction
+  hereMenuEntryLabel: string
+  HereMenuEntryIcon: LucideIcon
+}
+
+// The entries for the editor as it is: none in a note that can't be changed; Describe Picture and
+// Edit Picture only on a picture.
+export function listPapelizInlineAssistantHereMenuEntries(editorState: EditorState): PapelizInlineAssistantHereMenuEntry[] {
+  if (editorState.readOnly) return []
+  const mainSelection = editorState.selection.main
+  const hasSelectedText = !mainSelection.empty && editorState.sliceDoc(mainSelection.from, mainSelection.to).trim().length > 0
+  const isOnPicture = findPapelizNotePictureLinkAround(editorState.doc.toString(), mainSelection.from, mainSelection.to) !== null
+  return [
+    { assistantHereAction: 'transcribe-here', hereMenuEntryLabel: 'Transcribe Here', HereMenuEntryIcon: Mic },
+    { assistantHereAction: 'imagine-here', hereMenuEntryLabel: hasSelectedText ? 'Imagine from Selection' : 'Imagine Here', HereMenuEntryIcon: ImagePlus },
+    ...(isOnPicture
+      ? [
+          { assistantHereAction: 'describe-picture', hereMenuEntryLabel: 'Describe Picture', HereMenuEntryIcon: ScanEye },
+          { assistantHereAction: 'edit-picture', hereMenuEntryLabel: 'Edit Picture', HereMenuEntryIcon: Paintbrush },
+        ] satisfies PapelizInlineAssistantHereMenuEntry[]
+      : []),
+  ]
+}
+
+// The handlers that draw the inline card, kept on the editor itself, so the note's right-click menu
+// can open the card with the editor alone.
+const papelizInlineEditHandlersFacet = Facet.define<{ current: PapelizInlineEditEditorHandlers }, { current: PapelizInlineEditEditorHandlers } | null>({
+  combine: (inlineEditHandlersValues) => inlineEditHandlersValues[0] ?? null,
+})
+
+// Opens the inline card for one of those actions. Imagine keeps the selection (the picture goes after
+// it, and its words are the prompt); Transcribe goes at the cursor, or after the selection; Describe
+// Picture and Edit Picture take the picture's link, which their change replaces.
+export function openPapelizInlineAssistantHere(editorView: EditorView, assistantHereAction: PapelizInlineAssistantHereAction): boolean {
+  const inlineEditHandlers = editorView.state.facet(papelizInlineEditHandlersFacet)
+  if (editorView.state.readOnly || inlineEditHandlers === null) return false
+  const mainSelection = editorView.state.selection.main
+  const pictureLink =
+    assistantHereAction === 'describe-picture' || assistantHereAction === 'edit-picture'
+      ? findPapelizNotePictureLinkAround(editorView.state.doc.toString(), mainSelection.from, mainSelection.to)
+      : null
+  if ((assistantHereAction === 'describe-picture' || assistantHereAction === 'edit-picture') && pictureLink === null) return false
+  const isSelectionKept = assistantHereAction === 'imagine-here' && editorView.state.sliceDoc(mainSelection.from, mainSelection.to).trim().length > 0
+  const inlineEditRange =
+    pictureLink !== null
+      ? { inlineEditFrom: pictureLink.pictureLinkFrom, inlineEditTo: pictureLink.pictureLinkTo }
+      : isSelectionKept
+        ? { inlineEditFrom: mainSelection.from, inlineEditTo: mainSelection.to }
+        : { inlineEditFrom: mainSelection.to, inlineEditTo: mainSelection.to }
+  requestPapelizInlineMediaActionForNextCard(
+    assistantHereAction === 'imagine-here' ? 'imagine' : assistantHereAction === 'transcribe-here' ? 'transcribe' : assistantHereAction,
+  )
+  editorView.dispatch({ effects: setPapelizInlineEditRangeEffect.of(inlineEditRange) })
+  inlineEditHandlers.current.openInlineEdit(editorView, inlineEditRange)
+  return true
+}
+
 export function createPapelizInlineEditExtension(
   inlineEditHostElement: HTMLElement,
   inlineEditHandlers: { current: PapelizInlineEditEditorHandlers },
@@ -111,6 +177,7 @@ export function createPapelizInlineEditExtension(
   })
 
   return [
+    papelizInlineEditHandlersFacet.of(inlineEditHandlers),
     papelizInlineEditRangeField,
     inlineEditDecorations,
     // Checked against the current Key Binding as the key is pressed; ahead of the default keys, so

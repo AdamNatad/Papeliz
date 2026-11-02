@@ -3,7 +3,7 @@ import { create } from 'zustand'
 // Which part of the AI Assistant panel shows, and whether the provider settings were asked for
 // (Choose a Provider, the model chip, an error's link, an inline edit with no provider): the
 // workspace's Settings gear then opens on its AI Provider page and clears the request.
-export type PapelizAssistantPanelTab = 'chat' | 'sessions' | 'usage'
+export type PapelizAssistantPanelTab = 'chat' | 'imagine' | 'sessions' | 'usage'
 
 interface PapelizAssistantPanelUiState {
   assistantPanelTab: PapelizAssistantPanelTab

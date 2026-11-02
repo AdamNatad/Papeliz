@@ -120,6 +120,8 @@ export type PapelizAssistantChatEntry =
     }
   | { chatEntryId: string; chatEntryKind: 'proposal'; assistantProposalId: string }
   | { chatEntryId: string; chatEntryKind: 'notice'; chatEntryText: string; isChatEntryError: boolean }
+  // Pictures made from the chat box's Imagine button (papeliz-assistant-chat-imagine-store.ts).
+  | { chatEntryId: string; chatEntryKind: 'imagine-pictures'; chatImagineRunId: string; imaginePromptText: string }
 
 // What the assistant is shown alongside the question.
 export type PapelizAssistantContextMode = 'active-note' | 'whole-vault'
@@ -180,6 +182,7 @@ interface PapelizAssistantConversationState {
   setAssistantContextMode: (assistantContextMode: PapelizAssistantContextMode) => void
   setPendingSelectionContext: (pendingSelectionContext: PapelizAssistantSelectionContext | null) => void
   setComposerDraftText: (composerDraftText: string) => void
+  appendImaginePicturesChatEntry: (chatImagineRunId: string, imaginePromptText: string) => void
 }
 
 const papelizAssistantMaximumToolRounds = 10
@@ -287,6 +290,9 @@ function buildChatSessionMessages(
       }
     } else if (chatEntry.chatEntryKind === 'notice' && chatEntry.isChatEntryError) {
       assistantAnswerLines.push(`> - ${chatEntry.chatEntryText}`)
+    } else if (chatEntry.chatEntryKind === 'imagine-pictures') {
+      finishAssistantAnswer()
+      chatSessionMessages.push({ chatSessionMessageRole: 'user', chatSessionMessageText: `Imagine: ${chatEntry.imaginePromptText}` })
     }
   }
   finishAssistantAnswer()
@@ -1048,5 +1054,7 @@ export const usePapelizAssistantConversationStore = create<PapelizAssistantConve
     setAssistantContextMode: (assistantContextMode) => setConversationState({ assistantContextMode }),
     setPendingSelectionContext: (pendingSelectionContext) => setConversationState({ pendingSelectionContext }),
     setComposerDraftText: (composerDraftText) => setConversationState({ composerDraftText }),
+    appendImaginePicturesChatEntry: (chatImagineRunId, imaginePromptText) =>
+      appendChatEntry({ chatEntryId: createChatEntryId(), chatEntryKind: 'imagine-pictures', chatImagineRunId, imaginePromptText }),
   }
 })
