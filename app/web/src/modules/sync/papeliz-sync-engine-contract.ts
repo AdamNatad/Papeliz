@@ -134,12 +134,15 @@ export type PapelizSyncVaultEncryptionChoice =
 // - `over-storage`: uploads pause until storage is freed or the plan grows; downloads go on.
 // - `paused-for-maintenance`: Papeliz paused all uploads for a while.
 // - `account-paused`: Papeliz paused this account's uploads.
+// - `vault-file-list-full`: this vault's synced file list is full; new files and new contents wait until
+//   old versions are deleted, while deletes, renames and downloads go on.
 export type PapelizSyncWaitingReason =
   | 'pacing-to-allowance'
   | 'limit-reached'
   | 'over-storage'
   | 'paused-for-maintenance'
   | 'account-paused'
+  | 'vault-file-list-full'
 
 // One vault's state, as the status bar and the Sync page show it. Changes are always saved on the
 // device first, so every state with waiting files sends them later and drops none.

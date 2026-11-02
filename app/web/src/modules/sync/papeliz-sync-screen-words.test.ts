@@ -193,7 +193,9 @@ describe('the status bar', () => {
     expect(waitingStatus('over-storage')).toMatchObject({ syncStatusWord: 'Sync: storage full', isSyncStatusAttention: true })
     expect(waitingStatus('paused-for-maintenance')).toMatchObject({ syncStatusWord: 'Sync paused', isSyncStatusAttention: false })
     expect(waitingStatus('account-paused')).toMatchObject({ syncStatusWord: 'Sync paused', isSyncStatusAttention: true })
-    for (const syncWaitingReason of ['pacing-to-allowance', 'limit-reached', 'over-storage', 'paused-for-maintenance', 'account-paused'] as const) {
+    expect(waitingStatus('vault-file-list-full')).toMatchObject({ syncStatusWord: 'Sync: file list full', isSyncStatusAttention: true })
+    expect(waitingStatus('vault-file-list-full').syncStatusTitle).toContain('This vault’s file list is full')
+    for (const syncWaitingReason of ['pacing-to-allowance', 'limit-reached', 'over-storage', 'paused-for-maintenance', 'account-paused', 'vault-file-list-full'] as const) {
       expect(waitingStatus(syncWaitingReason).syncStatusTitle).toContain('none are lost')
     }
   })

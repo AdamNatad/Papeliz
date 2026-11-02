@@ -288,6 +288,7 @@ function describeSyncWaitingReason(syncWaitingReason: PapelizSyncWaitingReason, 
   if (syncWaitingReason === 'limit-reached')
     return syncResumesAt === null ? 'Your plan’s limit for now is reached.' : `Your plan’s limit for now is reached. Sync resumes at ${describePapelizSyncClockTime(syncResumesAt, currentTime)}.`
   if (syncWaitingReason === 'over-storage') return 'Your Sync storage is full, so uploads are paused. Downloads go on.'
+  if (syncWaitingReason === 'vault-file-list-full') return 'This vault’s file list is full, so new files and changes wait. Delete old versions to make room. Downloads go on.'
   if (syncWaitingReason === 'paused-for-maintenance') return 'Papeliz paused uploads for maintenance for a while.'
   return 'Papeliz paused uploads for this account.'
 }
@@ -329,10 +330,13 @@ export function describePapelizSyncStatusForStatusBar(
         isSyncStatusAttention: false,
       }
     case 'waiting': {
-      const isWaitingForAttention = syncVaultStatus.syncWaitingReason === 'over-storage' || syncVaultStatus.syncWaitingReason === 'account-paused'
+      const isWaitingForAttention =
+        syncVaultStatus.syncWaitingReason === 'over-storage' || syncVaultStatus.syncWaitingReason === 'account-paused' || syncVaultStatus.syncWaitingReason === 'vault-file-list-full'
       const syncWaitingWord =
         syncVaultStatus.syncWaitingReason === 'over-storage'
           ? 'Sync: storage full'
+          : syncVaultStatus.syncWaitingReason === 'vault-file-list-full'
+            ? 'Sync: file list full'
           : syncVaultStatus.syncWaitingReason === 'limit-reached' && syncVaultStatus.syncResumesAt !== null
             ? `Sync resumes ${describePapelizSyncClockTime(syncVaultStatus.syncResumesAt, currentTime)}`
             : syncVaultStatus.syncWaitingReason === 'paused-for-maintenance' || syncVaultStatus.syncWaitingReason === 'account-paused'
