@@ -19,7 +19,7 @@ import {
 // The account page's billing: the subscription's state, read once and again after checkout comes
 // back; Subscribe, which opens checkout in this tab (asking first where Sync keeps notes, for a new
 // account); and Manage, which opens the payment provider's page for the subscription in a new tab.
-// The page names no payment provider (DECISIONS 2026-10-31 "The account page's Profile and Billing").
+// The page names no payment provider.
 
 export type PapelizAccountSyncBillingStage =
   | { syncBillingStageKind: 'loading' }
