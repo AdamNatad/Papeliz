@@ -212,10 +212,21 @@ function createPapelizTauriDesktopWindow(): PapelizDesktopWindow {
         ),
       )
     },
-    // Tauri closes the window once the handler settles, unless it asks to keep it open.
+    // Tauri closes the window once the handler settles, unless it asks to keep it open: when a note
+    // couldn't be saved the handler throws, and the window stays open while the app says why.
     setDesktopWindowCloseRequestHandler(beforeDesktopWindowCloses) {
-      return stopListeningLater(papelizDesktopMainWindow.onCloseRequested(() => beforeDesktopWindowCloses()))
+      return stopListeningLater(
+        papelizDesktopMainWindow.onCloseRequested(async (desktopWindowCloseRequest) => {
+          try {
+            await beforeDesktopWindowCloses()
+          } catch {
+            desktopWindowCloseRequest.preventDefault()
+          }
+        }),
+      )
     },
+    // The same request Alt+F4 makes, so the close request handler above runs first.
+    closeDesktopWindow: () => papelizDesktopMainWindow.close(),
   }
 }
 

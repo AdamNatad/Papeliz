@@ -68,8 +68,11 @@ fn create_papeliz_desktop_main_window(app_handle: &AppHandle) -> tauri::Result<(
     .inner_size(1280.0, 820.0)
     .min_inner_size(720.0, 480.0)
     .center()
-    // Windows' own title bar stays until the web app draws Papeliz's blue bar as the title bar.
-    .decorations(true)
+    // No Windows title bar: Papeliz's own blue bar is the title bar, with the window buttons at its
+    // right end (app/web), so the note starts right below it. The shadow keeps Windows 11's outline
+    // and rounded corners on the frameless window.
+    .decorations(false)
+    .shadow(true)
     .use_https_scheme(true)
     // The page takes files dropped from Windows itself (the Assistant's composer).
     .disable_drag_drop_handler()
