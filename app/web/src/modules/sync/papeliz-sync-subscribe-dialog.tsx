@@ -98,7 +98,7 @@ export function PapelizSyncSubscribeDialog({ papelizSyncEngine, syncEngineSnapsh
                 />
                 <span className="min-w-0 flex-1">
                   <span className="block text-[13px] font-medium">{storagePlaceDescription.storagePlaceDisplayName}</span>
-                  {storagePlaceDescription.isStoragePlaceGuaranteed && <span className="block text-[12px] text-papeliz-ink-subtle">Stays in the European Union, guaranteed</span>}
+                  {storagePlaceDescription.isStoragePlaceGuaranteed && <span className="block text-[12px] text-papeliz-ink-subtle">Stored in the EU</span>}
                 </span>
                 {isStoragePlaceNearest && <span className="flex-none rounded-full bg-papeliz-blue px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap text-white">Nearest You</span>}
               </label>
