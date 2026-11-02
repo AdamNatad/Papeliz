@@ -12,8 +12,8 @@ interface PapelizBrowserVaultNameFieldProps {
   onBrowserVaultNameSubmit: () => void
 }
 
-// A vault's Name field: New Vault's, for a vault in a folder or in the browser, and a browser vault's
-// Rename. A name that can't be used says why under the field.
+// A vault's Vault Name field: New Vault's, for a vault in a folder or in the browser, and a browser
+// vault's Rename. A name that can't be used says why under the field.
 export function PapelizBrowserVaultNameField({
   browserVaultNameInputRef,
   typedBrowserVaultName,
@@ -25,7 +25,7 @@ export function PapelizBrowserVaultNameField({
   return (
     <>
       <label className="block text-[12px] leading-snug font-semibold whitespace-nowrap text-papeliz-ink">
-        Name
+        Vault Name
         <input
           ref={browserVaultNameInputRef}
           value={typedBrowserVaultName}

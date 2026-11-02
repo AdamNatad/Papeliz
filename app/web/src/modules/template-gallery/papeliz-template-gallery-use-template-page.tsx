@@ -1,10 +1,9 @@
-import { ArrowLeft, FolderOpen, FolderPlus, TriangleAlert } from 'lucide-react'
+import { FolderOpen, FolderPlus, TriangleAlert } from 'lucide-react'
 import { useId, useState } from 'react'
 import { PapelizSyncFailureLine, PapelizSyncLoadingLine } from '../sync/papeliz-sync-page-parts'
-import { PapelizIconButton } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { usePapelizFooterEqualButtonWidthRef } from '../ui/papeliz-footer-equal-button-width'
-import { PapelizSolidCircleCheckIcon, PapelizSolidCircleXIcon } from '../ui/papeliz-solid-circle-icons'
+import { PapelizSolidCircleCheckIcon } from '../ui/papeliz-solid-circle-icons'
 import { newVaultFormFooterActionButtonColorClassName, newVaultFormFooterButtonClassName, newVaultFormFooterCancelButtonColorClassName, type PapelizNewVaultPlace } from '../workspace/papeliz-new-vault-form'
 import { describePapelizTemplateHiddenCharacter, splitPapelizTemplateTextAtHiddenCharacters } from './papeliz-template-gallery-checks'
 import type { PapelizTemplateGalleryRow, PapelizTemplateRunCommand, PapelizTemplateUseState } from './papeliz-template-gallery-contract'
@@ -146,9 +145,6 @@ export function PapelizTemplateGalleryCommandsPage({ templateGalleryPageHeadingI
     >
       <div className="px-3 pt-[11px] pb-1">
         <div className="flex items-center gap-2">
-          <PapelizIconButton iconButtonLabel={`Back to ${templateGalleryRow.templateName}`} iconButtonSize="small" className="-my-0.5 -ml-1.5" onClick={onTemplateCommandsCancel}>
-            <ArrowLeft className="size-[15px]" aria-hidden="true" />
-          </PapelizIconButton>
           <h2 id={templateGalleryPageHeadingId} className="text-[18px] font-semibold tracking-[-0.01em]">
             This template runs commands
           </h2>
@@ -212,7 +208,6 @@ export function PapelizTemplateGalleryCommandsPage({ templateGalleryPageHeadingI
 
       <div ref={templateCommandsFooterRef} className="flex items-center justify-between gap-2 border-t border-papeliz-line p-3">
         <button type="button" onClick={onTemplateCommandsCancel} className={joinPapelizClassNames(newVaultFormFooterButtonClassName, newVaultFormFooterCancelButtonColorClassName)}>
-          <PapelizSolidCircleXIcon className="size-[15px] flex-none" />
           Cancel
         </button>
         <button
@@ -221,7 +216,6 @@ export function PapelizTemplateGalleryCommandsPage({ templateGalleryPageHeadingI
           onClick={onTemplateCommandsAccept}
           className={joinPapelizClassNames(newVaultFormFooterButtonClassName, newVaultFormFooterActionButtonColorClassName)}
         >
-          <PapelizSolidCircleCheckIcon className="size-[15px] flex-none" />
           Continue
         </button>
       </div>
@@ -265,9 +259,6 @@ export function PapelizTemplateGalleryImportIntoVaultPage({
     >
       <div className="px-3 pt-[11px] pb-1">
         <div className="flex items-center gap-2">
-          <PapelizIconButton iconButtonLabel={`Back to ${templateGalleryRow.templateName}`} iconButtonSize="small" className="-my-0.5 -ml-1.5" onClick={onTemplateImportCancel}>
-            <ArrowLeft className="size-[15px]" aria-hidden="true" />
-          </PapelizIconButton>
           <h2 id={templateGalleryPageHeadingId} className="text-[18px] font-semibold tracking-[-0.01em]">
             Import from Template
           </h2>
@@ -300,7 +291,6 @@ export function PapelizTemplateGalleryImportIntoVaultPage({
 
       <div ref={templateImportFooterRef} className="flex items-center justify-between gap-2 border-t border-papeliz-line p-3">
         <button type="button" onClick={onTemplateImportCancel} className={joinPapelizClassNames(newVaultFormFooterButtonClassName, newVaultFormFooterCancelButtonColorClassName)}>
-          <PapelizSolidCircleXIcon className="size-[15px] flex-none" />
           Cancel
         </button>
         <button
@@ -309,7 +299,6 @@ export function PapelizTemplateGalleryImportIntoVaultPage({
           onClick={onTemplateImportConfirm}
           className={joinPapelizClassNames(newVaultFormFooterButtonClassName, newVaultFormFooterActionButtonColorClassName)}
         >
-          <PapelizSolidCircleCheckIcon className="size-[15px] flex-none" />
           Import into This Vault
         </button>
       </div>

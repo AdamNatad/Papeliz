@@ -169,7 +169,7 @@ test('Templates lists a template, shows its page and Preview, and makes a browse
   await expect(page.getByRole('heading', { name: 'New Vault' })).toBeVisible()
   await expect(page.getByText('From Garden Journal')).toBeVisible()
   await expect(page.getByText(/^Checked: \d+ files go into the vault\.$/)).toBeVisible()
-  await expect(page.getByRole('textbox', { name: 'Name' })).toHaveValue('Garden Journal')
+  await expect(page.getByRole('textbox', { name: 'Vault Name' })).toHaveValue('Garden Journal')
   const browserStorageChoice = page.getByRole('radio', { name: /Browser Storage/ })
   if (await browserStorageChoice.isEnabled()) await browserStorageChoice.check()
   await page.getByRole('button', { name: 'Create Vault' }).click()
@@ -235,8 +235,8 @@ test('Templates shows each author’s GitHub picture, or the name alone, and a t
   await expect(page.locator('img[data-papeliz-template-author-picture="picture-notes"]')).toHaveCount(0)
   await expect(page.getByText('picture-notes', { exact: true })).toBeVisible()
 
-  // Back, and Garden Journal's page shows its author's picture beside the name.
-  await page.getByRole('button', { name: 'Back', exact: true }).click()
+  // Cancel, and Garden Journal's page shows its author's picture beside the name.
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click()
   await page.getByRole('button', { name: /^Garden Journal/ }).click()
   await expect(page.locator('img[data-papeliz-template-author-picture="garden-notes"][width="18"]')).toBeVisible()
   expect(otherSiteRequestUrls).toEqual([])

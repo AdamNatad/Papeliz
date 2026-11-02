@@ -1,10 +1,9 @@
-import { ArrowLeft, Link } from 'lucide-react'
+import { Link } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { PapelizSyncFailureLine, PapelizSyncLoadingLine } from '../sync/papeliz-sync-page-parts'
-import { PapelizIconButton, PapelizPillButton } from '../ui/papeliz-buttons'
+import { PapelizPillButton } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { usePapelizFooterEqualButtonWidthRef } from '../ui/papeliz-footer-equal-button-width'
-import { PapelizSolidCircleCheckIcon, PapelizSolidCircleXIcon } from '../ui/papeliz-solid-circle-icons'
 import { newVaultFormFooterActionButtonColorClassName, newVaultFormFooterButtonClassName, newVaultFormFooterCancelButtonColorClassName } from '../workspace/papeliz-new-vault-form'
 import type { PapelizTemplateCheckRunState } from './papeliz-template-gallery-contract'
 import { describeTemplateFileReadProgress, PapelizTemplateGalleryCheckResultList } from './papeliz-template-gallery-page-parts'
@@ -59,9 +58,6 @@ export function PapelizTemplateGallerySubmitPage({
     >
       <div className="px-3 pt-[11px] pb-1">
         <div className="flex items-center gap-2">
-          <PapelizIconButton iconButtonLabel="Back to Templates" iconButtonSize="small" className="-my-0.5 -ml-1.5" onClick={onSubmitTemplatePageClose}>
-            <ArrowLeft className="size-[15px]" aria-hidden="true" />
-          </PapelizIconButton>
           <h2 id={templateGalleryPageHeadingId} className="text-[18px] font-semibold tracking-[-0.01em]">
             Submit Template
           </h2>
@@ -133,7 +129,6 @@ export function PapelizTemplateGallerySubmitPage({
 
       <div ref={submitTemplateFooterRef} className="flex items-center justify-between gap-2 border-t border-papeliz-line p-3">
         <button type="button" onClick={onSubmitTemplatePageClose} className={joinPapelizClassNames(newVaultFormFooterButtonClassName, newVaultFormFooterCancelButtonColorClassName)}>
-          <PapelizSolidCircleXIcon className="size-[15px] flex-none" />
           Cancel
         </button>
         <button
@@ -142,7 +137,6 @@ export function PapelizTemplateGallerySubmitPage({
           onClick={() => setSubmitTemplateWordsShown(true)}
           className={joinPapelizClassNames(newVaultFormFooterButtonClassName, newVaultFormFooterActionButtonColorClassName)}
         >
-          <PapelizSolidCircleCheckIcon className="size-[15px] flex-none" />
           Submit
         </button>
       </div>

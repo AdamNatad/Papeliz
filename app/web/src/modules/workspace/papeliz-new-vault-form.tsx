@@ -1,10 +1,9 @@
-import { AppWindow, ArrowLeft, FolderOpen, type LucideIcon } from 'lucide-react'
+import { AppWindow, FolderOpen, type LucideIcon } from 'lucide-react'
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
-import { PapelizIconButton, papelizMainActionButtonColorClassName, papelizOutlineButtonColorClassName } from '../ui/papeliz-buttons'
+import { papelizMainActionButtonColorClassName, papelizOutlineButtonColorClassName } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { usePapelizFooterEqualButtonWidthRef } from '../ui/papeliz-footer-equal-button-width'
 import { PapelizInfoTip } from '../ui/papeliz-info-tip'
-import { PapelizSolidCircleCheckIcon, PapelizSolidCircleXIcon } from '../ui/papeliz-solid-circle-icons'
 import { findPapelizBrowserVaultNameProblem, type PapelizBrowserVaultRecord } from '../vault/papeliz-browser-vaults'
 import { findPapelizNewFolderVaultNameProblem } from '../vault/papeliz-open-vault'
 import { PapelizBrowserVaultNameField } from './papeliz-browser-vault-name-field'
@@ -162,9 +161,8 @@ interface PapelizNewVaultFormProps {
   initialNewVaultPlace?: PapelizNewVaultPlace
   existingBrowserVaultRecords: readonly PapelizBrowserVaultRecord[]
   // Use Template opens the form on a template: it is named at the top with how reading its files is
-  // going, the back arrow goes back to it, and the action waits until its files are read and checked.
+  // going, Cancel goes back to it, and the action waits until its files are read and checked.
   newVaultFromTemplate?: { newVaultTemplateName: string; newVaultTemplateDetailLine: string; newVaultTemplateThumbnail: ReactNode; newVaultTemplateStatus: ReactNode }
-  newVaultBackButtonLabel?: string
   isNewVaultConfirmHeld?: boolean
   onNewVaultConfirm: (typedNewVaultName: string, chosenNewVaultPlace: PapelizNewVaultPlace) => void
   onNewVaultCancel: () => void
@@ -184,7 +182,6 @@ export function PapelizNewVaultForm({
   initialNewVaultPlace,
   existingBrowserVaultRecords,
   newVaultFromTemplate,
-  newVaultBackButtonLabel = 'Back to Recent Vaults',
   isNewVaultConfirmHeld = false,
   onNewVaultConfirm,
   onNewVaultCancel,
@@ -233,9 +230,6 @@ export function PapelizNewVaultForm({
     >
       <div className="px-3 pt-[11px] pb-1">
         <div className="flex items-center gap-2">
-          <PapelizIconButton iconButtonLabel={newVaultBackButtonLabel} iconButtonSize="small" className="-my-0.5 -ml-1.5" onClick={onNewVaultCancel}>
-            <ArrowLeft className="size-[15px]" aria-hidden="true" />
-          </PapelizIconButton>
           <h2 id={newVaultFormHeadingId} className="text-[18px] font-semibold tracking-[-0.01em]">
             New Vault
           </h2>
@@ -274,9 +268,6 @@ export function PapelizNewVaultForm({
             onBrowserVaultNameType={setTypedNewVaultName}
             onBrowserVaultNameSubmit={confirmNewVault}
           />
-          {isFolderVaultChosen && newVaultNameProblem === null && (
-            <p className="mt-1 text-[12px] leading-snug text-papeliz-ink-subtle">Papeliz makes a folder named “{typedNewVaultName.trim()}” in the place you pick.</p>
-          )}
         </div>
         <p id={newVaultPlacePromptId} className="mt-1 text-[12.5px] text-papeliz-ink-muted">
           Choose where to keep this vault.
@@ -453,7 +444,6 @@ export function PapelizNewVaultForm({
       {/* Cancel at the left edge, the action at the right, so the two never sit side by side. */}
       <div ref={newVaultFormFooterRef} className="flex items-center justify-between gap-2 border-t border-papeliz-line p-3">
         <button type="button" onClick={onNewVaultCancel} className={joinPapelizClassNames(newVaultFormFooterButtonClassName, newVaultFormFooterCancelButtonColorClassName)}>
-          <PapelizSolidCircleXIcon className="size-[15px] flex-none" />
           Cancel
         </button>
         <button
@@ -462,7 +452,6 @@ export function PapelizNewVaultForm({
           onClick={confirmNewVault}
           className={joinPapelizClassNames(newVaultFormFooterButtonClassName, newVaultFormFooterActionButtonColorClassName)}
         >
-          <PapelizSolidCircleCheckIcon className="size-[15px] flex-none" />
           {isFolderVaultChosen ? 'Pick Folder' : 'Create Vault'}
         </button>
       </div>

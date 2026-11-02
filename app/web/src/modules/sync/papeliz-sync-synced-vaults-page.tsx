@@ -1,11 +1,9 @@
-import { AppWindow, ArrowLeft, Check, ChevronRight, Cloud, CloudCheck, CloudDownload, CloudOff, CreditCard, Ellipsis, FolderOpen, LoaderCircle, Lock, LockOpen, RefreshCw, RotateCcw, TriangleAlert, type LucideIcon } from 'lucide-react'
+import { AppWindow, Check, ChevronRight, Cloud, CloudCheck, CloudDownload, CloudOff, Ellipsis, FolderOpen, LoaderCircle, Lock, LockOpen, RefreshCw, RotateCcw, TriangleAlert, type LucideIcon } from 'lucide-react'
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
-import { PapelizIconButton } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { PapelizConfirmDialog } from '../ui/papeliz-confirm-dialog'
 import { usePapelizFooterEqualButtonWidthRef } from '../ui/papeliz-footer-equal-button-width'
 import { PapelizPopoverMenu, type PapelizPopoverMenuPosition } from '../ui/papeliz-popover-menu'
-import { PapelizSolidCircleCheckIcon, PapelizSolidCircleXIcon } from '../ui/papeliz-solid-circle-icons'
 import { createPapelizBrowserVault, openPapelizBrowserVault, pickFreePapelizBrowserVaultName, type PapelizBrowserVaultRecord } from '../vault/papeliz-browser-vaults'
 import type { PapelizOpenVault } from '../vault/papeliz-open-vault'
 import { describePapelizFailureMessage } from '../vault/papeliz-failure-code-words'
@@ -280,7 +278,7 @@ export function PapelizSyncSyncedVaultsPage({
   const syncAccount = heldSyncedVaultsPagePreview === null ? (syncEngineReading?.syncEngineSnapshot.syncAccount ?? null) : heldSyncedVaultsPagePreview.previewSyncAccount
 
   // Leaving the page while it waits for a sign-in cancels that sign-in, whichever way it's left: Close,
-  // the back arrow, Esc, the sidebar, the logo or a vault opening. The check runs just after the page
+  // Esc, the sidebar, the logo or a vault opening. The check runs just after the page
   // goes, so a page that comes straight back (React's development double mount) keeps its sign-in.
   const isSyncedVaultsPageWaitingForSignInRef = useRef(false)
   const isSyncedVaultsPageMountedRef = useRef(false)
@@ -397,7 +395,7 @@ export function PapelizSyncSyncedVaultsPage({
   let syncedVaultsPageBody: ReactNode = null
   // Its icon is the solid check for an action that confirms a choice (Sign in, Pick Folder, Download,
   // Unlock); Try again and See plans have their own.
-  let syncedVaultsPagePrimaryAction: { primaryActionLabel: string; PrimaryActionIcon?: LucideIcon; isPrimaryActionDisabled?: boolean; onPrimaryActionSelect: () => void } | null = null
+  let syncedVaultsPagePrimaryAction: { primaryActionLabel: string; isPrimaryActionDisabled?: boolean; onPrimaryActionSelect: () => void } | null = null
 
   switch (syncedVaultsPageStep) {
     case 'waiting-for-fetch':
@@ -426,7 +424,6 @@ export function PapelizSyncSyncedVaultsPage({
       )
       syncedVaultsPagePrimaryAction = {
         primaryActionLabel: 'Try Again',
-        PrimaryActionIcon: RotateCcw,
         onPrimaryActionSelect: () => {
           if (heldSyncedVaultsPagePreview === null) void loadPapelizSyncEngine()
         },
@@ -465,7 +462,7 @@ export function PapelizSyncSyncedVaultsPage({
           <PapelizSyncSyncedVaultsPageStepText>Papeliz Sync is a paid add-on. Choose a plan, then turn Sync on for a vault on another device to fetch it here.</PapelizSyncSyncedVaultsPageStepText>
         </PapelizSyncSyncedVaultsPageCenteredStep>
       )
-      syncedVaultsPagePrimaryAction = { primaryActionLabel: 'See Plans', PrimaryActionIcon: CreditCard, onPrimaryActionSelect: requestPapelizSettingsGearSyncPage }
+      syncedVaultsPagePrimaryAction = { primaryActionLabel: 'See Plans', onPrimaryActionSelect: requestPapelizSettingsGearSyncPage }
       break
     case 'subscription-held':
       syncedVaultsPageBody = (
@@ -478,7 +475,7 @@ export function PapelizSyncSyncedVaultsPage({
           </PapelizSyncSyncedVaultsPageStepText>
         </PapelizSyncSyncedVaultsPageCenteredStep>
       )
-      syncedVaultsPagePrimaryAction = { primaryActionLabel: 'See Plans', PrimaryActionIcon: CreditCard, onPrimaryActionSelect: requestPapelizSettingsGearSyncPage }
+      syncedVaultsPagePrimaryAction = { primaryActionLabel: 'See Plans', onPrimaryActionSelect: requestPapelizSettingsGearSyncPage }
       break
     case 'synced-vault-list': {
       if (accountVaultsOutcome === null) {
@@ -491,7 +488,7 @@ export function PapelizSyncSyncedVaultsPage({
             <PapelizSyncSyncedVaultsPageStepText>{describePapelizSyncActionFailureNow(accountVaultsOutcome)}</PapelizSyncSyncedVaultsPageStepText>
           </PapelizSyncSyncedVaultsPageCenteredStep>
         )
-        syncedVaultsPagePrimaryAction = { primaryActionLabel: 'Try Again', PrimaryActionIcon: RotateCcw, onPrimaryActionSelect: () => setAccountVaultsReadCount((readCount) => readCount + 1) }
+        syncedVaultsPagePrimaryAction = { primaryActionLabel: 'Try Again', onPrimaryActionSelect: () => setAccountVaultsReadCount((readCount) => readCount + 1) }
         break
       }
       const accountVaultCount = accountVaultsOutcome.syncActionDoneValue.length
@@ -802,9 +799,6 @@ export function PapelizSyncSyncedVaultsPage({
       <div className="flex items-start justify-between gap-2 px-3 pt-[11px] pb-1">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <PapelizIconButton iconButtonLabel="Back to Recent Vaults" iconButtonSize="small" className="-my-0.5 -ml-1.5" onClick={onSyncedVaultsPageClose}>
-              <ArrowLeft className="size-[15px]" aria-hidden="true" />
-            </PapelizIconButton>
             <h2 id={syncedVaultsPageHeadingId} className="text-[18px] font-semibold tracking-[-0.01em]">
               Synced Vaults
             </h2>
@@ -850,7 +844,6 @@ export function PapelizSyncSyncedVaultsPage({
       {/* Close at the left edge in every step, the action at the right, as in New Vault's form. */}
       <div ref={syncedVaultsPageFooterRef} className="flex items-center justify-between gap-2 border-t border-papeliz-line p-3">
         <button type="button" onClick={onSyncedVaultsPageClose} className={joinPapelizClassNames(newVaultFormFooterButtonClassName, newVaultFormFooterCancelButtonColorClassName)}>
-          <PapelizSolidCircleXIcon className="size-[15px] flex-none" />
           Close
         </button>
         {syncedVaultsPagePrimaryAction !== null && (
@@ -860,13 +853,7 @@ export function PapelizSyncSyncedVaultsPage({
             onClick={syncedVaultsPagePrimaryAction.onPrimaryActionSelect}
             className={joinPapelizClassNames(newVaultFormFooterButtonClassName, newVaultFormFooterActionButtonColorClassName)}
           >
-            {isSyncedVaultsPageActionRunning ? (
-              <LoaderCircle className="size-[15px] flex-none animate-spin" aria-hidden="true" />
-            ) : syncedVaultsPagePrimaryAction.PrimaryActionIcon !== undefined ? (
-              <syncedVaultsPagePrimaryAction.PrimaryActionIcon className="size-[15px] flex-none" aria-hidden="true" />
-            ) : (
-              <PapelizSolidCircleCheckIcon className="size-[15px] flex-none" />
-            )}
+            {isSyncedVaultsPageActionRunning && <LoaderCircle className="size-[15px] flex-none animate-spin" aria-hidden="true" />}
             {syncedVaultsPagePrimaryAction.primaryActionLabel}
           </button>
         )}

@@ -1,4 +1,4 @@
-import { ArrowLeft, Eye, Hourglass, LayoutTemplate, RefreshCw, RotateCcw, Search, Upload, WifiOff } from 'lucide-react'
+import { Eye, Hourglass, LayoutTemplate, RefreshCw, RotateCcw, Search, Upload, WifiOff, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { PapelizIconButton, PapelizPillButton } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
@@ -339,7 +339,6 @@ export function PapelizTemplateGalleryPage({
             suggestedNewVaultName={shownTemplateGalleryScreen.suggestedNewVaultName}
             initialNewVaultPlace={shownTemplateGalleryScreen.initialNewVaultPlace}
             existingBrowserVaultRecords={existingBrowserVaultRecords}
-            newVaultBackButtonLabel={`Back to ${shownTemplateGalleryRow.templateName}`}
             newVaultFromTemplate={{
               newVaultTemplateName: shownTemplateGalleryRow.templateName,
               newVaultTemplateDetailLine: describeTemplateGalleryRowDetail(shownTemplateGalleryRow),
@@ -385,7 +384,6 @@ export function PapelizTemplateGalleryPage({
       onTemplateGallerySearchTextChange={setTemplateGallerySearchText}
       onTemplateGalleryTagChoose={setChosenTemplateGalleryTag}
       onTemplateGalleryClose={onTemplateGalleryPageClose}
-      templateGalleryCloseLabel={templateGalleryVaultImport === undefined ? 'Back to Recent Vaults' : 'Close Templates'}
       isTemplateGalleryImportingIntoVault={templateGalleryVaultImport !== undefined}
       onTemplatePageOpen={(templateGalleryRow) => openTemplateGalleryScreen({ templateGalleryScreenKind: 'template-page', papelizTemplateGalleryId: templateGalleryRow.papelizTemplateGalleryId })}
       onTemplatePreviewOpen={(templateGalleryRow) => openTemplateGalleryScreen({ templateGalleryScreenKind: 'preview', papelizTemplateGalleryId: templateGalleryRow.papelizTemplateGalleryId })}
@@ -404,16 +402,16 @@ interface PapelizTemplateGalleryListProps {
   onTemplateGallerySearchTextChange: (templateGallerySearchText: string) => void
   onTemplateGalleryTagChoose: (templateGalleryTag: string | null) => void
   onTemplateGalleryClose: () => void
-  // The heading's back arrow: back to Recent Vaults, or, in an open vault, out of Templates.
-  templateGalleryCloseLabel: string
+  // In an open vault, an ✕ at the heading's right end closes the Templates dialog. The start screen's
+  // Templates has none.
   isTemplateGalleryImportingIntoVault: boolean
   onTemplatePageOpen: (templateGalleryRow: PapelizTemplateGalleryRow) => void
   onTemplatePreviewOpen: (templateGalleryRow: PapelizTemplateGalleryRow) => void
   onSubmitTemplateOpen: () => void
 }
 
-// The gallery itself: its heading (the back arrow and title; search, Refresh and Submit Template), the
-// three tabs and the tag chips, and the chosen tab's rows, or why there are none.
+// The gallery itself: its heading (the title; search, Refresh and Submit Template, then ✕ in an open
+// vault), the three tabs and the tag chips, and the chosen tab's rows, or why there are none.
 function PapelizTemplateGalleryList({
   templateGalleryPageHeadingId,
   isTemplateGalleryPageHeadingFocusedFirst,
@@ -424,7 +422,6 @@ function PapelizTemplateGalleryList({
   onTemplateGallerySearchTextChange,
   onTemplateGalleryTagChoose,
   onTemplateGalleryClose,
-  templateGalleryCloseLabel,
   isTemplateGalleryImportingIntoVault,
   onTemplatePageOpen,
   onTemplatePreviewOpen,
@@ -529,12 +526,10 @@ function PapelizTemplateGalleryList({
       className="papeliz-welcome-enter flex min-h-0 flex-1 flex-col"
     >
       {/* Heading, as Recent Vaults': the title on the left; search, Refresh and Submit Template on the
-          right, which take a line of their own on a phone. */}
+          right, which take a line of their own on a phone. In an open vault's dialog, ✕ closes it last,
+          after a thin divider. */}
       <div className="flex flex-wrap items-center justify-between gap-x-2.5 gap-y-2 px-3 pt-[11px] pb-1 sm:flex-nowrap">
         <div className="flex min-w-0 flex-none items-center gap-2">
-          <PapelizIconButton iconButtonLabel={templateGalleryCloseLabel} iconButtonSize="small" className="-my-0.5 -ml-1.5" onClick={onTemplateGalleryClose}>
-            <ArrowLeft className="size-[15px]" aria-hidden="true" />
-          </PapelizIconButton>
           <h2 ref={templateGalleryHeadingRef} id={templateGalleryPageHeadingId} tabIndex={-1} className="text-[18px] font-semibold tracking-[-0.01em] focus:outline-none">
             Templates
           </h2>
@@ -570,6 +565,14 @@ function PapelizTemplateGalleryList({
           >
             <Upload className="size-4" aria-hidden="true" />
           </button>
+          {isTemplateGalleryImportingIntoVault && (
+            <>
+              <span aria-hidden="true" className="mx-0.5 h-5 w-px flex-none bg-papeliz-line" />
+              <PapelizIconButton iconButtonLabel="Close Templates" iconButtonSize="small" className="pointer-coarse:size-10" onClick={onTemplateGalleryClose}>
+                <X className="size-4" aria-hidden="true" />
+              </PapelizIconButton>
+            </>
+          )}
         </div>
       </div>
       <p className="px-3 text-[12.5px] text-papeliz-ink-muted">{isTemplateGalleryImportingIntoVault ? 'Bring one the community made into this vault, in a folder of its own.' : 'Start a vault from one the community made.'}</p>

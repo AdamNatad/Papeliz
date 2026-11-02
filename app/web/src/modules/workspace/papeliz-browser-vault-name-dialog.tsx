@@ -2,7 +2,6 @@ import { Pencil } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { usePapelizFooterEqualButtonWidthRef } from '../ui/papeliz-footer-equal-button-width'
-import { PapelizSolidCircleCheckIcon, PapelizSolidCircleXIcon } from '../ui/papeliz-solid-circle-icons'
 import { findPapelizBrowserVaultNameProblem, type PapelizBrowserVaultRecord } from '../vault/papeliz-browser-vaults'
 import { PapelizBrowserVaultNameField } from './papeliz-browser-vault-name-field'
 import { newVaultFormFooterActionButtonColorClassName, newVaultFormFooterCancelButtonColorClassName } from './papeliz-new-vault-form'
@@ -102,7 +101,6 @@ export function PapelizBrowserVaultNameDialog({
           onClick={onBrowserVaultRenameCancel}
           className={joinPapelizClassNames(browserVaultNameDialogFooterButtonClassName, newVaultFormFooterCancelButtonColorClassName)}
         >
-          <PapelizSolidCircleXIcon className="size-3.5 flex-none" />
           Cancel
         </button>
         <button
@@ -111,7 +109,6 @@ export function PapelizBrowserVaultNameDialog({
           onClick={confirmBrowserVaultRename}
           className={joinPapelizClassNames(browserVaultNameDialogFooterButtonClassName, newVaultFormFooterActionButtonColorClassName)}
         >
-          <PapelizSolidCircleCheckIcon className="size-3.5 flex-none" />
           Rename
         </button>
       </div>

@@ -1,11 +1,9 @@
-import { ArrowLeft, ExternalLink, Eye, Flag, SquareTerminal } from 'lucide-react'
+import { ExternalLink, Eye, Flag, SquareTerminal } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPapelizWikilinkTargetResolver } from '../links/papeliz-wikilink-targets'
 import { PapelizSyncFailureLine, PapelizSyncLoadingLine } from '../sync/papeliz-sync-page-parts'
-import { PapelizIconButton } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { usePapelizFooterEqualButtonWidthRef } from '../ui/papeliz-footer-equal-button-width'
-import { PapelizSolidCircleCheckIcon, PapelizSolidCircleXIcon } from '../ui/papeliz-solid-circle-icons'
 import { newVaultFormFooterActionButtonColorClassName, newVaultFormFooterButtonClassName, newVaultFormFooterCancelButtonColorClassName } from '../workspace/papeliz-new-vault-form'
 import { usePapelizWorkspaceStore } from '../workspace/papeliz-workspace-store'
 import type { PapelizTemplateFileListEntry, PapelizTemplateGalleryRow } from './papeliz-template-gallery-contract'
@@ -127,9 +125,6 @@ export function PapelizTemplateGalleryTemplatePage({
       <div className="flex items-start justify-between gap-2 px-3 pt-[11px] pb-1">
         <div className="min-w-0">
           <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-            <PapelizIconButton iconButtonLabel="Back" iconButtonSize="small" className="-my-0.5 -ml-1.5" onClick={onTemplatePageClose}>
-              <ArrowLeft className="size-[15px]" aria-hidden="true" />
-            </PapelizIconButton>
             <h2 ref={templatePageHeadingRef} id={templateGalleryPageHeadingId} tabIndex={-1} className="min-w-0 truncate text-[18px] font-semibold tracking-[-0.01em] focus:outline-none">
               {templateGalleryRow.templateName}
             </h2>
@@ -243,11 +238,9 @@ export function PapelizTemplateGalleryTemplatePage({
       {/* Cancel at the left edge, Use Template at the right, as in New Vault's form. */}
       <div ref={templatePageFooterRef} className="flex items-center justify-between gap-2 border-t border-papeliz-line p-3">
         <button type="button" onClick={onTemplatePageClose} className={joinPapelizClassNames(newVaultFormFooterButtonClassName, newVaultFormFooterCancelButtonColorClassName)}>
-          <PapelizSolidCircleXIcon className="size-[15px] flex-none" />
           Cancel
         </button>
         <button type="button" onClick={onTemplateUse} className={joinPapelizClassNames(newVaultFormFooterButtonClassName, newVaultFormFooterActionButtonColorClassName)}>
-          <PapelizSolidCircleCheckIcon className="size-[15px] flex-none" />
           Use Template
         </button>
       </div>

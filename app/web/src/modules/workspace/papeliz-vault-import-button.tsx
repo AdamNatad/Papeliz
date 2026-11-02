@@ -1,7 +1,6 @@
 import { FileArchive, Files, Import, LayoutTemplate } from 'lucide-react'
 import { lazy, Suspense, useEffect, useId, useRef, useState, type ChangeEvent } from 'react'
 import { PapelizImportZipError, papelizImportZipMostTotalByteCount } from '../export-zip/papeliz-import-zip-file-reader'
-import { PapelizIconButton } from '../ui/papeliz-buttons'
 import { PapelizConfirmDialog } from '../ui/papeliz-confirm-dialog'
 import { PapelizPopoverMenu, type PapelizPopoverMenuItem, type PapelizPopoverMenuPosition } from '../ui/papeliz-popover-menu'
 import { describePapelizFailureMessage } from '../vault/papeliz-failure-code-words'
@@ -11,6 +10,7 @@ import {
   planPapelizVaultFolderImportFromZip,
   type PapelizVaultFolderImportPlan,
 } from '../vault/papeliz-vault-folder-import'
+import { PapelizFileListHeaderSolidButton } from './papeliz-file-list-header-solid-button'
 import { usePapelizWorkspaceStore } from './papeliz-workspace-store'
 
 // The template gallery loads only when Import from Template is chosen, as on the start screen.
@@ -18,7 +18,7 @@ const PapelizTemplateGalleryPage = lazy(() =>
   import('../template-gallery/papeliz-template-gallery-page').then((templateGalleryPageModule) => ({ default: templateGalleryPageModule.PapelizTemplateGalleryPage })),
 )
 
-// Import, beside New Note and New Folder in the file list's header: Import from Files, Import from Zip
+// Import, beside New in the file list's header: Import from Files, Import from Zip
 // and Import from Template. Each brings what it imports into its own new folder at the vault's top
 // (papeliz-vault-folder-import.ts), never over anything already there: a picked folder under its own
 // name, loose files under "Imported Files", a zip under its name without ".zip", a template under its
@@ -104,11 +104,11 @@ export function PapelizVaultImportButton() {
 
   return (
     <>
-      <PapelizIconButton
+      <PapelizFileListHeaderSolidButton
         ref={vaultImportButtonRef}
-        iconButtonLabel="Import"
-        iconButtonSize="small"
+        fileListHeaderSolidButtonLabel="Import"
         aria-haspopup="menu"
+        aria-expanded={vaultImportMenuPosition !== null}
         aria-busy={isVaultImportRunning || undefined}
         disabled={isVaultImportRunning}
         onClick={() => {
@@ -117,7 +117,7 @@ export function PapelizVaultImportButton() {
         }}
       >
         <Import className="size-[15px]" aria-hidden="true" />
-      </PapelizIconButton>
+      </PapelizFileListHeaderSolidButton>
 
       <input
         ref={pickedFilesInputRef}

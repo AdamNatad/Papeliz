@@ -23,7 +23,7 @@ export const papelizHelpFilesArticles: readonly PapelizHelpArticle[] = [
       ]),
       helpSection('Create notes and folders', [
         helpParagraph(
-          'Use the **New Note** and **New Folder** buttons at the top of the list, or right-click a folder and choose **New Note Here** or **New Folder Here**.',
+          'Choose **New** at the top of the list, then **New Note** or **New Folder**, or right-click a folder and choose **New Note Here** or **New Folder Here**.',
         ),
       ]),
       helpSection('Search notes', [

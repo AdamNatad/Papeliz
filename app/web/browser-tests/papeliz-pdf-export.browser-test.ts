@@ -34,7 +34,8 @@ async function openExportPageWithPdf(page: Page): Promise<void> {
 
 // A new note in the sample vault holding this text.
 async function addSampleVaultNote(page: Page, noteName: string, noteText: string): Promise<void> {
-  await page.getByRole('button', { name: 'New Note' }).first().click()
+  await page.getByRole('button', { name: 'New', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'New Note' }).click()
   await page.waitForFunction(() => document.activeElement instanceof HTMLInputElement)
   await page.keyboard.press('Control+a')
   await page.keyboard.type(noteName)

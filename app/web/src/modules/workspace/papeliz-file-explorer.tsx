@@ -18,8 +18,8 @@ import {
   Lock,
   LockOpen,
   Palette,
-  PanelLeftClose,
   Pencil,
+  Plus,
   RotateCcw,
   Search,
   Trash2,
@@ -45,6 +45,7 @@ import {
 } from '../vault/papeliz-vault-relative-paths'
 import { isVaultJsonFileName } from '../vault/papeliz-vault-text-files'
 import { usePapelizFileExplorerSearchRequestStore } from './papeliz-file-explorer-search-request-store'
+import { PapelizFileListHeaderSolidButton } from './papeliz-file-list-header-solid-button'
 import { getPapelizVaultSearchClient, usePapelizVaultKnowledgeStore } from './papeliz-vault-knowledge-store'
 import { listVaultFolderEntryNamesInOrder, sortVaultFolderEntries, type PapelizVaultEntryOrder, type PapelizVaultEntryPlacement } from './papeliz-vault-entry-order'
 import { PapelizWorkspaceEyePreviewerSlot } from './papeliz-workspace-eye-previewer-slot'
@@ -146,7 +147,6 @@ export function PapelizFileExplorer({ fileListFootSection }: PapelizFileExplorer
   const createVaultFolderInFolder = usePapelizWorkspaceStore((workspaceState) => workspaceState.createVaultFolderInFolder)
   const moveVaultEntryToTrash = usePapelizWorkspaceStore((workspaceState) => workspaceState.moveVaultEntryToTrash)
   const startRenamingVaultEntry = usePapelizWorkspaceStore((workspaceState) => workspaceState.startRenamingVaultEntry)
-  const setExplorerPanelOpen = usePapelizWorkspaceStore((workspaceState) => workspaceState.setExplorerPanelOpen)
 
   const [noteNameFilterText, setNoteNameFilterText] = useState('')
   const noteSearchInputRef = useRef<HTMLInputElement>(null)
@@ -184,6 +184,8 @@ export function PapelizFileExplorer({ fileListFootSection }: PapelizFileExplorer
   const newVaultFolderParentRelativePath = usePapelizWorkspaceStore((workspaceState) => workspaceState.newVaultFolderParentRelativePath)
   // The menu of the list's empty space, for the top of the vault.
   const [vaultTopMenuPosition, setVaultTopMenuPosition] = useState<PapelizPopoverMenuPosition | null>(null)
+  const fileListNewButtonRef = useRef<HTMLButtonElement>(null)
+  const [fileListNewMenuPosition, setFileListNewMenuPosition] = useState<PapelizPopoverMenuPosition | null>(null)
   const folderAutoExpandRef = useRef<{ autoExpandVaultFolderRelativePath: string; autoExpandTimer: ReturnType<typeof setTimeout> } | null>(null)
   const fileExplorerNotesNavRef = useRef<HTMLElement>(null)
   const activeNoteHighlightRef = useRef<HTMLSpanElement>(null)
@@ -447,7 +449,24 @@ export function PapelizFileExplorer({ fileListFootSection }: PapelizFileExplorer
     return vaultEntryMenuItems
   }
 
-  // The top of the vault: what the header's buttons do, and Paste when a note or folder is copied.
+  // The header's New: a note or a folder beside the open note, or at the vault's top when none is open.
+  const fileListNewMenuItems: PapelizPopoverMenuItem[] = [
+    {
+      menuItemKey: 'new-note-from-file-list-header',
+      menuItemLabel: 'New Note',
+      MenuItemIcon: FilePlus,
+      onMenuItemSelect: () => void createVaultNoteInFolder(folderForNewEntries),
+    },
+    {
+      menuItemKey: 'new-folder-from-file-list-header',
+      menuItemLabel: 'New Folder',
+      MenuItemIcon: FolderPlus,
+      onMenuItemSelect: () => void createVaultFolderInFolder(folderForNewEntries),
+    },
+  ]
+
+  // The top of the vault: what the header's New does, at the top, and Paste when a note or folder is
+  // copied.
   const getVaultTopMenuItems = (): PapelizPopoverMenuItem[] => [
     {
       menuItemKey: 'new-note-at-top',
@@ -546,17 +565,19 @@ export function PapelizFileExplorer({ fileListFootSection }: PapelizFileExplorer
         </h2>
         <span className="ml-auto" />
         <PapelizWorkspaceEyePreviewerSlot />
-        <PapelizIconButton iconButtonLabel="New Note" iconButtonSize="small" onClick={() => void createVaultNoteInFolder(folderForNewEntries)}>
-          <FilePlus className="size-[15px]" aria-hidden="true" />
-        </PapelizIconButton>
-        <PapelizIconButton iconButtonLabel="New Folder" iconButtonSize="small" onClick={() => void createVaultFolderInFolder(folderForNewEntries)}>
-          <FolderPlus className="size-[15px]" aria-hidden="true" />
-        </PapelizIconButton>
+        <PapelizFileListHeaderSolidButton
+          ref={fileListNewButtonRef}
+          fileListHeaderSolidButtonLabel="New"
+          aria-haspopup="menu"
+          aria-expanded={fileListNewMenuPosition !== null}
+          onClick={() => {
+            const fileListNewButtonRect = fileListNewButtonRef.current?.getBoundingClientRect()
+            setFileListNewMenuPosition({ menuAnchorLeft: fileListNewButtonRect?.left ?? 16, menuAnchorTop: (fileListNewButtonRect?.bottom ?? 48) + 4 })
+          }}
+        >
+          <Plus className="size-4" strokeWidth={2.25} aria-hidden="true" />
+        </PapelizFileListHeaderSolidButton>
         <PapelizVaultImportButton />
-        {/* Hide panel, docked or as a drawer. The vault closes from Home (Start page) in the top bar. */}
-        <PapelizIconButton iconButtonLabel="Hide the File List" iconButtonSize="small" onClick={() => setExplorerPanelOpen(false)}>
-          <PanelLeftClose className="size-[15px]" aria-hidden="true" />
-        </PapelizIconButton>
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col px-2.5 pt-2.5 pb-2.5">
@@ -716,6 +737,10 @@ export function PapelizFileExplorer({ fileListFootSection }: PapelizFileExplorer
       </div>
 
       </div>
+
+      {fileListNewMenuPosition !== null && (
+        <PapelizPopoverMenu menuLabel="New" menuPosition={fileListNewMenuPosition} menuItems={fileListNewMenuItems} onMenuClose={() => setFileListNewMenuPosition(null)} />
+      )}
 
       {vaultTopMenuPosition !== null && (
         <PapelizPopoverMenu

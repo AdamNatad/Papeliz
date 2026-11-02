@@ -75,7 +75,7 @@ test('a new browser vault keeps its notes across a reload', async ({ page }) => 
   // focused. Where folders work it starts on Folder Storage; elsewhere that card is off and Browser
   // Storage is chosen already.
   const newVaultForm = page.getByRole('region', { name: 'New Vault' })
-  const newVaultNameField = newVaultForm.getByLabel('Name')
+  const newVaultNameField = newVaultForm.getByLabel('Vault Name')
   await expect(newVaultNameField).toBeFocused()
   if (await isFolderOnDiskOffered(page)) await newVaultForm.getByRole('radio', { name: /^Browser Storage/ }).click()
   // Every vault has a name: without one, Create Vault stays off.

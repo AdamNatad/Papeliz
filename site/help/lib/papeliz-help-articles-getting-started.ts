@@ -80,7 +80,7 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
       helpSection('Start a new vault', [
         helpNumberedSteps([
           'On the start page, choose **New Vault**. It opens where **Recent Vaults** was.',
-          'Type the vault’s name in **Name**. Every vault has one, and it shows in **Recent Vaults**, the top bar and the status bar.',
+          'Type the vault’s name in **Vault Name**. Every vault has one, and it shows in **Recent Vaults**, the top bar and the status bar.',
           'Choose where to keep it: **Folder Storage** or **Browser Storage**. The table under them compares the two. In Firefox, Safari and phone browsers, **Folder Storage** shows **Off in this browser** and **Browser Storage** is chosen.',
           'For a folder, choose **Pick Folder**, pick the place it goes, such as **Documents**, and allow editing when the browser asks. Papeliz makes a folder with the vault’s name there. For the browser, choose **Create Vault**.',
           'Papeliz starts your first note, named and ready to write in.',
@@ -173,7 +173,7 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
       helpSection('Start one', [
         helpNumberedSteps([
           'On the start page, choose **New Vault**.',
-          'Type a name in **Name**.',
+          'Type a name in **Vault Name**.',
           'Choose **Browser Storage**. In Firefox, Safari and phone browsers it’s already chosen.',
           'Choose **Create Vault**. Papeliz starts your first note.',
         ]),

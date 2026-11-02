@@ -1,13 +1,10 @@
 import type { EditorState } from '@codemirror/state'
-import { ArrowLeft } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { createPapelizWikilinkTargetResolver } from '../links/papeliz-wikilink-targets'
 import { PapelizSyncFailureLine, PapelizSyncLoadingLine } from '../sync/papeliz-sync-page-parts'
 import { PapelizVaultTextFileEditor } from '../text-file-view/papeliz-vault-text-file-editor'
-import { PapelizIconButton } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { usePapelizFooterEqualButtonWidthRef } from '../ui/papeliz-footer-equal-button-width'
-import { PapelizSolidCircleCheckIcon, PapelizSolidCircleXIcon } from '../ui/papeliz-solid-circle-icons'
 import { getVaultEntryName, getVaultEntryParentFolderRelativePath } from '../vault/papeliz-vault-relative-paths'
 import { newVaultFormFooterActionButtonColorClassName, newVaultFormFooterButtonClassName, newVaultFormFooterCancelButtonColorClassName } from '../workspace/papeliz-new-vault-form'
 import type { PapelizTemplateFileListEntry, PapelizTemplateGalleryRow } from './papeliz-template-gallery-contract'
@@ -187,9 +184,6 @@ export function PapelizTemplateGalleryPreviewPage({
     >
       <div className="px-3 pt-[11px] pb-1">
         <div className="flex min-w-0 items-center gap-2">
-          <PapelizIconButton iconButtonLabel="Back" iconButtonSize="small" className="-my-0.5 -ml-1.5" onClick={onTemplatePreviewClose}>
-            <ArrowLeft className="size-[15px]" aria-hidden="true" />
-          </PapelizIconButton>
           <h2 ref={templatePreviewHeadingRef} id={templateGalleryPageHeadingId} tabIndex={-1} className="min-w-0 truncate text-[18px] font-semibold tracking-[-0.01em] focus:outline-none">
             Preview · {templateGalleryRow.templateName}
           </h2>
@@ -228,11 +222,9 @@ export function PapelizTemplateGalleryPreviewPage({
 
       <div ref={templatePreviewFooterRef} className="flex items-center justify-between gap-2 border-t border-papeliz-line p-3">
         <button type="button" onClick={onTemplatePreviewClose} className={joinPapelizClassNames(newVaultFormFooterButtonClassName, newVaultFormFooterCancelButtonColorClassName)}>
-          <PapelizSolidCircleXIcon className="size-[15px] flex-none" />
           Cancel
         </button>
         <button type="button" onClick={onTemplateUse} className={joinPapelizClassNames(newVaultFormFooterButtonClassName, newVaultFormFooterActionButtonColorClassName)}>
-          <PapelizSolidCircleCheckIcon className="size-[15px] flex-none" />
           Use Template
         </button>
       </div>
