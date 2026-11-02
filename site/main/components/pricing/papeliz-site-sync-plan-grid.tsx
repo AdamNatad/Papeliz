@@ -30,7 +30,10 @@ type PapelizSiteSyncPlanCardProps = {
   papelizSiteSyncPlanCardLines: string[]
 }
 
-// One card: the name, the price for a month, how it is billed, Sign up, then its lines with green checks.
+// One card: the name, the price for a month, how it is billed, its button, then its lines with green
+// checks. A paid plan's button reads Subscribe (Adam, 2026-11-03: "it shouldnt say Sign up it should say
+// Subscribe"): signed in, it goes straight to checkout; signed out, sign-in comes first. Free's reads Sign
+// up, since Free has no checkout.
 function PapelizSiteSyncPlanCard({
   papelizSiteSyncPlanCardPlanId,
   papelizSiteSyncPlanCardTitle,
@@ -56,7 +59,7 @@ function PapelizSiteSyncPlanCard({
           href={papelizSiteSyncPlanCardSignUpHref}
           className="mt-10 flex min-h-12 items-center justify-center rounded-full bg-papeliz-blue px-3 py-2 text-base font-medium text-papeliz-on-blue transition-colors hover:bg-papeliz-blue-hover"
         >
-          Sign up
+          {papelizSiteSyncPlanCardPlanId === papelizSiteSyncFreePlan.papelizSiteSyncFreePlanId ? 'Sign up' : 'Subscribe'}
         </a>
       )}
       <ul className="mt-8 grid gap-2 text-base leading-6">

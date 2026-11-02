@@ -3,7 +3,7 @@ import { PapelizSiteCenteredPageHero } from '@/components/marketing/papeliz-site
 import { PapelizSiteQuestionList } from '@/components/pricing/papeliz-site-question-list'
 import { PapelizSiteSyncPlanGrid } from '@/components/pricing/papeliz-site-sync-plan-grid'
 import { createPapelizSitePageMetadata } from '@/lib/papeliz-site-seo'
-import { papelizSiteSyncConnectedDeviceLimit, papelizSiteSyncFreePlan, papelizSiteSyncFreeSignUpHref } from '@/lib/papeliz-site-sync-plans'
+import { createPapelizSiteSyncSignUpHref, papelizSiteSyncConnectedDeviceLimit, papelizSiteSyncFreePlan } from '@/lib/papeliz-site-sync-plans'
 import { papelizSiteSyncQuestions } from '@/lib/papeliz-site-sync-questions'
 
 export const metadata = createPapelizSitePageMetadata({
@@ -126,28 +126,29 @@ function PapelizSiteSyncCardItem({ papelizSiteSyncCard }: { papelizSiteSyncCard:
 // Papeliz Sync's own page (Adam, 2026-10-31): what it does,
 // what stays private, what syncs and where, then the plans and the questions.
 export default function PapelizSiteSyncPage() {
-  // The top's Sign up starts on Free, with no plan chosen and no checkout (Adam, 2026-11-02); the paid
-  // plans' own Sign up buttons below go to checkout.
-  const papelizSiteSyncHeroSignUpHref = papelizSiteSyncFreeSignUpHref
+  // The top's See plans, then Subscribe, which checks out Standard, billed yearly, like that plan's own
+  // Subscribe below: signed in, straight to checkout; signed out, sign-in first (Adam, 2026-11-03: "see
+  // plans on the left and Subscribe on the right", then "Standard, yearly").
+  const papelizSiteSyncHeroSubscribeHref = createPapelizSiteSyncSignUpHref('standard', 'yearly')
   return (
     <div className="mx-auto max-w-6xl space-y-16 px-4 pb-16 sm:px-6 sm:pb-20">
       <PapelizSiteCenteredPageHero papelizSiteCenteredPageHeroHeading="All your notes, on all your devices.">
         <p>Papeliz Sync keeps your vaults the same on the web, desktop and mobile, with end-to-end encryption for the vaults you choose.</p>
         <div className="mt-7 flex flex-col items-center justify-center gap-3 sm:flex-row">
-          {papelizSiteSyncHeroSignUpHref && (
-            <a
-              href={papelizSiteSyncHeroSignUpHref}
-              className="inline-flex min-h-11 items-center justify-center rounded-full bg-papeliz-blue px-6 text-[15px] font-medium text-papeliz-on-blue transition-colors hover:bg-papeliz-blue-hover"
-            >
-              Sign up
-            </a>
-          )}
           <a
             href="#sync-plans"
             className="inline-flex min-h-11 items-center justify-center rounded-full border border-papeliz-line-strong px-6 text-[15px] font-medium text-papeliz-ink transition-colors hover:bg-papeliz-hover"
           >
             See plans
           </a>
+          {papelizSiteSyncHeroSubscribeHref && (
+            <a
+              href={papelizSiteSyncHeroSubscribeHref}
+              className="inline-flex min-h-11 items-center justify-center rounded-full bg-papeliz-blue px-6 text-[15px] font-medium text-papeliz-on-blue transition-colors hover:bg-papeliz-blue-hover"
+            >
+              Subscribe
+            </a>
+          )}
         </div>
       </PapelizSiteCenteredPageHero>
 

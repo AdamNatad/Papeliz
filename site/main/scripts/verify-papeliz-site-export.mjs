@@ -16,7 +16,7 @@
 //   _headers hashes the account page's inline scripts in place of 'unsafe-inline' (the root
 //   `pnpm site:build` writes it);
 // - the Pricing and Sync pages open on yearly billing: the Yearly choice is the pressed one and every
-//   paid plan's Sign up starts checkout on yearly;
+//   paid plan's Subscribe starts checkout on yearly;
 // - every short address in _redirects (app/%5Fredirects/route.ts), a short name or the repository's
 //   own spelling, with and without the trailing slash, is a permanent redirect from a /templates/
 //   address that has no page of its own and is no owner's to a page in the export whose canonical
@@ -191,7 +191,7 @@ if (existsSync(papelizSiteLicensePagePath)) {
 // Yearly billing chosen by default (papelizSiteSyncPreselectedBillingPeriod in lib/papeliz-site-sync-plans.ts):
 // the pressed choice is checked, not its place, since Yearly sits on the right of Monthly.
 // The address parameters are the same as papelizSiteSyncPlanAddressParameterName and
-// papelizSiteSyncBillingPeriodAddressParameterName there; Free's Sign up names no plan, so it is not counted.
+// papelizSiteSyncBillingPeriodAddressParameterName there; Free's Sign up names no plan, so it is not counted; a paid plan's button reads Subscribe.
 for (const papelizSiteSyncPlansPagePath of ['/pricing/', '/sync/']) {
   const papelizSiteSyncPlansPageFile = exportFileForSitePath(papelizSiteSyncPlansPagePath)
   if (!existsSync(papelizSiteSyncPlansPageFile)) continue
@@ -206,10 +206,10 @@ for (const papelizSiteSyncPlansPagePath of ['/pricing/', '/sync/']) {
   const papelizSiteSyncPaidSignUpHrefs = [...papelizSiteSyncPlansPageHtml.matchAll(/href="([^"]*[?&](?:amp;)?papeliz-sync-plan=[^"]*)"/g)].map((papelizSiteSyncPaidSignUpMatch) =>
     decodeHtmlEntities(papelizSiteSyncPaidSignUpMatch[1]),
   )
-  if (papelizSiteSyncPaidSignUpHrefs.length === 0) papelizSiteExportProblems.push(`${papelizSiteSyncPlansPageName}: has no paid plan Sign up`)
+  if (papelizSiteSyncPaidSignUpHrefs.length === 0) papelizSiteExportProblems.push(`${papelizSiteSyncPlansPageName}: has no paid plan Subscribe`)
   for (const papelizSiteSyncPaidSignUpHref of papelizSiteSyncPaidSignUpHrefs) {
     if (new URL(papelizSiteSyncPaidSignUpHref, 'https://papeliz.test').searchParams.get('papeliz-sync-billing-period') !== 'yearly') {
-      papelizSiteExportProblems.push(`${papelizSiteSyncPlansPageName}: Sign up ${papelizSiteSyncPaidSignUpHref} does not start checkout on yearly`)
+      papelizSiteExportProblems.push(`${papelizSiteSyncPlansPageName}: Subscribe ${papelizSiteSyncPaidSignUpHref} does not start checkout on yearly`)
     }
   }
 }
