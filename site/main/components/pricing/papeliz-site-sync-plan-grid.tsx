@@ -20,13 +20,14 @@ import {
 import { PapelizSiteBillingPeriodSwitch } from './papeliz-site-billing-period-switch'
 import { createPapelizSiteYearlySavingsBadgeInfo, papelizSiteSyncYearlyMonthsSaved } from './papeliz-site-yearly-savings-info'
 
-// What Pricing's one Sync card lists: what the add-on does, with the plans themselves on the Sync page.
+// What Pricing's paid Sync card lists: what the add-on does, with the plans themselves on the Sync
+// page. Free has its own card beside it.
 const papelizSiteSyncAddOnCardLines = [
   'Sync notes across web, desktop and mobile',
   'End-to-end encryption for the vaults you choose',
   'Edits from every device merge',
   'Choose where your notes are stored',
-  'Free, Standard, Plus and Pro plans',
+  'Standard, Plus and Pro plans',
 ]
 
 type PapelizSiteSyncPlanCardProps = {
@@ -97,9 +98,24 @@ function PapelizSiteSyncPlanCard({
 }
 
 type PapelizSiteSyncPlanGridProps = {
-  // Pricing shows one Sync card at the starting price, as an add-on, and links to the Sync page;
-  // the Sync page shows every plan with its limits.
+  // Pricing shows the Free card and one Sync card at the starting price, as an add-on, each linking
+  // to the Sync page; the Sync page shows every plan with its limits.
   papelizSiteSyncPlanGridShows: 'add-on-card' | 'every-plan'
+}
+
+// The Free plan's card: no price, no checkout, and the same on every billing period.
+function PapelizSiteSyncFreePlanCard({ papelizSiteSyncPlanCardShowsLearnMore }: { papelizSiteSyncPlanCardShowsLearnMore: boolean }) {
+  return (
+    <PapelizSiteSyncPlanCard
+      papelizSiteSyncPlanCardPlanId={papelizSiteSyncFreePlan.papelizSiteSyncFreePlanId}
+      papelizSiteSyncPlanCardTitle={papelizSiteSyncFreePlan.papelizSiteSyncFreePlanName}
+      papelizSiteSyncPlanCardPriceUsd={0}
+      papelizSiteSyncPlanCardPriceNote="No card needed"
+      papelizSiteSyncPlanCardSignUpHref={papelizSiteSyncFreeSignUpHref}
+      papelizSiteSyncPlanCardLines={describePapelizSiteSyncFreePlanLimits()}
+      papelizSiteSyncPlanCardShowsLearnMore={papelizSiteSyncPlanCardShowsLearnMore}
+    />
+  )
 }
 
 // A paid plan's card, at its price for the billing period chosen.
@@ -152,7 +168,9 @@ export function PapelizSiteSyncPlanGrid({ papelizSiteSyncPlanGridShows }: Papeli
         />
       </div>
       {papelizSiteSyncPlanGridShows === 'add-on-card' ? (
-        <div className="mx-auto grid max-w-sm grid-cols-1">
+        // Free beside the paid Sync card (Adam, 2026-11-02), stacked on a phone.
+        <div className="mx-auto grid max-w-sm grid-cols-1 gap-6 sm:max-w-3xl sm:grid-cols-2">
+          <PapelizSiteSyncFreePlanCard papelizSiteSyncPlanCardShowsLearnMore />
           <PapelizSiteSyncPaidPlanCard
             papelizSiteSyncPlanCardTitle="Sync"
             papelizSiteSyncPlan={papelizSiteSyncPlans[0]!}
@@ -164,15 +182,7 @@ export function PapelizSiteSyncPlanGrid({ papelizSiteSyncPlanGridShows }: Papeli
       ) : (
         // Free first, then the paid plans: two by two on a tablet, four across on a wide screen.
         <div className="mx-auto grid max-w-md grid-cols-1 gap-6 md:max-w-3xl md:grid-cols-2 xl:max-w-none xl:grid-cols-4">
-          <PapelizSiteSyncPlanCard
-            papelizSiteSyncPlanCardPlanId={papelizSiteSyncFreePlan.papelizSiteSyncFreePlanId}
-            papelizSiteSyncPlanCardTitle={papelizSiteSyncFreePlan.papelizSiteSyncFreePlanName}
-            papelizSiteSyncPlanCardPriceUsd={0}
-            papelizSiteSyncPlanCardPriceNote="No card needed"
-            papelizSiteSyncPlanCardSignUpHref={papelizSiteSyncFreeSignUpHref}
-            papelizSiteSyncPlanCardLines={describePapelizSiteSyncFreePlanLimits()}
-            papelizSiteSyncPlanCardShowsLearnMore={false}
-          />
+          <PapelizSiteSyncFreePlanCard papelizSiteSyncPlanCardShowsLearnMore={false} />
           {papelizSiteSyncPlans.map((papelizSiteSyncPlan) => (
             <PapelizSiteSyncPaidPlanCard
               key={papelizSiteSyncPlan.papelizSiteSyncPlanId}

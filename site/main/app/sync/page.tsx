@@ -7,8 +7,8 @@ import {
   papelizSiteSyncConnectedDeviceLimit,
   papelizSiteSyncEducationAndNonProfitDiscountPercent,
   papelizSiteSyncFreePlan,
+  papelizSiteSyncFreeSignUpHref,
   papelizSiteSyncRefundWindowDayCount,
-  createPapelizSiteSyncSignUpHref,
 } from '@/lib/papeliz-site-sync-plans'
 import { papelizSiteSyncQuestions } from '@/lib/papeliz-site-sync-questions'
 
@@ -132,8 +132,9 @@ function PapelizSiteSyncCardItem({ papelizSiteSyncCard }: { papelizSiteSyncCard:
 // Papeliz Sync's own page (Adam, 2026-10-31): what it does,
 // what stays private, what syncs and where, then the plans and the questions.
 export default function PapelizSiteSyncPage() {
-  // The top's Sign up starts with Standard, billed yearly, as the plans below show first.
-  const papelizSiteSyncHeroSignUpHref = createPapelizSiteSyncSignUpHref('standard', 'yearly')
+  // The top's Sign up starts on Free, with no plan chosen and no checkout (Adam, 2026-11-02); the paid
+  // plans' own Sign up buttons below go to checkout.
+  const papelizSiteSyncHeroSignUpHref = papelizSiteSyncFreeSignUpHref
   return (
     <div className="mx-auto max-w-6xl space-y-16 px-4 pb-16 sm:px-6 sm:pb-20">
       <PapelizSiteCenteredPageHero papelizSiteCenteredPageHeroHeading="All your notes, on all your devices.">

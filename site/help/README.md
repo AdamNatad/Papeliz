@@ -22,11 +22,16 @@ From the repository root:
 
 ```sh
 pnpm help:dev        # http://127.0.0.1:14205/help/
-pnpm help:build      # static export into site/help/out/
+pnpm help:build      # static export into site/help/out/, each page with its script policy
 pnpm help:typecheck
 pnpm help:lint
-pnpm help:verify     # after a build: every guide page, internal links and assets, page text
+pnpm help:verify     # after a build: every guide page, internal links and assets, page text, script policies
 ```
+
+After `next build`, `scripts/papeliz-help-page-script-policy.mjs` runs the website's own step
+(`site/main/scripts/papeliz-site-page-script-policy.mjs`) over `out/`: every page gets a `<meta>`
+Content-Security-Policy whose `script-src` allows only `'self'` and the SHA-256 hash of each inline
+script on that page. The build and `help:verify` both fail on an inline script without its hash.
 
 The launchers are `build_tools/site/help/<windows|macos|linux>/start` and `build`. On Windows the
 build is followed by `build_tools/site/papeliz-site-repair-windows-segment-files.mjs site/help/out`,
@@ -39,7 +44,7 @@ step was skipped.
 app/          layout, help home, [papelizHelpArticleSlug]/ guide pages, 404, globals.css
 components/   shell (header, guide list, phone drawer), guide view, search, inline text, mark
 lib/          the guide catalog (papeliz-help-content.ts and one file per group), search
-scripts/      verify-papeliz-help-export.mjs
+scripts/      papeliz-help-page-script-policy.mjs, verify-papeliz-help-export.mjs
 public/       favicon
 ```
 

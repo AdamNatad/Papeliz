@@ -28,7 +28,7 @@ const papelizSiteTemplatesStandInSnapshot: PapelizSiteTemplatesSnapshot = {
       templateCommitSha: null,
       templateName: 'P1-Workflow',
       templateDescription:
-        'A workflow for building any software project with AI coding agents: one folder of plain Markdown that holds the plan, the tasks, the decisions and the rules every agent follows.',
+        'Your personal knowledge base that grows as you build your project: one folder of plain Markdown that holds the plan, the tasks, the decisions and the rules every AI coding agent follows.',
       templateTags: ['coding', 'project-workflow', 'ai-agents'],
       templateLicenseId: 'MIT',
       templateIncludedFileCount: null,

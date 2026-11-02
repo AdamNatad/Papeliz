@@ -5,12 +5,16 @@
 //     leaves out the /help base path;
 //   - on a Windows build, every route prefetch file also exists under its dot-joined name (see
 //     build_tools/site/papeliz-site-repair-windows-segment-files.mjs);
-//   - no page's visible text names words that don't belong on it.
+//   - no page's visible text names words that don't belong on it;
+//   - every page carries its strict script policy, with a hash for each of its inline scripts and no
+//     inline handler, javascript: link or script file from another site (the website's step, which
+//     scripts/papeliz-help-page-script-policy.mjs runs after next build).
 // Usage, from site/help: node scripts/verify-papeliz-help-export.mjs
 
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { findPapelizSitePageScriptPolicyProblems, readPapelizSitePageInlineScriptTexts } from '../../main/scripts/papeliz-site-page-script-policy.mjs'
 
 const papelizHelpSiteDirectory = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const papelizHelpExportDirectory = path.join(papelizHelpSiteDirectory, 'out')
@@ -85,6 +89,7 @@ if (!listedGuideSlugs.has(papelizHelpProviderArticleSlug)) {
 const exportedFilePaths = listFilesBelow(papelizHelpExportDirectory)
 const exportedHtmlPaths = exportedFilePaths.filter((exportFilePath) => exportFilePath.endsWith('.html'))
 let checkedLinkCount = 0
+let checkedInlineScriptCount = 0
 
 for (const exportedHtmlPath of exportedHtmlPaths) {
   const exportedHtml = readFileSync(exportedHtmlPath, 'utf8')
@@ -104,6 +109,11 @@ for (const exportedHtmlPath of exportedHtmlPaths) {
     if (!existsSync(linkedExportFile) || !statSync(linkedExportFile).isFile()) {
       exportProblems.push(`${exportedPageName}: “${linkUrl}” points at a missing file`)
     }
+  }
+
+  checkedInlineScriptCount += readPapelizSitePageInlineScriptTexts(exportedHtml).length
+  for (const helpPageScriptPolicyProblem of findPapelizSitePageScriptPolicyProblems(exportedHtml)) {
+    exportProblems.push(`${exportedPageName}: ${helpPageScriptPolicyProblem}`)
   }
 
   const visibleText = describeVisibleText(exportedHtml).replaceAll(papelizHelpHackathonName, '')
@@ -139,5 +149,5 @@ if (exportProblems.length > 0) {
 }
 
 console.log(
-  `Help export OK: ${listedGuideSlugs.size} guides, ${exportedHtmlPaths.length} pages, ${checkedLinkCount} internal links and assets checked.`,
+  `Help export OK: ${listedGuideSlugs.size} guides, ${exportedHtmlPaths.length} pages, ${checkedLinkCount} internal links and assets, and ${exportedHtmlPaths.length} script policies covering ${checkedInlineScriptCount} inline scripts checked.`,
 )

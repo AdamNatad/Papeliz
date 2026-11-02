@@ -2,7 +2,6 @@
 
 import { Clerk } from '@clerk/clerk-js'
 import { ClerkFailed, ClerkLoaded, ClerkLoading, ClerkProvider, useAuth } from '@clerk/react'
-import { SlidersHorizontal } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { readPapelizSiteSyncChosenPlan, papelizSiteSyncBillingPeriodAddressParameterName, papelizSiteSyncPlanAddressParameterName } from '@/lib/papeliz-site-sync-plans'
 import {
@@ -26,62 +25,41 @@ import { readPapelizSyncSignInPageParameters } from './papeliz-account-sync-hand
 import { PapelizAccountSyncHandOverScreen } from './papeliz-account-sync-hand-over-screen'
 import { papelizAccountSyncCheckoutFinishedParameterName, selectPapelizAccountSyncService } from './papeliz-account-sync-service'
 
-// Clerk runs from the copy bundled into this page (`@clerk/clerk-js`, pinned), never from Clerk's
+// Clerk runs from the copy bundled into this page (`@clerk/clerk-js`, pinned), not from Clerk's
 // servers, and no Clerk screens load: every screen here is Papeliz's own. Its telemetry is off, so
-// the page talks to Clerk's Frontend API alone.
-// The local account screens preview, where the Dev Previewer steps through every screen and state.
-const papelizAccountScreensPreviewPath = '/account-screens-preview/'
-
-// On the dev server only, the Dev Previewer's button, which crosses to the screens preview (Adam,
-// 2026-11-01: "where is our preview state button i wanna see it on account page"; "Yes, dev only"). A
-// production build leaves it out, so papeliz.com never shows it. A plain link, so the preview loads
-// fresh with its own stand-in Clerk.
-function PapelizAccountDevPreviewerLink() {
-  if (process.env.NODE_ENV !== 'development') return null
-  return (
-    <a
-      href={papelizAccountScreensPreviewPath}
-      className="fixed right-4 bottom-4 z-[60] inline-flex min-h-9 items-center gap-1.5 rounded-full bg-papeliz-ink px-3.5 text-xs font-semibold text-papeliz-surface shadow-[0_4px_12px_rgb(0_0_0/0.22)] transition-[filter] hover:brightness-125 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-papeliz-blue"
-    >
-      <SlidersHorizontal className="size-3.5" aria-hidden="true" />
-      Dev Previewer
-    </a>
-  )
-}
+// the page talks to Clerk's Frontend API, and to Clerk Protect, the bot check whose scripts Clerk
+// loads from *.protect.clerk.com when the instance has it on (Adam, 2026-11-02).
 
 export function PapelizAccountClerkPage() {
   const papelizAccountPageHostname = window.location.hostname
   return (
-    <>
-      <ClerkProvider
-        Clerk={Clerk}
-        publishableKey={selectPapelizAccountClerkPublishableKey(papelizAccountPageHostname)}
-        prefetchUI={false}
-        telemetry={false}
-        signInUrl={papelizAccountPagePath}
-        signUpUrl={papelizAccountPagePath}
-        afterSignOutUrl={papelizAccountPagePath}
-      >
-        <ClerkLoading>
-          <PapelizAccountStateScreen papelizAccountStateKind="loading" papelizAccountStateTitle="Loading your account" papelizAccountLoadingStep="code-loaded" />
-        </ClerkLoading>
-        <ClerkFailed>
-          <PapelizAccountAfterLoadingBar>
-            <PapelizAccountStateScreen
-              papelizAccountStateKind="error"
-              papelizAccountStateTitle="Couldn't load sign-in"
-              papelizAccountStateText="Check your connection, then try again."
-              papelizAccountStateActionLabel="Try again"
-              onPapelizAccountStateAction={() => window.location.reload()}
-            />
-          </PapelizAccountAfterLoadingBar>
-        </ClerkFailed>
-        <ClerkLoaded>
-          <PapelizAccountPageContent isPapelizAccountProductionHost={isPapelizAccountProductionHost(papelizAccountPageHostname)} />
-        </ClerkLoaded>
-      </ClerkProvider>
-      <PapelizAccountDevPreviewerLink />
-    </>
+    <ClerkProvider
+      Clerk={Clerk}
+      publishableKey={selectPapelizAccountClerkPublishableKey(papelizAccountPageHostname)}
+      prefetchUI={false}
+      telemetry={false}
+      signInUrl={papelizAccountPagePath}
+      signUpUrl={papelizAccountPagePath}
+      afterSignOutUrl={papelizAccountPagePath}
+    >
+      <ClerkLoading>
+        <PapelizAccountStateScreen papelizAccountStateKind="loading" papelizAccountStateTitle="Loading your account" papelizAccountLoadingStep="code-loaded" />
+      </ClerkLoading>
+      <ClerkFailed>
+        <PapelizAccountAfterLoadingBar>
+          <PapelizAccountStateScreen
+            papelizAccountStateKind="error"
+            papelizAccountStateTitle="Couldn't load sign-in"
+            papelizAccountStateText="Check your connection, then try again."
+            papelizAccountStateActionLabel="Try again"
+            onPapelizAccountStateAction={() => window.location.reload()}
+          />
+        </PapelizAccountAfterLoadingBar>
+      </ClerkFailed>
+      <ClerkLoaded>
+        <PapelizAccountPageContent isPapelizAccountProductionHost={isPapelizAccountProductionHost(papelizAccountPageHostname)} />
+      </ClerkLoaded>
+    </ClerkProvider>
   )
 }
 

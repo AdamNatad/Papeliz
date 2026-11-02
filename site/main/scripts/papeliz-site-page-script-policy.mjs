@@ -15,6 +15,9 @@
 // the page isn't listed for below. It also re-reads every page and stops if any inline script there
 // has no hash in its policy. scripts/verify-papeliz-site-export.mjs checks the same again.
 //
+// The help site, served from the same origin at /help/, runs this same step over its own export
+// (site/help/scripts/papeliz-help-page-script-policy.mjs), with no page that needs more.
+//
 // Usage: node scripts/papeliz-site-page-script-policy.mjs [site export folder]  (default: out)
 
 import { createHash } from 'node:crypto'
@@ -28,11 +31,13 @@ const papelizSitePageDataScriptTypes = new Set(['application/ld+json', 'applicat
 
 // Pages that need more than the site's own scripts, by their file in the export, each the same as in
 // that page's _headers policy. The account page's sign-in shows Cloudflare's bot check when Clerk
-// asks for one, and it rewraps vault keys in a worker the bundler starts from a blob: address. Its
-// full policy is the /account/* block in public/_headers, which the root site build hashes too.
+// asks for one, runs Clerk Protect's scripts (the first from cdn.protect.clerk.com, the next from
+// the instance's host under client.protect.clerk.com, as Clerk's CSP guide lists them), and rewraps
+// vault keys in a worker the bundler starts from a blob: address. Its full policy is the /account/*
+// block in public/_headers, which the root site build hashes too.
 export const papelizSitePageExtraScriptPolicyByExportFile = {
   'account/index.html': {
-    papelizSitePageExtraScriptSources: ['https://challenges.cloudflare.com'],
+    papelizSitePageExtraScriptSources: ['https://challenges.cloudflare.com', 'https://*.protect.clerk.com'],
     papelizSitePageExtraDirectives: ["worker-src 'self' blob:"],
   },
 }
@@ -172,9 +177,10 @@ export function readPapelizSitePageExtraScriptPolicy(papelizSiteExportFileName) 
   return papelizSitePageExtraScriptPolicyByExportFile[papelizSiteExportFileName] ?? papelizSitePageNoExtraScriptPolicy
 }
 
-function runPapelizSitePageScriptPolicyStep() {
-  const papelizSitePackageFolder = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-  const papelizSiteExportFolder = path.resolve(papelizSitePackageFolder, process.argv[2] ?? 'out')
+// Writes every page in an export folder its script policy, with more allowed only for the pages
+// listed in the given map (by their file in that export), then checks each page as written. Stops
+// the build when the folder is missing or any page isn't covered.
+export function runPapelizSiteExportFolderPageScriptPolicyStep(papelizSiteExportFolder, papelizSiteExportFolderExtraScriptPolicyByExportFile = {}) {
   if (!existsSync(papelizSiteExportFolder)) {
     console.error(` [error] ${papelizSiteExportFolder} is missing; build the site first.`)
     process.exit(1)
@@ -185,7 +191,7 @@ function runPapelizSitePageScriptPolicyStep() {
   const papelizSiteExportHtmlFiles = listPapelizSiteExportHtmlFiles(papelizSiteExportFolder)
   for (const papelizSiteExportHtmlFile of papelizSiteExportHtmlFiles) {
     const papelizSiteExportFileName = path.relative(papelizSiteExportFolder, papelizSiteExportHtmlFile).split(path.sep).join('/')
-    const papelizSitePageExtraScriptPolicy = readPapelizSitePageExtraScriptPolicy(papelizSiteExportFileName)
+    const papelizSitePageExtraScriptPolicy = papelizSiteExportFolderExtraScriptPolicyByExportFile[papelizSiteExportFileName] ?? papelizSitePageNoExtraScriptPolicy
     const papelizSitePageHtmlWithPolicy = writePapelizSitePageScriptPolicy(readFileSync(papelizSiteExportHtmlFile, 'utf8'), papelizSitePageExtraScriptPolicy)
     if (papelizSitePageHtmlWithPolicy === null) {
       papelizSitePageScriptPolicyStepProblems.push(`${papelizSiteExportFileName}: has no <head> to hold its script policy`)
@@ -208,6 +214,11 @@ function runPapelizSitePageScriptPolicyStep() {
   console.log(
     ` [ready] ${papelizSiteExportHtmlFiles.length} pages carry a strict script-src: 'self' and the hashes of their ${papelizSitePageInlineScriptCount} inline scripts.`,
   )
+}
+
+function runPapelizSitePageScriptPolicyStep() {
+  const papelizSitePackageFolder = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+  runPapelizSiteExportFolderPageScriptPolicyStep(path.resolve(papelizSitePackageFolder, process.argv[2] ?? 'out'), papelizSitePageExtraScriptPolicyByExportFile)
 }
 
 if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) runPapelizSitePageScriptPolicyStep()

@@ -14,7 +14,10 @@
 // - every page carries its strict script policy, with a hash for each of its inline scripts and no
 //   inline handler (scripts/papeliz-site-page-script-policy.mjs), and the /account/* policy in
 //   _headers hashes the account page's inline scripts in place of 'unsafe-inline' (the root
-//   `pnpm site:build` writes it).
+//   `pnpm site:build` writes it);
+// - every short address in _redirects (app/%5Fredirects/route.ts) is a permanent redirect from a
+//   /templates/ address that has no page of its own to a page in the export whose canonical link is
+//   that page.
 // Exits 1 with a list of problems, 0 when the export is clean.
 
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
@@ -49,7 +52,7 @@ const papelizSiteExpectedPagePaths = [
   '/terms/',
   '/license/',
 ]
-const papelizSiteExpectedFiles = ['404.html', 'robots.txt', 'sitemap.xml', '_headers', 'favicon.svg', 'apple-touch-icon.png', 'papeliz-social-banner-1200x630.png']
+const papelizSiteExpectedFiles = ['404.html', 'robots.txt', 'sitemap.xml', '_headers', '_redirects', 'favicon.svg', 'apple-touch-icon.png', 'papeliz-social-banner-1200x630.png']
 
 // Served by the other packages once everything is assembled into one folder.
 const papelizSiteLinkPrefixesServedElsewhere = ['/app/', '/help/']
@@ -210,6 +213,39 @@ if (existsSync(papelizSiteAccountPagePath) && existsSync(papelizSiteExportHeader
   }
 }
 
+// The Featured templates' short addresses: each line a permanent redirect from a /templates/ address
+// with no page of its own, so it shadows nothing, to a page the export has.
+const papelizSiteExportRedirectsPath = path.join(papelizSiteExportDirectory, '_redirects')
+let papelizSiteTemplateShortAddressCount = 0
+if (existsSync(papelizSiteExportRedirectsPath)) {
+  for (const papelizSiteRedirectLine of readFileSync(papelizSiteExportRedirectsPath, 'utf8').split(/\r?\n/)) {
+    if (papelizSiteRedirectLine.trim() === '' || papelizSiteRedirectLine.trimStart().startsWith('#')) continue
+    const [papelizSiteRedirectSource, papelizSiteRedirectDestination, papelizSiteRedirectStatus, ...papelizSiteRedirectExtraParts] = papelizSiteRedirectLine.trim().split(/\s+/)
+    if (
+      !papelizSiteRedirectSource.startsWith('/templates/') ||
+      !papelizSiteRedirectDestination?.startsWith('/') ||
+      !['301', '308'].includes(papelizSiteRedirectStatus) ||
+      papelizSiteRedirectExtraParts.length > 0
+    ) {
+      papelizSiteExportProblems.push(`_redirects: "${papelizSiteRedirectLine}" is not a permanent redirect from a /templates/ address`)
+      continue
+    }
+    papelizSiteTemplateShortAddressCount += 1
+    // A page, not the not-found screen written under its address: its canonical link is itself.
+    const papelizSiteRedirectDestinationFile = exportFileForSitePath(papelizSiteRedirectDestination)
+    const papelizSiteRedirectDestinationCanonicalHref =
+      existsSync(papelizSiteRedirectDestinationFile) && statSync(papelizSiteRedirectDestinationFile).isFile()
+        ? /<link rel="canonical" href="([^"]*)"/.exec(readFileSync(papelizSiteRedirectDestinationFile, 'utf8'))?.[1]
+        : undefined
+    if (papelizSiteRedirectDestinationCanonicalHref === undefined || new URL(decodeHtmlEntities(papelizSiteRedirectDestinationCanonicalHref)).pathname !== papelizSiteRedirectDestination) {
+      papelizSiteExportProblems.push(`_redirects: ${papelizSiteRedirectSource} points at ${papelizSiteRedirectDestination}, which has no page of its own in the export`)
+    }
+    if (existsSync(exportFileForSitePath(papelizSiteRedirectSource.endsWith('/') ? papelizSiteRedirectSource : `${papelizSiteRedirectSource}/`))) {
+      papelizSiteExportProblems.push(`_redirects: ${papelizSiteRedirectSource} has a page of its own, which the redirect would shadow`)
+    }
+  }
+}
+
 if (papelizSiteExportProblems.length > 0) {
   console.error(` [error] The site export has ${papelizSiteExportProblems.length} problem(s):`)
   for (const papelizSiteExportProblem of papelizSiteExportProblems) console.error(`  - ${papelizSiteExportProblem}`)
@@ -217,5 +253,5 @@ if (papelizSiteExportProblems.length > 0) {
 }
 
 console.log(
-  ` [ok] Site export checked: ${papelizSiteExpectedPagePaths.length} pages, ${papelizSiteExportHtmlPaths.length} HTML files, links, license text, wording and script policies.`,
+  ` [ok] Site export checked: ${papelizSiteExpectedPagePaths.length} pages, ${papelizSiteExportHtmlPaths.length} HTML files, links, license text, wording, script policies and ${papelizSiteTemplateShortAddressCount} template short address line(s).`,
 )
