@@ -16,9 +16,11 @@ export interface PapelizImportedTemplateFolderSource {
   // The repository's owner on GitHub.
   templateSourceAuthor: string
   templateSourceLicenseId: PapelizTemplateLicenseId
-  // Which files the folder got, Recommended or All. Missing in entries from before the choice
+  // Which files the folder got, Recommended, All or chosen. Missing in entries from before the choice
   // existed, which got all.
   templateSourceFilesChoice?: PapelizTemplateFilesChoice
+  // With `chosen`, the optional files it got, in path order.
+  templateSourceChosenOptionalFileRelativePaths?: string[]
 }
 
 export interface PapelizImportedTemplateFolder extends PapelizImportedTemplateFolderSource {

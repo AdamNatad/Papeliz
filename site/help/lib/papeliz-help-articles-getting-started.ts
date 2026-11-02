@@ -184,7 +184,7 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
       ]),
       helpSection('Notes you already have', [
         helpParagraph(
-          'In the open vault, choose **Import** in the file list’s header. **Import from Files** takes files or a whole folder, and **Import from Zip** takes a `.zip`. Each goes into a new folder at the top of the vault: a folder under its own name, loose files under **Imported Files**, a `.zip` under its name. If the name is taken, the folder becomes **Imported Files 2**, say. Nothing already in the vault changes, and you can rename or move the new folder like any other.',
+          'In the open vault, choose **Import** in the file list’s header. **Import from Files** takes one or more files, **Import from Folder** takes a whole folder, and **Import from Zip** takes a `.zip`. Each goes into a new folder at the top of the vault: a folder under its own name, loose files under **Imported Files**, a `.zip` under its name. If the name is taken, the folder becomes **Imported Files 2**, say. Nothing already in the vault changes, and you can rename or move the new folder like any other.',
         ),
       ]),
       helpSection('Download a backup', [
@@ -236,7 +236,7 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
       ]),
       helpSection('Rename, hide and delete', [
         helpBulletList([
-          '**Rename**, in the vault’s right-click menu on the start page, changes the name Papeliz shows.',
+          '**Rename**, in the vault’s right-click menu on the start page, changes the name Papeliz shows. With the vault open, the gear’s **Settings** › **Vault** renames it too, unless another tab has it open.',
           '**Hide** takes it off **Recent Vaults** into **Hidden Vaults**. Its notes stay in this browser, and **Restore** brings it back.',
           '**Delete**, in Hidden Vaults, erases the vault and every note in it from this browser. It can’t be undone, so Papeliz offers **Download a backup** first and asks you to type the vault’s name.',
         ]),
@@ -306,7 +306,7 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
         helpBulletList([
           '**Account**: coming soon.',
           '**Sync**: keep your vaults in sync across web, desktop and mobile, with end-to-end encryption for the vaults you choose. A paid add-on, coming soon.',
-          '**Settings**: **Key Bindings**, the shortcuts you can change. See [[keyboard-shortcuts]]. In a vault kept in your browser, Settings has two tabs, **Key Bindings** and **Reminder**, for the backup reminder and **Download Backup**. See [[keep-a-vault-in-your-browser]].',
+          '**Settings**: the tabs **Vault**, the open vault’s name (a vault kept in your browser renames here; a folder vault takes its folder’s name), and **Key Bindings**, the shortcuts you can change. See [[keyboard-shortcuts]]. In a vault kept in your browser, a third tab, **Reminder**, holds the backup reminder and **Download Backup**. See [[keep-a-vault-in-your-browser]].',
           '**Export**: download notes as Word, PDF or HTML files. See **Export** below.',
           '**Appearance**: the theme, and how note tabs show. See [[text-settings-and-theme]].',
           '**Accessibility**: how your notes’ text looks: font, size and width. See [[text-settings-and-theme]].',

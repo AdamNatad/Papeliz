@@ -9,6 +9,7 @@ import { PapelizBrowserVaultAdapter } from './papeliz-browser-vault-adapter'
 import { createPapelizBrowserVaultFileContentsWriter } from './papeliz-browser-vault-file-writer'
 import { announcePapelizBrowserVaultListChange } from './papeliz-browser-vault-list-channel'
 import {
+  countPapelizBrowserVaultOpenTabs,
   getPapelizBrowserLockManager,
   holdPapelizBrowserVaultOpenLock,
   isPapelizBrowserVaultOpenInSomeTab,
@@ -277,12 +278,31 @@ export async function createPapelizBrowserVault(
 }
 
 // Changes the name Papeliz shows; the folder keeps its id. Refused while the vault is open in a tab.
-export async function renamePapelizBrowserVault(
+export function renamePapelizBrowserVault(
   papelizVaultId: string,
   typedBrowserVaultName: string,
   browserVaultEnvironment: PapelizBrowserVaultEnvironment = getPapelizBrowserVaultEnvironment(),
 ): Promise<PapelizBrowserVaultRecord> {
-  if (await isPapelizBrowserVaultOpenInSomeTab(browserVaultEnvironment.browserVaultLockManager, papelizVaultId)) {
+  return renamePapelizBrowserVaultWhileOpenInTabs(papelizVaultId, typedBrowserVaultName, 0, browserVaultEnvironment)
+}
+
+// The same for the vault open in this tab, from Settings: refused only while another tab has it open
+// too, since that tab would go on showing the old name.
+export function renameOpenPapelizBrowserVault(
+  papelizVaultId: string,
+  typedBrowserVaultName: string,
+  browserVaultEnvironment: PapelizBrowserVaultEnvironment = getPapelizBrowserVaultEnvironment(),
+): Promise<PapelizBrowserVaultRecord> {
+  return renamePapelizBrowserVaultWhileOpenInTabs(papelizVaultId, typedBrowserVaultName, 1, browserVaultEnvironment)
+}
+
+async function renamePapelizBrowserVaultWhileOpenInTabs(
+  papelizVaultId: string,
+  typedBrowserVaultName: string,
+  allowedBrowserVaultOpenTabCount: 0 | 1,
+  browserVaultEnvironment: PapelizBrowserVaultEnvironment,
+): Promise<PapelizBrowserVaultRecord> {
+  if ((await countPapelizBrowserVaultOpenTabs(browserVaultEnvironment.browserVaultLockManager, papelizVaultId)) > allowedBrowserVaultOpenTabCount) {
     throw new PapelizVaultOperationError('Open In Another Tab')
   }
   const browserVaultRecords = await listPapelizBrowserVaults(browserVaultEnvironment)

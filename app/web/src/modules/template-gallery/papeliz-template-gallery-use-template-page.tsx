@@ -6,6 +6,7 @@ import { usePapelizFooterEqualButtonWidthRef } from '../ui/papeliz-footer-equal-
 import { PapelizSolidCircleCheckIcon } from '../ui/papeliz-solid-circle-icons'
 import { newVaultFormFooterActionButtonColorClassName, newVaultFormFooterButtonClassName, newVaultFormFooterCancelButtonColorClassName, type PapelizNewVaultPlace } from '../workspace/papeliz-new-vault-form'
 import { describePapelizTemplateHiddenCharacter, splitPapelizTemplateTextAtHiddenCharacters } from './papeliz-template-gallery-checks'
+import { PapelizTemplateGalleryFilesChoice } from './papeliz-template-gallery-files-choice'
 import type { PapelizTemplateGalleryRow, PapelizTemplateRunCommand, PapelizTemplateUseState } from './papeliz-template-gallery-contract'
 import {
   describeTemplateFileReadProgress,
@@ -35,9 +36,16 @@ function PapelizTemplateUseFailedLines({ templateUseState }: { templateUseState:
   )
 }
 
-// Under "From …" in New Vault's form: reading and checking, then what goes in (with the hidden files
-// Sync won't carry and any picture left out), or why it can't.
-export function PapelizTemplateGalleryNewVaultTemplateStatus({ templateUseState }: { templateUseState: PapelizTemplateUseState }) {
+// Under "From …" in New Vault's form and on Import from Template: reading and checking, then, for a
+// template with optional files, Recommended, All or Choose over its folder tree, then what goes in
+// (with the hidden files Sync won't carry and any picture left out), or why it can't.
+export function PapelizTemplateGalleryNewVaultTemplateStatus({
+  templateUseState,
+  onTemplateOptionalFilesChoose,
+}: {
+  templateUseState: PapelizTemplateUseState
+  onTemplateOptionalFilesChoose?: (chosenTemplateOptionalFileRelativePaths: readonly string[]) => void
+}) {
   switch (templateUseState.templateUseStage) {
     case 'idle':
       return null
@@ -52,23 +60,40 @@ export function PapelizTemplateGalleryNewVaultTemplateStatus({ templateUseState 
     case 'imported-into-vault':
       return null
     case 'ready': {
-      const { templateHiddenFileRelativePaths, templateLeftOutPictureRelativePaths } = templateUseState
+      const { templateHiddenFileRelativePaths, templateLeftOutPictureRelativePaths, templateFilesChoices, templateCheckReport } = templateUseState
+      // A ready state without the choice (a made-up screen) means All.
+      const chosenTemplateOptionalFileRelativePaths = templateUseState.chosenTemplateOptionalFileRelativePaths ?? templateFilesChoices?.templateOptionalFileRelativePaths ?? []
+      const incomingTemplateFileCount =
+        templateFilesChoices === undefined
+          ? templateCheckReport.templateIncludedFileRelativePaths.length
+          : templateFilesChoices.recommendedTemplateFileCount + chosenTemplateOptionalFileRelativePaths.length
       return (
-        <div className="flex flex-col gap-1 text-[12px] leading-[1.45] text-papeliz-ink-muted">
-          <p className="flex items-center gap-1.5">
-            <PapelizSolidCircleCheckIcon className="size-3.5 flex-none text-papeliz-ok" />
-            Checked: {describeTemplateGalleryFileCount(templateUseState.templateCheckReport.templateIncludedFileRelativePaths.length)} go into the vault.
-          </p>
-          {templateHiddenFileRelativePaths.length > 0 && (
-            <p>
-              {templateHiddenFileRelativePaths.join(', ')} {templateHiddenFileRelativePaths.length === 1 ? 'stays' : 'stay'} on this device. Sync doesn’t carry hidden files.
-            </p>
+        <div className="flex flex-col gap-2">
+          {templateFilesChoices?.hasTemplateOptionalFiles === true && onTemplateOptionalFilesChoose !== undefined && (
+            <PapelizTemplateGalleryFilesChoice
+              templateName={templateUseState.templateGalleryRow.templateName}
+              templateIncludedFileRelativePaths={templateCheckReport.templateIncludedFileRelativePaths}
+              templateOptionalFileRelativePaths={templateFilesChoices.templateOptionalFileRelativePaths}
+              chosenTemplateOptionalFileRelativePaths={chosenTemplateOptionalFileRelativePaths}
+              onChosenTemplateOptionalFilesChange={onTemplateOptionalFilesChoose}
+            />
           )}
-          {templateLeftOutPictureRelativePaths.length > 0 && (
-            <p>
-              Left out, since its information couldn’t be removed: {templateLeftOutPictureRelativePaths.join(', ')}.
+          <div className="flex flex-col gap-1 text-[12px] leading-[1.45] text-papeliz-ink-muted">
+            <p className="flex items-center gap-1.5">
+              <PapelizSolidCircleCheckIcon className="size-3.5 flex-none text-papeliz-ok" />
+              Checked: {describeTemplateGalleryFileCount(incomingTemplateFileCount)} go into the vault.
             </p>
-          )}
+            {templateHiddenFileRelativePaths.length > 0 && (
+              <p>
+                {templateHiddenFileRelativePaths.join(', ')} {templateHiddenFileRelativePaths.length === 1 ? 'stays' : 'stay'} on this device. Sync doesn’t carry hidden files.
+              </p>
+            )}
+            {templateLeftOutPictureRelativePaths.length > 0 && (
+              <p>
+                Left out, since its information couldn’t be removed: {templateLeftOutPictureRelativePaths.join(', ')}.
+              </p>
+            )}
+          </div>
         </div>
       )
     }
@@ -230,6 +255,8 @@ interface PapelizTemplateGalleryImportIntoVaultPageProps {
   templateUseState: PapelizTemplateUseState
   // Why the last Import into This Vault didn't import; null before one fails.
   templateVaultImportFailureMessage: string | null
+  // Recommended, All or the optional files ticked one by one, for a template with optional files.
+  onTemplateOptionalFilesChoose?: (chosenTemplateOptionalFileRelativePaths: readonly string[]) => void
   onTemplateImportCancel: () => void
   onTemplateImportConfirm: () => void
 }
@@ -243,6 +270,7 @@ export function PapelizTemplateGalleryImportIntoVaultPage({
   importingVaultDisplayName,
   templateUseState,
   templateVaultImportFailureMessage,
+  onTemplateOptionalFilesChoose,
   onTemplateImportCancel,
   onTemplateImportConfirm,
 }: PapelizTemplateGalleryImportIntoVaultPageProps) {
@@ -281,7 +309,7 @@ export function PapelizTemplateGalleryImportIntoVaultPage({
             else in the vault changes, and you can rename or move the folder afterwards.
           </span>
         </p>
-        <PapelizTemplateGalleryNewVaultTemplateStatus templateUseState={templateUseState} />
+        <PapelizTemplateGalleryNewVaultTemplateStatus templateUseState={templateUseState} onTemplateOptionalFilesChoose={onTemplateOptionalFilesChoose} />
         {templateVaultImportFailureMessage !== null && (
           <div role="alert">
             <PapelizSyncFailureLine>{templateVaultImportFailureMessage}</PapelizSyncFailureLine>

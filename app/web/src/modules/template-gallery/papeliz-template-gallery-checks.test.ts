@@ -13,6 +13,7 @@ import {
   listPapelizTemplateFirstLookRelativePaths,
   matchPapelizTemplatePathPattern,
   parsePapelizTemplateManifest,
+  resolvePapelizTemplateOptionalFilesChoice,
   runPapelizTemplateChecks,
   selectPapelizTemplateChosenFileRelativePaths,
   selectPapelizTemplateIncludedFileListEntries,
@@ -707,6 +708,25 @@ describe('a template’s optional paths, for Recommended or All', () => {
     expect(selectPapelizTemplateChosenFileRelativePaths(agentWorkflowIncludedRelativePaths, parsedAgentWorkflowManifest, 'all')).toEqual(agentWorkflowIncludedRelativePaths)
     expect(selectPapelizTemplateChosenFileRelativePaths(agentWorkflowIncludedRelativePaths, parsedAgentWorkflowManifest, 'recommended')).toEqual(
       agentWorkflowIncludedRelativePaths.filter((includedRelativePath) => !agentWorkflowOptionalRelativePaths.includes(includedRelativePath)),
+    )
+  })
+
+  it('takes optional files ticked one by one: none is Recommended, every one is All, some is chosen', () => {
+    expect(resolvePapelizTemplateOptionalFilesChoice(agentWorkflowOptionalRelativePaths, [])).toEqual({ templateFilesChoice: 'recommended', chosenTemplateOptionalFileRelativePaths: [] })
+    expect(resolvePapelizTemplateOptionalFilesChoice(agentWorkflowOptionalRelativePaths, [...agentWorkflowOptionalRelativePaths].reverse())).toEqual({
+      templateFilesChoice: 'all',
+      chosenTemplateOptionalFileRelativePaths: agentWorkflowOptionalRelativePaths,
+    })
+    // Only included optional files count, in path order: a required file or one the template doesn't have is ignored.
+    expect(resolvePapelizTemplateOptionalFilesChoice(agentWorkflowOptionalRelativePaths, ['opencode.json', 'AGENTS.md', 'nowhere.md', '.gemini/settings.json'])).toEqual({
+      templateFilesChoice: 'chosen',
+      chosenTemplateOptionalFileRelativePaths: ['.gemini/settings.json', 'opencode.json'],
+    })
+    expect(resolvePapelizTemplateOptionalFilesChoice([], [])).toEqual({ templateFilesChoice: 'all', chosenTemplateOptionalFileRelativePaths: [] })
+    expect(selectPapelizTemplateChosenFileRelativePaths(agentWorkflowIncludedRelativePaths, parsedAgentWorkflowManifest, 'chosen', ['.gemini/settings.json', 'AGENTS.md', 'nowhere.md'])).toEqual(
+      agentWorkflowIncludedRelativePaths.filter(
+        (includedRelativePath) => !agentWorkflowOptionalRelativePaths.includes(includedRelativePath) || includedRelativePath === '.gemini/settings.json',
+      ),
     )
   })
 

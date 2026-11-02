@@ -321,6 +321,9 @@ interface PapelizWorkspaceState {
   // Escape on a name box: stops renaming. A new note still being named and still empty isn't kept:
   // its tab closes and the empty file New Note made goes. Gives back whether it went.
   cancelRenamingVaultEntry: () => Promise<boolean>
+  // After Settings renames the vault open here: the top bar, the file list and the status bar show the
+  // new name.
+  setOpenVaultDisplayName: (papelizVaultDisplayName: string) => void
   // Opening the file list or the Assistant closes the other when both won't fit beside the note.
   setExplorerPanelOpen: (isExplorerPanelOpen: boolean) => void
   setAssistantPanelOpen: (isAssistantPanelOpen: boolean) => void
@@ -1855,6 +1858,8 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
       await loadVaultTreeEntriesAfterChange()
       return isNewVaultNoteTakenBack
     },
+    setOpenVaultDisplayName: (papelizVaultDisplayName) =>
+      setWorkspaceState((workspaceState) => (workspaceState.openVault === null ? {} : { openVault: { ...workspaceState.openVault, papelizVaultDisplayName } })),
     setExplorerPanelOpen: (isExplorerPanelOpen) =>
       setWorkspaceState((workspaceState) =>
         isExplorerPanelOpen

@@ -4,6 +4,7 @@ import { PapelizFileListToggleIcon } from '../ui/papeliz-file-list-toggle-icon'
 import { PapelizMark } from '../ui/papeliz-mark'
 import { usePapelizKeyBindingShortcutLabel } from './papeliz-key-bindings-store'
 import { PapelizSettingsGearButton } from './papeliz-settings-gear-button'
+import { PapelizTopbarFrostedSquareButton } from './papeliz-topbar-frosted-square-button'
 import { selectIsVaultTextFileTabInFront, selectShownNoteViewMode, usePapelizWorkspaceStore, type PapelizNoteViewMode } from './papeliz-workspace-store'
 
 const papelizNoteViewChoices = [
@@ -102,21 +103,20 @@ export function PapelizWorkspaceTopbar() {
 
       <PapelizNoteViewSwitch />
 
-      <div className="flex min-w-0 items-center justify-end gap-0.5">
+      <div className="flex min-w-0 items-center justify-end gap-1.5">
         {isFocusModeOn ? (
           <PapelizPillButton pillButtonVariant="on-topbar" pillButtonSize="small" className="mr-1" onClick={() => setFocusModeOn(false)} title="Exit Focus (Esc)">
             <Minimize2 className="size-[14px]" aria-hidden="true" />
             <span className="max-sm:sr-only">Exit Focus</span>
           </PapelizPillButton>
         ) : (
-          <PapelizIconButton
-            iconButtonLabel="AI Assistant"
-            iconButtonTone="topbar"
+          <PapelizTopbarFrostedSquareButton
+            topbarFrostedSquareButtonLabel="AI Assistant"
             aria-pressed={isAssistantPanelOpen}
             onClick={() => setAssistantPanelOpen(!isAssistantPanelOpen)}
           >
-            <WandSparkles className="size-[18px]" aria-hidden="true" />
-          </PapelizIconButton>
+            <WandSparkles className="size-[17px]" aria-hidden="true" />
+          </PapelizTopbarFrostedSquareButton>
         )}
         <PapelizSettingsGearButton settingsGearPlace="workspace" />
       </div>

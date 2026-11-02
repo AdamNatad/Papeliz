@@ -1,4 +1,4 @@
-import { ArrowLeft, ChartNoAxesColumn, History, KeyRound, ListChecks, MessageCircleQuestion, PenLine, SquarePen, WandSparkles, X } from 'lucide-react'
+import { ArrowLeft, ChartNoAxesColumn, History, ListChecks, MessageCircleQuestion, PenLine, SquarePen, WandSparkles, X } from 'lucide-react'
 import { PapelizIconButton, PapelizPillButton } from '../ui/papeliz-buttons'
 import { PapelizSlidingChoiceGroup } from '../ui/papeliz-sliding-choice-group'
 import { PapelizAssistantChatView } from './papeliz-assistant-chat-view'
@@ -66,9 +66,8 @@ export function PapelizAssistantPanel({ onAssistantPanelClose }: PapelizAssistan
           <WandSparkles className="size-3" aria-hidden="true" />
         </span>
         <h2 className="text-[15px] font-semibold">AI Assistant</h2>
-        {/* New chat, Sessions, Usage, Provider settings (which the composer's model chip also opens)
-            and Close. Provider settings has a key, not a gear, so it isn't mistaken for the app's
-            Settings gear right above it. */}
+        {/* New chat, Sessions, Usage and Close. The provider's settings open from the gear's AI
+            Assistant page and from the composer's model chip. */}
         <div className="ml-auto flex items-center gap-0.5">
           <PapelizIconButton
             iconButtonLabel="New Chat"
@@ -98,15 +97,6 @@ export function PapelizAssistantPanel({ onAssistantPanelClose }: PapelizAssistan
             onClick={() => toggleAssistantPanelView('usage')}
           >
             <ChartNoAxesColumn className="size-[15px]" aria-hidden="true" />
-          </PapelizIconButton>
-          <PapelizIconButton
-            iconButtonLabel="Provider Settings"
-            iconButtonSize="small"
-            className={papelizAssistantPanelHeaderButtonTouchClassName}
-            aria-haspopup="dialog"
-            onClick={() => setProviderSettingsDialogOpen(true)}
-          >
-            <KeyRound className="size-[15px]" aria-hidden="true" />
           </PapelizIconButton>
           <PapelizIconButton
             iconButtonLabel="Close the AI Assistant Panel"

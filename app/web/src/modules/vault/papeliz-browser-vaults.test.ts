@@ -7,6 +7,7 @@ import {
   openPapelizBrowserVault,
   pickFreePapelizBrowserVaultName,
   readPapelizBrowserVaultRecord,
+  renameOpenPapelizBrowserVault,
   renamePapelizBrowserVault,
   setPapelizBrowserVaultHidden,
 } from './papeliz-browser-vaults'
@@ -92,6 +93,25 @@ describe('the list of browser vaults', () => {
     await new Promise((resolveWait) => setTimeout(resolveWait, 0))
     await expect(renamePapelizBrowserVault(fieldNotesRecord.papelizVaultId, 'Other', browserVaultEnvironment)).rejects.toThrow('Open In Another Tab')
     if (openVaultResult.openVaultOutcome === 'opened') openVaultResult.papelizOpenVault.papelizVaultAdapter.closeVaultAdapter?.()
+  })
+
+  it('renames the vault open in this tab from Settings, unless another tab has it open too', async () => {
+    const { browserVaultEnvironment, fakeOriginPrivateFileSystemRoot } = createPapelizFakeBrowserVaultEnvironment()
+    const fieldNotesRecord = await createPapelizBrowserVault('Field Notes', browserVaultEnvironment)
+    const openVaultResult = await openPapelizBrowserVault(fieldNotesRecord, browserVaultEnvironment)
+    await new Promise((resolveWait) => setTimeout(resolveWait, 0))
+    const renamedRecord = await renameOpenPapelizBrowserVault(fieldNotesRecord.papelizVaultId, 'Garden Notes', browserVaultEnvironment)
+    expect(renamedRecord.papelizVaultDisplayName).toBe('Garden Notes')
+    const originPrivateFileSystemContents = await readPapelizFakeVaultFolder(fakeOriginPrivateFileSystemRoot)
+    expect(JSON.parse(originPrivateFileSystemContents[`papeliz-browser-vaults/${fieldNotesRecord.papelizVaultId}/.papeliz/browser-vault.json`] ?? '')).toMatchObject({
+      papelizBrowserVaultName: 'Garden Notes',
+    })
+    const secondTabOpenVaultResult = await openPapelizBrowserVault(renamedRecord, browserVaultEnvironment)
+    await new Promise((resolveWait) => setTimeout(resolveWait, 0))
+    await expect(renameOpenPapelizBrowserVault(fieldNotesRecord.papelizVaultId, 'Other', browserVaultEnvironment)).rejects.toThrow('Open In Another Tab')
+    for (const tabOpenVaultResult of [openVaultResult, secondTabOpenVaultResult]) {
+      if (tabOpenVaultResult.openVaultOutcome === 'opened') tabOpenVaultResult.papelizOpenVault.papelizVaultAdapter.closeVaultAdapter?.()
+    }
   })
 
   it('deletes a vault and its row for good, unless it is open in a tab', async () => {

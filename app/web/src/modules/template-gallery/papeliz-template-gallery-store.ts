@@ -10,6 +10,7 @@ import {
   listPapelizTemplateFirstLookRelativePaths,
   papelizTemplatePathPatternsTooSlowSentence,
   parsePapelizTemplateManifest,
+  resolvePapelizTemplateOptionalFilesChoice,
   runPapelizTemplateChecks,
   selectPapelizTemplateChosenFileRelativePaths,
   selectPapelizTemplateIncludedFileListEntries,
@@ -89,7 +90,10 @@ interface PapelizPreparedTemplateUse {
   templateCheckReport: PapelizTemplateCheckReport
   templateManifest: PapelizTemplateManifest
   includedTemplateFileBytesByRelativePath: ReadonlyMap<string, Uint8Array>
+  // The included optional files, in path order, and those the choice brings.
+  templateOptionalFileRelativePaths: string[]
   templateFilesChoice: PapelizTemplateFilesChoice
+  chosenTemplateOptionalFileRelativePaths: string[]
   preparedTemplateVaultFiles: PapelizTemplateVaultFile[]
   templateFirstNotePath: string
 }
@@ -101,12 +105,27 @@ function prepareTemplateUseFilesChoice(
   templateManifest: PapelizTemplateManifest,
   includedTemplateFileBytesByRelativePath: ReadonlyMap<string, Uint8Array>,
   templateFilesChoice: PapelizTemplateFilesChoice,
+  chosenTemplateOptionalFileRelativePaths: readonly string[],
 ): { preparedTemplateVaultFiles: PapelizPreparedTemplateVaultFiles; templateRunCommands: PapelizTemplateRunCommand[] } {
-  const chosenTemplateFileRelativePaths = selectPapelizTemplateChosenFileRelativePaths(templateCheckReport.templateIncludedFileRelativePaths, templateManifest, templateFilesChoice)
+  const chosenTemplateFileRelativePaths = selectPapelizTemplateChosenFileRelativePaths(
+    templateCheckReport.templateIncludedFileRelativePaths,
+    templateManifest,
+    templateFilesChoice,
+    chosenTemplateOptionalFileRelativePaths,
+  )
   return {
-    preparedTemplateVaultFiles: preparePapelizTemplateVaultFiles(includedTemplateFileBytesByRelativePath, { templateManifest, templateFilesChoice }),
+    preparedTemplateVaultFiles: preparePapelizTemplateVaultFiles(includedTemplateFileBytesByRelativePath, { templateManifest, templateFilesChoice, chosenTemplateOptionalFileRelativePaths }),
     templateRunCommands: listPapelizTemplateChosenRunCommands(templateCheckReport.templateRunCommands, chosenTemplateFileRelativePaths),
   }
+}
+
+// The choice a made vault or an imported folder records: with chosen, the optional files it got.
+function describeTemplateSourceFilesChoice(
+  templateUseToRecord: PapelizPreparedTemplateUse,
+): { templateSourceFilesChoice: PapelizTemplateFilesChoice; templateSourceChosenOptionalFileRelativePaths?: string[] } {
+  return templateUseToRecord.templateFilesChoice === 'chosen'
+    ? { templateSourceFilesChoice: 'chosen', templateSourceChosenOptionalFileRelativePaths: templateUseToRecord.chosenTemplateOptionalFileRelativePaths }
+    : { templateSourceFilesChoice: templateUseToRecord.templateFilesChoice }
 }
 
 // Each read under way, so a new one (or Cancel) stops the last.
@@ -274,6 +293,52 @@ export const usePapelizTemplateGalleryStore = create<PapelizTemplateGalleryState
         (builtInTemplateGalleryRow) => recheckedTemplateGalleryRowsById.get(builtInTemplateGalleryRow.papelizTemplateGalleryId) ?? builtInTemplateGalleryRow,
       ),
       templateGallerySnapshotState: { templateGallerySnapshotStage: 'not-available-yet' },
+    })
+  }
+
+  // Use Template's files, while ready, as the optional files ticked: Recommended for none, All for
+  // every one, chosen for some. A tick covers the commands it was given (both lists hold the check
+  // report's own entries): files with fewer keep it, files that bring another ask again.
+  const changeTemplateUseOptionalFiles = (requestedTemplateOptionalFileRelativePaths: readonly string[]) => {
+    const { templateUseState } = get()
+    const templateUseToChange = preparedTemplateUse
+    if (templateUseState.templateUseStage !== 'ready' || templateUseToChange === null) return
+    const { templateFilesChoice, chosenTemplateOptionalFileRelativePaths } = resolvePapelizTemplateOptionalFilesChoice(
+      templateUseToChange.templateOptionalFileRelativePaths,
+      requestedTemplateOptionalFileRelativePaths,
+    )
+    const isTemplateUseFilesChoiceUnchanged =
+      templateUseToChange.templateFilesChoice === templateFilesChoice &&
+      templateUseToChange.chosenTemplateOptionalFileRelativePaths.length === chosenTemplateOptionalFileRelativePaths.length &&
+      templateUseToChange.chosenTemplateOptionalFileRelativePaths.every(
+        (optionalRelativePath, optionalPathIndex) => optionalRelativePath === chosenTemplateOptionalFileRelativePaths[optionalPathIndex],
+      )
+    if (isTemplateUseFilesChoiceUnchanged) return
+    const { preparedTemplateVaultFiles, templateRunCommands } = prepareTemplateUseFilesChoice(
+      templateUseToChange.templateCheckReport,
+      templateUseToChange.templateManifest,
+      templateUseToChange.includedTemplateFileBytesByRelativePath,
+      templateFilesChoice,
+      chosenTemplateOptionalFileRelativePaths,
+    )
+    preparedTemplateUse = {
+      ...templateUseToChange,
+      templateFilesChoice,
+      chosenTemplateOptionalFileRelativePaths,
+      preparedTemplateVaultFiles: preparedTemplateVaultFiles.preparedTemplateVaultFiles,
+    }
+    const isEveryRunCommandAcknowledged =
+      templateUseState.isTemplateRunCommandsAcknowledged && templateRunCommands.every((templateRunCommand) => templateUseState.templateRunCommands.includes(templateRunCommand))
+    set({
+      templateUseState: {
+        ...templateUseState,
+        templateRunCommands,
+        isTemplateRunCommandsAcknowledged: isEveryRunCommandAcknowledged,
+        templateHiddenFileRelativePaths: preparedTemplateVaultFiles.templateHiddenFileRelativePaths,
+        templateLeftOutPictureRelativePaths: preparedTemplateVaultFiles.templateLeftOutPictureRelativePaths,
+        templateFilesChoice,
+        chosenTemplateOptionalFileRelativePaths,
+      },
     })
   }
 
@@ -497,18 +562,22 @@ export const usePapelizTemplateGalleryStore = create<PapelizTemplateGalleryState
         // Recommended when the manifest has optional paths, All when it has none.
         const templateFilesChoices = describePapelizTemplateFilesChoices(templateCheckReport.templateIncludedFileRelativePaths, templateManifest)
         const templateFilesChoice = templateFilesChoices.defaultTemplateFilesChoice
+        const chosenTemplateOptionalFileRelativePaths = templateFilesChoice === 'all' ? templateFilesChoices.templateOptionalFileRelativePaths : []
         const { preparedTemplateVaultFiles, templateRunCommands } = prepareTemplateUseFilesChoice(
           templateCheckReport,
           templateManifest,
           includedTemplateFileBytesByRelativePath,
           templateFilesChoice,
+          chosenTemplateOptionalFileRelativePaths,
         )
         preparedTemplateUse = {
           templateGalleryRow,
           templateCheckReport,
           templateManifest,
           includedTemplateFileBytesByRelativePath,
+          templateOptionalFileRelativePaths: templateFilesChoices.templateOptionalFileRelativePaths,
           templateFilesChoice,
+          chosenTemplateOptionalFileRelativePaths,
           preparedTemplateVaultFiles: preparedTemplateVaultFiles.preparedTemplateVaultFiles,
           templateFirstNotePath: templateManifest.templateFirstNotePath,
         }
@@ -523,6 +592,7 @@ export const usePapelizTemplateGalleryStore = create<PapelizTemplateGalleryState
             templateLeftOutPictureRelativePaths: preparedTemplateVaultFiles.templateLeftOutPictureRelativePaths,
             templateFilesChoice,
             templateFilesChoices,
+            chosenTemplateOptionalFileRelativePaths,
           },
         })
       } catch (templateUseReadError) {
@@ -541,31 +611,19 @@ export const usePapelizTemplateGalleryStore = create<PapelizTemplateGalleryState
     },
 
     chooseTemplateFilesChoice: (templateFilesChoice) => {
-      const { templateUseState } = get()
       const templateUseToChange = preparedTemplateUse
-      if (templateUseState.templateUseStage !== 'ready' || templateUseToChange === null || templateUseToChange.templateFilesChoice === templateFilesChoice) return
-      const { preparedTemplateVaultFiles, templateRunCommands } = prepareTemplateUseFilesChoice(
-        templateUseToChange.templateCheckReport,
-        templateUseToChange.templateManifest,
-        templateUseToChange.includedTemplateFileBytesByRelativePath,
-        templateFilesChoice,
+      if (templateUseToChange === null) return
+      // Chosen keeps the files ticked; with none ticked yet it stays Recommended until one is.
+      changeTemplateUseOptionalFiles(
+        templateFilesChoice === 'all'
+          ? templateUseToChange.templateOptionalFileRelativePaths
+          : templateFilesChoice === 'chosen'
+            ? templateUseToChange.chosenTemplateOptionalFileRelativePaths
+            : [],
       )
-      preparedTemplateUse = { ...templateUseToChange, templateFilesChoice, preparedTemplateVaultFiles: preparedTemplateVaultFiles.preparedTemplateVaultFiles }
-      // A tick covers the commands it was given (both lists hold the check report's own entries): a
-      // choice with fewer keeps it, one that brings another asks again.
-      const isEveryRunCommandAcknowledged =
-        templateUseState.isTemplateRunCommandsAcknowledged && templateRunCommands.every((templateRunCommand) => templateUseState.templateRunCommands.includes(templateRunCommand))
-      set({
-        templateUseState: {
-          ...templateUseState,
-          templateRunCommands,
-          isTemplateRunCommandsAcknowledged: isEveryRunCommandAcknowledged,
-          templateHiddenFileRelativePaths: preparedTemplateVaultFiles.templateHiddenFileRelativePaths,
-          templateLeftOutPictureRelativePaths: preparedTemplateVaultFiles.templateLeftOutPictureRelativePaths,
-          templateFilesChoice,
-        },
-      })
     },
+
+    chooseTemplateOptionalFiles: (requestedTemplateOptionalFileRelativePaths) => changeTemplateUseOptionalFiles(requestedTemplateOptionalFileRelativePaths),
 
     makePapelizTemplateVault: async (typedNewVaultName, chosenNewVaultPlace) => {
       const readyTemplateUseState = get().templateUseState
@@ -587,7 +645,7 @@ export const usePapelizTemplateGalleryStore = create<PapelizTemplateGalleryState
           templateSourceAuthor: templateGalleryRow.templateRepositoryOwner,
           templateSourceLicenseId: templateGalleryRow.templateLicenseId,
           templateSourceVaultMadeAt: new Date(readTemplateGalleryCurrentTime()).toISOString(),
-          templateSourceFilesChoice: templateUseToMake.templateFilesChoice,
+          ...describeTemplateSourceFilesChoice(templateUseToMake),
         }),
       ]
       const showTemplateVaultWriteProgress = (templateWrittenFileCount: number, templateFileCount: number) => {
@@ -655,7 +713,7 @@ export const usePapelizTemplateGalleryStore = create<PapelizTemplateGalleryState
           templateSourceName: templateGalleryRow.templateName,
           templateSourceAuthor: templateGalleryRow.templateRepositoryOwner,
           templateSourceLicenseId: templateGalleryRow.templateLicenseId,
-          templateSourceFilesChoice: templateUseToImport.templateFilesChoice,
+          ...describeTemplateSourceFilesChoice(templateUseToImport),
         },
       })
       if (preparedTemplateUse !== templateUseToImport) return { ...vaultFolderImportResult, templateFirstNotePath: null }

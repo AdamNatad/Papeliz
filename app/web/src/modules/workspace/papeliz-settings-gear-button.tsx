@@ -15,6 +15,7 @@ import {
   PapelizSettingsGearSettingsPage,
   PapelizSettingsGearTeaserPage,
 } from './papeliz-settings-gear-pages'
+import { PapelizTopbarFrostedSquareButton } from './papeliz-topbar-frosted-square-button'
 import { usePapelizWorkspaceStore } from './papeliz-workspace-store'
 
 type PapelizSettingsGearPage = 'account' | 'sync' | 'settings' | 'export' | 'appearance' | 'accessibility'
@@ -259,10 +260,9 @@ export function PapelizSettingsGearButton({ settingsGearPlace }: PapelizSettings
 
   return (
     <>
-      <PapelizIconButton
+      <PapelizTopbarFrostedSquareButton
         ref={settingsGearButtonRef}
-        iconButtonLabel="Settings"
-        iconButtonTone="topbar"
+        topbarFrostedSquareButtonLabel="Settings"
         aria-haspopup="dialog"
         aria-expanded={isSettingsGearPanelOpen}
         onClick={(clickEvent) => {
@@ -275,8 +275,8 @@ export function PapelizSettingsGearButton({ settingsGearPlace }: PapelizSettings
           setSettingsGearPanelAnchor(measureSettingsGearPanelAnchor(clickEvent.currentTarget))
         }}
       >
-        <Settings className="size-[18px]" aria-hidden="true" />
-      </PapelizIconButton>
+        <Settings className="size-[17px]" aria-hidden="true" />
+      </PapelizTopbarFrostedSquareButton>
       {settingsGearPanelAnchor !== null &&
         createPortal(
           <div

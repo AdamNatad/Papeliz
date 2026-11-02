@@ -46,8 +46,10 @@ export interface PapelizTemplateManifest {
 
 // Which of a template's included files a vault made or imported from it gets:
 // - `recommended`: all but the ones `templateOptionalPaths` matches;
-// - `all`: every included file.
-export type PapelizTemplateFilesChoice = 'recommended' | 'all'
+// - `all`: every included file;
+// - `chosen`: Recommended plus some of the optional files, ticked one by one. None of them is
+//   Recommended and every one is All, so `chosen` always means some but not all.
+export type PapelizTemplateFilesChoice = 'recommended' | 'all' | 'chosen'
 
 // What Use Template and Import into This Vault show for the choice, for one template's included files.
 export interface PapelizTemplateFilesChoices {
@@ -275,6 +277,8 @@ export interface PapelizTemplateSourceFile {
   templateSourceVaultMadeAt: string
   // Which files the vault got. Missing in vaults made before the choice existed, which got all.
   templateSourceFilesChoice?: PapelizTemplateFilesChoice
+  // With `chosen`, the optional files it got, in path order.
+  templateSourceChosenOptionalFileRelativePaths?: string[]
 }
 
 // ---------------------------------------------------------------- the gallery store
@@ -331,8 +335,9 @@ export type PapelizTemplateRecheckState =
 // - `preparing`: reading the template's files at its commit and checking them again on these bytes.
 // - `ready`: every check passed; the form can make the vault. When `templateRunCommands` isn't empty,
 //   the person ticks "I've read these commands" first (`isTemplateRunCommandsAcknowledged`). Those are
-//   the commands of the chosen files, Recommended or All (`chooseTemplateFilesChoice`); the check
-//   report keeps every included file's.
+//   the commands of the chosen files, Recommended, All or the optional files ticked one by one
+//   (`chooseTemplateFilesChoice`, `chooseTemplateOptionalFiles`); the check report keeps every
+//   included file's.
 // - `picking-folder`: a folder vault waits for the browser's folder window, which is open.
 // - `making-vault`: the vault's files are being written.
 // - `made`: the vault is made; `makePapelizTemplateVault`'s result opens it.
@@ -354,11 +359,13 @@ export type PapelizTemplateUseState =
       templateHiddenFileRelativePaths: string[]
       // Pictures whose metadata couldn't be removed: they are left out of the vault.
       templateLeftOutPictureRelativePaths: string[]
-      // Recommended or All, and both choices' counts; the hidden files, left-out pictures and commands
-      // above are the chosen files'. The store always gives them; they are optional only so made-up
-      // screens built before the choice still describe a ready state, which then means All.
+      // Recommended, All or chosen, both presets' counts, and the optional files in ([] for
+      // Recommended, every one for All); the hidden files, left-out pictures and commands above are
+      // the chosen files'. The store always gives them; they are optional only so made-up screens
+      // built before the choice still describe a ready state, which then means All.
       templateFilesChoice?: PapelizTemplateFilesChoice
       templateFilesChoices?: PapelizTemplateFilesChoices
+      chosenTemplateOptionalFileRelativePaths?: string[]
     }
   | { templateUseStage: 'picking-folder'; templateGalleryRow: PapelizTemplateGalleryRow }
   | { templateUseStage: 'making-vault'; templateGalleryRow: PapelizTemplateGalleryRow; templateWrittenFileCount: number; templateFileCount: number }
@@ -427,10 +434,14 @@ export interface PapelizTemplateGalleryActions {
   // Use Template pressed: reads and checks the template, ending `ready` or `failed`.
   prepareTemplateUse: (templateGalleryRow: PapelizTemplateGalleryRow) => Promise<void>
   acknowledgeTemplateRunCommands: (isTemplateRunCommandsAcknowledged: boolean) => void
-  // Recommended or All, while ready: only that choice's files are made or imported, and its choice is
-  // recorded. A choice that brings commands not yet ticked asks for the tick again. The store always
-  // has it; it is optional only so made-up screens can leave it out.
+  // Recommended, All or chosen, while ready: only that choice's files are made or imported, and its
+  // choice is recorded (chosen keeps the files ticked). A choice that brings commands not yet ticked
+  // asks for the tick again. The store always has it; it is optional only so made-up screens can
+  // leave it out.
   chooseTemplateFilesChoice?: (templateFilesChoice: PapelizTemplateFilesChoice) => void
+  // The optional files ticked one by one, while ready: only included optional files count, in path
+  // order; none is Recommended and every one is All. The same tick rule as above.
+  chooseTemplateOptionalFiles?: (chosenTemplateOptionalFileRelativePaths: readonly string[]) => void
   // New Vault's form confirmed, with the name and place it already checked. Must run from the click,
   // since a folder vault shows the browser's folder window first.
   makePapelizTemplateVault: (typedNewVaultName: string, chosenNewVaultPlace: PapelizTemplateNewVaultPlace) => Promise<PapelizTemplateVaultMakeResult>

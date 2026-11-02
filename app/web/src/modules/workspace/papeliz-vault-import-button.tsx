@@ -1,7 +1,6 @@
-import { FileArchive, Files, Import, LayoutTemplate } from 'lucide-react'
+import { FileArchive, Files, Folder, Import, LayoutTemplate } from 'lucide-react'
 import { lazy, Suspense, useEffect, useId, useRef, useState, type ChangeEvent } from 'react'
 import { PapelizImportZipError, papelizImportZipMostTotalByteCount } from '../export-zip/papeliz-import-zip-file-reader'
-import { PapelizConfirmDialog } from '../ui/papeliz-confirm-dialog'
 import { PapelizPopoverMenu, type PapelizPopoverMenuItem, type PapelizPopoverMenuPosition } from '../ui/papeliz-popover-menu'
 import { describePapelizFailureMessage } from '../vault/papeliz-failure-code-words'
 import {
@@ -18,12 +17,13 @@ const PapelizTemplateGalleryPage = lazy(() =>
   import('../template-gallery/papeliz-template-gallery-page').then((templateGalleryPageModule) => ({ default: templateGalleryPageModule.PapelizTemplateGalleryPage })),
 )
 
-// Import, beside New in the file list's header: Import from Files, Import from Zip
-// and Import from Template. Each brings what it imports into its own new folder at the vault's top
-// (papeliz-vault-folder-import.ts), never over anything already there: a picked folder under its own
-// name, loose files under "Imported Files", a zip under its name without ".zip", a template under its
-// name, or the next free name ("Imported Files 2"). The folder then shows, open, in the file list, and
-// is an ordinary folder to rename or move.
+// Import, beside New in the file list's header: Import from Files, Import from Folder, Import from Zip
+// and Import from Template. Files and Folder open the browser's own window straight away, one for
+// files and one for a folder, since no browser window picks both. Each brings what it imports into its
+// own new folder at the vault's top (papeliz-vault-folder-import.ts), never over anything already
+// there: a picked folder under its own name, loose files under "Imported Files", a zip under its name
+// without ".zip", a template under its name, or the next free name ("Imported Files 2"). The folder
+// then shows, open, in the file list, and is an ordinary folder to rename or move.
 export function PapelizVaultImportButton() {
   const openVault = usePapelizWorkspaceStore((workspaceState) => workspaceState.openVault)
   const importIntoNewVaultFolder = usePapelizWorkspaceStore((workspaceState) => workspaceState.importIntoNewVaultFolder)
@@ -33,7 +33,6 @@ export function PapelizVaultImportButton() {
   const pickedFolderInputRef = useRef<HTMLInputElement>(null)
   const pickedZipInputRef = useRef<HTMLInputElement>(null)
   const [vaultImportMenuPosition, setVaultImportMenuPosition] = useState<PapelizPopoverMenuPosition | null>(null)
-  const [isFilesImportChoiceShown, setFilesImportChoiceShown] = useState(false)
   const [isTemplateImportDialogShown, setTemplateImportDialogShown] = useState(false)
   const [isVaultImportRunning, setVaultImportRunning] = useState(false)
 
@@ -86,7 +85,13 @@ export function PapelizVaultImportButton() {
       menuItemKey: 'import-from-files',
       menuItemLabel: 'Import from Files',
       MenuItemIcon: Files,
-      onMenuItemSelect: () => setFilesImportChoiceShown(true),
+      onMenuItemSelect: () => pickedFilesInputRef.current?.click(),
+    },
+    {
+      menuItemKey: 'import-from-folder',
+      menuItemLabel: 'Import from Folder',
+      MenuItemIcon: Folder,
+      onMenuItemSelect: () => pickedFolderInputRef.current?.click(),
     },
     {
       menuItemKey: 'import-from-zip',
@@ -160,31 +165,6 @@ export function PapelizVaultImportButton() {
 
       {vaultImportMenuPosition !== null && (
         <PapelizPopoverMenu menuLabel="Import" menuPosition={vaultImportMenuPosition} menuItems={vaultImportMenuItems} onMenuClose={() => setVaultImportMenuPosition(null)} />
-      )}
-
-      {isFilesImportChoiceShown && (
-        <PapelizConfirmDialog
-          confirmDialogTitle="Import from Files"
-          confirmDialogBody={
-            <p>
-              Pick files, or a whole folder. They go into a new folder at the top of this vault: a folder under its own name, files under “{papelizImportedFilesVaultFolderName}”.
-              Nothing already in the vault changes.
-            </p>
-          }
-          confirmButtonLabel="Choose Files"
-          confirmDialogSecondaryAction={{
-            secondaryActionLabel: 'Choose a Folder',
-            onSecondaryActionSelect: () => {
-              setFilesImportChoiceShown(false)
-              pickedFolderInputRef.current?.click()
-            },
-          }}
-          onCancel={() => setFilesImportChoiceShown(false)}
-          onConfirm={() => {
-            setFilesImportChoiceShown(false)
-            pickedFilesInputRef.current?.click()
-          }}
-        />
       )}
 
       {isTemplateImportDialogShown && (

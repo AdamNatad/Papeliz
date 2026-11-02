@@ -33,10 +33,12 @@ export interface PapelizTemplateVaultFile {
 }
 
 // Which of the included files a vault gets: the manifest's optional paths, and the choice, which is
-// the manifest's default (`findPapelizTemplateDefaultFilesChoice`) when left out.
+// the manifest's default (`findPapelizTemplateDefaultFilesChoice`) when left out. With `chosen`, the
+// optional files ticked one by one.
 export interface PapelizTemplateVaultFilesChoiceSelection {
   templateManifest: PapelizTemplateManifest
   templateFilesChoice?: PapelizTemplateFilesChoice
+  chosenTemplateOptionalFileRelativePaths?: readonly string[]
 }
 
 export interface PapelizPreparedTemplateVaultFiles {
@@ -74,7 +76,12 @@ export function preparePapelizTemplateVaultFiles(
   const chosenTemplateFileRelativePaths = new Set(
     templateVaultFilesChoiceSelection === undefined
       ? includedTemplateFileBytesByRelativePath.keys()
-      : selectPapelizTemplateChosenFileRelativePaths([...includedTemplateFileBytesByRelativePath.keys()], templateVaultFilesChoiceSelection.templateManifest, templateFilesChoice),
+      : selectPapelizTemplateChosenFileRelativePaths(
+          [...includedTemplateFileBytesByRelativePath.keys()],
+          templateVaultFilesChoiceSelection.templateManifest,
+          templateFilesChoice,
+          templateVaultFilesChoiceSelection.chosenTemplateOptionalFileRelativePaths,
+        ),
   )
   const includedTemplateFiles = [...includedTemplateFileBytesByRelativePath]
     .filter(([templateFileRelativePath]) => chosenTemplateFileRelativePaths.has(templateFileRelativePath))

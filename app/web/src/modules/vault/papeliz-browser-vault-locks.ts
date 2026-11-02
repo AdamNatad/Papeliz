@@ -64,8 +64,14 @@ export function holdPapelizBrowserVaultOpenLock(browserVaultLockManager: Papeliz
 
 // Whether any tab of this browser (this one included) has the vault open.
 export async function isPapelizBrowserVaultOpenInSomeTab(browserVaultLockManager: PapelizBrowserVaultLockManager | null, papelizVaultId: string): Promise<boolean> {
-  if (browserVaultLockManager === null) return false
+  return (await countPapelizBrowserVaultOpenTabs(browserVaultLockManager, papelizVaultId)) > 0
+}
+
+// How many tabs of this browser (this one included) have the vault open: each holds its own share of
+// the open lock.
+export async function countPapelizBrowserVaultOpenTabs(browserVaultLockManager: PapelizBrowserVaultLockManager | null, papelizVaultId: string): Promise<number> {
+  if (browserVaultLockManager === null) return 0
   const browserVaultOpenLockName = buildPapelizBrowserVaultOpenLockName(papelizVaultId)
   const browserLockSnapshot = await browserVaultLockManager.query()
-  return (browserLockSnapshot.held ?? []).some((heldBrowserLock) => heldBrowserLock.name === browserVaultOpenLockName)
+  return (browserLockSnapshot.held ?? []).filter((heldBrowserLock) => heldBrowserLock.name === browserVaultOpenLockName).length
 }

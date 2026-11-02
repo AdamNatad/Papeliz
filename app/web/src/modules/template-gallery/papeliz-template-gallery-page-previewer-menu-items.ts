@@ -17,12 +17,13 @@ import {
 } from 'lucide-react'
 import { createStore } from 'zustand/vanilla'
 import type { PapelizPopoverMenuItem } from '../ui/papeliz-popover-menu'
-import { hasPapelizTemplateHiddenCharacter } from './papeliz-template-gallery-checks'
+import { hasPapelizTemplateHiddenCharacter, resolvePapelizTemplateOptionalFilesChoice } from './papeliz-template-gallery-checks'
 import type {
   PapelizTemplateCheckReport,
   PapelizTemplateCheckResult,
   PapelizTemplateCheckRunState,
   PapelizTemplateFileListEntry,
+  PapelizTemplateFilesChoices,
   PapelizTemplateGalleryRow,
   PapelizTemplateGallerySnapshotState,
   PapelizTemplateGalleryState,
@@ -247,6 +248,18 @@ const papelizPreviewTemplateFileListEntries: PapelizTemplateFileListEntry[] = [
   })),
   { templateFileRelativePath: 'pictures/readme-picture.webp', templateFileByteCount: 41_300, templateFileSha256Base64: null, templateFileGitBlobSha1Hex: null, templateFileGitMode: null },
 ]
+
+// Choosing Files' made-up optional files: the agent rules and `.gitignore`, which come only with All
+// or when ticked.
+const papelizPreviewTemplateOptionalFileRelativePaths = ['.gitignore', 'settings/agent-rules.json']
+const papelizPreviewTemplateFilesChoices: PapelizTemplateFilesChoices = {
+  defaultTemplateFilesChoice: 'recommended',
+  hasTemplateOptionalFiles: true,
+  recommendedTemplateFileCount: papelizPreviewTemplateFileListEntries.length - papelizPreviewTemplateOptionalFileRelativePaths.length,
+  allTemplateFileCount: papelizPreviewTemplateFileListEntries.length,
+  templateOptionalFileRelativePaths: papelizPreviewTemplateOptionalFileRelativePaths,
+  templateOptionalTopEntryNames: ['.gitignore', 'settings'],
+}
 
 const createPreviewTemplateRunCommand = (
   templateRunCommandKind: PapelizTemplateRunCommand['templateRunCommandKind'],
@@ -500,6 +513,27 @@ const papelizTemplateGalleryPagePreviewerChoices: readonly PapelizTemplateGaller
     }),
   },
   {
+    templateGalleryPagePreviewChoiceKey: 'use-ready-choose-files',
+    templateGalleryPagePreviewChoiceLabel: 'Choosing Files',
+    TemplateGalleryPagePreviewChoiceIcon: ListChecks,
+    buildPreviewTemplateGalleryScreens: (previewPapelizTemplateGalleryId) => [
+      ...templatePageScreens(previewPapelizTemplateGalleryId),
+      { templateGalleryScreenKind: 'new-vault', papelizTemplateGalleryId: previewPapelizTemplateGalleryId, suggestedNewVaultName: 'Project Starter' },
+    ],
+    buildPreviewTemplateUseState: (previewTemplateGalleryRow) => ({
+      templateUseStage: 'ready',
+      templateGalleryRow: previewTemplateGalleryRow,
+      templateCheckReport: buildPreviewTemplateCheckReport(false, []),
+      templateRunCommands: [],
+      isTemplateRunCommandsAcknowledged: false,
+      templateHiddenFileRelativePaths: [],
+      templateLeftOutPictureRelativePaths: [],
+      templateFilesChoice: 'chosen',
+      templateFilesChoices: papelizPreviewTemplateFilesChoices,
+      chosenTemplateOptionalFileRelativePaths: ['settings/agent-rules.json'],
+    }),
+  },
+  {
     templateGalleryPagePreviewChoiceKey: 'use-failed',
     templateGalleryPagePreviewChoiceLabel: 'A Failed Check',
     TemplateGalleryPagePreviewChoiceIcon: CircleAlert,
@@ -659,6 +693,22 @@ function createPreviewTemplateGalleryModelStore(previewerChoice: PapelizTemplate
     acknowledgeTemplateRunCommands: (isTemplateRunCommandsAcknowledged) => {
       const { templateUseState } = get()
       if (templateUseState.templateUseStage === 'ready') set({ templateUseState: { ...templateUseState, isTemplateRunCommandsAcknowledged } })
+    },
+    // Choosing Files: the switch and the boxes move, and the count follows; nothing else changes.
+    chooseTemplateOptionalFiles: (requestedTemplateOptionalFileRelativePaths) => {
+      const { templateUseState } = get()
+      if (templateUseState.templateUseStage !== 'ready' || templateUseState.templateFilesChoices === undefined) return
+      const resolvedTemplateOptionalFilesChoice = resolvePapelizTemplateOptionalFilesChoice(
+        templateUseState.templateFilesChoices.templateOptionalFileRelativePaths,
+        requestedTemplateOptionalFileRelativePaths,
+      )
+      set({
+        templateUseState: {
+          ...templateUseState,
+          templateFilesChoice: resolvedTemplateOptionalFilesChoice.templateFilesChoice,
+          chosenTemplateOptionalFileRelativePaths: resolvedTemplateOptionalFilesChoice.chosenTemplateOptionalFileRelativePaths,
+        },
+      })
     },
     makePapelizTemplateVault: async () => ({ openVaultOutcome: 'failed', openVaultFailureMessage: 'Nothing changed: this is only a preview.', templateFirstNotePath: null }),
     importPapelizTemplateIntoVault: async () => ({ vaultFolderImportOutcome: 'failed', vaultFolderImportFailureMessage: 'Nothing changed: this is only a preview.', templateFirstNotePath: null }),

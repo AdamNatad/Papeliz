@@ -72,7 +72,7 @@ export const papelizHelpReferenceArticles: readonly PapelizHelpArticle[] = [
       ]),
       helpSection('Change a shortcut', [
         helpParagraph(
-          'Open the gear at the right end of the top bar and choose **Settings**. **Key Bindings** lists every shortcut you can change: switching views, saving, focus mode, bold, italic, underline, editing with the assistant, and opening the link or tag under the cursor.',
+          'Open the gear at the right end of the top bar, choose **Settings**, then the **Key Bindings** tab. It lists every shortcut you can change: switching views, saving, focus mode, bold, italic, underline, editing with the assistant, and opening the link or tag under the cursor.',
         ),
         helpNumberedSteps(['Click a shortcut.', 'Press the new keys. `Esc` stops without a change.']),
         helpParagraph(

@@ -1,5 +1,5 @@
 import { Eye, Hourglass, LayoutTemplate, RefreshCw, RotateCcw, Search, Upload, WifiOff, X } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { PapelizIconButton, PapelizPillButton } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { PapelizSlidingChoiceGroup } from '../ui/papeliz-sliding-choice-group'
@@ -299,56 +299,72 @@ export function PapelizTemplateGalleryPage({
       case 'commands':
       case 'new-vault':
       case 'import-into-vault': {
-        if (shownTemplateGalleryScreen.templateGalleryScreenKind === 'commands' || areTemplateCommandsUnread) {
-          return (
-            <PapelizTemplateGalleryCommandsPage
-              key={shownTemplateGalleryRow.papelizTemplateGalleryId}
-              templateGalleryPageHeadingId={templateGalleryPageHeadingId}
-              templateGalleryRow={shownTemplateGalleryRow}
-              templateUseState={isThisTemplateInUse ? templateUseState : { templateUseStage: 'idle' }}
-              onTemplateCommandsCancel={cancelUsingTemplate}
-              onTemplateCommandsAccept={() => {
-                templateGalleryScreenModel.acknowledgeTemplateRunCommands(true)
-                if (shownTemplateGalleryScreen.templateGalleryScreenKind !== 'commands') return
-                replaceTemplateGalleryScreen(buildTemplateTargetScreen(shownTemplateGalleryRow))
-              }}
-            />
-          )
-        }
+        const templateCommandsPage = (
+          <PapelizTemplateGalleryCommandsPage
+            key={shownTemplateGalleryRow.papelizTemplateGalleryId}
+            templateGalleryPageHeadingId={templateGalleryPageHeadingId}
+            templateGalleryRow={shownTemplateGalleryRow}
+            templateUseState={isThisTemplateInUse ? templateUseState : { templateUseStage: 'idle' }}
+            onTemplateCommandsCancel={cancelUsingTemplate}
+            onTemplateCommandsAccept={() => {
+              templateGalleryScreenModel.acknowledgeTemplateRunCommands(true)
+              if (shownTemplateGalleryScreen.templateGalleryScreenKind !== 'commands') return
+              replaceTemplateGalleryScreen(buildTemplateTargetScreen(shownTemplateGalleryRow))
+            }}
+          />
+        )
+        if (shownTemplateGalleryScreen.templateGalleryScreenKind === 'commands') return templateCommandsPage
+        const chooseTemplateOptionalFiles = templateGalleryScreenModel.chooseTemplateOptionalFiles
+        let templateTargetPage: ReactNode
         if (shownTemplateGalleryScreen.templateGalleryScreenKind === 'import-into-vault') {
           if (templateGalleryVaultImport === undefined) return null
-          return (
+          templateTargetPage = (
             <PapelizTemplateGalleryImportIntoVaultPage
               key={shownTemplateGalleryRow.papelizTemplateGalleryId}
               templateGalleryPageHeadingId={templateGalleryPageHeadingId}
               templateGalleryRow={shownTemplateGalleryRow}
               importingVaultDisplayName={templateGalleryVaultImport.importingVaultDisplayName}
               templateUseState={isThisTemplateInUse ? templateUseState : { templateUseStage: 'idle' }}
+              onTemplateOptionalFilesChoose={chooseTemplateOptionalFiles}
               onTemplateImportCancel={cancelUsingTemplate}
               templateVaultImportFailureMessage={templateVaultImportFailureMessage}
               onTemplateImportConfirm={() => void importTemplateIntoVault(shownTemplateGalleryRow, templateGalleryVaultImport)}
             />
           )
+        } else {
+          templateTargetPage = (
+            <PapelizNewVaultForm
+              key={`${shownTemplateGalleryRow.papelizTemplateGalleryId}-${templateGalleryScreens.length}`}
+              newVaultFormHeadingId={templateGalleryPageHeadingId}
+              folderAccessOffReasonText={folderAccessOffReasonText}
+              browserVaultOffReasonText={browserVaultOffReasonText}
+              suggestedNewVaultName={shownTemplateGalleryScreen.suggestedNewVaultName}
+              initialNewVaultPlace={shownTemplateGalleryScreen.initialNewVaultPlace}
+              existingBrowserVaultRecords={existingBrowserVaultRecords}
+              newVaultFromTemplate={{
+                newVaultTemplateName: shownTemplateGalleryRow.templateName,
+                newVaultTemplateDetailLine: describeTemplateGalleryRowDetail(shownTemplateGalleryRow),
+                newVaultTemplateThumbnail: <PapelizTemplateGalleryThumbnail templateGalleryRow={shownTemplateGalleryRow} templateThumbnailSize="row" />,
+                newVaultTemplateStatus: (
+                  <PapelizTemplateGalleryNewVaultTemplateStatus
+                    templateUseState={isThisTemplateInUse ? templateUseState : { templateUseStage: 'idle' }}
+                    onTemplateOptionalFilesChoose={chooseTemplateOptionalFiles}
+                  />
+                ),
+              }}
+              isNewVaultConfirmHeld={!isThisTemplateInUse || templateUseState.templateUseStage !== 'ready'}
+              onNewVaultConfirm={(typedNewVaultName, chosenNewVaultPlace) => void makeTemplateVault(shownTemplateGalleryRow, typedNewVaultName, chosenNewVaultPlace)}
+              onNewVaultCancel={cancelUsingTemplate}
+            />
+          )
         }
+        // Commands that newly ticked files bring show over the page, which stays as it was underneath,
+        // its typed name and ticked files kept, until they are read.
         return (
-          <PapelizNewVaultForm
-            key={`${shownTemplateGalleryRow.papelizTemplateGalleryId}-${templateGalleryScreens.length}`}
-            newVaultFormHeadingId={templateGalleryPageHeadingId}
-            folderAccessOffReasonText={folderAccessOffReasonText}
-            browserVaultOffReasonText={browserVaultOffReasonText}
-            suggestedNewVaultName={shownTemplateGalleryScreen.suggestedNewVaultName}
-            initialNewVaultPlace={shownTemplateGalleryScreen.initialNewVaultPlace}
-            existingBrowserVaultRecords={existingBrowserVaultRecords}
-            newVaultFromTemplate={{
-              newVaultTemplateName: shownTemplateGalleryRow.templateName,
-              newVaultTemplateDetailLine: describeTemplateGalleryRowDetail(shownTemplateGalleryRow),
-              newVaultTemplateThumbnail: <PapelizTemplateGalleryThumbnail templateGalleryRow={shownTemplateGalleryRow} templateThumbnailSize="row" />,
-              newVaultTemplateStatus: <PapelizTemplateGalleryNewVaultTemplateStatus templateUseState={isThisTemplateInUse ? templateUseState : { templateUseStage: 'idle' }} />,
-            }}
-            isNewVaultConfirmHeld={!isThisTemplateInUse || templateUseState.templateUseStage !== 'ready'}
-            onNewVaultConfirm={(typedNewVaultName, chosenNewVaultPlace) => void makeTemplateVault(shownTemplateGalleryRow, typedNewVaultName, chosenNewVaultPlace)}
-            onNewVaultCancel={cancelUsingTemplate}
-          />
+          <>
+            {areTemplateCommandsUnread && templateCommandsPage}
+            <div className={areTemplateCommandsUnread ? 'hidden' : 'contents'}>{templateTargetPage}</div>
+          </>
         )
       }
       case 'making-vault':

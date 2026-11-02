@@ -123,6 +123,29 @@ test('two pages saving one note at the same moment keep both changes', async ({ 
   expect(deleteOutcome).toEqual({ browserVaultDeleteOutcome: 'failed', browserVaultDeleteFailureMessage: 'Couldn’t delete “Field Notes”. It’s open in another Papeliz tab. Close it there, then try again.' })
 })
 
+test('the open browser vault renames from Settings, unless another page has it open too', async ({ page, context }) => {
+  await seedBrowserVaultWithGardenNote(page, 'Field Notes')
+  await openRecentBrowserVaultNote(page, 'Field Notes', 'Garden')
+  await page.getByRole('button', { name: 'Settings', exact: true }).first().click()
+  await page.getByRole('navigation', { name: 'Settings' }).getByRole('button', { name: 'Settings' }).click()
+  // Settings opens on Vault, with the vault's name; Rename waits for a change.
+  const vaultTabPanel = page.getByRole('tabpanel', { name: 'Vault' })
+  const vaultNameField = vaultTabPanel.getByLabel('Vault Name')
+  await expect(vaultNameField).toHaveValue('Field Notes')
+  await expect(vaultTabPanel.getByRole('button', { name: 'Rename' })).toBeDisabled()
+  await vaultNameField.fill('Garden Notes')
+  await vaultTabPanel.getByRole('button', { name: 'Rename' }).click()
+  await expect(page.getByRole('complementary', { name: 'Files' }).getByRole('heading', { name: 'Garden Notes' })).toBeVisible()
+  await expect(page.locator('footer')).toContainText('Garden Notes')
+  // With a second page on the vault, Rename says why it can't.
+  const secondPage = await context.newPage()
+  await secondPage.goto('/')
+  await openRecentBrowserVaultNote(secondPage, 'Garden Notes', 'Garden')
+  await vaultNameField.fill('Kitchen Notes')
+  await vaultTabPanel.getByRole('button', { name: 'Rename' }).click()
+  await expect(vaultTabPanel.getByRole('alert')).toContainText('It’s open in another Papeliz tab.')
+})
+
 test('a zip imports as a new browser vault, and Download backup saves it all as a zip', async ({ page }) => {
   // Chrome and Edge would ask where to save it in a window the test can't answer: download it instead,
   // as every other browser does.

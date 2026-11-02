@@ -500,6 +500,56 @@ describe('template gallery store, Recommended or All', () => {
     expect(readReadyTemplateUseState()).toMatchObject({ templateFilesChoice: 'recommended', isTemplateRunCommandsAcknowledged: true })
   })
 
+  it('takes optional files ticked one by one as chosen, with their commands, and maps none and every one back', async () => {
+    useFakeTemplateNetwork([createAgentWorkflowRepository()])
+    await usePapelizTemplateGalleryStore.getState().prepareTemplateUse(await listAgentWorkflowRow())
+    expect(readReadyTemplateUseState().chosenTemplateOptionalFileRelativePaths).toEqual([])
+    const agentWorkflowOptionalFileRelativePaths = readReadyTemplateUseState().templateFilesChoices?.templateOptionalFileRelativePaths ?? []
+
+    // Ticked: .gemini/settings.json brings one more command, so the tick asks again. A required file is ignored.
+    usePapelizTemplateGalleryStore.getState().acknowledgeTemplateRunCommands(true)
+    usePapelizTemplateGalleryStore.getState().chooseTemplateOptionalFiles?.(['.gemini/settings.json', 'AGENTS.md'])
+    const chosenState = readReadyTemplateUseState()
+    expect(chosenState).toMatchObject({ templateFilesChoice: 'chosen', chosenTemplateOptionalFileRelativePaths: ['.gemini/settings.json'], isTemplateRunCommandsAcknowledged: false })
+    expect(chosenState.templateRunCommands.map(({ templateRunCommandSourceRelativePath }) => templateRunCommandSourceRelativePath)).toEqual(
+      [...agentWorkflowRecommendedRunCommandSourcePaths, '.gemini/settings.json'].sort(),
+    )
+    expect(chosenState.templateHiddenFileRelativePaths).toContain('.gemini/settings.json')
+    expect(chosenState.templateHiddenFileRelativePaths).not.toContain('.qwen/settings.json')
+
+    // Chosen again keeps them; none is Recommended, and the tick stays with fewer commands.
+    usePapelizTemplateGalleryStore.getState().acknowledgeTemplateRunCommands(true)
+    usePapelizTemplateGalleryStore.getState().chooseTemplateFilesChoice?.('chosen')
+    expect(readReadyTemplateUseState()).toMatchObject({ templateFilesChoice: 'chosen', chosenTemplateOptionalFileRelativePaths: ['.gemini/settings.json'] })
+    usePapelizTemplateGalleryStore.getState().chooseTemplateOptionalFiles?.([])
+    expect(readReadyTemplateUseState()).toMatchObject({ templateFilesChoice: 'recommended', chosenTemplateOptionalFileRelativePaths: [], isTemplateRunCommandsAcknowledged: true })
+
+    // Every one ticked is All.
+    usePapelizTemplateGalleryStore.getState().chooseTemplateOptionalFiles?.(agentWorkflowOptionalFileRelativePaths)
+    expect(readReadyTemplateUseState()).toMatchObject({ templateFilesChoice: 'all', chosenTemplateOptionalFileRelativePaths: agentWorkflowOptionalFileRelativePaths })
+  })
+
+  it('makes a vault with the optional files ticked, and records them', async () => {
+    const { fakeOriginPrivateFileSystemRoot } = useFakeTemplateNetwork([createAgentWorkflowRepository()])
+    await usePapelizTemplateGalleryStore.getState().prepareTemplateUse(await listAgentWorkflowRow())
+    usePapelizTemplateGalleryStore.getState().chooseTemplateOptionalFiles?.(['opencode.json', '.gemini/settings.json'])
+    usePapelizTemplateGalleryStore.getState().acknowledgeTemplateRunCommands(true)
+    const madeResult = await usePapelizTemplateGalleryStore.getState().makePapelizTemplateVault('My Chosen Workflow', 'browser-vault-in-opfs')
+    if (madeResult.openVaultOutcome !== 'opened') throw new Error(`The vault wasn’t made: ${JSON.stringify(madeResult)}`)
+    const madeVaultFolder = await getPapelizFakeBrowserVaultFolder(fakeOriginPrivateFileSystemRoot, madeResult.papelizOpenVault.papelizVaultId)
+    const madeTopEntryNames = [...madeVaultFolder.fakeChildHandles.keys()].sort()
+    expect(madeTopEntryNames).toContain('.gemini')
+    expect(madeTopEntryNames).toContain('opencode.json')
+    expect(madeTopEntryNames).not.toContain('.qwen')
+    expect(madeTopEntryNames).not.toContain('.aider.conf.yml')
+    const templateSourceFile = await (await (await madeVaultFolder.getDirectoryHandle('.papeliz')).getFileHandle('template-source.json')).getFile()
+    expect(JSON.parse(await templateSourceFile.text())).toMatchObject({
+      templateSourceFilesChoice: 'chosen',
+      templateSourceChosenOptionalFileRelativePaths: ['.gemini/settings.json', 'opencode.json'],
+    })
+    madeResult.papelizOpenVault.papelizVaultAdapter.closeVaultAdapter?.()
+  })
+
   it('makes a vault with Recommended’s files only, and records the choice', async () => {
     const { fakeOriginPrivateFileSystemRoot } = useFakeTemplateNetwork([createAgentWorkflowRepository()])
     await usePapelizTemplateGalleryStore.getState().prepareTemplateUse(await listAgentWorkflowRow())

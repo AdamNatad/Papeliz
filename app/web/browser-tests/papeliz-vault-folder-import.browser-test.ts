@@ -2,10 +2,11 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { expect, test, type Page } from '@playwright/test'
 import { writePapelizExportZipFile } from '../src/modules/export-zip/papeliz-export-zip-file-writer'
 
-// Import from Files and Import from Zip in an open browser vault, in a real browser: each brings what
-// it imports into its own new folder at the vault's top (loose files into "Imported Files", a picked
-// folder under its own name, a zip under its name), the vault's own notes stay as they were, and the
-// imported folder reorganizes like any other. A browser that refuses its private storage skips them.
+// Import from Files, Import from Folder and Import from Zip in an open browser vault, in a real
+// browser: each brings what it imports into its own new folder at the vault's top (loose files into
+// "Imported Files", a picked folder under its own name, a zip under its name), the vault's own notes
+// stay as they were, and the imported folder reorganizes like any other. A browser that refuses its
+// private storage skips them.
 
 const gardenNoteText = '# Garden\n\nKale\nBeans\n'
 
@@ -81,12 +82,11 @@ test('Import from Zip brings a zip into a new folder named after it, and the vau
   await expect(notesList.getByText('Field Notes 2', { exact: true })).toBeVisible()
 })
 
-test('Import from Files brings loose files into “Imported Files” and a folder under its own name, and the folder reorganizes like any other', async ({ page }, testInfo) => {
+test('Import from Files brings loose files into “Imported Files”, Import from Folder a folder under its own name, and the folder reorganizes like any other', async ({ page }, testInfo) => {
   await openBrowserVaultWithGardenNote(page, 'Files Import Vault')
 
-  await chooseImportMenuItem(page, 'Import from Files')
   const looseFilesChooserShown = page.waitForEvent('filechooser')
-  await page.getByRole('button', { name: 'Choose Files' }).click()
+  await chooseImportMenuItem(page, 'Import from Files')
   await (await looseFilesChooserShown).setFiles([
     { name: 'Seeds.md', mimeType: 'text/markdown', buffer: Buffer.from('# Seeds\n') },
     { name: 'Shopping list.txt', mimeType: 'text/plain', buffer: Buffer.from('Compost\n') },
@@ -100,9 +100,8 @@ test('Import from Files brings loose files into “Imported Files” and a folde
   await mkdir(`${pickedFolderPath}/Beds`, { recursive: true })
   await writeFile(`${pickedFolderPath}/Plan.md`, '# Plan\n')
   await writeFile(`${pickedFolderPath}/Beds/North.md`, '# North\n')
-  await chooseImportMenuItem(page, 'Import from Files')
   const folderChooserShown = page.waitForEvent('filechooser')
-  await page.getByRole('button', { name: 'Choose a Folder' }).click()
+  await chooseImportMenuItem(page, 'Import from Folder')
   await (await folderChooserShown).setFiles(pickedFolderPath)
   await expect(notesList.getByText('Crop Notes', { exact: true })).toBeVisible()
 

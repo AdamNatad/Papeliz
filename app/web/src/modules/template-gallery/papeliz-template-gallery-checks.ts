@@ -539,16 +539,39 @@ export function findPapelizTemplateDefaultFilesChoice(templateManifest: PapelizT
   return templateManifest.templateOptionalPaths.length > 0 ? 'recommended' : 'all'
 }
 
-// The included files a choice keeps, in the order given: every one for All, and for Recommended all
-// but the optional ones. Patterns too slow to match, which the checks refuse, leave nothing out.
+// The included files a choice keeps, in the order given: every one for All, for Recommended all but
+// the optional ones, and for chosen Recommended's plus the optional ones ticked
+// (`chosenTemplateOptionalFileRelativePaths`; any other path there is ignored). Patterns too slow to
+// match, which the checks refuse, leave nothing out.
 export function selectPapelizTemplateChosenFileRelativePaths(
   includedTemplateFileRelativePaths: readonly string[],
   templateManifest: PapelizTemplateManifest,
   templateFilesChoice: PapelizTemplateFilesChoice,
+  chosenTemplateOptionalFileRelativePaths: readonly string[] = [],
 ): string[] {
   if (templateFilesChoice === 'all') return [...includedTemplateFileRelativePaths]
   const optionalFileRelativePaths = new Set(findPapelizTemplateOptionalFileRelativePaths(includedTemplateFileRelativePaths, templateManifest) ?? [])
-  return includedTemplateFileRelativePaths.filter((includedRelativePath) => !optionalFileRelativePaths.has(includedRelativePath))
+  const keptOptionalFileRelativePaths = new Set(templateFilesChoice === 'chosen' ? chosenTemplateOptionalFileRelativePaths : [])
+  return includedTemplateFileRelativePaths.filter(
+    (includedRelativePath) => !optionalFileRelativePaths.has(includedRelativePath) || keptOptionalFileRelativePaths.has(includedRelativePath),
+  )
+}
+
+// Optional files ticked one by one, as a choice: only the template's included optional files count, in
+// path order (`templateOptionalFileRelativePaths`, as `describePapelizTemplateFilesChoices` lists
+// them). None is Recommended and every one is All, so `chosen` always means some but not all.
+export function resolvePapelizTemplateOptionalFilesChoice(
+  templateOptionalFileRelativePaths: readonly string[],
+  requestedTemplateOptionalFileRelativePaths: readonly string[],
+): { templateFilesChoice: PapelizTemplateFilesChoice; chosenTemplateOptionalFileRelativePaths: string[] } {
+  const requestedTemplateOptionalFileRelativePathSet = new Set(requestedTemplateOptionalFileRelativePaths)
+  const chosenTemplateOptionalFileRelativePaths = templateOptionalFileRelativePaths.filter((optionalRelativePath) => requestedTemplateOptionalFileRelativePathSet.has(optionalRelativePath))
+  // A template with no optional files is All either way.
+  if (chosenTemplateOptionalFileRelativePaths.length === templateOptionalFileRelativePaths.length) {
+    return { templateFilesChoice: 'all', chosenTemplateOptionalFileRelativePaths }
+  }
+  if (chosenTemplateOptionalFileRelativePaths.length === 0) return { templateFilesChoice: 'recommended', chosenTemplateOptionalFileRelativePaths: [] }
+  return { templateFilesChoice: 'chosen', chosenTemplateOptionalFileRelativePaths }
 }
 
 // Both choices for the screens: the default, each one's file count, and what only All brings.
