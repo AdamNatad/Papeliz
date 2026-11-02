@@ -4,20 +4,27 @@ import react from '@vitejs/plugin-react'
 import { build as buildWithVite, defineConfig, type Plugin } from 'vite'
 import { papelizPdfExportWoff2DecoderAlias } from '../../build_tools/webapp/papeliz-pdf-export-vite-alias.mjs'
 import { papelizHtmlExportCorePlugin } from '../../build_tools/webapp/papeliz-html-export-core-vite-plugin.mjs'
+import { papelizDesktopPlatformPlugin, readPapelizDesktopPlatformEntryFilePath } from '../../build_tools/webapp/papeliz-desktop-platform-vite-plugin.mjs'
 import { papelizSyncEnginePlugin } from '../../build_tools/webapp/papeliz-sync-engine-vite-plugin.mjs'
-import { buildPapelizWebappContentSecurityPolicy } from '../../build_tools/webapp/papeliz-webapp-content-security-policy.mjs'
+import {
+  buildPapelizDesktopContentSecurityPolicy,
+  buildPapelizWebappContentSecurityPolicy,
+} from '../../build_tools/webapp/papeliz-webapp-content-security-policy.mjs'
 
 // The built app's Content-Security-Policy as a `<meta>` tag, so the page keeps it on any static host.
 // The policy and why each rule is there: papeliz-webapp-content-security-policy.mjs, which also gives
 // the webapp's Worker the same policy as a header, for the app's workers. Added to the built page
 // only: the dev server needs inline scripts for hot reload, and `webapp start sync-local` proxies
-// Sync onto the dev origin (papeliz-sync-engine-vite-plugin.mjs).
+// Sync onto the dev origin (papeliz-sync-engine-vite-plugin.mjs). The desktop build's page takes
+// Papeliz for Windows' policy, which also lets it reach the app's native side.
 function papelizContentSecurityPolicyPlugin(): Plugin {
+  const papelizBuiltPageContentSecurityPolicy =
+    readPapelizDesktopPlatformEntryFilePath() === null ? buildPapelizWebappContentSecurityPolicy() : buildPapelizDesktopContentSecurityPolicy()
   return {
     name: 'papeliz-content-security-policy',
     apply: 'build',
     transformIndexHtml: () => [
-      { tag: 'meta', attrs: { 'http-equiv': 'Content-Security-Policy', content: buildPapelizWebappContentSecurityPolicy() }, injectTo: 'head-prepend' },
+      { tag: 'meta', attrs: { 'http-equiv': 'Content-Security-Policy', content: papelizBuiltPageContentSecurityPolicy }, injectTo: 'head-prepend' },
     ],
   }
 }
@@ -32,7 +39,14 @@ export default defineConfig(({ command }) => ({
   // stand-in keeps it (60 kB gzip) out of the PDF worker.
   resolve: { alias: [papelizPdfExportWoff2DecoderAlias] },
   build: { outDir: 'dist/app' },
-  plugins: [react(), tailwindcss(), papelizContentSecurityPolicyPlugin(), papelizHtmlExportCorePlugin(buildWithVite), papelizSyncEnginePlugin()],
+  plugins: [
+    react(),
+    tailwindcss(),
+    papelizContentSecurityPolicyPlugin(),
+    papelizHtmlExportCorePlugin(buildWithVite),
+    papelizSyncEnginePlugin(),
+    papelizDesktopPlatformPlugin(),
+  ],
   server: {
     host: '127.0.0.1',
     port: 14201,

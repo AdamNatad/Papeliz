@@ -1,28 +1,31 @@
 import { PapelizVaultOperationError, type PapelizVaultAdapter, type PapelizVaultKind, type PapelizVaultTreeEntry, type PapelizVaultTreeListingOptions } from './papeliz-vault-adapter'
 import { writePapelizVaultImportFilesIntoNewFolder, type PapelizVaultImportFile, type PapelizVaultImportOptions } from './papeliz-vault-folder-import'
 import {
+  assertPapelizVaultSettingsFileName,
+  assertVaultCopyOutsideItsSource,
+  assertVaultEntryNameIsFreeAmongNames,
+  assertVaultPathInsideTrash,
+  assertVaultPathWritableByPapeliz,
+  isVaultEntryLeftOutOfTreeListing,
+  isVaultFolderOpenedForTreeListing,
+  isVaultFolderSearchedForSyncableFiles,
+  isVaultRenameCaseOnly,
+  PapelizVaultFileByteCheckMemory,
+  pickFreeVaultTrashEntryName,
+  pickVaultCaseOnlyRenameTemporaryName,
+} from './papeliz-vault-folder-adapter-rules'
+import {
   getVaultEntryName,
   getVaultEntryParentFolderRelativePath,
-  isPapelizVaultSettingsFileName,
   isVaultFileRelativePathSyncable,
   isVaultNoteFileName,
-  isVaultRelativePathInsideFolder,
-  isVaultRelativePathInTrash,
-  isVaultRelativePathWritableByPapeliz,
   joinVaultRelativePath,
   papelizVaultRootFolderRelativePath,
   papelizVaultSettingsFolderName,
-  papelizVaultSyncedHiddenFolderNames,
   papelizVaultTrashFolderName,
-  pickFreeVaultEntryName,
   splitVaultRelativePath,
 } from './papeliz-vault-relative-paths'
-import {
-  assertVaultTextFileOpenableAtByteLength,
-  classifyVaultFileByName,
-  isVaultFileSampleBytesPlainText,
-  papelizVaultFileByteCheckLength,
-} from './papeliz-vault-text-files'
+import { assertVaultTextFileOpenableAtByteLength, classifyVaultFileByName, papelizVaultFileByteCheckLength } from './papeliz-vault-text-files'
 
 type PapelizVaultEntryHandle = FileSystemFileHandle | FileSystemDirectoryHandle
 
@@ -37,8 +40,6 @@ export interface PapelizVaultSyncableFileStat {
 // createWritable(), a browser vault with createWritable() or a worker (papeliz-browser-vault-file-writer.ts).
 export type PapelizVaultFileContentsWriter = (vaultFileHandle: FileSystemFileHandle, vaultFileContents: string | Blob) => Promise<void>
 
-// Listed under Show Hidden but never opened: it holds no notes and can be very large.
-const papelizVaultGitFolderName = '.git'
 // How often, and how far apart, a file being swapped in by another tab is read again.
 const papelizVaultFileReadAttemptCount = 4
 const papelizVaultFileReadPauseMilliseconds = 40
@@ -51,7 +52,8 @@ function asPapelizVaultEntryHandle(fileSystemHandle: FileSystemHandle): PapelizV
 // A vault that is a folder reached through directory handles: a folder on the user's disk, or a
 // browser vault's folder in the Origin Private File System. Nothing is ever deleted outright: a
 // deleted note or folder is copied into the vault's `.trash/` folder before its original entry is
-// removed. Names compare without case, the way Windows and macOS folders do.
+// removed. Names compare without case, the way Windows and macOS folders do (the rules shared with
+// Papeliz for Windows' folders are in papeliz-vault-folder-adapter-rules.ts).
 export abstract class PapelizDirectoryHandleVaultAdapter implements PapelizVaultAdapter {
   abstract readonly papelizVaultKind: PapelizVaultKind
 
@@ -70,15 +72,11 @@ export abstract class PapelizDirectoryHandleVaultAdapter implements PapelizVault
     const collectVaultFolderEntries = async (vaultFolderHandle: FileSystemDirectoryHandle, vaultFolderRelativePath: string) => {
       for await (const [vaultEntryName, listedVaultEntryHandle] of vaultFolderHandle.entries()) {
         const vaultEntryRelativePath = joinVaultRelativePath(vaultFolderRelativePath, vaultEntryName)
-        // Papeliz's own settings are never listed, Show Hidden or not.
-        if (vaultEntryRelativePath === papelizVaultSettingsFolderName) continue
-        // Hidden folders and files (.git, .trash, ...) are not part of the notes, except Papeliz's
-        // own saved chats; Show Hidden lists them all.
-        if (vaultEntryName.startsWith('.') && !isEveryHiddenVaultEntryListed && !isVaultRelativePathWritableByPapeliz(vaultEntryRelativePath)) continue
+        if (isVaultEntryLeftOutOfTreeListing(vaultEntryRelativePath, isEveryHiddenVaultEntryListed)) continue
         const vaultEntryHandle = asPapelizVaultEntryHandle(listedVaultEntryHandle)
         if (vaultEntryHandle.kind === 'directory') {
           vaultTreeEntries.push({ vaultEntryRelativePath, vaultEntryKind: 'folder' })
-          if (vaultEntryName !== papelizVaultGitFolderName) await collectVaultFolderEntries(vaultEntryHandle, vaultEntryRelativePath)
+          if (isVaultFolderOpenedForTreeListing(vaultEntryName)) await collectVaultFolderEntries(vaultEntryHandle, vaultEntryRelativePath)
           continue
         }
         const vaultFileNameKind = classifyVaultFileByName(vaultEntryName)
@@ -93,24 +91,15 @@ export abstract class PapelizDirectoryHandleVaultAdapter implements PapelizVault
     return vaultTreeEntries
   }
 
-  // The byte check of a file whose name doesn't say whether it is text, kept until the file changes,
-  // so listing the vault again reads only files that are new or changed.
-  private readonly vaultFileByteChecksByRelativePath = new Map<string, { checkedVaultFileByteLength: number; checkedVaultFileModifiedAt: number; isCheckedVaultFilePlainText: boolean }>()
+  // The byte check of a file whose name doesn't say whether it is text, kept until the file changes.
+  private readonly vaultFileByteCheckMemory = new PapelizVaultFileByteCheckMemory()
 
   private async isVaultFilePlainText(vaultFileHandle: FileSystemFileHandle, vaultFileRelativePath: string): Promise<boolean> {
     try {
       const vaultFile = await vaultFileHandle.getFile()
-      const earlierVaultFileByteCheck = this.vaultFileByteChecksByRelativePath.get(vaultFileRelativePath)
-      if (earlierVaultFileByteCheck?.checkedVaultFileByteLength === vaultFile.size && earlierVaultFileByteCheck.checkedVaultFileModifiedAt === vaultFile.lastModified) {
-        return earlierVaultFileByteCheck.isCheckedVaultFilePlainText
-      }
-      const isCheckedVaultFilePlainText = isVaultFileSampleBytesPlainText(new Uint8Array(await vaultFile.slice(0, papelizVaultFileByteCheckLength).arrayBuffer()))
-      this.vaultFileByteChecksByRelativePath.set(vaultFileRelativePath, {
-        checkedVaultFileByteLength: vaultFile.size,
-        checkedVaultFileModifiedAt: vaultFile.lastModified,
-        isCheckedVaultFilePlainText,
-      })
-      return isCheckedVaultFilePlainText
+      return await this.vaultFileByteCheckMemory.isVaultFilePlainText(vaultFileRelativePath, vaultFile.size, vaultFile.lastModified, async () =>
+        new Uint8Array(await vaultFile.slice(0, papelizVaultFileByteCheckLength).arrayBuffer()),
+      )
     } catch {
       // Unreadable right now (another tab swapping it in, say): left out until the next listing.
       return false
@@ -158,8 +147,7 @@ export abstract class PapelizDirectoryHandleVaultAdapter implements PapelizVault
         const vaultEntryRelativePath = joinVaultRelativePath(vaultFolderRelativePath, vaultEntryName)
         const vaultEntryHandle = asPapelizVaultEntryHandle(listedVaultEntryHandle)
         if (vaultEntryHandle.kind === 'directory') {
-          const isSyncedHiddenFolder = vaultFolderRelativePath === papelizVaultRootFolderRelativePath && papelizVaultSyncedHiddenFolderNames.includes(vaultEntryName)
-          if (!vaultEntryName.startsWith('.') || isSyncedHiddenFolder) await collectVaultFolderSyncableFiles(vaultEntryHandle, vaultEntryRelativePath)
+          if (isVaultFolderSearchedForSyncableFiles(vaultFolderRelativePath, vaultEntryName)) await collectVaultFolderSyncableFiles(vaultEntryHandle, vaultEntryRelativePath)
         } else if (isVaultFileRelativePathSyncable(vaultEntryRelativePath)) {
           const vaultFile = await vaultEntryHandle.getFile()
           syncableVaultFileStats.push({ vaultFileRelativePath: vaultEntryRelativePath, vaultFileByteLength: vaultFile.size, vaultFileModifiedAt: vaultFile.lastModified })
@@ -261,14 +249,10 @@ export abstract class PapelizDirectoryHandleVaultAdapter implements PapelizVault
     const toVaultParentFolderHandle = await this.getVaultFolderHandle(getVaultEntryParentFolderRelativePath(toVaultEntryRelativePath))
     const fromVaultEntryName = getVaultEntryName(fromVaultEntryRelativePath)
     const toVaultEntryName = getVaultEntryName(toVaultEntryRelativePath)
-    const isCaseOnlyRename = fromVaultEntryRelativePath.toLowerCase() === toVaultEntryRelativePath.toLowerCase()
 
-    if (isCaseOnlyRename) {
-      // On Windows and macOS "inbox.md" and "Inbox.md" are the same file, so a case-only rename
-      // goes through a temporary name first.
-      const temporaryVaultEntryName = pickFreeVaultEntryName(`${fromVaultEntryName}.papeliz-renaming`, '', (candidateName) =>
-        candidateName.toLowerCase() === fromVaultEntryName.toLowerCase(),
-      )
+    // "inbox.md" and "Inbox.md" are the same file here, so the rename goes through a temporary name.
+    if (isVaultRenameCaseOnly(fromVaultEntryRelativePath, toVaultEntryRelativePath)) {
+      const temporaryVaultEntryName = pickVaultCaseOnlyRenameTemporaryName(fromVaultEntryName)
       await this.moveVaultEntryHandle(fromVaultParentFolderHandle, fromVaultEntryName, toVaultParentFolderHandle, temporaryVaultEntryName)
       await this.moveVaultEntryHandle(toVaultParentFolderHandle, temporaryVaultEntryName, toVaultParentFolderHandle, toVaultEntryName)
       this.noteVaultChanged()
@@ -283,9 +267,7 @@ export abstract class PapelizDirectoryHandleVaultAdapter implements PapelizVault
   async copyVaultEntry(fromVaultEntryRelativePath: string, toVaultEntryRelativePath: string): Promise<void> {
     assertVaultPathWritableByPapeliz(fromVaultEntryRelativePath)
     assertVaultPathWritableByPapeliz(toVaultEntryRelativePath)
-    if (isVaultRelativePathInsideFolder(toVaultEntryRelativePath, fromVaultEntryRelativePath)) {
-      throw new PapelizVaultOperationError('Into Itself')
-    }
+    assertVaultCopyOutsideItsSource(fromVaultEntryRelativePath, toVaultEntryRelativePath)
     const fromVaultParentFolderHandle = await this.getVaultFolderHandle(getVaultEntryParentFolderRelativePath(fromVaultEntryRelativePath))
     const toVaultParentFolderHandle = await this.getVaultFolderHandle(getVaultEntryParentFolderRelativePath(toVaultEntryRelativePath))
     const toVaultEntryName = getVaultEntryName(toVaultEntryRelativePath)
@@ -301,15 +283,9 @@ export abstract class PapelizDirectoryHandleVaultAdapter implements PapelizVault
     const vaultEntryName = getVaultEntryName(vaultEntryRelativePath)
     const vaultEntryHandle = await findVaultEntryHandle(vaultParentFolderHandle, vaultEntryName)
     const vaultTrashFolderHandle = await this.vaultRootFolderHandle.getDirectoryHandle(papelizVaultTrashFolderName, { create: true })
-    const vaultTrashEntryNamesInLowerCase = new Set<string>()
-    for await (const vaultTrashEntryName of vaultTrashFolderHandle.keys()) vaultTrashEntryNamesInLowerCase.add(vaultTrashEntryName.toLowerCase())
-
-    const dotIndex = vaultEntryHandle.kind === 'file' ? vaultEntryName.lastIndexOf('.') : -1
-    const trashVaultEntryName = pickFreeVaultEntryName(
-      dotIndex > 0 ? vaultEntryName.slice(0, dotIndex) : vaultEntryName,
-      dotIndex > 0 ? vaultEntryName.slice(dotIndex) : '',
-      (candidateName) => vaultTrashEntryNamesInLowerCase.has(candidateName.toLowerCase()),
-    )
+    const vaultTrashEntryNames: string[] = []
+    for await (const vaultTrashEntryName of vaultTrashFolderHandle.keys()) vaultTrashEntryNames.push(vaultTrashEntryName)
+    const trashVaultEntryName = pickFreeVaultTrashEntryName(vaultEntryName, vaultEntryHandle.kind === 'directory', vaultTrashEntryNames)
     await this.moveVaultEntryHandle(vaultParentFolderHandle, vaultEntryName, vaultTrashFolderHandle, trashVaultEntryName)
     this.noteVaultChanged()
     return joinVaultRelativePath(papelizVaultTrashFolderName, trashVaultEntryName)
@@ -397,25 +373,6 @@ async function readVaultFileWhileAnotherTabSwapsItIn<VaultFileContents>(readVaul
   }
 }
 
-function assertPapelizVaultSettingsFileName(papelizVaultSettingsFileName: string): void {
-  if (!isPapelizVaultSettingsFileName(papelizVaultSettingsFileName)) {
-    throw new PapelizVaultOperationError('Unknown Settings File')
-  }
-}
-
-function assertVaultPathWritableByPapeliz(vaultEntryRelativePath: string): void {
-  if (!isVaultRelativePathWritableByPapeliz(vaultEntryRelativePath)) {
-    throw new PapelizVaultOperationError('Hidden Folder')
-  }
-}
-
-// A note or folder inside `.trash/`, never the trash folder itself.
-function assertVaultPathInsideTrash(vaultEntryRelativePath: string): void {
-  if (!isVaultRelativePathInTrash(vaultEntryRelativePath) || splitVaultRelativePath(vaultEntryRelativePath).length < 2) {
-    throw new PapelizVaultOperationError('Not In Trash')
-  }
-}
-
 // createWritable() writes to a temporary file and swaps it in on close(), so a failed write leaves
 // the old file untouched.
 export async function writeVaultFileContentsThroughWritableStream(vaultFileHandle: FileSystemFileHandle, vaultFileContents: string | Blob): Promise<void> {
@@ -430,12 +387,9 @@ export async function writeVaultFileContentsThroughWritableStream(vaultFileHandl
 }
 
 async function assertVaultEntryNameIsFree(vaultFolderHandle: FileSystemDirectoryHandle, vaultEntryName: string): Promise<void> {
-  const lowerCaseVaultEntryName = vaultEntryName.toLowerCase()
-  for await (const existingVaultEntryName of vaultFolderHandle.keys()) {
-    if (existingVaultEntryName.toLowerCase() === lowerCaseVaultEntryName) {
-      throw new PapelizVaultOperationError('Name Taken')
-    }
-  }
+  const existingVaultEntryNames: string[] = []
+  for await (const existingVaultEntryName of vaultFolderHandle.keys()) existingVaultEntryNames.push(existingVaultEntryName)
+  assertVaultEntryNameIsFreeAmongNames(existingVaultEntryNames, vaultEntryName)
 }
 
 async function findVaultEntryHandle(vaultFolderHandle: FileSystemDirectoryHandle, vaultEntryName: string): Promise<PapelizVaultEntryHandle> {

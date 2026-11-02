@@ -72,6 +72,8 @@ export function describePapelizFailureCode(failureCode: string, failureCodeConte
       return 'It’s open in another Papeliz tab. Close it there, then try again.'
     case 'Not In Vault':
       return 'It was moved or deleted in another tab or app.'
+    case 'Outside Vault':
+      return 'That place is outside the vault’s folder, and Papeliz only changes what is inside it.'
     case 'Not In Trash':
       return 'It’s no longer in the trash. It was restored or deleted in another tab or app.'
     case 'Note Not Found':

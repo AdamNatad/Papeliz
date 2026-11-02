@@ -28,3 +28,15 @@ export const papelizWebappContentSecurityPolicyDirectives = Object.freeze([
 export function buildPapelizWebappContentSecurityPolicy() {
   return papelizWebappContentSecurityPolicyDirectives.join('; ')
 }
+
+// Papeliz for Windows' policy: the web app's, plus Tauri's IPC address in connect-src, through which
+// the page reaches the app's native side (files, dialogs, the window). The desktop build's page
+// carries it in its `<meta>` tag, and the desktop shell (app/desktop) sets the same one, so both read
+// this one source.
+const papelizDesktopTauriIpcConnectSources = Object.freeze(['ipc:', 'http://ipc.localhost'])
+
+export function buildPapelizDesktopContentSecurityPolicy() {
+  return papelizWebappContentSecurityPolicyDirectives
+    .map((policyDirective) => (policyDirective.startsWith('connect-src ') ? `${policyDirective} ${papelizDesktopTauriIpcConnectSources.join(' ')}` : policyDirective))
+    .join('; ')
+}

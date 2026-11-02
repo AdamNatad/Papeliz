@@ -194,31 +194,40 @@ export function planPapelizVaultFolderImportFromFiles(pickedFiles: readonly File
   return planPapelizVaultFolderImport(isOneFolderPicked ? pickedFolderName : papelizImportedFilesVaultFolderName, rawVaultImportFiles, skippedImportFileCount)
 }
 
-// Writes the files into a vault's folder, or into a new folder inside one: a browser vault's import, a
-// new folder vault from a template (papeliz-template-gallery-vault-maker.ts), or Import from Files, Zip
-// or Template.
-export async function writePapelizVaultImportFiles(
-  importVaultFolderHandle: FileSystemDirectoryHandle,
+// How an import's folders are made and its files written, for each way a vault reaches its folder:
+// directory handles in a browser, or paths on disk in Papeliz for Windows
+// (papeliz-desktop-folder-vault-adapter.ts). `VaultImportFolder` is what that way holds a folder by.
+export interface PapelizVaultImportFolderWriter<VaultImportFolder> {
+  // The folder of that name inside the parent, made when it isn't there yet.
+  makeVaultImportSubfolder(vaultImportParentFolder: VaultImportFolder, vaultImportSubfolderName: string): Promise<VaultImportFolder>
+  // Writes one file whole, under a name already picked free in its folder.
+  writeVaultImportFile(vaultImportFolder: VaultImportFolder, vaultImportFileName: string, readImportFileBytes: () => Promise<Uint8Array>): Promise<void>
+}
+
+// Writes the files into a folder through the writer, making their folders: the same names, progress
+// and stop for every kind of vault folder.
+export async function writePapelizVaultImportFilesThroughFolderWriter<VaultImportFolder>(
+  importVaultFolder: VaultImportFolder,
   vaultImportFiles: readonly PapelizVaultImportFile[],
   vaultImportOptions: PapelizVaultImportOptions,
-  vaultFileContentsWriter: PapelizVaultFileContentsWriter,
+  vaultImportFolderWriter: PapelizVaultImportFolderWriter<VaultImportFolder>,
 ): Promise<void> {
   // Names compare without case, as everywhere in a vault: "a.md" beside "A.md" comes in as "a 2.md".
-  const folderHandlesByLowerCasePath = new Map<string, FileSystemDirectoryHandle>([['', importVaultFolderHandle]])
+  const importFoldersByLowerCasePath = new Map<string, VaultImportFolder>([['', importVaultFolder]])
   const takenLowerCaseNamesByFolderPath = new Map<string, Set<string>>()
-  const getImportFolderHandle = async (importFolderPathSegments: readonly string[]): Promise<FileSystemDirectoryHandle> => {
-    let importFolderHandle = importVaultFolderHandle
+  const getImportFolder = async (importFolderPathSegments: readonly string[]): Promise<VaultImportFolder> => {
+    let importFolder = importVaultFolder
     for (let segmentIndex = 0; segmentIndex < importFolderPathSegments.length; segmentIndex += 1) {
       const lowerCaseFolderPath = importFolderPathSegments.slice(0, segmentIndex + 1).join('/').toLowerCase()
-      const knownFolderHandle = folderHandlesByLowerCasePath.get(lowerCaseFolderPath)
-      if (knownFolderHandle !== undefined) {
-        importFolderHandle = knownFolderHandle
+      const knownImportFolder = importFoldersByLowerCasePath.get(lowerCaseFolderPath)
+      if (knownImportFolder !== undefined) {
+        importFolder = knownImportFolder
         continue
       }
-      importFolderHandle = await importFolderHandle.getDirectoryHandle(importFolderPathSegments[segmentIndex] ?? '', { create: true })
-      folderHandlesByLowerCasePath.set(lowerCaseFolderPath, importFolderHandle)
+      importFolder = await vaultImportFolderWriter.makeVaultImportSubfolder(importFolder, importFolderPathSegments[segmentIndex] ?? '')
+      importFoldersByLowerCasePath.set(lowerCaseFolderPath, importFolder)
     }
-    return importFolderHandle
+    return importFolder
   }
 
   let importedFileCount = 0
@@ -226,10 +235,10 @@ export async function writePapelizVaultImportFiles(
     if (vaultImportOptions.browserVaultImportAbortSignal?.aborted === true) throw new PapelizVaultOperationError('Import Stopped')
     const importFilePathSegments = vaultImportFile.importFileRelativePath.split('/')
     if (vaultImportFile.isImportFileFolder) {
-      await getImportFolderHandle(importFilePathSegments)
+      await getImportFolder(importFilePathSegments)
     } else {
       const importFolderPathSegments = importFilePathSegments.slice(0, -1)
-      const importFolderHandle = await getImportFolderHandle(importFolderPathSegments)
+      const importFolder = await getImportFolder(importFolderPathSegments)
       const lowerCaseFolderPath = importFolderPathSegments.join('/').toLowerCase()
       const takenLowerCaseNames = takenLowerCaseNamesByFolderPath.get(lowerCaseFolderPath) ?? new Set<string>()
       takenLowerCaseNamesByFolderPath.set(lowerCaseFolderPath, takenLowerCaseNames)
@@ -241,12 +250,37 @@ export async function writePapelizVaultImportFiles(
         (candidateImportFileName) => takenLowerCaseNames.has(candidateImportFileName.toLowerCase()),
       )
       takenLowerCaseNames.add(freeImportFileName.toLowerCase())
-      const importedFileHandle = await importFolderHandle.getFileHandle(freeImportFileName, { create: true })
-      await vaultFileContentsWriter(importedFileHandle, new Blob([(await vaultImportFile.readImportFileBytes()) as Uint8Array<ArrayBuffer>]))
+      await vaultImportFolderWriter.writeVaultImportFile(importFolder, freeImportFileName, () => vaultImportFile.readImportFileBytes())
     }
     importedFileCount += 1
     vaultImportOptions.onBrowserVaultImportProgress?.(importedFileCount, vaultImportFiles.length)
   }
+}
+
+// Writes the files into a vault's folder, or into a new folder inside one: a browser vault's import, a
+// new folder vault from a template (papeliz-template-gallery-vault-maker.ts), or Import from Files, Zip
+// or Template.
+export async function writePapelizVaultImportFiles(
+  importVaultFolderHandle: FileSystemDirectoryHandle,
+  vaultImportFiles: readonly PapelizVaultImportFile[],
+  vaultImportOptions: PapelizVaultImportOptions,
+  vaultFileContentsWriter: PapelizVaultFileContentsWriter,
+): Promise<void> {
+  await writePapelizVaultImportFilesThroughFolderWriter(importVaultFolderHandle, vaultImportFiles, vaultImportOptions, {
+    makeVaultImportSubfolder: (vaultImportParentFolderHandle, vaultImportSubfolderName) => vaultImportParentFolderHandle.getDirectoryHandle(vaultImportSubfolderName, { create: true }),
+    writeVaultImportFile: async (vaultImportFolderHandle, vaultImportFileName, readImportFileBytes) => {
+      const importedFileHandle = await vaultImportFolderHandle.getFileHandle(vaultImportFileName, { create: true })
+      await vaultFileContentsWriter(importedFileHandle, new Blob([(await readImportFileBytes()) as Uint8Array<ArrayBuffer>]))
+    },
+  })
+}
+
+// The new folder's name at the vault's top: the import's own, made a name a vault folder can have, or
+// the next free one ("Field Notes 2"), compared without case.
+export function pickFreePapelizImportVaultFolderName(suggestedVaultFolderName: string, vaultTopEntryNames: Iterable<string>): string {
+  const takenLowerCaseTopNames = new Set<string>()
+  for (const vaultTopEntryName of vaultTopEntryNames) takenLowerCaseTopNames.add(vaultTopEntryName.toLowerCase())
+  return pickFreeVaultEntryName(makePapelizImportVaultFolderName(suggestedVaultFolderName), '', (candidateFolderName) => takenLowerCaseTopNames.has(candidateFolderName.toLowerCase()))
 }
 
 // A new folder at the top of a vault reached through a directory handle, named `suggestedVaultFolderName`
@@ -258,11 +292,9 @@ export async function writePapelizVaultImportFilesIntoNewFolder(
   vaultImportOptions: PapelizVaultImportOptions,
   vaultFileContentsWriter: PapelizVaultFileContentsWriter,
 ): Promise<string> {
-  const takenLowerCaseTopNames = new Set<string>()
-  for await (const vaultTopEntryName of vaultRootFolderHandle.keys()) takenLowerCaseTopNames.add(vaultTopEntryName.toLowerCase())
-  const importVaultFolderName = pickFreeVaultEntryName(makePapelizImportVaultFolderName(suggestedVaultFolderName), '', (candidateFolderName) =>
-    takenLowerCaseTopNames.has(candidateFolderName.toLowerCase()),
-  )
+  const vaultTopEntryNames: string[] = []
+  for await (const vaultTopEntryName of vaultRootFolderHandle.keys()) vaultTopEntryNames.push(vaultTopEntryName)
+  const importVaultFolderName = pickFreePapelizImportVaultFolderName(suggestedVaultFolderName, vaultTopEntryNames)
   const importVaultFolderHandle = await vaultRootFolderHandle.getDirectoryHandle(importVaultFolderName, { create: true })
   await writePapelizVaultImportFiles(importVaultFolderHandle, vaultImportFiles, vaultImportOptions, vaultFileContentsWriter)
   return importVaultFolderName

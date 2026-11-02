@@ -1,3 +1,4 @@
+import type { PapelizDesktopFileSystemFailureKind } from '../desktop/papeliz-desktop-platform-contract'
 import type { PapelizVaultImportFile, PapelizVaultImportOptions } from './papeliz-vault-folder-import'
 
 // One interface for every place a vault can live: the bundled sample vault in memory, a folder on
@@ -91,14 +92,33 @@ export class PapelizVaultOperationError extends Error {
   override readonly name = 'PapelizVaultOperationError'
 }
 
+// In Papeliz for Windows a failed file call carries why it failed (papeliz-desktop-platform-contract.ts).
+function readPapelizDesktopFileSystemFailureKind(vaultError: unknown): PapelizDesktopFileSystemFailureKind | null {
+  if (typeof vaultError !== 'object' || vaultError === null || !('desktopFileSystemFailureKind' in vaultError)) return null
+  const desktopFileSystemFailureKind = vaultError.desktopFileSystemFailureKind
+  return typeof desktopFileSystemFailureKind === 'string' ? (desktopFileSystemFailureKind as PapelizDesktopFileSystemFailureKind) : null
+}
+
+const papelizVaultFailureCodesByDesktopFileSystemFailureKind: Record<PapelizDesktopFileSystemFailureKind, string> = {
+  'not-found': 'File Not Found',
+  'name-taken': 'Name Taken',
+  'no-permission': 'No Permission',
+  'in-use': 'File In Use',
+  'disk-full': 'Disk Full',
+  other: 'Unknown Error',
+}
+
 // The note or folder isn't there (any more): moved, renamed or trashed by another tab or app.
 export function isPapelizVaultEntryMissingError(vaultError: unknown): boolean {
   if (vaultError instanceof PapelizVaultOperationError) return vaultError.message === 'Not In Vault'
+  if (readPapelizDesktopFileSystemFailureKind(vaultError) === 'not-found') return true
   return vaultError instanceof DOMException && vaultError.name === 'NotFoundError'
 }
 
 export function describePapelizVaultError(vaultError: unknown): string {
   if (vaultError instanceof PapelizVaultOperationError) return vaultError.message
+  const desktopFileSystemFailureKind = readPapelizDesktopFileSystemFailureKind(vaultError)
+  if (desktopFileSystemFailureKind !== null && desktopFileSystemFailureKind !== 'other') return papelizVaultFailureCodesByDesktopFileSystemFailureKind[desktopFileSystemFailureKind]
   if (vaultError instanceof DOMException) {
     if (vaultError.name === 'NotAllowedError') return 'No Permission'
     if (vaultError.name === 'NotFoundError') return 'File Not Found'
