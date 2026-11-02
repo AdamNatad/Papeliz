@@ -15,9 +15,10 @@
 //   inline handler (scripts/papeliz-site-page-script-policy.mjs), and the /account/* policy in
 //   _headers hashes the account page's inline scripts in place of 'unsafe-inline' (the root
 //   `pnpm site:build` writes it);
-// - every short address in _redirects (app/%5Fredirects/route.ts) is a permanent redirect from a
-//   /templates/ address that has no page of its own to a page in the export whose canonical link is
-//   that page.
+// - every short address in _redirects (app/%5Fredirects/route.ts), a short name or the repository's
+//   own spelling, with and without the trailing slash, is a permanent redirect from a /templates/
+//   address that has no page of its own and is no owner's to a page in the export whose canonical
+//   link is that page.
 // Exits 1 with a list of problems, 0 when the export is clean.
 
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
@@ -213,24 +214,45 @@ if (existsSync(papelizSiteAccountPagePath) && existsSync(papelizSiteExportHeader
   }
 }
 
-// The Featured templates' short addresses: each line a permanent redirect from a /templates/ address
-// with no page of its own, so it shadows nothing, to a page the export has.
+// The Featured templates' short addresses: each a short name (lowercase words joined by hyphens) or
+// the template's repository name as GitHub spells it, as /templates/<address> and
+// /templates/<address>/, each line a permanent redirect to a page the export has. No address has a
+// page of its own or equals an owner's folder, whatever its case, so it shadows nothing, and no
+// address is written twice.
 const papelizSiteExportRedirectsPath = path.join(papelizSiteExportDirectory, '_redirects')
+const papelizSiteTemplateShortNamePattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 let papelizSiteTemplateShortAddressCount = 0
 if (existsSync(papelizSiteExportRedirectsPath)) {
+  const papelizSiteTemplatesExportDirectory = path.join(papelizSiteExportDirectory, 'templates')
+  const papelizSiteTemplateOwnerFoldersLowercase = new Set(
+    existsSync(papelizSiteTemplatesExportDirectory)
+      ? readdirSync(papelizSiteTemplatesExportDirectory, { withFileTypes: true })
+          .filter((templatesExportEntry) => templatesExportEntry.isDirectory() && !templatesExportEntry.name.startsWith('__next.'))
+          .map((templatesExportEntry) => templatesExportEntry.name.toLowerCase())
+      : [],
+  )
+  const papelizSiteRedirectDestinationBySource = new Map()
   for (const papelizSiteRedirectLine of readFileSync(papelizSiteExportRedirectsPath, 'utf8').split(/\r?\n/)) {
     if (papelizSiteRedirectLine.trim() === '' || papelizSiteRedirectLine.trimStart().startsWith('#')) continue
     const [papelizSiteRedirectSource, papelizSiteRedirectDestination, papelizSiteRedirectStatus, ...papelizSiteRedirectExtraParts] = papelizSiteRedirectLine.trim().split(/\s+/)
-    if (
-      !papelizSiteRedirectSource.startsWith('/templates/') ||
-      !papelizSiteRedirectDestination?.startsWith('/') ||
-      !['301', '308'].includes(papelizSiteRedirectStatus) ||
-      papelizSiteRedirectExtraParts.length > 0
-    ) {
-      papelizSiteExportProblems.push(`_redirects: "${papelizSiteRedirectLine}" is not a permanent redirect from a /templates/ address`)
+    const papelizSiteRedirectSourceAddressMatch = /^\/templates\/([^/]+)\/?$/.exec(papelizSiteRedirectSource)
+    const papelizSiteRedirectDestinationPageMatch = /^\/templates\/[^/]+\/([^/]+)\/$/.exec(papelizSiteRedirectDestination ?? '')
+    if (!papelizSiteRedirectSourceAddressMatch || !papelizSiteRedirectDestinationPageMatch || !['301', '308'].includes(papelizSiteRedirectStatus) || papelizSiteRedirectExtraParts.length > 0) {
+      papelizSiteExportProblems.push(`_redirects: "${papelizSiteRedirectLine}" is not a permanent redirect from /templates/<address> to /templates/<owner>/<repository>/`)
       continue
     }
     papelizSiteTemplateShortAddressCount += 1
+    const papelizSiteRedirectSourceAddress = papelizSiteRedirectSourceAddressMatch[1]
+    if (!papelizSiteTemplateShortNamePattern.test(papelizSiteRedirectSourceAddress) && papelizSiteRedirectSourceAddress !== papelizSiteRedirectDestinationPageMatch[1]) {
+      papelizSiteExportProblems.push(`_redirects: ${papelizSiteRedirectSource} is neither a short name nor the repository's own spelling of ${papelizSiteRedirectDestination}`)
+    }
+    if (papelizSiteTemplateOwnerFoldersLowercase.has(papelizSiteRedirectSourceAddress.toLowerCase())) {
+      papelizSiteExportProblems.push(`_redirects: ${papelizSiteRedirectSource} is also an owner's address, which the redirect would shadow`)
+    }
+    if (papelizSiteRedirectDestinationBySource.has(papelizSiteRedirectSource)) {
+      papelizSiteExportProblems.push(`_redirects: ${papelizSiteRedirectSource} is written more than once`)
+    }
+    papelizSiteRedirectDestinationBySource.set(papelizSiteRedirectSource, papelizSiteRedirectDestination)
     // A page, not the not-found screen written under its address: its canonical link is itself.
     const papelizSiteRedirectDestinationFile = exportFileForSitePath(papelizSiteRedirectDestination)
     const papelizSiteRedirectDestinationCanonicalHref =
@@ -240,8 +262,15 @@ if (existsSync(papelizSiteExportRedirectsPath)) {
     if (papelizSiteRedirectDestinationCanonicalHref === undefined || new URL(decodeHtmlEntities(papelizSiteRedirectDestinationCanonicalHref)).pathname !== papelizSiteRedirectDestination) {
       papelizSiteExportProblems.push(`_redirects: ${papelizSiteRedirectSource} points at ${papelizSiteRedirectDestination}, which has no page of its own in the export`)
     }
-    if (existsSync(exportFileForSitePath(papelizSiteRedirectSource.endsWith('/') ? papelizSiteRedirectSource : `${papelizSiteRedirectSource}/`))) {
+    if (existsSync(exportFileForSitePath(`/templates/${papelizSiteRedirectSourceAddress}/`))) {
       papelizSiteExportProblems.push(`_redirects: ${papelizSiteRedirectSource} has a page of its own, which the redirect would shadow`)
+    }
+  }
+  // Each address both without and with the trailing slash, to the same page.
+  for (const [papelizSiteRedirectSource, papelizSiteRedirectDestination] of papelizSiteRedirectDestinationBySource) {
+    const papelizSiteRedirectPairedSource = papelizSiteRedirectSource.endsWith('/') ? papelizSiteRedirectSource.slice(0, -1) : `${papelizSiteRedirectSource}/`
+    if (papelizSiteRedirectDestinationBySource.get(papelizSiteRedirectPairedSource) !== papelizSiteRedirectDestination) {
+      papelizSiteExportProblems.push(`_redirects: ${papelizSiteRedirectSource} has no matching ${papelizSiteRedirectPairedSource} to ${papelizSiteRedirectDestination}`)
     }
   }
 }

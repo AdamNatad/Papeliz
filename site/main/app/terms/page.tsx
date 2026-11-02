@@ -127,7 +127,8 @@ export default function PapelizSiteTermsPage() {
               You can delete your account at any time on papeliz.com/account. That cancels your subscription
               at once and deletes every synced copy; the notes on your devices stay. When your account or a
               synced vault is deleted, the encrypted backup copies of its files are removed once their storage
-              lock ends, within 30 days.
+              lock ends, within 30 days. When your account is deleted, its details also leave the encrypted
+              database backups within 90 days.
             </p>
           </PapelizLegalDocumentSection>
 

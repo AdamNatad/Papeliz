@@ -145,8 +145,9 @@ export default function PapelizSitePrivacyPage() {
               Delete Account on papeliz.com/account deletes at once every synced copy and its history, your
               devices and your account with Papeliz Sync, cancels your subscription, then deletes your sign-in.
               When your account or a synced vault is deleted, the encrypted backup copies of its files are
-              removed once their storage lock ends, within 30 days. The payment provider keeps its records of
-              your payments for as long as tax law requires.
+              removed once their storage lock ends, within 30 days. When your account is deleted, its details
+              also leave the encrypted database backups within 90 days. The payment provider keeps its records
+              of your payments for as long as tax law requires.
             </p>
           </PapelizLegalDocumentSection>
 
