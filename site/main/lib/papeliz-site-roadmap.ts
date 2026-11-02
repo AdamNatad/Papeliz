@@ -35,13 +35,34 @@ export const papelizSiteRoadmapMilestones: PapelizSiteRoadmapMilestone[] = [
         papelizSiteRoadmapStepStatus: 'done',
         papelizSiteRoadmapStepItems: [
           'Open a folder of Markdown notes, or try the sample vault',
-          'Vaults kept in the browser for Firefox, Safari and phones',
+          'Vaults kept in the browser, in every browser',
           'MD Code and MD View behind one switch',
           'Tables and Mermaid diagrams in MD View',
-          'File explorer, tabs and wikilinks',
+          'File list, tabs and wikilinks',
+          'Text files such as JSON open in MD Code',
+          'Import from Files, Folder and Zip, each into its own folder',
           'Autosave to plain .md files',
-          'Export as Word: one note as a .docx, or several in a .zip',
-          'Export as HTML: one note as a page, or several as a website',
+        ],
+      },
+      {
+        papelizSiteRoadmapStepTitle: 'Export',
+        papelizSiteRoadmapStepStatus: 'done',
+        papelizSiteRoadmapStepItems: [
+          'Word: one note as a .docx, or several in a .zip',
+          'PDF, written by Papeliz with no print window',
+          'HTML: one note as a page, or several as a website',
+          'Template: notes as a template others can start from',
+          'Settings for each format: paper sizes, and the HTML pages’ look',
+        ],
+      },
+      {
+        papelizSiteRoadmapStepTitle: 'Templates',
+        papelizSiteRoadmapStepStatus: 'done',
+        papelizSiteRoadmapStepItems: [
+          'Start a vault from a template shared on GitHub',
+          'Import a template into the vault you have open',
+          'Recommended, All or Choose over a template’s files',
+          'Checks before use, Preview and Recheck',
         ],
       },
       {
@@ -65,17 +86,37 @@ export const papelizSiteRoadmapMilestones: PapelizSiteRoadmapMilestone[] = [
   {
     papelizSiteRoadmapMilestoneVersion: '1.1',
     papelizSiteRoadmapMilestoneTitle: 'Papeliz Sync',
-    papelizSiteRoadmapMilestoneStatus: 'up-next',
-    papelizSiteRoadmapMilestoneSummary: 'Your knowledge base on every device. What Papeliz is building next.',
+    papelizSiteRoadmapMilestoneStatus: 'done',
+    papelizSiteRoadmapMilestoneSummary: 'Your knowledge base on every device, as an optional add-on with a Free plan.',
     papelizSiteRoadmapMilestoneSteps: [
       {
         papelizSiteRoadmapStepTitle: 'Papeliz Sync',
-        papelizSiteRoadmapStepStatus: 'up-next',
+        papelizSiteRoadmapStepStatus: 'done',
         papelizSiteRoadmapStepItems: [
           'Keep your vaults in sync across web, desktop and mobile',
           'Edits from two devices merge instead of overwriting each other',
-          'End-to-end encryption for the vaults you choose',
+          'Standard or End-to-end encryption for each vault you sync',
+          'Version history, with old versions you can delete to free up space',
+          'A Free plan, and three paid plans',
           'Optional: Papeliz itself stays free, with no account needed',
+        ],
+      },
+    ],
+  },
+  {
+    papelizSiteRoadmapMilestoneVersion: 'Next',
+    papelizSiteRoadmapMilestoneTitle: 'Sharing templates',
+    papelizSiteRoadmapMilestoneStatus: 'up-next',
+    papelizSiteRoadmapMilestoneSummary: 'Templates work today. Sharing your own and voting come next, with a free Papeliz account.',
+    papelizSiteRoadmapMilestoneSteps: [
+      {
+        papelizSiteRoadmapStepTitle: 'Sharing templates',
+        papelizSiteRoadmapStepStatus: 'up-next',
+        papelizSiteRoadmapStepItems: [
+          'Submit your own template from Papeliz',
+          'Vote templates up or down',
+          'New and Top 100 lists beside Featured',
+          'Report a template',
         ],
       },
     ],

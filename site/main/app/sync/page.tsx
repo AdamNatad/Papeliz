@@ -71,7 +71,7 @@ const papelizSiteSyncDetailColumns = [
   {
     papelizSiteSyncDetailColumnTitle: 'Where it lives',
     papelizSiteSyncDetailColumnItems: [
-      { papelizSiteSyncDetailLabel: 'Your pick', papelizSiteSyncDetailBody: 'North America (East or West), Europe, Asia-Pacific or Oceania.' },
+      { papelizSiteSyncDetailLabel: 'Your pick', papelizSiteSyncDetailBody: 'Eastern North America, Western North America, Europe, Asia-Pacific or Oceania.' },
       { papelizSiteSyncDetailLabel: 'Chosen once', papelizSiteSyncDetailBody: 'When you sign up, and it stays there.' },
       { papelizSiteSyncDetailLabel: 'Europe', papelizSiteSyncDetailBody: 'Stored in the EU.' },
     ],

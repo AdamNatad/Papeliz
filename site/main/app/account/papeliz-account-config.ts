@@ -61,8 +61,8 @@ export function readPapelizAccountPasskeysAreOn(papelizAccountClerk: object): bo
 }
 
 export const papelizAccountStoragePlaceLabels: Record<PapelizSyncStoragePlace, { storagePlaceName: string; storagePlaceWhereStoredLine: string }> = {
-  enam: { storagePlaceName: 'North America, East', storagePlaceWhereStoredLine: 'Stored in eastern North America.' },
-  wnam: { storagePlaceName: 'North America, West', storagePlaceWhereStoredLine: 'Stored in western North America.' },
+  enam: { storagePlaceName: 'Eastern North America', storagePlaceWhereStoredLine: 'Stored in eastern North America.' },
+  wnam: { storagePlaceName: 'Western North America', storagePlaceWhereStoredLine: 'Stored in western North America.' },
   eu: { storagePlaceName: 'Europe', storagePlaceWhereStoredLine: 'Stored in the EU.' },
   apac: { storagePlaceName: 'Asia-Pacific', storagePlaceWhereStoredLine: 'Stored in Asia-Pacific.' },
   oc: { storagePlaceName: 'Oceania', storagePlaceWhereStoredLine: 'Stored in Oceania.' },

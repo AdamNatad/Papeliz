@@ -4,13 +4,13 @@ export const papelizHelpPrivacyArticles: readonly PapelizHelpArticle[] = [
   {
     papelizHelpArticleSlug: 'where-your-notes-live',
     articleTitle: 'Where your notes live',
-    articleSummary: 'In a folder on your disk, or in your browser’s own storage. Papeliz has no server to send them to.',
+    articleSummary: 'In a folder on your disk, or in your browser’s own storage. Nothing is uploaded unless you sync a vault.',
     papelizHelpGroupSlug: 'privacy',
     papelizHelpArticleAvailability: 'available',
     articleSections: [
       helpSection('On your disk', [
         helpParagraph(
-          'A vault you open with **Open Vault**, or start in **Folder Storage**, is a folder on your computer. Papeliz reads and writes it inside your browser, and nothing is uploaded to Papeliz: there is no Papeliz server, account or cloud storage.',
+          'A vault you open with **Open Vault**, or start in **Folder Storage**, is a folder on your computer. Papeliz reads and writes it inside your browser, and nothing is uploaded to Papeliz unless you turn on Papeliz Sync for that vault.',
         ),
       ]),
       helpSection('In your browser', [
@@ -26,9 +26,19 @@ export const papelizHelpPrivacyArticles: readonly PapelizHelpArticle[] = [
           'Papeliz also keeps a few things in your browser: the list of recent vaults and the permission to reopen folders, your settings, and the assistant’s provider settings. Clearing your browser’s data for Papeliz removes them, and erases vaults kept in the browser. Folders on your disk aren’t affected.',
         ),
       ]),
+      helpSection('When you sync a vault', [
+        helpParagraph(
+          'Papeliz Sync, the optional add-on, uploads only the vaults you turn it on for, encrypted on your device first. In a Standard vault, Papeliz keeps the vault’s key, so it could read the vault. An End-to-end vault has its own passphrase, which Papeliz never receives, so Papeliz can’t read it. Vault and device names aren’t encrypted. See [[sync-your-vaults]].',
+        ),
+      ]),
+      helpSection('When you open Templates', [
+        helpParagraph(
+          'Papeliz contacts other services for templates only when you open **Templates**: Papeliz’s Templates server for the list, and jsDelivr or GitHub for a template’s files and pictures. **Recheck** and **Submit Template** ask GitHub for the newest version. None of them receives your notes or your key.',
+        ),
+      ]),
       helpSection('When you use the assistant', [
         helpParagraph(
-          'The assistant, still in development, sends your message and the notes it reads to the provider you chose, and nothing goes until you send a message. See [[where-your-key-goes]].',
+          'The assistant sends your message and the notes it reads to the provider you chose, and nothing goes until you send a message. See [[where-your-key-goes]].',
         ),
       ]),
     ],
@@ -39,11 +49,11 @@ export const papelizHelpPrivacyArticles: readonly PapelizHelpArticle[] = [
     articleTitle: 'Where your API key goes',
     articleSummary: 'Saved only in this browser, and sent only to the provider you picked.',
     papelizHelpGroupSlug: 'privacy',
-    papelizHelpArticleAvailability: 'in-development',
+    papelizHelpArticleAvailability: 'available',
     articleSections: [
       helpSection('Saved in this browser', [
         helpParagraph(
-          'Your key is saved in this browser’s storage (IndexedDB), with the provider you set it for. It isn’t synced anywhere, and it isn’t sent to Papeliz: there is nowhere to send it.',
+          'Your key is saved in this browser’s storage (IndexedDB), with the provider you set it for. It isn’t sent to Papeliz, and Papeliz Sync never syncs it: you paste it on each device.',
         ),
       ]),
       helpSection('Sent only to your provider', [

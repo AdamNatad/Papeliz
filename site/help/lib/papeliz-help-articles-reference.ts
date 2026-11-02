@@ -22,7 +22,7 @@ export const papelizHelpReferenceArticles: readonly PapelizHelpArticle[] = [
         helpShortcutTable([
           ['Ctrl+E', 'Switch between MD Code and MD View'],
           ['Ctrl+S', 'Save every open note now'],
-          ['Ctrl+Shift+F', 'Turn focus mode on or off (in development)'],
+          ['Ctrl+Shift+F', 'Turn focus mode on or off'],
           ['Esc', 'Leave focus mode, or close the file list or Assistant drawer in a narrow window'],
         ]),
       ]),
@@ -61,7 +61,7 @@ export const papelizHelpReferenceArticles: readonly PapelizHelpArticle[] = [
           [['Alt+Shift+←', 'Alt+Shift+→'], 'Move the focused tab'],
         ]),
       ]),
-      helpSection('Assistant (in development)', [
+      helpSection('Assistant', [
         helpShortcutTable([
           ['Ctrl+K', 'Edit the selection with the assistant'],
           ['Enter', 'Send a message, or run an edit'],
@@ -133,7 +133,7 @@ Three raised beds this year. See [[Reading list]] #garden
   {
     papelizHelpArticleSlug: 'troubleshooting',
     articleTitle: 'Troubleshooting',
-    articleSummary: 'Fixes for folder permissions, browser support, browser storage, saving and links.',
+    articleSummary: 'Fixes for folder permissions, browser support, browser storage, saving, links, Sync sign-in and the assistant.',
     papelizHelpGroupSlug: 'reference',
     papelizHelpArticleAvailability: 'available',
     articleSections: [
@@ -182,6 +182,11 @@ Three raised beds this year. See [[Reading list]] #garden
       ]),
       helpSection('A link opens the wrong note', [
         helpParagraph('When two notes share a name, Papeliz picks the nearest one. Write the folder too, for example `[[Projects/Garden plan]]`.'),
+      ]),
+      helpSection('The sign-in tab didn’t open', [
+        helpParagraph(
+          'Signing in to Papeliz Sync opens papeliz.com/account in a new tab. If your browser blocks it, Papeliz says so and shows a **Sign In** link: press it to open the page yourself. Or choose **Copy Sign-In URL to Clipboard** and paste the address into a new tab. See [[sync-your-vaults]].',
+        ),
       ]),
       helpSection('The assistant can’t connect', [
         helpParagraph(

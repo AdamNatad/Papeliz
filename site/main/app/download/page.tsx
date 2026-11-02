@@ -16,7 +16,7 @@ const papelizSiteInstallSteps = [
   { papelizSiteInstallStepTitle: 'Install Papeliz', papelizSiteInstallStepBody: 'Install it the way your device usually installs apps.' },
   {
     papelizSiteInstallStepTitle: 'Open your notes',
-    papelizSiteInstallStepBody: 'Open a folder of Markdown notes, or start a new vault, and write. Every feature is free.',
+    papelizSiteInstallStepBody: 'Open a folder of Markdown notes, start a new vault or a template, and write. Every feature of the app is free.',
   },
 ]
 

@@ -16,7 +16,7 @@ export const papelizHelpAssistantArticles: readonly PapelizHelpArticle[] = [
     articleTitle: 'Bring your own key',
     articleSummary: 'Connect the assistant to an AI provider with your own API key. No Papeliz account needed.',
     papelizHelpGroupSlug: 'assistant',
-    papelizHelpArticleAvailability: 'in-development',
+    papelizHelpArticleAvailability: 'available',
     articleSections: [
       helpSection('How it works', [
         helpParagraph(
@@ -54,7 +54,7 @@ export const papelizHelpAssistantArticles: readonly PapelizHelpArticle[] = [
     articleTitle: 'Choose a provider',
     articleSummary: 'Presets fill in the base URL for popular providers, and any OpenAI-compatible service works.',
     papelizHelpGroupSlug: 'assistant',
-    papelizHelpArticleAvailability: 'in-development',
+    papelizHelpArticleAvailability: 'available',
     articleSections: [
       helpSection('Recommended: Muse Spark on the Meta Model API', [
         helpParagraph(
@@ -100,12 +100,23 @@ export const papelizHelpAssistantArticles: readonly PapelizHelpArticle[] = [
     articleTitle: 'Chat with the assistant',
     articleSummary: 'Ask about the open note or the whole vault, and get answers that link to your notes.',
     papelizHelpGroupSlug: 'assistant',
-    papelizHelpArticleAvailability: 'in-development',
+    papelizHelpArticleAvailability: 'available',
     articleSections: [
       helpSection('The Assistant panel', [
         helpParagraph(
-          'The Assistant panel docks on the right, with three tabs: **Chat**, **Backlinks** and **Outline**. The **AI Assistant** button in the top bar, left of **Export** and the gear, opens and closes it.',
+          'The Assistant panel docks on the right. The **AI Assistant** button in the top bar, left of **Export** and the gear, opens and closes it. Its header has **New Chat**, **Sessions** and **Usage**.',
         ),
+        helpParagraph(
+          'Until a provider is set up, the panel offers **Choose a Provider**. See [[bring-your-own-key]]. The open note’s outline and backlinks are under the file list, in **This Note**. See [[backlinks-and-outline]].',
+        ),
+      ]),
+      helpSection('Ask, Plan and Write', [
+        helpParagraph('The switch at the top of the panel picks how the assistant works:'),
+        helpDetailList([
+          ['Ask', 'Answers from your notes and never changes them.'],
+          ['Plan', 'Turns an idea into a step-by-step plan. **Write It** has the assistant carry it out, and **Save as Note** keeps the plan as a note.'],
+          ['Write', 'Edits, adds and deletes notes, and you review each change. **Bypass Permission**, under **In Write** in the Effort chip’s menu, applies changes at once instead.'],
+        ]),
       ]),
       helpSection('Ask', [
         helpNumberedSteps([
@@ -113,6 +124,10 @@ export const papelizHelpAssistantArticles: readonly PapelizHelpArticle[] = [
           'Press `Enter` to send, or `Shift+Enter` for a new line.',
           'The answer appears as it’s written. Choose **Stop** to end it early.',
         ]),
+        helpParagraph(
+          'While it answers, a message you send is read before its next step, or choose to send it when the answer ends. The chip beside the model sets the **Effort**: how long the model thinks before it answers.',
+        ),
+        helpParagraph('Add files or pictures with **+** beside the message box, or paste or drop them into it.'),
       ]),
       helpSection('What the assistant sees', [
         helpParagraph(
@@ -123,10 +138,16 @@ export const papelizHelpAssistantArticles: readonly PapelizHelpArticle[] = [
       helpSection('Answers that link to your notes', [
         helpParagraph('When an answer draws on your notes, it links them as wikilinks. Click one to open that note.'),
       ]),
+      helpSection('Pictures in answers', [
+        helpParagraph(
+          'A picture from another website in an answer waits behind a **Show** button, with its site’s name, so nothing loads from that site until you ask. Pictures in Mermaid diagrams never load from other sites.',
+        ),
+      ]),
       helpSection('Saved chats', [
         helpParagraph(
-          'Each conversation is saved as an ordinary Markdown note in a **Chat Sessions** folder in your vault, so it travels with the folder. **Sessions** reopens an earlier chat, and **New Chat** starts a fresh one.',
+          'Each conversation is saved as an ordinary Markdown note in the vault’s hidden `.csessions` folder, so it travels with the folder. **Sessions** reopens an earlier chat, and **New Chat** starts a fresh one. **Show Hidden**, at the bottom of the file list, shows the folder.',
         ),
+        helpParagraph('**Usage** shows the tokens the assistant used and what they cost, for each model.'),
         helpNote('Your messages, and the notes the assistant reads, go to your provider. See [[where-your-key-goes]].'),
       ]),
     ],
@@ -137,7 +158,7 @@ export const papelizHelpAssistantArticles: readonly PapelizHelpArticle[] = [
     articleTitle: 'Review proposed edits',
     articleSummary: 'Every change the assistant wants to make arrives as a diff you accept or reject.',
     papelizHelpGroupSlug: 'assistant',
-    papelizHelpArticleAvailability: 'in-development',
+    papelizHelpArticleAvailability: 'available',
     articleSections: [
       helpSection('Nothing changes until you accept', [
         helpParagraph(
@@ -161,7 +182,7 @@ export const papelizHelpAssistantArticles: readonly PapelizHelpArticle[] = [
     articleTitle: 'Edit a selection in place',
     articleSummary: 'Select text and ask for Shorter, Rewrite, Fix grammar or Translate.',
     papelizHelpGroupSlug: 'assistant',
-    papelizHelpArticleAvailability: 'in-development',
+    papelizHelpArticleAvailability: 'available',
     articleSections: [
       helpSection('Open the edit box', [
         helpNumberedSteps([
@@ -191,7 +212,7 @@ export const papelizHelpAssistantArticles: readonly PapelizHelpArticle[] = [
     articleTitle: 'Focus mode',
     articleSummary: 'Just your note, with a floating message box for the assistant.',
     papelizHelpGroupSlug: 'assistant',
-    papelizHelpArticleAvailability: 'in-development',
+    papelizHelpArticleAvailability: 'available',
     articleSections: [
       helpSection('Turn it on', [
         helpParagraph(

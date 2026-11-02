@@ -16,7 +16,7 @@ export default function PapelizSiteChangelogPage() {
     <>
       <PapelizSitePageIntro papelizSitePageHeading="What has changed">
         <p>
-          Papeliz has no public release yet, so this log records what has been built so far. The{' '}
+          This log records what has been built so far, newest first. The{' '}
           <Link href="/roadmap/" className="font-medium text-papeliz-blue hover:underline">roadmap</Link> shows what comes next.
         </p>
       </PapelizSitePageIntro>

@@ -22,13 +22,28 @@ export default function PapelizSitePrivacyPage() {
       papelizLegalDocumentSummary={
         isPapelizLegalSyncDraftShown
           ? papelizSitePrivacyDraftSummary
-          : 'Papeliz is a static web app with no server of its own. It never sees your key, and could read your notes only if you sync them with Papeliz Sync, the optional add-on, as a Standard vault. This page explains where your data goes. It is a draft and will be finalized before launch.'
+          : 'Papeliz is a static web app. It never sees your key, and could read your notes only if you sync them with Papeliz Sync, the optional add-on, as a Standard vault. This page explains where your data goes. It is a draft and will be finalized before launch.'
       }
     >
       <PapelizLegalDocumentSection papelizLegalSectionTitle="Your notes">
         <p>
-          Your notes stay in the folder you open, on your own disk. Papeliz reads and writes that folder
-          in your browser. Nothing is uploaded to Papeliz unless you sync that vault with Papeliz Sync.
+          Your notes stay on your device: in the folder you open on your own disk, or in your browser’s
+          own storage for a vault kept in the browser. Papeliz reads and writes them in your browser.
+          Nothing is uploaded to Papeliz unless you sync that vault with Papeliz Sync.
+        </p>
+      </PapelizLegalDocumentSection>
+
+      <PapelizLegalDocumentSection papelizLegalSectionTitle="Templates">
+        <p>
+          Papeliz contacts other services for templates only when you open Templates. It reads the list of
+          templates from Papeliz’s Templates server, and a template’s files from jsDelivr, or from GitHub
+          when jsDelivr can’t be reached. Its pictures and its author’s picture come from jsDelivr or GitHub.
+          Recheck and Submit Template ask GitHub for a template’s newest version. These services see the
+          request, as any website does, but never your notes or your key.
+        </p>
+        <p>
+          The Templates server keeps only the public list of template repositories, with their votes and
+          reports. It doesn’t log what a request carries or where it came from.
         </p>
       </PapelizLegalDocumentSection>
 
@@ -69,7 +84,8 @@ export default function PapelizSitePrivacyPage() {
       <PapelizLegalDocumentSection papelizLegalSectionTitle="Settings in your browser">
         <p>
           Papeliz keeps its settings, search index and the list of folders you opened in your browser’s
-          storage. Clearing your browser data removes them; your notes on disk are not affected.
+          storage. Clearing your browser data removes them, and erases any vault kept in the browser; your
+          notes on disk are not affected.
         </p>
       </PapelizLegalDocumentSection>
 

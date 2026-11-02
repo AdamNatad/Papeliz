@@ -7,7 +7,7 @@ import { createPapelizSitePageMetadata } from '@/lib/papeliz-site-seo'
 export const metadata = createPapelizSitePageMetadata({
   papelizSitePageTitle: 'Features',
   papelizSitePageDescription:
-    'Everything in the Papeliz launch build: a vault of plain Markdown files, MD Code and MD View, and an assistant that edits on your own key.',
+    'Everything in the Papeliz launch build: a vault of plain Markdown files, MD Code and MD View, export, templates, an assistant that edits on your own key, and optional Sync.',
   papelizSitePagePath: '/features/',
 })
 

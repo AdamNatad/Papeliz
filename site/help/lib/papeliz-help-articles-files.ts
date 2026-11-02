@@ -29,6 +29,16 @@ export const papelizHelpFilesArticles: readonly PapelizHelpArticle[] = [
       helpSection('Search notes', [
         helpParagraph('Type in **Search notes** to filter the list by name. Notes whose text matches what you typed appear below the list.'),
       ]),
+      helpSection('This Note', [
+        helpParagraph(
+          '**This Note**, at the foot of the file list, shows the open note’s **Outline** and **Backlinks**. Click its heading to fold it away. See [[backlinks-and-outline]].',
+        ),
+      ]),
+      helpSection('Import', [
+        helpParagraph(
+          '**Import**, beside **New** at the top of the list, brings files into the vault: **Import from Files**, **Import from Folder**, **Import from Zip** or **Import from Template**. Each goes into a new folder of its own at the top of the vault, and nothing already there changes. See [[keep-a-vault-in-your-browser]] and [[open-a-folder]].',
+        ),
+      ]),
       helpSection('Arrange', [
         helpBulletList([
           'Drag a note or folder onto a folder to move it there, or between rows to change the order.',
@@ -97,7 +107,7 @@ export const papelizHelpFilesArticles: readonly PapelizHelpArticle[] = [
   {
     papelizHelpArticleSlug: 'saving-and-hidden-folders',
     articleTitle: 'Saving and hidden folders',
-    articleSummary: 'Notes save as you type, and Papeliz leaves the folder’s other files alone.',
+    articleSummary: 'Notes save as you type, text files open in MD Code, and Papeliz leaves the folder’s other files alone.',
     papelizHelpGroupSlug: 'files',
     papelizHelpArticleAvailability: 'available',
     articleSections: [
@@ -112,14 +122,24 @@ export const papelizHelpFilesArticles: readonly PapelizHelpArticle[] = [
       helpSection('What Papeliz reads and writes', [
         helpBulletList([
           'Folders and `.md` notes: shown in the file list and saved in place.',
+          'Text files such as JSON, YAML, scripts, `.gitignore` and `LICENSE`: shown in the file list and opened in MD Code only, up to 5 MB. Nothing in them ever runs.',
           '`.trash`: where deleted notes and folders go.',
-          '`.papeliz`: Papeliz’s own files for the vault, such as the file list’s order.',
-          'Every other hidden folder or file, such as `.git`, is left out of the list and never changed.',
-          'Files that aren’t Markdown notes stay untouched, and don’t appear in the list.',
+          '`.papeliz`: Papeliz’s own files for the vault, such as the file list’s order. It never shows in the list.',
+          '`.csessions`: the assistant’s saved chats.',
+          'Every other hidden folder or file, such as `.git` or another app’s settings, is never changed.',
+          'Pictures, PDFs and other files that aren’t text stay untouched, and don’t appear in the list.',
         ]),
+      ]),
+      helpSection('Show Hidden', [
         helpParagraph(
-          'The assistant, still in development, saves each conversation as a note in a **Chat Sessions** folder in the vault. See [[chat-with-the-assistant]].',
+          'Hidden folders and files, whose names start with a dot, are left out of the file list. **Show Hidden**, at the bottom of the list, shows them: the vault’s `.trash`, the assistant’s saved chats and other apps’ folders. They open read-only, except the saved chats.',
         ),
+      ]),
+      helpSection('Text files', [
+        helpParagraph(
+          'A text file opens in MD Code. JSON gets colors, folding and the line where it stops being valid JSON. While a text file’s tab is in front, MD View is greyed out: it’s for notes.',
+        ),
+        helpParagraph('Links, search, the outline, the assistant’s note tools and export work on notes, not text files.'),
       ]),
       helpSection('Edits from other apps', [
         helpParagraph(

@@ -24,8 +24,8 @@ export function PapelizSiteTemplatesListPage({ papelizSiteTemplatesBuildSnapshot
       </section>
 
       <p className="mx-auto mt-10 max-w-2xl text-center text-sm leading-relaxed text-papeliz-ink-muted">
-        Share your own from Papeliz: open Templates on the start screen, then Submit Template. Submitting and voting need a free Papeliz
-        account; using a template needs none.
+        Make your own with Export as Template in Papeliz, put it in a public GitHub repository, and check it with Submit Template on the
+        start screen’s Templates. Submitting and voting are coming, with a free Papeliz account; using a template needs none.
       </p>
     </div>
   )

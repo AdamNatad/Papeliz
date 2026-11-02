@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { BookOpen, Check, FolderOpen, KeyRound, Lock, PenLine, Server, ShieldCheck } from 'lucide-react'
+import { BookOpen, Check, FolderOpen, KeyRound, LayoutTemplate, Lock, PenLine, RefreshCw, Server, ShieldCheck } from 'lucide-react'
 import { PapelizSiteAppButton } from '@/components/marketing/papeliz-site-app-button'
 import { PapelizSiteHeroTypedWord } from '@/components/marketing/papeliz-site-hero-typed-word'
 import { PapelizSiteIntroducingBadge } from '@/components/marketing/papeliz-site-introducing-badge'
@@ -31,12 +31,30 @@ const papelizSiteFeatureCards = [
   {
     icon: KeyRound,
     title: 'Your key, your provider',
-    body: 'The assistant talks straight from your device to the AI provider you pick. No account, no Papeliz server.',
+    body: 'The assistant talks straight from your device to the AI provider you pick. No account needed, and no Papeliz server in between.',
+  },
+]
+
+// Templates and Sync, the two things beyond the editor itself.
+const papelizSiteMoreCards = [
+  {
+    icon: LayoutTemplate,
+    title: 'Start from a template',
+    body: 'Templates are whole starter vaults that people share from GitHub. Papeliz checks each one, then makes it a new vault, or a folder in the vault you have open.',
+    href: '/templates/',
+    linkLabel: 'Browse templates',
+  },
+  {
+    icon: RefreshCw,
+    title: 'Sync, if you want it',
+    body: 'Papeliz Sync keeps your vaults the same on all your devices, with end-to-end encryption for the vaults you choose. It’s optional, with a Free plan.',
+    href: '/sync/',
+    linkLabel: 'How Sync works',
   },
 ]
 
 const papelizSiteAssistantSteps = [
-  'Ask about a note, a selection or your whole vault, and get answers that cite your notes as links.',
+  'Ask about a note, a selection or your whole vault, and get answers that cite your notes as links. Plan and Write take on bigger jobs.',
   'Rewrite a paragraph in place: the change shows as a diff before anything is saved.',
   'Let it suggest links and tags across your notes, then review each change.',
   'Switch to focus mode for just your note and a floating prompt box.',
@@ -44,8 +62,8 @@ const papelizSiteAssistantSteps = [
 
 
 const papelizSitePrivacyPoints = [
-  { icon: Server, title: 'No Papeliz server', body: 'Papeliz runs entirely on your device. No backend, no account, no analytics on your notes.' },
-  { icon: FolderOpen, title: 'Notes stay on your disk', body: 'Papeliz reads and writes the folder you open, and never touches its hidden folders.' },
+  { icon: Server, title: 'No account needed', body: 'Papeliz runs on your device, with no account and no analytics on your notes. You sign in only to use Sync.' },
+  { icon: FolderOpen, title: 'Notes stay on your device', body: 'In a folder on your disk or in your browser. Nothing is uploaded unless you turn on Sync for that vault.' },
   { icon: Lock, title: 'You choose what is shared', body: 'Each message shows which notes go to your provider. Nothing is sent until you send it.' },
   { icon: ShieldCheck, title: 'Safe rendering', body: 'Notes are sanitized before display, so a note can never run code in the page that holds your key.' },
 ]
@@ -105,6 +123,20 @@ export default function PapelizSiteHomePage() {
               </span>
               <h3 className="mt-4 text-lg font-semibold">{papelizSiteFeatureCard.title}</h3>
               <p className="mt-2 text-[15px] leading-relaxed text-papeliz-ink-muted">{papelizSiteFeatureCard.body}</p>
+            </div>
+          ))}
+        </div>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          {papelizSiteMoreCards.map((papelizSiteMoreCard) => (
+            <div key={papelizSiteMoreCard.title} className="rounded-3xl border border-papeliz-line bg-papeliz-surface p-6 shadow-papeliz-card">
+              <span className="grid size-11 place-items-center rounded-full bg-papeliz-blue-soft text-papeliz-blue">
+                <papelizSiteMoreCard.icon className="size-5" aria-hidden="true" />
+              </span>
+              <h3 className="mt-4 text-lg font-semibold">{papelizSiteMoreCard.title}</h3>
+              <p className="mt-2 text-[15px] leading-relaxed text-papeliz-ink-muted">{papelizSiteMoreCard.body}</p>
+              <Link href={papelizSiteMoreCard.href} className="mt-3 inline-flex text-[15px] font-medium text-papeliz-blue hover:underline">
+                {papelizSiteMoreCard.linkLabel}
+              </Link>
             </div>
           ))}
         </div>

@@ -26,12 +26,20 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
       ]),
       helpSection('An assistant that edits', [
         helpParagraph(
-          'The assistant, still in development, works on your notes with you: it rewrites a selection in place, proposes changes as diffs, and suggests links and tags across notes. Nothing changes until you accept it. See [[proposed-edits]].',
+          'The assistant works on your notes with you: it answers from your notes, rewrites a selection in place, proposes changes as diffs, and suggests links and tags across notes. Nothing changes until you accept it. See [[proposed-edits]].',
         ),
       ]),
-      helpSection('No server, no account', [
+      helpSection('No account needed', [
         helpParagraph(
-          'There is no Papeliz account and no Papeliz server: your notes stay on your device, and the assistant talks straight from your device to the AI provider you choose, with your own key. See [[where-your-notes-live]].',
+          'Papeliz needs no account: your notes stay on your device, and the assistant talks straight from your device to the AI provider you choose, with your own key. No Papeliz server is in between. See [[where-your-notes-live]].',
+        ),
+        helpParagraph(
+          'A free Papeliz account is only for Papeliz Sync, the optional add-on that keeps your vaults the same on all your devices. See [[sync-your-vaults]].',
+        ),
+      ]),
+      helpSection('Templates', [
+        helpParagraph(
+          'Start a vault from a template someone shares on GitHub, or add one to a vault you have. See [[open-a-folder]].',
         ),
       ]),
       helpSection('Free and open source', [
@@ -109,12 +117,19 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
         helpNumberedSteps([
           'Pick a template in **Featured**. Its row shows the author, the license and how many files it has, and **Preview** shows every file, read-only.',
           'Choose the template to open its page, with its first note and **What’s inside**, then choose **Use Template**.',
+          'If the template marks some files as optional, its folder tree shows with a switch above it: **Recommended** brings the files the author recommends, **All** brings every file, and ticking or clearing a file yourself moves the switch to **Choose**. Each choice shows how many files it brings. Required files are always ticked.',
           'If the template’s agent settings or scripts name commands, Papeliz lists each one. Papeliz never runs them. Tick **I’ve read these commands**, then choose **Continue**.',
           'New Vault opens with the template at its top. Name the vault, choose **Folder Storage** or **Browser Storage**, then **Pick Folder** or **Create Vault**. The vault opens on the template’s first note.',
         ]),
         helpParagraph('**Recheck**, on a template’s page or in Preview, asks GitHub for a newer version and checks it before Papeliz uses it.'),
         helpParagraph(
-          'In a vault you already have, choose **Import** in the file list’s header, then **Import from Template**. **Import into This Vault** puts the template in a new folder named after it, at the top of the vault, and changes nothing else.',
+          'In a vault you already have, choose **Import** in the file list’s header, then **Import from Template**. **Import into This Vault** puts the template in a new folder named after it, at the top of the vault, and changes nothing else. The same **Recommended**, **All** and **Choose** apply.',
+        ),
+        helpParagraph(
+          'Papeliz checks a template before it makes the vault, and removes the hidden details a camera or editor adds to its pictures. Nothing in a template runs.',
+        ),
+        helpParagraph(
+          'To share a vault of your own as a template, use **Export as Template** in **Export**. See [[settings-gear]].',
         ),
         helpNote(
           '**New**, **Top 100**, votes and **Report** open with the Templates server. Until then, **Submit Template** checks your own repository: paste its link and choose **Check**.',
@@ -304,8 +319,8 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
       ]),
       helpSection('What’s in it', [
         helpBulletList([
-          '**Account**: coming soon.',
-          '**Sync**: keep your vaults in sync across web, desktop and mobile, with end-to-end encryption for the vaults you choose. A paid add-on, coming soon.',
+          '**Account**: sign in to Papeliz Sync, then see your email, your plan and your devices, and sign out. See [[sync-your-vaults]].',
+          '**Sync**: keep your vaults the same on all your devices, with the tabs **Plans** and **Settings**. Every account comes with Free. See [[sync-your-vaults]].',
           '**Settings**: the tabs **Vault**, the open vault’s name (a vault kept in your browser renames here; a folder vault takes its folder’s name), and **Key Bindings**, the shortcuts you can change. See [[keyboard-shortcuts]]. In a vault kept in your browser, a third tab, **Reminder**, holds the backup reminder and **Download Backup**. See [[keep-a-vault-in-your-browser]].',
           '**Accessibility**: the theme, how tabs show, how your notes’ text looks (font, size and width), and the **Lock All Notes** and **Focus Mode** switches. See [[text-settings-and-theme]], [[switch-views-and-lock]] and [[focus-mode|focus mode]].',
           '**AI Provider**: choose the provider and add your key. See [[bring-your-own-key]].',
@@ -314,7 +329,7 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
       ]),
       helpSection('Export', [
         helpParagraph(
-          'Export has its own button on the top bar, between the AI Assistant and the gear. It opens a panel: tick the notes you want. The open note comes ticked, and opening a folder lets you pick single notes inside it. Then pick a format and press **Export**. One note downloads as one file; several download as one `.zip`, folders kept.',
+          'Export has its own button on the top bar, between the AI Assistant and the gear. It opens a panel: tick the notes you want. The open note comes ticked, and opening a folder lets you pick single notes inside it. Then pick a format and press **Export**. One note becomes one file; several become one `.zip`, folders kept. Where the browser can, Papeliz asks where to save it; otherwise, or if the file can’t be written there, it downloads.',
         ),
         helpParagraph(
           'For Word and PDF, press the gear on the format’s row to choose the **Paper**: Letter, A4 and the other sizes Google Docs offers, or **Custom** for your own width and height, from 3 to 22 inches a side (76.2 to 558.8 mm). The row shows the paper you chose. Papeliz starts with your region’s paper and remembers the one you pick.',
@@ -346,8 +361,82 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
       ]),
       helpSection('On the start page', [
         helpParagraph('The start page has a gear too, with **Account**, **Sync** and **Accessibility**. With no vault open, Accessibility holds only the theme.'),
+        helpParagraph('The start page also has **Templates** and **Synced Vaults**. See [[open-a-folder]] and [[sync-your-vaults]].'),
       ]),
     ],
     relatedArticleSlugs: ['text-settings-and-theme', 'keyboard-shortcuts', 'switch-views-and-lock'],
+  },
+  {
+    papelizHelpArticleSlug: 'sync-your-vaults',
+    articleTitle: 'Sync your vaults',
+    articleSummary: 'Sign in, turn on Papeliz Sync for a vault, and open it on your other devices.',
+    papelizHelpGroupSlug: 'getting-started',
+    papelizHelpArticleAvailability: 'available',
+    articleSections: [
+      helpSection('What it is', [
+        helpParagraph(
+          'Papeliz Sync is an optional add-on that keeps your vaults the same on all your devices. Papeliz itself needs no account; Sync needs a free Papeliz account, and every account comes with the Free plan. Paid plans hold more. See [[sync-plans]].',
+        ),
+      ]),
+      helpSection('Sign in', [
+        helpNumberedSteps([
+          'Open the gear at the right end of the top bar and choose **Sync** or **Account**, then **Sign In**. On the start page, **Synced Vaults** has **Sign In** too.',
+          'The sign-in page, papeliz.com/account, opens in a new tab. Sign in with an email code, Google or Apple.',
+          'A new account picks where its synced files are stored: Eastern North America, Western North America, Europe, Asia-Pacific or Oceania. The one nearest you is chosen first. You can’t change it later.',
+          'Come back to Papeliz’s tab. It shows your account.',
+        ]),
+        helpParagraph(
+          'If your browser blocks the new tab, Papeliz says so and shows **Copy Sign-In URL to Clipboard** and a **Sign In** link. Press **Sign In** to open the page yourself, or paste the copied address into a new tab.',
+        ),
+        helpParagraph(
+          'A device stays signed in until you sign it out, remove it, or delete your account. A few actions, such as changing a passphrase or deleting your account, ask you to sign in again first.',
+        ),
+      ]),
+      helpSection('Choose a plan', [
+        helpParagraph(
+          'The **Plans** tab of the gear’s **Sync** page lists Free and the paid plans. **Choose** on a paid plan opens checkout in a new tab. If you aren’t signed in yet, Papeliz first asks where your files are stored and signs you in. You can also choose a plan on papeliz.com/pricing.',
+        ),
+      ]),
+      helpSection('Turn on Sync for a vault', [
+        helpNumberedSteps([
+          'Open the vault, then the gear’s **Sync** page, on the **Settings** tab.',
+          'Turn on the vault’s switch. **Turn On Sync for This Vault** asks who can read the vault: **Standard** or **End-to-end**.',
+          'For End-to-end, type a passphrase of at least 12 characters, twice. Papeliz never receives it and can’t recover it, so keep it somewhere safe.',
+          'The first upload starts. It goes on if you close the dialog.',
+        ]),
+        helpDetailList([
+          ['Standard', 'Encrypted on your device. Papeliz keeps the vault’s key, so the vault opens on any device you sign in on, and Papeliz could read it.'],
+          ['End-to-end', 'Encrypted on your device with a key only your passphrase opens. Papeliz can’t read it.'],
+        ]),
+        helpParagraph('Either way, a vault’s name isn’t encrypted. Your AI provider keys never sync: you paste yours on each device.'),
+      ]),
+      helpSection('Open it on another device', [
+        helpParagraph(
+          'Sign in on the other device, then choose **Synced Vaults** on the start page and pick the vault. Papeliz downloads it and shows its progress. An End-to-end vault asks for its passphrase.',
+        ),
+      ]),
+      helpSection('What syncs', [
+        helpParagraph(
+          'Notes, attachments and the vault’s own Papeliz settings, such as the file order. Under **What Syncs**, on the **Settings** tab, two switches choose whether **Settings** (theme, text and key bindings) and **Assistant Chats** sync too.',
+        ),
+        helpParagraph(
+          'When two devices change the same note, the changes merge line by line. If both changed the same lines, Papeliz asks which to keep.',
+        ),
+      ]),
+      helpSection('See it in the app', [
+        helpParagraph(
+          'On the start page, **Recent Vaults** marks each vault **Sync**, with **Standard Encryption** or **End-to-End Encryption**, or **Local** for one that doesn’t sync. The status bar shows how a synced vault is doing, such as offline or paused.',
+        ),
+        helpParagraph(
+          '**Pause on This Device** stops syncing here for a while. **Old Versions** shows the open note’s earlier versions. See [[sync-old-versions]].',
+        ),
+      ]),
+      helpSection('Your account page', [
+        helpParagraph(
+          'papeliz.com/account shows your profile, your devices, your synced vaults and billing. There you can rename or remove a device, change a vault’s passphrase, delete a vault from Sync, manage your subscription, and delete your account.',
+        ),
+      ]),
+    ],
+    relatedArticleSlugs: ['sync-plans', 'sync-old-versions', 'settings-gear', 'where-your-notes-live'],
   },
 ]

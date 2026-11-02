@@ -51,7 +51,7 @@ export const papelizSitePricingQuestions: PapelizSiteQuestion[] = [
     papelizSiteQuestionAnchor: 'monthly-or-yearly',
     papelizSiteQuestionText: 'Can I pay monthly?',
     papelizSiteQuestionAnswerParts: [
-      `Yes. Yearly is chosen first, and costs ${readPapelizSiteSyncPlanYearlyDiscountPercent(papelizSiteSyncPlans[0]!)}% less than twelve months billed monthly. Monthly is one click away, above the plans.`,
+      `Yes. Yearly is chosen by default, and costs ${readPapelizSiteSyncPlanYearlyDiscountPercent(papelizSiteSyncPlans[0]!)}% less than twelve months billed monthly. Monthly is one click away, above the plans.`,
     ],
   },
   {
@@ -124,7 +124,24 @@ export const papelizSiteSyncQuestions: PapelizSiteQuestion[] = [
     papelizSiteQuestionAnchor: 'where-is-it-stored',
     papelizSiteQuestionText: 'Where is my synced data stored?',
     papelizSiteQuestionAnswerParts: [
-      'In the place you pick when you sign up for Sync: North America (East or West), Europe, Asia-Pacific or Oceania. Europe is stored in the EU. You pick once, and it stays there.',
+      'In the place you pick when you sign up for Sync: Eastern North America, Western North America, Europe, Asia-Pacific or Oceania. Papeliz marks the one nearest you. Europe is stored in the EU. You pick once, and it stays there.',
+    ],
+  },
+  {
+    papelizSiteQuestionAnchor: 'how-do-i-sign-in',
+    papelizSiteQuestionText: 'How do I sign in on a device?',
+    papelizSiteQuestionAnswerParts: [
+      'In Papeliz, choose Sign In in the Settings gear’s Sync or Account page, or on the start page’s Synced Vaults. Papeliz opens papeliz.com/account in a new tab. If your browser blocks the tab, press the Sign In link that shows instead. The device then stays signed in until you sign it out, remove it, or delete your account.',
+    ],
+  },
+  {
+    papelizSiteQuestionAnchor: 'old-versions',
+    papelizSiteQuestionText: 'Can I get an older version of a note back?',
+    papelizSiteQuestionAnswerParts: [
+      'Yes. Sync keeps old versions of your files for as long as your plan’s version history lasts. With the note open, choose Old Versions in the Settings gear’s Sync page to look at one or restore it. Old versions count toward your storage, and you can delete them to free up space. ',
+      ...(papelizSiteHelpUrl
+        ? [{ papelizSiteQuestionAnswerLinkLabel: 'Each plan’s version history', papelizSiteQuestionAnswerLinkHref: `${papelizSiteHelpUrl}sync-plans/` }]
+        : []),
     ],
   },
   {

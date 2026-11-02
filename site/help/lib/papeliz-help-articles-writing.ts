@@ -194,7 +194,7 @@ tags: [garden, plans]
           '**Turn the lines into**: heading 1, 2 or 3, a bulleted list, a numbered list, a checklist, or a quote.',
           '**Text Color** and **Text Size**: color the selection from the palette or with any color, and make it larger or smaller.',
           '**Cards**: turn the lines into a callout card. See [[tags-properties-and-cards]].',
-          '**Assistant**: Edit with Assistant and Ask Assistant, still in development. See [[inline-edits]].',
+          '**Assistant**: Edit with Assistant and Ask Assistant. See [[inline-edits]].',
           'Cut, copy, paste, select all, undo and redo.',
         ]),
       ]),
@@ -244,7 +244,7 @@ tags: [garden, plans]
   {
     papelizHelpArticleSlug: 'text-settings-and-theme',
     articleTitle: 'Text settings and theme',
-    articleSummary: 'Choose the font, size and width of your notes, a light or dark theme, and how note tabs show.',
+    articleSummary: 'Choose the font, size and width of your notes, a light or dark theme, and how tabs show.',
     papelizHelpGroupSlug: 'writing',
     papelizHelpArticleAvailability: 'available',
     articleSections: [
@@ -259,7 +259,7 @@ tags: [garden, plans]
       helpSection('Theme', [
         helpParagraph('**Theme**, at the top of the gear’s **Accessibility** page, picks **Light**, **Dark**, or **Device**, which follows your device’s setting. The start page’s gear has it too.'),
       ]),
-      helpSection('Note tabs', [
+      helpSection('Tabs', [
         helpParagraph(
           '**Tabs**, also on the **Accessibility** page, picks how tabs show when they don’t fit in one row. **Scroll** keeps one row that scrolls sideways, and **Stack** wraps them onto more rows, so every tab shows.',
         ),
@@ -277,17 +277,22 @@ tags: [garden, plans]
     articleTitle: 'Backlinks and Outline',
     articleSummary: 'See which notes link to this one, and jump between its headings.',
     papelizHelpGroupSlug: 'writing',
-    papelizHelpArticleAvailability: 'in-development',
+    papelizHelpArticleAvailability: 'available',
     articleSections: [
-      helpSection('Backlinks', [
+      helpSection('This Note', [
         helpParagraph(
-          'The **Backlinks** tab in the Assistant panel lists every note that links to the open note, the notes with the most links first. The tab’s label shows how many there are. Click one to open it.',
+          '**This Note**, at the foot of the file list, has two tabs: **Outline** and **Backlinks**. Click its heading to fold it away; folded, it still shows how many backlinks the note has. Papeliz remembers whether it’s folded.',
         ),
       ]),
       helpSection('Outline', [
-        helpParagraph('The **Outline** tab lists the open note’s headings. Click a heading to move there.'),
+        helpParagraph('**Outline** lists the open note’s headings, and marks the one your cursor is under. Click a heading to move there.'),
+      ]),
+      helpSection('Backlinks', [
+        helpParagraph(
+          '**Backlinks** lists every note that links to the open note, the notes with the most links first. The tab’s label shows how many there are. Click one to open it.',
+        ),
       ]),
     ],
-    relatedArticleSlugs: ['links-between-notes', 'chat-with-the-assistant'],
+    relatedArticleSlugs: ['links-between-notes', 'file-explorer'],
   },
 ]

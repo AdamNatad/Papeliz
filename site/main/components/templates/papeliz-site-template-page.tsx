@@ -142,7 +142,7 @@ export function PapelizSiteTemplatePage({
               {papelizSiteTemplateRow.templateDownVoteCount.toLocaleString('en-US')} down
             </span>
           </span>
-          <span className="mt-1 block text-sm">Vote in Papeliz, signed in with a free account.</span>
+          <span className="mt-1 block text-sm">Voting in Papeliz is coming, with a free account.</span>
         </PapelizSiteTemplateDetail>
       </dl>
     </article>
