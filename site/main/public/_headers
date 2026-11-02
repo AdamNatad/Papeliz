@@ -1,10 +1,15 @@
 # Response headers for the static host (Cloudflare Workers static assets reads this file).
-# The webapp under /app/ adds its own strict Content-Security-Policy when the folders are assembled.
+# The webapp at /app/ is served by its own Worker, with its own _headers and strict policy.
+#
+# Every website page also carries a script policy of its own in a <meta> tag, which the site build
+# writes (site/main/scripts/papeliz-site-page-script-policy.mjs): its script-src allows only this
+# site's script files and the SHA-256 hash of each inline script on that page. A <meta> policy can't
+# set frame-ancestors, so that stays here, with object-src and base-uri for every page on the domain.
 
 /*
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
-  Content-Security-Policy: frame-ancestors 'self'
+  Content-Security-Policy: frame-ancestors 'self'; object-src 'none'; base-uri 'none'
   Permissions-Policy: camera=(), microphone=(), geolocation=()
 
 /_next/static/*

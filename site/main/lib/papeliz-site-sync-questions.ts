@@ -2,6 +2,7 @@ import { papelizSiteHelpUrl } from './papeliz-site-config'
 import {
   papelizSiteSyncConnectedDeviceLimit,
   papelizSiteSyncEducationAndNonProfitDiscountPercent,
+  papelizSiteSyncFreePlan,
   papelizSiteSyncRefundWindowDayCount,
 } from './papeliz-site-sync-plans'
 
@@ -34,13 +35,15 @@ export const papelizSitePricingQuestions: PapelizSiteQuestion[] = [
     papelizSiteQuestionAnchor: 'how-do-i-sign-up',
     papelizSiteQuestionText: 'How do I sign up for Sync?',
     papelizSiteQuestionAnswerParts: [
-      'Choose a plan on this page, or in Papeliz under Settings › Sync. You sign in, pick where your synced notes are stored, then pay at checkout.',
+      'Choose a plan on this page, or in Papeliz under Settings › Sync. You sign in and pick where your synced notes are stored. Free starts right away; a paid plan then goes to checkout.',
     ],
   },
   {
     papelizSiteQuestionAnchor: 'free-trial-and-refunds',
     papelizSiteQuestionText: 'Is there a free trial?',
-    papelizSiteQuestionAnswerParts: [`No. Instead, you can get a full refund within ${papelizSiteSyncRefundWindowDayCount} days of subscribing.`],
+    papelizSiteQuestionAnswerParts: [
+      `No, but there is a Free plan: ${papelizSiteSyncFreePlan.papelizSiteSyncFreePlanStorageLabel} of storage, ${papelizSiteSyncFreePlan.papelizSiteSyncFreePlanVaultLimit} synced vault and ${papelizSiteSyncFreePlan.papelizSiteSyncFreePlanConnectedDeviceLimit} devices. A paid plan can be fully refunded within ${papelizSiteSyncRefundWindowDayCount} days of subscribing.`,
+    ],
   },
   {
     papelizSiteQuestionAnchor: 'education-and-non-profit-discount',
@@ -105,7 +108,7 @@ export const papelizSiteSyncQuestions: PapelizSiteQuestion[] = [
     papelizSiteQuestionAnchor: 'where-is-it-stored',
     papelizSiteQuestionText: 'Where is my synced data stored?',
     papelizSiteQuestionAnswerParts: [
-      'In the place you pick before you subscribe: North America (East or West), Europe, Asia-Pacific or Oceania. Europe keeps it inside the EU. You pick once, and it stays there.',
+      'In the place you pick when you sign up for Sync: North America (East or West), Europe, Asia-Pacific or Oceania. Europe is stored in the EU. You pick once, and it stays there.',
     ],
   },
   {
@@ -119,7 +122,7 @@ export const papelizSiteSyncQuestions: PapelizSiteQuestion[] = [
     papelizSiteQuestionAnchor: 'how-many-devices',
     papelizSiteQuestionText: 'How many devices can I use?',
     papelizSiteQuestionAnswerParts: [
-      `As many as you like, on the web, desktop and mobile. Up to ${papelizSiteSyncConnectedDeviceLimit} can be connected at once.`,
+      `As many as you like, on the web, desktop and mobile. Up to ${papelizSiteSyncConnectedDeviceLimit} can be connected at once on a paid plan, and ${papelizSiteSyncFreePlan.papelizSiteSyncFreePlanConnectedDeviceLimit} on Free.`,
     ],
   },
 ]

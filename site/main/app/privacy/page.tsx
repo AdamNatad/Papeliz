@@ -6,7 +6,7 @@ import { createPapelizSitePageMetadata } from '@/lib/papeliz-site-seo'
 // The summary once the account and Sync sections below are approved (shown with them on the dev
 // server only).
 const papelizSitePrivacyDraftSummary =
-  'Papeliz needs no account and never sees your AI key. If you sign up for Papeliz Sync, the optional paid add-on, Papeliz runs a server for your account and the vaults you sync. This page explains where your data goes. It is a draft and will be finalized before launch.'
+  'Papeliz needs no account and never sees your AI key. If you sign up for Papeliz Sync, the optional add-on, Papeliz runs a server for your account and the vaults you sync. This page explains where your data goes. It is a draft and will be finalized before launch.'
 
 export const metadata = createPapelizSitePageMetadata({
   papelizSitePageTitle: 'Privacy Policy',
@@ -34,7 +34,7 @@ export default function PapelizSitePrivacyPage() {
 
       <PapelizLegalDocumentSection papelizLegalSectionTitle="Papeliz Sync">
         <p>
-          Papeliz Sync, a paid add-on, keeps the vaults you choose the same on your devices. A synced
+          Papeliz Sync, an optional add-on, keeps the vaults you choose the same on your devices. A synced
           vault is encrypted on your device before it is uploaded, and is one of two kinds, chosen when
           you turn Sync on for it. In a Standard vault, Papeliz keeps the vault’s key, so Papeliz could
           read it. An End-to-end vault has its own passphrase, which Papeliz never receives, so Papeliz
@@ -114,8 +114,14 @@ export default function PapelizSitePrivacyPage() {
             </p>
             <p>
               Your synced files are stored in the place you chose when you signed up: eastern or western North
-              America, the EU, Asia-Pacific or Oceania. The EU place is guaranteed to stay in the EU. The small
-              directory that finds your account when you sign in is kept in the EU.
+              America, the EU, Asia-Pacific or Oceania. Your account’s details are kept in that same place. The
+              small index that finds your account when you sign in holds only a keyed hash of your sign-in ID,
+              your account ID and its place.
+            </p>
+            <p>
+              Papeliz Sync also keeps encrypted backups of these details and of your files, which are already
+              encrypted on your device, so they can be restored after a failure. These backups may be kept
+              outside your region.
             </p>
           </PapelizLegalDocumentSection>
 

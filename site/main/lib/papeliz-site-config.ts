@@ -21,6 +21,9 @@ export const papelizSiteAppUrl: string | null = '/app/'
 export const papelizSiteDownloadUrl: string | null = '/download/'
 // My Account opens the sign-in and account page (app/account/), live with Papeliz Sync (Adam, 2026-10-31).
 export const papelizSiteAccountUrl: string | null = '/account/'
+// The Templates pages (app/templates/), which ship with the Templates Worker. While null, the header
+// leaves the Templates link out; the pages are still built.
+export const papelizSiteTemplatesUrl: string | null = '/templates/'
 export const papelizSiteGitHubRepositoryUrl: string | null = 'https://github.com/AdamNatad/Papeliz'
 // GitHub's Discussions and Issues for the repository. Discussions are turned off on the repository
 // for now, so their link shows "Coming soon" until they are turned on.

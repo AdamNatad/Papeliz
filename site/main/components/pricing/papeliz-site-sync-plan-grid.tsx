@@ -4,13 +4,18 @@ import { Check } from 'lucide-react'
 import Link from 'next/link'
 import { useState } from 'react'
 import {
+  describePapelizSiteSyncFreePlanLimits,
   describePapelizSiteSyncPlanLimits,
   formatPapelizSiteSyncUsd,
   createPapelizSiteSyncSignUpHref,
+  papelizSiteSyncFreePlan,
+  papelizSiteSyncFreeSignUpHref,
   papelizSiteSyncPlans,
   readPapelizSiteSyncPlanMonthlyRateUsd,
   type PapelizSiteSyncBillingPeriod,
+  type PapelizSiteSyncFreePlanId,
   type PapelizSiteSyncPlan,
+  type PapelizSiteSyncPlanId,
 } from '@/lib/papeliz-site-sync-plans'
 import { PapelizSiteBillingPeriodSwitch } from './papeliz-site-billing-period-switch'
 import { createPapelizSiteYearlySavingsBadgeInfo, papelizSiteSyncYearlyMonthsSaved } from './papeliz-site-yearly-savings-info'
@@ -21,13 +26,16 @@ const papelizSiteSyncAddOnCardLines = [
   'End-to-end encryption for the vaults you choose',
   'Edits from every device merge',
   'Choose where your notes are stored',
-  'Standard, Plus and Pro plans',
+  'Free, Standard, Plus and Pro plans',
 ]
 
 type PapelizSiteSyncPlanCardProps = {
+  papelizSiteSyncPlanCardPlanId: PapelizSiteSyncPlanId | PapelizSiteSyncFreePlanId
   papelizSiteSyncPlanCardTitle: string
-  papelizSiteSyncPlan: PapelizSiteSyncPlan
-  papelizSiteSyncBillingPeriod: PapelizSiteSyncBillingPeriod
+  papelizSiteSyncPlanCardPriceUsd: number
+  // Under the price: how a paid plan is billed, or that Free needs no card.
+  papelizSiteSyncPlanCardPriceNote: string
+  papelizSiteSyncPlanCardSignUpHref: string | null
   papelizSiteSyncPlanCardLines: string[]
   // Pricing's card links to the Sync page; the Sync page's own cards do not.
   papelizSiteSyncPlanCardShowsLearnMore: boolean
@@ -36,33 +44,32 @@ type PapelizSiteSyncPlanCardProps = {
 // One card: the name, the price for a month, how it is billed, Sign up (and Learn more on Pricing),
 // then its lines with green checks.
 function PapelizSiteSyncPlanCard({
+  papelizSiteSyncPlanCardPlanId,
   papelizSiteSyncPlanCardTitle,
-  papelizSiteSyncPlan,
-  papelizSiteSyncBillingPeriod,
+  papelizSiteSyncPlanCardPriceUsd,
+  papelizSiteSyncPlanCardPriceNote,
+  papelizSiteSyncPlanCardSignUpHref,
   papelizSiteSyncPlanCardLines,
   papelizSiteSyncPlanCardShowsLearnMore,
 }: PapelizSiteSyncPlanCardProps) {
   const papelizSiteSyncPlanButtonClassName =
     'flex min-h-12 items-center justify-center rounded-full px-3 py-2 text-base font-medium transition-colors'
-  const papelizSiteSyncSignUpHref = createPapelizSiteSyncSignUpHref(papelizSiteSyncPlan.papelizSiteSyncPlanId, papelizSiteSyncBillingPeriod)
   return (
     <article
-      data-papeliz-site-sync-plan={papelizSiteSyncPlan.papelizSiteSyncPlanId}
+      data-papeliz-site-sync-plan={papelizSiteSyncPlanCardPlanId}
       className="flex min-w-0 flex-col rounded-3xl border border-papeliz-line bg-papeliz-surface-soft p-7 sm:p-8"
     >
       <h3 className="text-xl leading-7 font-semibold tracking-tight">{papelizSiteSyncPlanCardTitle}</h3>
       <div className="mt-6 flex items-baseline gap-1">
-        <span className="text-5xl leading-[1.15] font-semibold tracking-[-0.04em]">
-          {formatPapelizSiteSyncUsd(readPapelizSiteSyncPlanMonthlyRateUsd(papelizSiteSyncPlan, papelizSiteSyncBillingPeriod))}
-        </span>
+        <span className="text-5xl leading-[1.15] font-semibold tracking-[-0.04em]">{formatPapelizSiteSyncUsd(papelizSiteSyncPlanCardPriceUsd)}</span>
         <span className="text-sm text-papeliz-ink-subtle">USD</span>
       </div>
-      {/* "USD" alone beside the price (Adam, 2026-10-31); this line says it is a month's price. */}
-      <p className="mt-2 min-h-6 text-base text-papeliz-ink-muted">{papelizSiteSyncBillingPeriod === 'yearly' ? 'Per month, billed yearly' : 'Billed monthly'}</p>
+      {/* "USD" alone beside the price (Adam, 2026-10-31); the line under it says how it is billed, or that Free needs no card. */}
+      <p className="mt-2 min-h-6 text-base text-papeliz-ink-muted">{papelizSiteSyncPlanCardPriceNote}</p>
       <div className="mt-10 grid gap-3">
-        {papelizSiteSyncSignUpHref && (
+        {papelizSiteSyncPlanCardSignUpHref && (
           <a
-            href={papelizSiteSyncSignUpHref}
+            href={papelizSiteSyncPlanCardSignUpHref}
             className={`${papelizSiteSyncPlanButtonClassName} bg-papeliz-blue text-papeliz-on-blue hover:bg-papeliz-blue-hover`}
           >
             Sign up
@@ -95,6 +102,33 @@ type PapelizSiteSyncPlanGridProps = {
   papelizSiteSyncPlanGridShows: 'add-on-card' | 'every-plan'
 }
 
+// A paid plan's card, at its price for the billing period chosen.
+function PapelizSiteSyncPaidPlanCard({
+  papelizSiteSyncPlanCardTitle,
+  papelizSiteSyncPlan,
+  papelizSiteSyncBillingPeriod,
+  papelizSiteSyncPlanCardLines,
+  papelizSiteSyncPlanCardShowsLearnMore,
+}: {
+  papelizSiteSyncPlanCardTitle: string
+  papelizSiteSyncPlan: PapelizSiteSyncPlan
+  papelizSiteSyncBillingPeriod: PapelizSiteSyncBillingPeriod
+  papelizSiteSyncPlanCardLines: string[]
+  papelizSiteSyncPlanCardShowsLearnMore: boolean
+}) {
+  return (
+    <PapelizSiteSyncPlanCard
+      papelizSiteSyncPlanCardPlanId={papelizSiteSyncPlan.papelizSiteSyncPlanId}
+      papelizSiteSyncPlanCardTitle={papelizSiteSyncPlanCardTitle}
+      papelizSiteSyncPlanCardPriceUsd={readPapelizSiteSyncPlanMonthlyRateUsd(papelizSiteSyncPlan, papelizSiteSyncBillingPeriod)}
+      papelizSiteSyncPlanCardPriceNote={papelizSiteSyncBillingPeriod === 'yearly' ? 'Per month, billed yearly' : 'Billed monthly'}
+      papelizSiteSyncPlanCardSignUpHref={createPapelizSiteSyncSignUpHref(papelizSiteSyncPlan.papelizSiteSyncPlanId, papelizSiteSyncBillingPeriod)}
+      papelizSiteSyncPlanCardLines={papelizSiteSyncPlanCardLines}
+      papelizSiteSyncPlanCardShowsLearnMore={papelizSiteSyncPlanCardShowsLearnMore}
+    />
+  )
+}
+
 // Papeliz Sync under the Monthly / Yearly switch. Yearly is chosen first; its badge counts the
 // saving in months, and its info mark opens the table behind it.
 export function PapelizSiteSyncPlanGrid({ papelizSiteSyncPlanGridShows }: PapelizSiteSyncPlanGridProps) {
@@ -119,7 +153,7 @@ export function PapelizSiteSyncPlanGrid({ papelizSiteSyncPlanGridShows }: Papeli
       </div>
       {papelizSiteSyncPlanGridShows === 'add-on-card' ? (
         <div className="mx-auto grid max-w-sm grid-cols-1">
-          <PapelizSiteSyncPlanCard
+          <PapelizSiteSyncPaidPlanCard
             papelizSiteSyncPlanCardTitle="Sync"
             papelizSiteSyncPlan={papelizSiteSyncPlans[0]!}
             papelizSiteSyncBillingPeriod={papelizSiteChosenSyncBillingPeriod}
@@ -128,9 +162,19 @@ export function PapelizSiteSyncPlanGrid({ papelizSiteSyncPlanGridShows }: Papeli
           />
         </div>
       ) : (
-        <div className="mx-auto grid max-w-md grid-cols-1 gap-6 lg:max-w-5xl lg:grid-cols-3">
+        // Free first, then the paid plans: two by two on a tablet, four across on a wide screen.
+        <div className="mx-auto grid max-w-md grid-cols-1 gap-6 md:max-w-3xl md:grid-cols-2 xl:max-w-none xl:grid-cols-4">
+          <PapelizSiteSyncPlanCard
+            papelizSiteSyncPlanCardPlanId={papelizSiteSyncFreePlan.papelizSiteSyncFreePlanId}
+            papelizSiteSyncPlanCardTitle={papelizSiteSyncFreePlan.papelizSiteSyncFreePlanName}
+            papelizSiteSyncPlanCardPriceUsd={0}
+            papelizSiteSyncPlanCardPriceNote="No card needed"
+            papelizSiteSyncPlanCardSignUpHref={papelizSiteSyncFreeSignUpHref}
+            papelizSiteSyncPlanCardLines={describePapelizSiteSyncFreePlanLimits()}
+            papelizSiteSyncPlanCardShowsLearnMore={false}
+          />
           {papelizSiteSyncPlans.map((papelizSiteSyncPlan) => (
-            <PapelizSiteSyncPlanCard
+            <PapelizSiteSyncPaidPlanCard
               key={papelizSiteSyncPlan.papelizSiteSyncPlanId}
               papelizSiteSyncPlanCardTitle={papelizSiteSyncPlan.papelizSiteSyncPlanName}
               papelizSiteSyncPlan={papelizSiteSyncPlan}

@@ -78,9 +78,9 @@ export default function PapelizSiteTermsPage() {
 
           <PapelizLegalDocumentSection papelizLegalSectionTitle="Papeliz Sync">
             <p>
-              Papeliz Sync is an optional paid add-on that keeps the vaults you choose the same on your
-              devices. It needs a Papeliz account, made on papeliz.com/account. Each plan’s limits are on
-              the <Link href="/sync/" className="font-medium text-papeliz-blue hover:underline">Sync page</Link>,
+              Papeliz Sync is an optional add-on that keeps the vaults you choose the same on your devices,
+              on a Free plan or a paid one. It needs a Papeliz account, made on papeliz.com/account. Each
+              plan’s limits are on the <Link href="/sync/" className="font-medium text-papeliz-blue hover:underline">Sync page</Link>,
               and fair-use limits on daily transfers keep the service working for everyone. Papeliz may pause
               uploads for an account that tries to get around the limits or harms the service; downloads go on.
             </p>

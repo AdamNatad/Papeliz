@@ -56,7 +56,34 @@ export const papelizSiteSyncPlans: readonly PapelizSiteSyncPlan[] = [
   },
 ]
 
-// The same on every plan.
+// The Free plan: no price and no checkout, since a free Papeliz account gets it at sign-in. It sits
+// beside the paid plans, not among them, so nothing that sells a plan ever offers it.
+export type PapelizSiteSyncFreePlanId = 'free'
+
+export const papelizSiteSyncFreePlan = {
+  papelizSiteSyncFreePlanId: 'free' as PapelizSiteSyncFreePlanId,
+  papelizSiteSyncFreePlanName: 'Free',
+  papelizSiteSyncFreePlanStorageLabel: '10 MB',
+  papelizSiteSyncFreePlanVaultLimit: 1,
+  papelizSiteSyncFreePlanConnectedDeviceLimit: 2,
+  papelizSiteSyncFreePlanLargestFileLabel: '5 MB',
+  papelizSiteSyncFreePlanNoteHistoryDayCount: 7,
+} as const
+
+// The Free card's lines, in the paid cards' order, with its device limit and both kinds of
+// encryption said outright, since they are where Free differs or might be expected to.
+export function describePapelizSiteSyncFreePlanLimits(): string[] {
+  return [
+    `${papelizSiteSyncFreePlan.papelizSiteSyncFreePlanStorageLabel} storage`,
+    `${papelizSiteSyncFreePlan.papelizSiteSyncFreePlanVaultLimit} synced vault`,
+    `${papelizSiteSyncFreePlan.papelizSiteSyncFreePlanConnectedDeviceLimit} devices`,
+    `${papelizSiteSyncFreePlan.papelizSiteSyncFreePlanLargestFileLabel} per file`,
+    `${papelizSiteSyncFreePlan.papelizSiteSyncFreePlanNoteHistoryDayCount} days of note history`,
+    'Standard and End-to-end encryption',
+  ]
+}
+
+// The same on every paid plan.
 export const papelizSiteSyncConnectedDeviceLimit = 20
 export const papelizSiteSyncEducationAndNonProfitDiscountPercent = 40
 export const papelizSiteSyncRefundWindowDayCount = 7
@@ -95,6 +122,9 @@ export function createPapelizSiteSyncSignUpHref(
   })
   return `${papelizSiteAccountUrl}?${papelizSiteSyncSignUpAddressParameters.toString()}`
 }
+
+// The Free card's Sign up: the account page with no plan chosen, since signing in is all Free needs.
+export const papelizSiteSyncFreeSignUpHref: string | null = papelizSiteAccountUrl
 
 // A plan's price for a month: the monthly price, or the yearly price spread over 12 months.
 export function readPapelizSiteSyncPlanMonthlyRateUsd(papelizSiteSyncPlan: PapelizSiteSyncPlan, papelizSiteSyncBillingPeriod: PapelizSiteSyncBillingPeriod): number {

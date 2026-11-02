@@ -68,8 +68,8 @@ export default function PapelizSiteAboutPage() {
             <p className="mt-3 text-[17px] leading-relaxed text-papeliz-ink-muted">
               Papeliz is made by {papelizSiteCopyrightHolder}, which holds its copyright and releases it
               under the <Link href="/license/" className="font-medium text-papeliz-blue hover:underline">MIT License</Link>.
-              It is free and needs no account. The one paid add-on,{' '}
-              <Link href="/sync/" className="font-medium text-papeliz-blue hover:underline">Papeliz Sync</Link>, is optional.
+              It is free and needs no account. The one add-on,{' '}
+              <Link href="/sync/" className="font-medium text-papeliz-blue hover:underline">Papeliz Sync</Link>, is optional and has a Free plan.
             </p>
           </div>
           <div>

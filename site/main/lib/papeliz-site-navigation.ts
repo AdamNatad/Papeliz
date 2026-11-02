@@ -1,5 +1,5 @@
 import { Info, LifeBuoy, Milestone, ScrollText, Sparkles, type LucideIcon } from 'lucide-react'
-import { papelizSiteDiscordUrl, papelizSiteGitHubRepositoryUrl, papelizSiteHelpUrl } from './papeliz-site-config'
+import { papelizSiteDiscordUrl, papelizSiteGitHubRepositoryUrl, papelizSiteHelpUrl, papelizSiteTemplatesUrl } from './papeliz-site-config'
 
 export type PapelizSiteNavigationLink = {
   papelizSiteNavigationHref: string
@@ -25,10 +25,11 @@ const papelizSiteHelpNavigationLinks: PapelizSiteNavigationLink[] = papelizSiteH
   : []
 
 // The top menu (Adam, 2026-10-31, "Menu 1"): Pricing, Sync and
-// Features as links, then the Resources menu.
+// Features as links, then the Resources menu. Templates sits beside Sync (the Templates plan).
 export const papelizSiteHeaderLinks: PapelizSiteNavigationLink[] = [
   { papelizSiteNavigationHref: '/pricing/', papelizSiteNavigationLabel: 'Pricing' },
   { papelizSiteNavigationHref: '/sync/', papelizSiteNavigationLabel: 'Sync' },
+  ...(papelizSiteTemplatesUrl ? [{ papelizSiteNavigationHref: papelizSiteTemplatesUrl, papelizSiteNavigationLabel: 'Templates' }] : []),
   { papelizSiteNavigationHref: '/features/', papelizSiteNavigationLabel: 'Features' },
 ]
 
@@ -100,11 +101,13 @@ export const papelizSiteFooterSocialLinks: PapelizSiteFooterSocialLink[] = [
   { papelizSiteFooterSocialChannel: 'discord', papelizSiteFooterSocialLabel: 'Papeliz on Discord', papelizSiteFooterSocialUrl: papelizSiteDiscordUrl },
 ]
 
-// Every exported page, for the sitemap and the export check.
+// Every exported page, for the sitemap and the export check. Each template's own page is added
+// from the build's Templates list (app/sitemap.ts).
 export const papelizSitePagePaths = [
   '/',
   '/pricing/',
   '/sync/',
+  '/templates/',
   '/download/',
   '/features/',
   '/providers/',

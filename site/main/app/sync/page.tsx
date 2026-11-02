@@ -6,6 +6,7 @@ import { createPapelizSitePageMetadata } from '@/lib/papeliz-site-seo'
 import {
   papelizSiteSyncConnectedDeviceLimit,
   papelizSiteSyncEducationAndNonProfitDiscountPercent,
+  papelizSiteSyncFreePlan,
   papelizSiteSyncRefundWindowDayCount,
   createPapelizSiteSyncSignUpHref,
 } from '@/lib/papeliz-site-sync-plans'
@@ -69,7 +70,7 @@ const papelizSiteSyncDetailColumns = [
       { papelizSiteSyncDetailLabel: 'Mobile', papelizSiteSyncDetailBody: 'Android, iOS and HarmonyOS.' },
       {
         papelizSiteSyncDetailLabel: 'Any number of devices',
-        papelizSiteSyncDetailBody: `Up to ${papelizSiteSyncConnectedDeviceLimit} connected at once.`,
+        papelizSiteSyncDetailBody: `Up to ${papelizSiteSyncConnectedDeviceLimit} connected at once, or ${papelizSiteSyncFreePlan.papelizSiteSyncFreePlanConnectedDeviceLimit} on Free.`,
       },
     ],
   },
@@ -77,8 +78,8 @@ const papelizSiteSyncDetailColumns = [
     papelizSiteSyncDetailColumnTitle: 'Where it lives',
     papelizSiteSyncDetailColumnItems: [
       { papelizSiteSyncDetailLabel: 'Your pick', papelizSiteSyncDetailBody: 'North America (East or West), Europe, Asia-Pacific or Oceania.' },
-      { papelizSiteSyncDetailLabel: 'Chosen once', papelizSiteSyncDetailBody: 'Before you subscribe, and it stays there.' },
-      { papelizSiteSyncDetailLabel: 'Europe', papelizSiteSyncDetailBody: 'Your synced data never leaves the EU.' },
+      { papelizSiteSyncDetailLabel: 'Chosen once', papelizSiteSyncDetailBody: 'When you sign up, and it stays there.' },
+      { papelizSiteSyncDetailLabel: 'Europe', papelizSiteSyncDetailBody: 'Stored in the EU.' },
     ],
   },
 ]
@@ -201,13 +202,13 @@ export default function PapelizSiteSyncPage() {
         <PapelizSiteSyncSectionHeading
           papelizSiteSyncSectionHeadingId="sync-plans-title"
           papelizSiteSyncSectionHeadingTitle="Pricing"
-          papelizSiteSyncSectionHeadingLead="Three plans, billed monthly or yearly. Prices in USD."
+          papelizSiteSyncSectionHeadingLead="Free, and three paid plans billed monthly or yearly. Prices in USD."
         />
         <PapelizSiteSyncPlanGrid papelizSiteSyncPlanGridShows="every-plan" />
         <dl className="mx-auto mt-8 max-w-3xl space-y-2.5 text-sm leading-relaxed text-papeliz-ink-muted">
           <div className="flex gap-2">
             <dt className="shrink-0 font-semibold text-papeliz-ink">Refunds</dt>
-            <dd>No trial. A full refund within {papelizSiteSyncRefundWindowDayCount} days of subscribing.</dd>
+            <dd>No trial. A full refund within {papelizSiteSyncRefundWindowDayCount} days of subscribing to a paid plan.</dd>
           </div>
           <div className="flex gap-2">
             <dt className="shrink-0 font-semibold text-papeliz-ink">Education and non-profits</dt>

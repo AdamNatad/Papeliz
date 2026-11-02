@@ -12,7 +12,7 @@ import {
   readPapelizAccountSyncPlanName,
   type PapelizAccountSyncBillingState,
 } from './papeliz-account-sync-billing'
-import type { PapelizAccountSyncBilling } from './papeliz-account-sync-service'
+import { isPapelizAccountSyncOnFreePlan, papelizAccountSyncFreePlanName, type PapelizAccountSyncBilling } from './papeliz-account-sync-service'
 
 type PapelizAccountBillingRow = {
   billingRowKey: 'subscription-and-payment-method' | 'invoices-and-refunds'
@@ -53,8 +53,9 @@ const papelizAccountBillingRows: readonly PapelizAccountBillingRow[] = [
   },
 ]
 
-// The subscription row's line, from the subscription's real state.
+// The subscription row's line, from the subscription's real state; Free, which has none, reads as its plan.
 function describePapelizAccountSyncSubscription(syncBilling: PapelizAccountSyncBilling, currentTime: number): string | null {
+  if (isPapelizAccountSyncOnFreePlan(syncBilling)) return `Sync ${readPapelizAccountSyncPlanName(papelizAccountSyncFreePlanName)}.`
   const syncPlanName = syncBilling.syncPlanName === null ? 'Sync' : `Sync ${readPapelizAccountSyncPlanName(syncBilling.syncPlanName)}`
   switch (syncBilling.syncSubscriptionState) {
     case 'active':

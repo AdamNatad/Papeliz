@@ -155,7 +155,7 @@ export function PapelizAccountSyncHandOverScreen({ papelizSyncSignInPageParamete
                   />
                   <span className="min-w-0 flex-1">
                     <span className="block text-sm font-semibold">{papelizAccountStoragePlaceLabels[papelizSyncStoragePlace].storagePlaceName}</span>
-                    <span className="block text-xs text-papeliz-ink-muted">{papelizAccountStoragePlaceLabels[papelizSyncStoragePlace].storagePlaceGuarantee}</span>
+                    <span className="block text-xs text-papeliz-ink-muted">{papelizAccountStoragePlaceLabels[papelizSyncStoragePlace].storagePlaceWhereStoredLine}</span>
                   </span>
                   {papelizSyncStoragePlace === nearestPapelizSyncStoragePlace && <span className="text-[11px] font-bold text-papeliz-blue">Nearest</span>}
                 </label>

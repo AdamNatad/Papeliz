@@ -60,12 +60,12 @@ export function readPapelizAccountPasskeysAreOn(papelizAccountClerk: object): bo
   return (papelizAccountClerk as PapelizAccountClerkWithInstanceSettings).__internal_environment?.userSettings?.attributes?.passkey?.enabled === true
 }
 
-export const papelizAccountStoragePlaceLabels: Record<PapelizSyncStoragePlace, { storagePlaceName: string; storagePlaceGuarantee: string }> = {
-  enam: { storagePlaceName: 'North America, East', storagePlaceGuarantee: 'Stored in eastern North America.' },
-  wnam: { storagePlaceName: 'North America, West', storagePlaceGuarantee: 'Stored in western North America.' },
-  eu: { storagePlaceName: 'Europe', storagePlaceGuarantee: 'Guaranteed to stay in the EU.' },
-  apac: { storagePlaceName: 'Asia-Pacific', storagePlaceGuarantee: 'Stored in Asia-Pacific.' },
-  oc: { storagePlaceName: 'Oceania', storagePlaceGuarantee: 'Stored in Oceania.' },
+export const papelizAccountStoragePlaceLabels: Record<PapelizSyncStoragePlace, { storagePlaceName: string; storagePlaceWhereStoredLine: string }> = {
+  enam: { storagePlaceName: 'North America, East', storagePlaceWhereStoredLine: 'Stored in eastern North America.' },
+  wnam: { storagePlaceName: 'North America, West', storagePlaceWhereStoredLine: 'Stored in western North America.' },
+  eu: { storagePlaceName: 'Europe', storagePlaceWhereStoredLine: 'Stored in the EU.' },
+  apac: { storagePlaceName: 'Asia-Pacific', storagePlaceWhereStoredLine: 'Stored in Asia-Pacific.' },
+  oc: { storagePlaceName: 'Oceania', storagePlaceWhereStoredLine: 'Stored in Oceania.' },
 }
 
 // The nearest place from the browser's time zone, without a request.

@@ -4,8 +4,10 @@ import { useState } from 'react'
 import { PapelizSiteBillingPeriodSwitch } from '@/components/pricing/papeliz-site-billing-period-switch'
 import { createPapelizSiteYearlySavingsBadgeInfo, papelizSiteSyncYearlyMonthsSaved } from '@/components/pricing/papeliz-site-yearly-savings-info'
 import {
+  describePapelizSiteSyncFreePlanLimits,
   describePapelizSiteSyncPlanLimits,
   formatPapelizSiteSyncUsd,
+  papelizSiteSyncFreePlan,
   papelizSiteSyncPlans,
   readPapelizSiteSyncPlanMonthlyRateUsd,
   type PapelizSiteSyncBillingPeriod,
@@ -13,10 +15,25 @@ import {
 } from '@/lib/papeliz-site-sync-plans'
 import { papelizAccountCompactPrimaryButtonClassName, papelizAccountSecondaryButtonClassName, papelizAccountTextLinkClassName } from './papeliz-account-card-frame'
 import { PapelizAccountSyncSubscriptionNotice, readPapelizAccountSyncPlanName, type PapelizAccountSyncBillingState } from './papeliz-account-sync-billing'
-import { isPapelizAccountSyncSubscriptionLive } from './papeliz-account-sync-service'
+import { isPapelizAccountSyncOnFreePlan, isPapelizAccountSyncPaidSubscriptionLive } from './papeliz-account-sync-service'
 
-// The account page's Sync section: what Sync is, the Monthly / Yearly switch, then the three plans,
-// each with its own Subscribe (Adam, 2026-10-31). Subscribe opens checkout here, after asking a new
+// A plan card's lines, as dots.
+function PapelizAccountSyncPlanLimitLines({ papelizAccountSyncPlanLimitLines }: { papelizAccountSyncPlanLimitLines: string[] }) {
+  return (
+    <ul className="mt-4 grid gap-0.5 text-[13px] leading-normal">
+      {papelizAccountSyncPlanLimitLines.map((papelizAccountSyncPlanLimitLine) => (
+        <li key={papelizAccountSyncPlanLimitLine} className="flex items-start gap-2 before:shrink-0 before:text-papeliz-ink-subtle before:content-['•']">
+          {papelizAccountSyncPlanLimitLine}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+// The account page's Sync section: what Sync is, the Monthly / Yearly switch, then Free and the three
+// paid plans, each paid plan with its own Subscribe (Adam, 2026-10-31). Free has no checkout: an
+// account the Account Worker reports on Free sees it as Current Plan, and any other sees that it
+// comes with every account. Subscribe opens checkout here, after asking a new
 // account where Sync keeps its notes. With a live subscription its plan reads Current Plan and the
 // others Change Plan, which opens the subscription's own page; a failed payment or an ended
 // subscription shows above the plans. The storage place dialog is the dashboard's, once for both layouts.
@@ -34,7 +51,8 @@ export function PapelizAccountSyncPlansSection({
   const { syncBillingStage, syncCheckoutStage, syncBillingPortalFailureMessage, startPapelizAccountSyncCheckout, openPapelizAccountSyncBillingPortal, loadPapelizAccountSyncBilling } =
     papelizAccountSyncBillingState
   const syncBilling = syncBillingStage.syncBillingStageKind === 'read' ? syncBillingStage.syncBilling : null
-  const isSyncSubscriptionLive = syncBilling !== null && isPapelizAccountSyncSubscriptionLive(syncBilling.syncSubscriptionState)
+  const isSyncSubscriptionLive = syncBilling !== null && isPapelizAccountSyncPaidSubscriptionLive(syncBilling)
+  const isSyncOnFreePlan = syncBilling !== null && isPapelizAccountSyncOnFreePlan(syncBilling)
   const isSyncCheckoutOpening = syncCheckoutStage.syncCheckoutStageKind === 'opening'
   const isChosenPlanPromptShown = papelizAccountSyncChosenPlan !== null && !isChosenPlanPromptDismissed && syncBilling !== null && !isSyncSubscriptionLive
 
@@ -101,7 +119,25 @@ export function PapelizAccountSyncPlansSection({
           </button>
         </p>
       )}
-      <div className="grid min-w-0 grid-cols-1 gap-3 lg:grid-cols-3">
+      <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
+        <article
+          data-papeliz-account-sync-plan={papelizSiteSyncFreePlan.papelizSiteSyncFreePlanId}
+          className={`flex min-w-0 flex-col rounded-xl border bg-papeliz-surface p-4 ${isSyncOnFreePlan ? 'border-papeliz-blue' : 'border-papeliz-line'}`}
+        >
+          <h2 className="text-[15px] font-semibold">{papelizSiteSyncFreePlan.papelizSiteSyncFreePlanName}</h2>
+          <p className="mt-0.5 text-[26px] leading-[1.35] font-semibold tracking-[-0.02em]">
+            {formatPapelizSiteSyncUsd(0)} <span className="text-sm font-normal tracking-normal text-papeliz-ink-muted">USD</span>
+          </p>
+          <p className="mt-0.5 text-[13px] text-papeliz-ink-muted">No card needed</p>
+          {isSyncOnFreePlan ? (
+            <button type="button" disabled className={`${papelizAccountSecondaryButtonClassName} mt-4 w-full`}>
+              Current Plan
+            </button>
+          ) : (
+            <p className="mt-4 flex min-h-[38px] items-center justify-center text-center text-[13px] text-papeliz-ink-muted">Comes with every account</p>
+          )}
+          <PapelizAccountSyncPlanLimitLines papelizAccountSyncPlanLimitLines={describePapelizSiteSyncFreePlanLimits()} />
+        </article>
         {papelizSiteSyncPlans.map((papelizSiteSyncPlan) => {
           const isCurrentSyncPlan = isSyncSubscriptionLive && syncBilling?.syncPlanName === papelizSiteSyncPlan.papelizSiteSyncPlanId
           const isThisPlanCheckoutOpening = isSyncCheckoutOpening && syncCheckoutStage.chosenSyncPlanId === papelizSiteSyncPlan.papelizSiteSyncPlanId
@@ -142,13 +178,7 @@ export function PapelizAccountSyncPlansSection({
                   {isThisPlanCheckoutOpening ? 'Opening Checkout…' : 'Subscribe'}
                 </button>
               )}
-              <ul className="mt-4 grid gap-0.5 text-[13px] leading-normal">
-                {describePapelizSiteSyncPlanLimits(papelizSiteSyncPlan).map((papelizSiteSyncPlanLimitLine) => (
-                  <li key={papelizSiteSyncPlanLimitLine} className="flex items-start gap-2 before:shrink-0 before:text-papeliz-ink-subtle before:content-['•']">
-                    {papelizSiteSyncPlanLimitLine}
-                  </li>
-                ))}
-              </ul>
+              <PapelizAccountSyncPlanLimitLines papelizAccountSyncPlanLimitLines={describePapelizSiteSyncPlanLimits(papelizSiteSyncPlan)} />
             </article>
           )
         })}

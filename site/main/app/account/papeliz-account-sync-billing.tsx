@@ -2,13 +2,19 @@
 
 import { useAuth } from '@clerk/react'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { papelizSiteSyncPlans, type PapelizSiteSyncBillingPeriod, type PapelizSiteSyncPlanId } from '@/lib/papeliz-site-sync-plans'
+import { papelizSiteSyncFreePlan, papelizSiteSyncPlans, type PapelizSiteSyncBillingPeriod, type PapelizSiteSyncPlanId } from '@/lib/papeliz-site-sync-plans'
 import { papelizAccountCompactPrimaryButtonClassName, papelizAccountSecondaryButtonClassName } from './papeliz-account-card-frame'
 import { papelizAccountStoragePlaceLabels, readPapelizAccountNearestStoragePlace } from './papeliz-account-config'
 import { papelizAccountSyncUnreachableMessage } from './papeliz-account-devices-section'
 import { PapelizAccountDialog } from './papeliz-account-dialog'
 import { papelizSyncStoragePlaces, type PapelizSyncStoragePlace } from './papeliz-account-sync-hand-over'
-import { isPapelizAccountSyncSubscriptionLive, type PapelizAccountSyncBilling, type PapelizAccountSyncService } from './papeliz-account-sync-service'
+import {
+  isPapelizAccountSyncPaidSubscriptionLive,
+  papelizAccountSyncFreePlanName,
+  type PapelizAccountSyncBilling,
+  type PapelizAccountSyncPlanName,
+  type PapelizAccountSyncService,
+} from './papeliz-account-sync-service'
 
 // The account page's billing: the subscription's state, read once and again after checkout comes
 // back; Subscribe, which opens checkout in this tab (asking first where Sync keeps notes, for a new
@@ -88,7 +94,7 @@ export function usePapelizAccountSyncBilling(papelizAccountSyncService: PapelizA
       const syncBilling = await readPapelizAccountSyncBilling()
       if (isSyncBillingReadingStopped) return
       syncBillingReadCountRef.current += 1
-      const isSubscriptionShowing = syncBilling !== null && isPapelizAccountSyncSubscriptionLive(syncBilling.syncSubscriptionState)
+      const isSubscriptionShowing = syncBilling !== null && isPapelizAccountSyncPaidSubscriptionLive(syncBilling)
       if (!isSyncCheckoutReturn || isSubscriptionShowing || syncBillingReadCountRef.current >= papelizAccountSyncCheckoutReturnReadCount) {
         setIsSyncCheckoutReturnWaiting(false)
         return
@@ -196,8 +202,9 @@ export function describePapelizAccountSyncBillingDay(billingTime: number, curren
   return new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: billingTimeIsThisYear ? undefined : 'numeric' }).format(billingTime)
 }
 
-export function readPapelizAccountSyncPlanName(papelizSiteSyncPlanId: PapelizSiteSyncPlanId): string {
-  return papelizSiteSyncPlans.find((papelizSiteSyncPlan) => papelizSiteSyncPlan.papelizSiteSyncPlanId === papelizSiteSyncPlanId)?.papelizSiteSyncPlanName ?? 'Sync'
+export function readPapelizAccountSyncPlanName(papelizAccountSyncPlanName: PapelizAccountSyncPlanName): string {
+  if (papelizAccountSyncPlanName === papelizAccountSyncFreePlanName) return papelizSiteSyncFreePlan.papelizSiteSyncFreePlanName
+  return papelizSiteSyncPlans.find((papelizSiteSyncPlan) => papelizSiteSyncPlan.papelizSiteSyncPlanId === papelizAccountSyncPlanName)?.papelizSiteSyncPlanName ?? 'Sync'
 }
 
 // A notice above a section, in the alert color for a failed payment or an ended subscription.
@@ -317,7 +324,7 @@ export function PapelizAccountSyncStoragePlaceDialog({ papelizAccountSyncBilling
             />
             <span className="min-w-0 flex-1">
               <span className="block text-sm font-semibold text-papeliz-ink">{papelizAccountStoragePlaceLabels[papelizSyncStoragePlace].storagePlaceName}</span>
-              <span className="block text-xs text-papeliz-ink-muted">{papelizAccountStoragePlaceLabels[papelizSyncStoragePlace].storagePlaceGuarantee}</span>
+              <span className="block text-xs text-papeliz-ink-muted">{papelizAccountStoragePlaceLabels[papelizSyncStoragePlace].storagePlaceWhereStoredLine}</span>
             </span>
             {papelizSyncStoragePlace === nearestPapelizSyncStoragePlace && <span className="text-[11px] font-bold text-papeliz-blue">Nearest</span>}
           </label>

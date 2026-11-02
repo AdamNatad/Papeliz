@@ -4,7 +4,7 @@ import {
   type PapelizSyncDeviceSessionReply,
   type PapelizSyncStoragePlace,
 } from './papeliz-account-sync-hand-over'
-import type { PapelizSiteSyncBillingPeriod, PapelizSiteSyncPlanId } from '@/lib/papeliz-site-sync-plans'
+import type { PapelizSiteSyncBillingPeriod, PapelizSiteSyncFreePlanId, PapelizSiteSyncPlanId } from '@/lib/papeliz-site-sync-plans'
 import { isPapelizAccountSyncPassphraseWrappedVaultKey, type PapelizAccountSyncPassphraseWrappedVaultKey } from './papeliz-account-sync-vault-key-wrap'
 
 // How this page reaches Papeliz Sync's Account Worker (`/api/account/v1/` on the same origin). On
@@ -135,9 +135,15 @@ export type PapelizAccountSyncVaultDeletionOutcome =
 export const papelizAccountSyncSubscriptionStates = ['not-subscribed', 'active', 'ends-at-period-end', 'payment-past-due', 'ended-read-only', 'ended-held'] as const
 export type PapelizAccountSyncSubscriptionState = (typeof papelizAccountSyncSubscriptionStates)[number]
 
+// The Free plan has no subscription: the Account Worker grants it at sign-in and reports it with the
+// plan name 'free' (its side lands with the Account Worker's own lane). The account page knows Free
+// by this one name, and a Free account is never treated as a live paid subscription.
+export const papelizAccountSyncFreePlanName: PapelizSiteSyncFreePlanId = 'free'
+export type PapelizAccountSyncPlanName = PapelizSiteSyncPlanId | PapelizSiteSyncFreePlanId
+
 export interface PapelizAccountSyncBilling {
   hasPapelizSyncAccount: boolean
-  syncPlanName: PapelizSiteSyncPlanId | null
+  syncPlanName: PapelizAccountSyncPlanName | null
   syncSubscriptionState: PapelizAccountSyncSubscriptionState
   syncSubscriptionRenewsAt: number | null
   syncSubscriptionEndsAt: number | null
@@ -149,6 +155,15 @@ export interface PapelizAccountSyncBilling {
 
 export function isPapelizAccountSyncSubscriptionLive(syncSubscriptionState: PapelizAccountSyncSubscriptionState): boolean {
   return syncSubscriptionState === 'active' || syncSubscriptionState === 'ends-at-period-end' || syncSubscriptionState === 'payment-past-due'
+}
+
+export function isPapelizAccountSyncOnFreePlan(syncBilling: PapelizAccountSyncBilling): boolean {
+  return syncBilling.syncPlanName === papelizAccountSyncFreePlanName
+}
+
+// A paid plan that still syncs, whatever state the Account Worker gives a Free account.
+export function isPapelizAccountSyncPaidSubscriptionLive(syncBilling: PapelizAccountSyncBilling): boolean {
+  return !isPapelizAccountSyncOnFreePlan(syncBilling) && isPapelizAccountSyncSubscriptionLive(syncBilling.syncSubscriptionState)
 }
 
 export type PapelizAccountSyncBillingOutcome =
@@ -295,7 +310,7 @@ function readPapelizAccountSyncVaultList(
   }
 }
 
-const papelizAccountSyncPlanNames: readonly PapelizSiteSyncPlanId[] = ['standard', 'plus', 'pro']
+const papelizAccountSyncPlanNames: readonly PapelizAccountSyncPlanName[] = [papelizAccountSyncFreePlanName, 'standard', 'plus', 'pro']
 
 function isPapelizAccountSyncTime(timeCandidate: unknown): timeCandidate is number | null {
   return timeCandidate === null || (Number.isSafeInteger(timeCandidate) && (timeCandidate as number) >= 0)
@@ -317,7 +332,7 @@ function readPapelizAccountSyncBilling(billingReplyCandidate: unknown): PapelizA
   if (
     typeof hasPapelizSyncAccount !== 'boolean' ||
     typeof hasSyncPaymentCustomer !== 'boolean' ||
-    (syncPlanName !== null && !papelizAccountSyncPlanNames.includes(syncPlanName as PapelizSiteSyncPlanId)) ||
+    (syncPlanName !== null && !papelizAccountSyncPlanNames.includes(syncPlanName as PapelizAccountSyncPlanName)) ||
     !papelizAccountSyncSubscriptionStates.includes(syncSubscriptionState as PapelizAccountSyncSubscriptionState) ||
     !isPapelizAccountSyncTime(syncSubscriptionRenewsAt) ||
     !isPapelizAccountSyncTime(syncSubscriptionEndsAt) ||
@@ -328,7 +343,7 @@ function readPapelizAccountSyncBilling(billingReplyCandidate: unknown): PapelizA
   }
   return {
     hasPapelizSyncAccount,
-    syncPlanName: syncPlanName as PapelizSiteSyncPlanId | null,
+    syncPlanName: syncPlanName as PapelizAccountSyncPlanName | null,
     syncSubscriptionState: syncSubscriptionState as PapelizAccountSyncSubscriptionState,
     syncSubscriptionRenewsAt,
     syncSubscriptionEndsAt,
@@ -886,7 +901,8 @@ export const papelizAccountLocalFakeSyncService: PapelizAccountSyncService = {
       syncBillingOutcomeKind: 'read',
       syncBilling: {
         hasPapelizSyncAccount: localFakeSyncAccount !== undefined,
-        syncPlanName: localFakeSubscription?.syncPlanName ?? null,
+        // A fake account with no paid subscription is on Free, as the Account Worker's accounts will be.
+        syncPlanName: localFakeSubscription?.syncPlanName ?? (localFakeSyncAccount !== undefined ? papelizAccountSyncFreePlanName : null),
         syncSubscriptionState: localFakeSubscription?.syncSubscriptionState ?? 'not-subscribed',
         syncSubscriptionRenewsAt: localFakeSubscription?.syncSubscriptionState === 'active' ? Date.now() + 30 * localFakeDayMilliseconds : null,
         syncSubscriptionEndsAt: localFakeSubscription?.syncSubscriptionState === 'ends-at-period-end' ? Date.now() + 12 * localFakeDayMilliseconds : null,
