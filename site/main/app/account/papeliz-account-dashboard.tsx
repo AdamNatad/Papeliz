@@ -453,7 +453,7 @@ export function PapelizAccountDashboard({
   const [papelizAccountIsSigningOut, setPapelizAccountIsSigningOut] = useState(false)
   const papelizAccountSyncedVaults = usePapelizAccountSyncedVaults(papelizAccountSyncService, papelizSyncVaultIdToChangePassphraseAfterSignIn)
   const papelizAccountSyncDeviceList = usePapelizAccountSyncDeviceList(papelizAccountSyncService)
-  const papelizAccountSyncBillingState = usePapelizAccountSyncBilling(papelizAccountSyncService, isPapelizAccountSyncCheckoutReturn)
+  const papelizAccountSyncBillingState = usePapelizAccountSyncBilling(papelizAccountSyncService, isPapelizAccountSyncCheckoutReturn, papelizAccountSyncChosenPlan)
 
   function signOutOfPapelizAccount() {
     setPapelizAccountIsSigningOut(true)

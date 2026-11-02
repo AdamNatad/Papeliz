@@ -70,12 +70,17 @@ function PapelizAccountSyncPlanRow({
   )
 }
 
-// The current plan's mark in place of a button: a solid blue "Current", as wide as the buttons beside it.
+// The current plan's button: Upgrade's own shape and size, muted blue, and not pressable (Adam,
+// 2026-11-03: "our current should be same button but muted but blue").
 function PapelizAccountSyncCurrentPlanMark() {
   return (
-    <span className={`inline-flex shrink-0 justify-center ${papelizAccountRowActionWidthClassName}`}>
-      <span className="rounded-full bg-papeliz-blue px-2.5 py-1 text-xs font-semibold whitespace-nowrap text-papeliz-on-blue">Current</span>
-    </span>
+    <button
+      type="button"
+      disabled
+      className={`inline-flex min-h-[38px] shrink-0 cursor-default items-center justify-center rounded-lg border border-papeliz-blue-line bg-papeliz-blue-soft px-3.5 text-[13px] font-semibold whitespace-nowrap text-papeliz-blue ${papelizAccountRowActionWidthClassName}`}
+    >
+      Current
+    </button>
   )
 }
 
@@ -100,14 +105,24 @@ export function PapelizAccountSyncPlansSection({
     papelizAccountSyncChosenPlan?.chosenSyncBillingPeriod ?? papelizSiteSyncPreselectedBillingPeriod,
   )
   const [isChosenPlanPromptDismissed, setIsChosenPlanPromptDismissed] = useState(false)
-  const { syncBillingStage, syncCheckoutStage, syncBillingPortalFailureMessage, startPapelizAccountSyncCheckout, openPapelizAccountSyncBillingPortal, loadPapelizAccountSyncBilling } =
-    papelizAccountSyncBillingState
+  const {
+    syncBillingStage,
+    syncCheckoutStage,
+    isSyncChosenPlanCheckoutStarted,
+    syncBillingPortalFailureMessage,
+    startPapelizAccountSyncCheckout,
+    openPapelizAccountSyncBillingPortal,
+    loadPapelizAccountSyncBilling,
+  } = papelizAccountSyncBillingState
   const syncBilling = syncBillingStage.syncBillingStageKind === 'read' ? syncBillingStage.syncBilling : null
   const isSyncSubscriptionLive = syncBilling !== null && isPapelizAccountSyncPaidSubscriptionLive(syncBilling)
   // Free is the account's plan whenever no paid plan is live, a new account's included.
   const isSyncOnFreePlan = syncBilling !== null && !isSyncSubscriptionLive
   const isSyncCheckoutOpening = syncCheckoutStage.syncCheckoutStageKind === 'opening'
-  const isChosenPlanPromptShown = papelizAccountSyncChosenPlan !== null && !isChosenPlanPromptDismissed && syncBilling !== null && !isSyncSubscriptionLive
+  // The chosen plan's checkout starts by itself (usePapelizAccountSyncBilling); this prompt shows it
+  // opening, and stays as the way back to it when the start fails or the storage place is closed.
+  const isChosenPlanPromptShown =
+    papelizAccountSyncChosenPlan !== null && isSyncChosenPlanCheckoutStarted && !isChosenPlanPromptDismissed && syncBilling !== null && !isSyncSubscriptionLive
 
   return (
     <>
@@ -124,7 +139,7 @@ export function PapelizAccountSyncPlansSection({
             Subscribe to <b className="font-semibold">{readPapelizAccountSyncPlanName(papelizAccountSyncChosenPlan.chosenSyncPlanId)}</b>, billed{' '}
             {papelizAccountSyncChosenPlan.chosenSyncBillingPeriod}? Checkout opens on our payment provider’s secure page.
           </p>
-          <button type="button" onClick={() => setIsChosenPlanPromptDismissed(true)} className={papelizAccountSecondaryButtonClassName}>
+          <button type="button" disabled={isSyncCheckoutOpening} onClick={() => setIsChosenPlanPromptDismissed(true)} className={papelizAccountSecondaryButtonClassName}>
             Not Now
           </button>
           <button

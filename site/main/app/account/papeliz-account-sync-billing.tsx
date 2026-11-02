@@ -2,7 +2,13 @@
 
 import { useAuth } from '@clerk/react'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { papelizSiteSyncFreePlan, papelizSiteSyncPlans, type PapelizSiteSyncBillingPeriod, type PapelizSiteSyncPlanId } from '@/lib/papeliz-site-sync-plans'
+import {
+  papelizSiteSyncFreePlan,
+  papelizSiteSyncPlans,
+  type PapelizSiteSyncBillingPeriod,
+  type PapelizSiteSyncChosenPlan,
+  type PapelizSiteSyncPlanId,
+} from '@/lib/papeliz-site-sync-plans'
 import { papelizAccountCompactPrimaryButtonClassName, papelizAccountSecondaryButtonClassName } from './papeliz-account-card-frame'
 import { papelizAccountNearestStoragePlaceBadgeClassName, papelizAccountStoragePlaceLabels, readPapelizAccountNearestStoragePlace } from './papeliz-account-config'
 import { papelizAccountSyncUnreachableMessage } from './papeliz-account-devices-section'
@@ -38,6 +44,8 @@ export interface PapelizAccountSyncBillingState {
   // the subscription shows.
   isSyncCheckoutReturnWaiting: boolean
   syncCheckoutStage: PapelizAccountSyncCheckoutStage
+  // A plan chosen on the website: its checkout has been started by itself, once.
+  isSyncChosenPlanCheckoutStarted: boolean
   syncBillingPortalFailureMessage: string | null
   loadPapelizAccountSyncBilling(): void
   startPapelizAccountSyncCheckout(
@@ -54,11 +62,17 @@ export interface PapelizAccountSyncBillingState {
 const papelizAccountSyncCheckoutReturnReadMilliseconds = 3000
 const papelizAccountSyncCheckoutReturnReadCount = 10
 
-export function usePapelizAccountSyncBilling(papelizAccountSyncService: PapelizAccountSyncService, isSyncCheckoutReturn: boolean): PapelizAccountSyncBillingState {
+export function usePapelizAccountSyncBilling(
+  papelizAccountSyncService: PapelizAccountSyncService,
+  isSyncCheckoutReturn: boolean,
+  syncChosenPlanFromAddress: PapelizSiteSyncChosenPlan | null,
+): PapelizAccountSyncBillingState {
   const { getToken } = useAuth()
   const [syncBillingStage, setSyncBillingStage] = useState<PapelizAccountSyncBillingStage>({ syncBillingStageKind: 'loading' })
   const [isSyncCheckoutReturnWaiting, setIsSyncCheckoutReturnWaiting] = useState(isSyncCheckoutReturn)
   const [syncCheckoutStage, setSyncCheckoutStage] = useState<PapelizAccountSyncCheckoutStage>({ syncCheckoutStageKind: 'idle' })
+  const [isSyncChosenPlanCheckoutStarted, setIsSyncChosenPlanCheckoutStarted] = useState(false)
+  const isSyncChosenPlanCheckoutStartedRef = useRef(false)
   const [syncBillingPortalFailureMessage, setSyncBillingPortalFailureMessage] = useState<string | null>(null)
   const syncBillingReadCountRef = useRef(0)
 
@@ -87,31 +101,16 @@ export function usePapelizAccountSyncBilling(papelizAccountSyncService: PapelizA
     void readPapelizAccountSyncBilling()
   }, [readPapelizAccountSyncBilling])
 
-  useEffect(() => {
-    let isSyncBillingReadingStopped = false
-    let syncBillingReadTimer: ReturnType<typeof setTimeout> | undefined
-    const readSyncBillingUntilSubscribed = async () => {
-      const syncBilling = await readPapelizAccountSyncBilling()
-      if (isSyncBillingReadingStopped) return
-      syncBillingReadCountRef.current += 1
-      const isSubscriptionShowing = syncBilling !== null && isPapelizAccountSyncPaidSubscriptionLive(syncBilling)
-      if (!isSyncCheckoutReturn || isSubscriptionShowing || syncBillingReadCountRef.current >= papelizAccountSyncCheckoutReturnReadCount) {
-        setIsSyncCheckoutReturnWaiting(false)
-        return
-      }
-      syncBillingReadTimer = setTimeout(() => void readSyncBillingUntilSubscribed(), papelizAccountSyncCheckoutReturnReadMilliseconds)
-    }
-    void readSyncBillingUntilSubscribed()
-    return () => {
-      isSyncBillingReadingStopped = true
-      clearTimeout(syncBillingReadTimer)
-    }
-  }, [isSyncCheckoutReturn, readPapelizAccountSyncBilling])
-
-  const startPapelizAccountSyncCheckout = useCallback(
-    (chosenSyncPlanId: PapelizSiteSyncPlanId, chosenSyncBillingPeriod: PapelizSiteSyncBillingPeriod, papelizSyncStoragePlaceForNewAccount: PapelizSyncStoragePlace | null) => {
-      // A new account chooses where Sync keeps its notes before its first checkout.
-      if (papelizSyncStoragePlaceForNewAccount === null && syncBillingStage.syncBillingStageKind === 'read' && !syncBillingStage.syncBilling.hasPapelizSyncAccount) {
+  // Checkout for a plan, judged on the subscription as last read: a new account chooses where Sync keeps
+  // its notes before its first checkout; any other goes to the payment provider's checkout in this tab.
+  const openPapelizAccountSyncCheckoutForBilling = useCallback(
+    (
+      chosenSyncPlanId: PapelizSiteSyncPlanId,
+      chosenSyncBillingPeriod: PapelizSiteSyncBillingPeriod,
+      papelizSyncStoragePlaceForNewAccount: PapelizSyncStoragePlace | null,
+      syncBillingAsRead: PapelizAccountSyncBilling | null,
+    ) => {
+      if (papelizSyncStoragePlaceForNewAccount === null && syncBillingAsRead !== null && !syncBillingAsRead.hasPapelizSyncAccount) {
         setSyncCheckoutStage({ syncCheckoutStageKind: 'choosing-storage-place', chosenSyncPlanId, chosenSyncBillingPeriod })
         return
       }
@@ -143,8 +142,52 @@ export function usePapelizAccountSyncBilling(papelizAccountSyncService: PapelizA
         }
       })()
     },
-    [getToken, papelizAccountSyncService, syncBillingStage],
+    [getToken, papelizAccountSyncService],
   )
+
+  const startPapelizAccountSyncCheckout = useCallback(
+    (chosenSyncPlanId: PapelizSiteSyncPlanId, chosenSyncBillingPeriod: PapelizSiteSyncBillingPeriod, papelizSyncStoragePlaceForNewAccount: PapelizSyncStoragePlace | null) =>
+      openPapelizAccountSyncCheckoutForBilling(
+        chosenSyncPlanId,
+        chosenSyncBillingPeriod,
+        papelizSyncStoragePlaceForNewAccount,
+        syncBillingStage.syncBillingStageKind === 'read' ? syncBillingStage.syncBilling : null,
+      ),
+    [openPapelizAccountSyncCheckoutForBilling, syncBillingStage],
+  )
+
+  useEffect(() => {
+    let isSyncBillingReadingStopped = false
+    let syncBillingReadTimer: ReturnType<typeof setTimeout> | undefined
+    const readSyncBillingUntilSubscribed = async () => {
+      const syncBilling = await readPapelizAccountSyncBilling()
+      if (isSyncBillingReadingStopped) return
+      syncBillingReadCountRef.current += 1
+      // A plan chosen on the website's Sync or Pricing page goes straight to checkout once the
+      // subscription is read, with no stop on this page (Adam, 2026-11-03: "after login it redirects into
+      // an account page instead of the actual checkout"); a new account is asked where Sync keeps its
+      // notes first. Once per page, and the plan has already left the address, so Back from checkout
+      // doesn't start it again. A live paid plan keeps its own page.
+      if (syncChosenPlanFromAddress !== null && !isSyncChosenPlanCheckoutStartedRef.current) {
+        isSyncChosenPlanCheckoutStartedRef.current = true
+        setIsSyncChosenPlanCheckoutStarted(true)
+        if (syncBilling !== null && !isPapelizAccountSyncPaidSubscriptionLive(syncBilling)) {
+          openPapelizAccountSyncCheckoutForBilling(syncChosenPlanFromAddress.chosenSyncPlanId, syncChosenPlanFromAddress.chosenSyncBillingPeriod, null, syncBilling)
+        }
+      }
+      const isSubscriptionShowing = syncBilling !== null && isPapelizAccountSyncPaidSubscriptionLive(syncBilling)
+      if (!isSyncCheckoutReturn || isSubscriptionShowing || syncBillingReadCountRef.current >= papelizAccountSyncCheckoutReturnReadCount) {
+        setIsSyncCheckoutReturnWaiting(false)
+        return
+      }
+      syncBillingReadTimer = setTimeout(() => void readSyncBillingUntilSubscribed(), papelizAccountSyncCheckoutReturnReadMilliseconds)
+    }
+    void readSyncBillingUntilSubscribed()
+    return () => {
+      isSyncBillingReadingStopped = true
+      clearTimeout(syncBillingReadTimer)
+    }
+  }, [isSyncCheckoutReturn, readPapelizAccountSyncBilling, syncChosenPlanFromAddress, openPapelizAccountSyncCheckoutForBilling])
 
   const closePapelizAccountSyncCheckout = useCallback(() => setSyncCheckoutStage({ syncCheckoutStageKind: 'idle' }), [])
 
@@ -188,6 +231,7 @@ export function usePapelizAccountSyncBilling(papelizAccountSyncService: PapelizA
     syncBillingStage,
     isSyncCheckoutReturnWaiting,
     syncCheckoutStage,
+    isSyncChosenPlanCheckoutStarted,
     syncBillingPortalFailureMessage,
     loadPapelizAccountSyncBilling,
     startPapelizAccountSyncCheckout,
