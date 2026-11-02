@@ -90,7 +90,7 @@ export function describePapelizSiteSyncFreePlanLimits(): string[] {
     `${papelizSiteSyncFreePlan.papelizSiteSyncFreePlanVaultLimit} synced vault`,
     `${papelizSiteSyncFreePlan.papelizSiteSyncFreePlanConnectedDeviceLimit} devices`,
     `${papelizSiteSyncFreePlan.papelizSiteSyncFreePlanLargestFileLabel} per file`,
-    `${papelizSiteSyncFreePlan.papelizSiteSyncFreePlanNoteHistoryDayCount} days of note history`,
+    `${papelizSiteSyncFreePlan.papelizSiteSyncFreePlanNoteHistoryDayCount} days of version history`,
     papelizSiteSyncPlanEncryptionLine,
   ]
 }
@@ -189,7 +189,7 @@ export function describePapelizSiteSyncPlanLimits(papelizSiteSyncPlan: PapelizSi
     `${papelizSiteSyncPlan.papelizSiteSyncPlanFilesPerVaultLimit.toLocaleString('en-US')} files in each vault`,
     `${papelizSiteSyncConnectedDeviceLimit} devices`,
     `${papelizSiteSyncPlan.papelizSiteSyncPlanLargestFileLabel} per file`,
-    `${papelizSiteSyncPlan.papelizSiteSyncPlanNoteHistoryMonthCount} months of note history`,
+    `${papelizSiteSyncPlan.papelizSiteSyncPlanNoteHistoryMonthCount} months of version history`,
     papelizSiteSyncPlanEncryptionLine,
   ]
 }

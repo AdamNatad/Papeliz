@@ -23,10 +23,9 @@ type PapelizSiteSyncPlanCardProps = {
   papelizSiteSyncPlanCardPlanId: PapelizSiteSyncPlanId | PapelizSiteSyncFreePlanId
   papelizSiteSyncPlanCardTitle: string
   papelizSiteSyncPlanCardPriceUsd: number
-  // Under the price: how a paid plan is billed, or that Free needs no card.
+  // Under the price: how a paid plan is billed, or that Free needs no card. The card shows no whole
+  // year's price (Adam, 2026-11-02: "dont show the total year price on the cards").
   papelizSiteSyncPlanCardPriceNote: string
-  // Under that, billed yearly: the whole year's price, as the app's Settings › Sync shows it.
-  papelizSiteSyncPlanCardYearPriceNote: string | null
   papelizSiteSyncPlanCardSignUpHref: string | null
   papelizSiteSyncPlanCardLines: string[]
 }
@@ -37,7 +36,6 @@ function PapelizSiteSyncPlanCard({
   papelizSiteSyncPlanCardTitle,
   papelizSiteSyncPlanCardPriceUsd,
   papelizSiteSyncPlanCardPriceNote,
-  papelizSiteSyncPlanCardYearPriceNote,
   papelizSiteSyncPlanCardSignUpHref,
   papelizSiteSyncPlanCardLines,
 }: PapelizSiteSyncPlanCardProps) {
@@ -51,13 +49,12 @@ function PapelizSiteSyncPlanCard({
         <span className="text-5xl leading-[1.15] font-semibold tracking-[-0.04em]">{formatPapelizSiteSyncUsd(papelizSiteSyncPlanCardPriceUsd)}</span>
         <span className="text-sm text-papeliz-ink-subtle">USD</span>
       </div>
-      {/* "USD" alone beside the price (Adam, 2026-10-31); the lines under it say how it is billed, or that Free needs no card. */}
+      {/* "USD" alone beside the price (Adam, 2026-10-31); the line under it says how it is billed, or that Free needs no card. */}
       <p className="mt-2 min-h-6 text-base text-papeliz-ink-muted">{papelizSiteSyncPlanCardPriceNote}</p>
-      <p className="mt-0.5 min-h-5 text-sm text-papeliz-ink-subtle">{papelizSiteSyncPlanCardYearPriceNote}</p>
       {papelizSiteSyncPlanCardSignUpHref && (
         <a
           href={papelizSiteSyncPlanCardSignUpHref}
-          className="mt-8 flex min-h-12 items-center justify-center rounded-full bg-papeliz-blue px-3 py-2 text-base font-medium text-papeliz-on-blue transition-colors hover:bg-papeliz-blue-hover"
+          className="mt-10 flex min-h-12 items-center justify-center rounded-full bg-papeliz-blue px-3 py-2 text-base font-medium text-papeliz-on-blue transition-colors hover:bg-papeliz-blue-hover"
         >
           Sign up
         </a>
@@ -106,7 +103,6 @@ export function PapelizSiteSyncPlanGrid() {
           papelizSiteSyncPlanCardTitle={papelizSiteSyncFreePlan.papelizSiteSyncFreePlanName}
           papelizSiteSyncPlanCardPriceUsd={0}
           papelizSiteSyncPlanCardPriceNote="No card needed"
-          papelizSiteSyncPlanCardYearPriceNote={null}
           papelizSiteSyncPlanCardSignUpHref={papelizSiteSyncFreeSignUpHref}
           papelizSiteSyncPlanCardLines={describePapelizSiteSyncFreePlanLimits()}
         />
@@ -117,9 +113,6 @@ export function PapelizSiteSyncPlanGrid() {
             papelizSiteSyncPlanCardTitle={papelizSiteSyncPlan.papelizSiteSyncPlanName}
             papelizSiteSyncPlanCardPriceUsd={readPapelizSiteSyncPlanMonthlyRateUsd(papelizSiteSyncPlan, papelizSiteChosenSyncBillingPeriod)}
             papelizSiteSyncPlanCardPriceNote={papelizSiteChosenSyncBillingPeriod === 'yearly' ? 'Per month, billed yearly' : 'Billed monthly'}
-            papelizSiteSyncPlanCardYearPriceNote={
-              papelizSiteChosenSyncBillingPeriod === 'yearly' ? `${formatPapelizSiteSyncUsd(papelizSiteSyncPlan.papelizSiteSyncPlanYearlyPriceUsd)} a year` : null
-            }
             papelizSiteSyncPlanCardSignUpHref={createPapelizSiteSyncSignUpHref(papelizSiteSyncPlan.papelizSiteSyncPlanId, papelizSiteChosenSyncBillingPeriod)}
             papelizSiteSyncPlanCardLines={describePapelizSiteSyncPlanLimits(papelizSiteSyncPlan)}
           />
