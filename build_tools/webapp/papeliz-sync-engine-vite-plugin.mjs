@@ -10,9 +10,10 @@
 //
 // The dev server only: `webapp start sync-local` (build_tools/shared/launcher/papeliz-launcher.mjs)
 // sets the two variables below. The dev server then serves the real engine, switched on whatever the
-// switch says, and proxies Sync's routes to the local Account and Sync Workers and the sign-in page to
-// the site's dev server, so the app and `/account/` share one origin, as on papeliz.com. A build never
-// reads them, so a built app reports Sync as the switch does and carries neither the engine nor this.
+// switch says, and lays out its origin as papeliz.com does: the app at `/app/`, Sync's routes on the
+// local Account and Sync Workers, and every other address, `/account/` included, from the site's dev
+// server. A build never reads them, so a built app reports Sync as the switch does and carries neither
+// the engine nor this.
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 
@@ -22,12 +23,17 @@ const papelizSyncEngineAvailabilityResolvedModuleId = `\0${papelizSyncEngineAvai
 const papelizSyncLocalWorkersEngineResolvedModuleId = '\0papeliz-sync-engine-against-local-workers'
 
 // The local Workers' router (build_tools/webapp/papeliz-sync-local-workers-router.mjs), and the site's
-// dev server, which serves `/account/`.
+// dev server, which serves the website and `/account/`.
 export const papelizSyncLocalWorkersOriginVariableName = 'PAPELIZ_WEBAPP_DEV_SYNC_LOCAL_WORKERS_ORIGIN'
 export const papelizSyncSignInPageDevServerOriginVariableName = 'PAPELIZ_WEBAPP_DEV_SYNC_SIGN_IN_PAGE_DEV_SERVER_ORIGIN'
 
-// What the dev server hands to each server. Every path keeps its Host, so the Workers see the app's
-// origin: the sign-in page's `Origin` check and the rewritten storage links both rely on it.
+// Where the app lives on papeliz.com (its build's `base`, app/web/vite.config.ts), and so on this dev
+// server too.
+const papelizWebappBasePath = '/app/'
+
+// What the dev server hands to each server; the first match wins. Every path keeps its Host, so the
+// Workers see the app's origin: the sign-in page's `Origin` check and the rewritten storage links both
+// rely on it.
 function buildPapelizSyncLocalWorkersDevProxy(papelizSyncLocalWorkersOrigin, papelizSyncSignInPageDevServerOrigin) {
   return {
     '/api/account/': { target: papelizSyncLocalWorkersOrigin },
@@ -37,18 +43,10 @@ function buildPapelizSyncLocalWorkersDevProxy(papelizSyncLocalWorkersOrigin, pap
     '/api/templates/': { target: papelizSyncLocalWorkersOrigin },
     '/papeliz-sync-local-r2-storage/': { target: papelizSyncLocalWorkersOrigin },
     '/papeliz-sync-local-workers/': { target: papelizSyncLocalWorkersOrigin },
-    // The sign-in page, its scripts and hot reload, and the site files it links. The webapp's own
-    // files have other names (papeliz-favicon.svg, papeliz-apple-touch-icon.png).
-    '^/account(?:/|\\?|$)': { target: papelizSyncSignInPageDevServerOrigin },
-    // The site's Sync and Pricing pages, where Sync is bought: their plans' Sign up opens /account/ on
-    // this origin, next to the Workers. The site's other pages stay on its own dev server.
-    '^/sync(?:/|\\?|$)': { target: papelizSyncSignInPageDevServerOrigin },
-    '^/pricing(?:/|\\?|$)': { target: papelizSyncSignInPageDevServerOrigin },
-    '/_next/': { target: papelizSyncSignInPageDevServerOrigin, ws: true },
-    '/__nextjs': { target: papelizSyncSignInPageDevServerOrigin },
-    '/images/': { target: papelizSyncSignInPageDevServerOrigin },
-    '/favicon.svg': { target: papelizSyncSignInPageDevServerOrigin },
-    '/apple-touch-icon.png': { target: papelizSyncSignInPageDevServerOrigin },
+    // Everything but `/app` is the website, as on papeliz.com: its pages (the Sync and Pricing pages,
+    // whose plans' Sign up opens `/account/` here, next to the Workers, and `/account/` itself), its
+    // files under `/_next/` and `/images/`, and its hot reload.
+    '^/(?!app(?:/|\\?|$))': { target: papelizSyncSignInPageDevServerOrigin, ws: true },
   }
 }
 
@@ -67,7 +65,29 @@ export function papelizSyncEnginePlugin() {
       const papelizSyncSignInPageDevServerOrigin = process.env[papelizSyncSignInPageDevServerOriginVariableName]
       if (!papelizSyncSignInPageDevServerOrigin) throw new Error(`${papelizSyncLocalWorkersOriginVariableName} needs ${papelizSyncSignInPageDevServerOriginVariableName} too.`)
       isPapelizSyncEngineServedAgainstLocalWorkers = true
-      return { server: { proxy: buildPapelizSyncLocalWorkersDevProxy(papelizSyncLocalWorkersOrigin, papelizSyncSignInPageDevServerOrigin) } }
+      return {
+        base: papelizWebappBasePath,
+        server: { proxy: buildPapelizSyncLocalWorkersDevProxy(papelizSyncLocalWorkersOrigin, papelizSyncSignInPageDevServerOrigin) },
+      }
+    },
+    configureServer(papelizWebappDevServer) {
+      if (!isPapelizSyncEngineServedAgainstLocalWorkers) return
+      const papelizSyncLocalLoopbackHost = papelizWebappDevServer.config.server.host
+      papelizWebappDevServer.middlewares.use((webappDevRequest, webappDevResponse, nextWebappDevMiddleware) => {
+        const webappDevRequestUrl = webappDevRequest.url ?? ''
+        // The payment provider refuses an IP address in a checkout's return address, so a local checkout
+        // comes back on localhost, while the sign-in and the local Account Worker know only the loopback
+        // IP. Every address goes back to it, /api/ included.
+        const localhostRequestHostMatch = /^localhost(:\d+)?$/i.exec(webappDevRequest.headers.host ?? '')
+        if (localhostRequestHostMatch) {
+          webappDevResponse.writeHead(307, { Location: `http://${papelizSyncLocalLoopbackHost}${localhostRequestHostMatch[1] ?? ''}${webappDevRequestUrl}` }).end()
+          return
+        }
+        // papeliz.com sends `/app` to `/app/`; Vite would answer with a "did you mean" page.
+        const webappDevRequestPath = webappDevRequestUrl.split('?')[0]
+        if (`${webappDevRequestPath}/` !== papelizWebappBasePath) return nextWebappDevMiddleware()
+        webappDevResponse.writeHead(307, { Location: `${papelizWebappBasePath}${webappDevRequestUrl.slice(webappDevRequestPath.length)}` }).end()
+      })
     },
     configResolved(resolvedViteConfig) {
       const papelizRepositoryRootFolder = join(resolvedViteConfig.root, '../..')

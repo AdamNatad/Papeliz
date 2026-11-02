@@ -41,14 +41,15 @@ const papelizLauncherSurfaces = {
     start: [
       { name: 'webapp', label: 'Run the Webapp', rootScript: 'webapp:dev', port: 14201, serverArguments: viteServerArguments },
       { name: 'mockups', label: 'Design Mockups', staticDirectory: 'test_trash/mockups', port: 14200, hiddenFromMenu: true },
-      // The real Papeliz Sync engine against the real Account and Sync Workers on this computer, with
-      // the site's /account/ sign-in page on the app's origin. Its own port, so the plain webapp can run
-      // beside it and their browser vaults stay apart.
+      // The real Papeliz Sync engine against the real Account and Sync Workers on this computer, laid
+      // out as papeliz.com: the app at /app/, the site (its /account/ sign-in page included) at /. Its
+      // own port, so the plain webapp can run beside it and their browser vaults stay apart.
       {
         name: 'sync-local',
         label: 'Webapp with Papeliz Sync against local Workers',
         rootScript: 'webapp:dev',
         port: 14202,
+        urlPath: '/app/',
         serverArguments: viteServerArguments,
         isSyncLocalWorkersTarget: true,
         hiddenFromMenu: true,
@@ -594,9 +595,9 @@ function serveStaticDirectory(launcherTarget, { openBrowser }) {
 // One `wrangler dev` runs the real Account Worker, Sync Worker and Templates Worker, from their own
 // wrangler.jsonc, behind the router Worker (build_tools/webapp/papeliz-sync-local-workers-router.mjs),
 // with their local D1, Durable Objects and R2 kept in a Git-ignored folder across runs. The site's dev
-// server serves /account/, and the webapp's dev server serves the real engine and puts both on the
-// app's origin (papeliz-sync-engine-vite-plugin.mjs). Nothing reaches Cloudflare; /account/ signs in
-// with the sign-in provider's development instance.
+// server serves the website and /account/, and the webapp's dev server serves the real engine at /app/
+// and puts the site and the Workers on its origin, as on papeliz.com (papeliz-sync-engine-vite-plugin.mjs).
+// Nothing reaches Cloudflare; /account/ signs in with the sign-in provider's development instance.
 
 const papelizSyncLocalWorkersStateDirectory = path.join(papelizRepositoryRoot, '.papeliz-sync-local-workers')
 const papelizSyncLocalWranglerStateDirectory = path.join(papelizSyncLocalWorkersStateDirectory, 'wrangler-state')
@@ -838,7 +839,7 @@ async function preparePapelizSyncLocalWorkers(webappSyncLocalOrigin) {
     PAPELIZ_SYNC_ALLOWED_SIGN_IN_ORIGINS: webappSyncLocalOrigin,
     PAPELIZ_SYNC_SIGN_IN_TOKEN_ISSUER: papelizSyncLocalSignInProviderOrigin,
     PAPELIZ_SYNC_SIGN_IN_JWKS_URL: `${papelizSyncLocalSignInProviderOrigin}/.well-known/jwks.json`,
-    PAPELIZ_SYNC_CHECKOUT_SUCCESS_URL: `${webappSyncLocalOrigin}/`,
+    PAPELIZ_SYNC_CHECKOUT_SUCCESS_URL: `${webappSyncLocalOrigin}/app/`,
     ...paymentDevVars,
     PAPELIZ_SYNC_LOCAL_RUNTIME_WITHOUT_JURISDICTIONS: 'true',
   })
@@ -921,7 +922,7 @@ async function runPapelizSyncLocalWorkersTarget(launcherRequest, launcherTarget,
     console.log(readPapelizSyncLocalPaymentSettings().paymentSettingsStatusLine)
     console.log(` [plan] wrangler d1 migrations apply <each account database (the main index and every place's, spares included) and template gallery shard> --local, then wrangler dev with the router, Account, Sync and Templates Workers on ${localWorkersRouterOrigin}`)
     console.log(` [plan] pnpm run site:dev ${nextServerArguments(papelizSyncSignInPageDevServerPort).join(' ')} (unless a server already answers on ${papelizSyncSignInPageDevServerPort})`)
-    console.log(` [plan] pnpm ${webappScriptArguments.join(' ')}, with the real Sync engine and its proxy to ${localWorkersRouterOrigin} and ${signInPageDevServerOrigin}`)
+    console.log(` [plan] pnpm ${webappScriptArguments.join(' ')}, with the real Sync engine at ${launcherTargetUrl(launcherTarget)} and its proxy to ${localWorkersRouterOrigin} and ${signInPageDevServerOrigin}`)
     return 0
   }
   await requireFreePort(launcherTarget)
@@ -997,7 +998,7 @@ async function runPapelizSyncLocalWorkersTarget(launcherRequest, launcherTarget,
       cwd: papelizRepositoryRoot,
     }))
   } else {
-    console.log(` [note] A server already answers on ${papelizSyncSignInPageDevServerPort}; /account/ comes from it (the site's dev server).`)
+    console.log(` [note] A server already answers on ${papelizSyncSignInPageDevServerPort}; the website and /account/ come from it (the site's dev server).`)
   }
   const webappServer = startPapelizSyncLocalServer({
     serverName: 'webapp',
