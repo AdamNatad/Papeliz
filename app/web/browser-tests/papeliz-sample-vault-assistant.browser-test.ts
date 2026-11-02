@@ -2,8 +2,9 @@ import { expect, test, type Page, type Route } from '@playwright/test'
 
 // The assistant's whole loop in a real browser, against a provider the test plays: open the sample
 // vault, set up a Custom provider with a made-up key, ask for an edit, review the diff the assistant
-// proposes, accept it and see the note change. Every provider call is answered here, and any other
-// request off this computer is refused, so no real key or outside network is ever used.
+// proposes, accept it and see the note change. Then an answer with pictures in it. Every provider
+// call is answered here, and any other request off this computer is refused, so no real key or
+// outside network is ever used.
 
 const testProviderBaseUrl = 'https://papeliz-test-provider.invalid/v1'
 const testProviderApiKey = 'papeliz-test-key-not-a-real-key'
@@ -21,8 +22,13 @@ interface TestProviderChatRequest {
   providerRequestToolNames: string[]
 }
 
+interface TestProviderReply {
+  content: string | null
+  tool_calls?: Array<{ id: string; type: 'function'; function: { name: string; arguments: string } }>
+}
+
 // The provider's two answers, in order: propose the edit, then say so.
-const testProviderReplies = [
+const startHereEditProviderReplies: TestProviderReply[] = [
   {
     content: null,
     tool_calls: [
@@ -49,9 +55,12 @@ const testProviderCorsHeaders = {
   'access-control-allow-methods': 'GET, POST, OPTIONS',
 }
 
-// Answers the provider's chat calls from `testProviderReplies` and refuses every other request that
-// would leave this computer. Returns what the page asked the provider, and anything refused.
-async function playTestProvider(page: Page): Promise<{ testProviderChatRequests: TestProviderChatRequest[]; refusedOutsideRequestUrls: string[] }> {
+// Answers the provider's chat calls from `testProviderReplies`, in order, and refuses every other
+// request that would leave this computer. Returns what the page asked the provider, and anything refused.
+async function playTestProvider(
+  page: Page,
+  testProviderReplies: TestProviderReply[],
+): Promise<{ testProviderChatRequests: TestProviderChatRequest[]; refusedOutsideRequestUrls: string[] }> {
   const testProviderChatRequests: TestProviderChatRequest[] = []
   const refusedOutsideRequestUrls: string[] = []
   // Routes added later are tried first: the provider's own, then this guard for everything else.
@@ -110,7 +119,7 @@ async function setUpTestProvider(page: Page): Promise<void> {
 }
 
 test('the assistant proposes an edit to a sample note, shows the diff, and changes the note only once it is accepted', async ({ page }) => {
-  const { testProviderChatRequests, refusedOutsideRequestUrls } = await playTestProvider(page)
+  const { testProviderChatRequests, refusedOutsideRequestUrls } = await playTestProvider(page, startHereEditProviderReplies)
   await page.goto('/')
   await page.getByRole('button', { name: 'Try Sample' }).first().click()
   const noteEditorContent = page.locator('.cm-content').first()
@@ -156,5 +165,54 @@ test('the assistant proposes an edit to a sample note, shows the diff, and chang
   expect(JSON.stringify(firstChatRequest?.providerRequestMessages.at(-1))).toContain('Make the first sentence of this note name the app.')
   const proposalToolResult = secondChatRequest?.providerRequestMessages.find((providerMessage) => providerMessage.tool_call_id === 'call_propose_start_here_edit')
   expect(JSON.stringify(proposalToolResult?.content)).toContain('proposed')
+  expect(refusedOutsideRequestUrls).toEqual([])
+})
+
+// An answer with a web picture and a picture kept in the vault. The web picture waits behind Show,
+// and its host hears nothing until Show is pressed; the vault picture shows as MD View shows it.
+const webPictureTestAddress = 'https://pictures.papeliz-test.invalid/quarterly-chart.svg'
+const webPictureTestHostName = 'pictures.papeliz-test.invalid'
+const pictureAnswerProviderReplies: TestProviderReply[] = [
+  { content: `Here is the chart: ![Quarterly chart](${webPictureTestAddress})
+
+And the plan: ![Floor plan](Attachments/floor-plan.png)` },
+]
+
+test('a web picture in an answer loads only once Show is pressed, and a vault picture shows as in MD View', async ({ page }) => {
+  const { refusedOutsideRequestUrls } = await playTestProvider(page, pictureAnswerProviderReplies)
+  // Tried before the guard: the picture's host answers with a small drawing and counts each request.
+  const webPictureRequestUrls: string[] = []
+  await page.route(`https://${webPictureTestHostName}/**`, async (route: Route) => {
+    webPictureRequestUrls.push(route.request().url())
+    return route.fulfill({
+      status: 200,
+      contentType: 'image/svg+xml',
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="120" height="60"><rect width="120" height="60" fill="#0064d4"/></svg>',
+    })
+  })
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Try Sample' }).first().click()
+  await setUpTestProvider(page)
+  const assistantComposer = page.getByRole('textbox', { name: 'Message the assistant' })
+  await assistantComposer.fill('Show me the quarterly chart and the floor plan.')
+  await assistantComposer.press('Enter')
+
+  const assistantAnswer = page.locator('.papeliz-assistant-message-markdown').filter({ hasText: 'Here is the chart' })
+  const webPicturePlaceholder = assistantAnswer.locator('.papeliz-assistant-web-picture-placeholder')
+  await expect(webPicturePlaceholder).toContainText('Image: Quarterly chart')
+  await expect(webPicturePlaceholder).toContainText(webPictureTestHostName)
+  await expect(assistantAnswer.getByText('Image: Floor plan', { exact: true })).toBeVisible()
+  await expect(assistantAnswer.locator('img')).toHaveCount(0)
+  expect(webPictureRequestUrls).toEqual([])
+
+  await assistantAnswer.getByRole('button', { name: `Show the picture from ${webPictureTestHostName}` }).click()
+  const shownWebPicture = assistantAnswer.getByRole('img', { name: 'Quarterly chart' })
+  await expect(shownWebPicture).toHaveAttribute('src', webPictureTestAddress)
+  await expect.poll(() => shownWebPicture.evaluate((shownWebPictureElement: HTMLImageElement) => shownWebPictureElement.naturalWidth)).toBeGreaterThan(0)
+  await expect(webPicturePlaceholder).toHaveCount(0)
+  expect(webPictureRequestUrls).toEqual([webPictureTestAddress])
+  // The vault picture still shows as MD View's label, with no Show button of its own.
+  await expect(assistantAnswer.getByText('Image: Floor plan', { exact: true })).toBeVisible()
+  await expect(assistantAnswer.getByRole('button', { name: /^Show/ })).toHaveCount(0)
   expect(refusedOutsideRequestUrls).toEqual([])
 })
