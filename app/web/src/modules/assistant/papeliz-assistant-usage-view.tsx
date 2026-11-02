@@ -58,8 +58,8 @@ function describeAddedUpCost(addedUpCost: { costUsd: number; isCostEstimated: bo
   return `${addedUpCost.isCostEstimated ? 'about ' : ''}${formatPapelizAssistantCostUsd(addedUpCost.costUsd)}${addedUpCost.isCostPartial ? '+' : ''}`
 }
 
-// One model under By model: its tokens, its cost and where the cost came from. Its price is set in
-// Provider settings, under Model price.
+// One model under By model: its tokens, its cost and where the cost came from. Its price is set with
+// the model's Price in Settings › AI Provider.
 function PapelizUsageViewModelRow({ modelTokenUsageTally }: { modelTokenUsageTally: PapelizAssistantModelTokenUsageTally }) {
   const userModelPrices = usePapelizAssistantModelPricesStore((modelPricesState) => modelPricesState.userModelPrices)
   const modelCost = workOutPapelizAssistantModelCost(modelTokenUsageTally, findPapelizAssistantModelPrice(modelTokenUsageTally.providerModelName, userModelPrices))
@@ -168,7 +168,7 @@ export function PapelizAssistantUsageView() {
     <p className="px-2 text-xs leading-relaxed text-papeliz-ink-subtle">
       Tokens are your provider’s own counts, or estimates (marked “about”) where it gave none. Cost is the provider’s own figure where it reports one;
       otherwise it is the tokens at the model’s price: the listed price (checked {papelizAssistantBuiltInModelPricesCheckedOnLabel}), or yours, from
-      Provider settings under Model price. It is an estimate, so your provider’s bill is what counts.
+      the model’s Price in Settings › AI Provider. It is an estimate, so your provider’s bill is what counts.
     </p>
   )
 

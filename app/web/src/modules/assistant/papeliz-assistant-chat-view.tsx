@@ -109,7 +109,7 @@ function PapelizAssistantPlanCard({ planEntry }: { planEntry: Extract<PapelizAss
 }
 
 function PapelizAssistantChatEntryView({ chatEntry }: { chatEntry: PapelizAssistantChatEntry }): ReactNode {
-  const setProviderSettingsDialogOpen = usePapelizAssistantPanelUiStore((panelUiState) => panelUiState.setProviderSettingsDialogOpen)
+  const requestAssistantProviderSettingsPage = usePapelizAssistantPanelUiStore((panelUiState) => panelUiState.requestAssistantProviderSettingsPage)
   switch (chatEntry.chatEntryKind) {
     case 'user-message':
       return (
@@ -188,8 +188,8 @@ function PapelizAssistantChatEntryView({ chatEntry }: { chatEntry: PapelizAssist
         >
           {chatEntry.chatEntryText}
           {chatEntry.isChatEntryError && (
-            <button type="button" className="ml-2 font-semibold underline underline-offset-2" onClick={() => setProviderSettingsDialogOpen(true)}>
-              Provider Settings
+            <button type="button" className="ml-2 font-semibold underline underline-offset-2" onClick={() => requestAssistantProviderSettingsPage()}>
+              AI Provider
             </button>
           )}
         </div>
@@ -204,7 +204,7 @@ export function PapelizAssistantChatView() {
   const isAssistantRunning = usePapelizAssistantConversationStore((conversationState) => conversationState.isAssistantRunning)
   const sendAssistantMessage = usePapelizAssistantConversationStore((conversationState) => conversationState.sendAssistantMessage)
   const acceptAllPendingAssistantProposals = usePapelizAssistantConversationStore((conversationState) => conversationState.acceptAllPendingAssistantProposals)
-  const setProviderSettingsDialogOpen = usePapelizAssistantPanelUiStore((panelUiState) => panelUiState.setProviderSettingsDialogOpen)
+  const requestAssistantProviderSettingsPage = usePapelizAssistantPanelUiStore((panelUiState) => panelUiState.requestAssistantProviderSettingsPage)
   usePapelizAssistantProviderSettingsStore((settingsState) => settingsState.providerSettingsByProviderId)
   usePapelizAssistantProviderSettingsStore((settingsState) => settingsState.activeAssistantProviderId)
   const activeVaultMarkdownNoteRelativePath = usePapelizWorkspaceStore(selectActiveVaultMarkdownNoteRelativePath)
@@ -231,7 +231,7 @@ export function PapelizAssistantChatView() {
           {activeProviderConnection.providerSetupProblem !== papelizAssistantProviderNotChosenProblem && (
             <p className="text-[13px] font-medium text-papeliz-ink">{activeProviderConnection.providerSetupProblem}</p>
           )}
-          <PapelizPillButton pillButtonVariant="primary" onClick={() => setProviderSettingsDialogOpen(true)}>
+          <PapelizPillButton pillButtonVariant="primary" onClick={() => requestAssistantProviderSettingsPage()}>
             Choose a Provider
           </PapelizPillButton>
         </div>

@@ -1,24 +1,27 @@
 import { create } from 'zustand'
 
-// Which part of the AI Assistant panel shows, and whether provider settings were asked for: the
-// workspace's Settings gear opens on its AI Assistant page then, and sets it back to false.
+// Which part of the AI Assistant panel shows, and whether the provider settings were asked for
+// (Choose a Provider, the model chip, an error's link, an inline edit with no provider): the
+// workspace's Settings gear then opens on its AI Provider page and clears the request.
 export type PapelizAssistantPanelTab = 'chat' | 'sessions' | 'usage'
 
 interface PapelizAssistantPanelUiState {
   assistantPanelTab: PapelizAssistantPanelTab
-  isProviderSettingsDialogOpen: boolean
+  isAssistantProviderSettingsPageRequested: boolean
   // Bumped to move keyboard focus into the chat composer (after "Ask Assistant", say).
   composerFocusRequestCount: number
   setAssistantPanelTab: (assistantPanelTab: PapelizAssistantPanelTab) => void
-  setProviderSettingsDialogOpen: (isProviderSettingsDialogOpen: boolean) => void
+  requestAssistantProviderSettingsPage: () => void
+  clearAssistantProviderSettingsPageRequest: () => void
   requestComposerFocus: () => void
 }
 
 export const usePapelizAssistantPanelUiStore = create<PapelizAssistantPanelUiState>()((setPanelUiState) => ({
   assistantPanelTab: 'chat',
-  isProviderSettingsDialogOpen: false,
+  isAssistantProviderSettingsPageRequested: false,
   composerFocusRequestCount: 0,
   setAssistantPanelTab: (assistantPanelTab) => setPanelUiState({ assistantPanelTab }),
-  setProviderSettingsDialogOpen: (isProviderSettingsDialogOpen) => setPanelUiState({ isProviderSettingsDialogOpen }),
+  requestAssistantProviderSettingsPage: () => setPanelUiState({ isAssistantProviderSettingsPageRequested: true }),
+  clearAssistantProviderSettingsPageRequest: () => setPanelUiState({ isAssistantProviderSettingsPageRequested: false }),
   requestComposerFocus: () => setPanelUiState((panelUiState) => ({ composerFocusRequestCount: panelUiState.composerFocusRequestCount + 1 })),
 }))

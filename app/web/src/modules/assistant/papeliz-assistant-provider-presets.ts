@@ -20,6 +20,8 @@ export interface PapelizAssistantProviderPreset {
   isBrowserAccessConfirmed: boolean
   // Where the provider runs, for the groups of Add Provider's list.
   providerPresetPlace: 'hosted' | 'this-computer' | 'any-address'
+  // Marked "Recommended" in Add Provider's list.
+  isProviderPresetRecommended?: boolean
   // Headers this provider needs on every request besides the key's.
   providerExtraRequestHeaders?: Readonly<Record<string, string>>
 }
@@ -30,13 +32,14 @@ export const papelizAssistantProviderPresets: readonly PapelizAssistantProviderP
   {
     papelizAssistantProviderId: 'meta-model-api',
     providerPresetDisplayName: 'Meta Model API',
-    providerPresetDescription: 'Recommended. Long context, so the assistant can work across many notes at once.',
+    providerPresetDescription: 'Long context, so the assistant can work across many notes at once.',
     providerBaseUrl: 'https://api.meta.ai/v1',
     suggestedProviderModelNames: ['muse-spark-1.3', 'muse-spark-1.1'],
     isProviderApiKeyRequired: true,
     providerApiKeyHelpUrl: 'https://dev.meta.ai/',
     isBrowserAccessConfirmed: true,
     providerPresetPlace: 'hosted',
+    isProviderPresetRecommended: true,
   },
   {
     papelizAssistantProviderId: 'claude',
