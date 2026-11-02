@@ -38,6 +38,7 @@ pnpm-debug.log*
 *.pem
 # `webapp start sync-local`: the local Sync Workers' configs, local keys, D1, Durable Objects and R2
 /.papeliz-sync-local-workers/
+/build_tools/shared/launcher/papeliz-sync-local-payment-settings.env
 
 # Scratch: keep only the folder's README and .gitkeep
 test_trash/*

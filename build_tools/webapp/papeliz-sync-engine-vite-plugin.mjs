@@ -40,6 +40,10 @@ function buildPapelizSyncLocalWorkersDevProxy(papelizSyncLocalWorkersOrigin, pap
     // The sign-in page, its scripts and hot reload, and the site files it links. The webapp's own
     // files have other names (papeliz-favicon.svg, papeliz-apple-touch-icon.png).
     '^/account(?:/|\\?|$)': { target: papelizSyncSignInPageDevServerOrigin },
+    // The site's Sync and Pricing pages, where Sync is bought: their plans' Sign up opens /account/ on
+    // this origin, next to the Workers. The site's other pages stay on its own dev server.
+    '^/sync(?:/|\\?|$)': { target: papelizSyncSignInPageDevServerOrigin },
+    '^/pricing(?:/|\\?|$)': { target: papelizSyncSignInPageDevServerOrigin },
     '/_next/': { target: papelizSyncSignInPageDevServerOrigin, ws: true },
     '/__nextjs': { target: papelizSyncSignInPageDevServerOrigin },
     '/images/': { target: papelizSyncSignInPageDevServerOrigin },

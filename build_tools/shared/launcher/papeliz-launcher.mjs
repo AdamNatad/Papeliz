@@ -617,6 +617,86 @@ const papelizSyncLocalR2SigningSettings = {
   PAPELIZ_SYNC_R2_SECRET_ACCESS_KEY: 'papeliz-sync-local-workers-r2-secret-access-key',
 }
 
+// The local Account Worker bills only in the payment provider's test mode. Its four payment settings come
+// from one Git-ignored file beside this launcher, filled in by whoever tests billing; the example beside
+// it has the test API and the test products, and leaves the two secrets blank. A missing file or an empty
+// value leaves that part of billing off. A live key or the live API is refused before anything is
+// written, so a local run never reaches live mode. No value is ever printed.
+const papelizSyncLocalPaymentSettingsFilePath = path.join(papelizRepositoryRoot, 'build_tools', 'shared', 'launcher', 'papeliz-sync-local-payment-settings.env')
+const papelizSyncLocalPaymentSettingsExampleFileName = 'papeliz-sync-local-payment-settings.example.env'
+const papelizSyncLocalPaymentProviderTestApiUrl = 'https://test-api.creem.io'
+const papelizSyncLocalPaymentProviderTestApiKeyPrefix = 'creem_test_'
+const papelizSyncLocalPaymentSettingNames = [
+  'PAPELIZ_SYNC_PAYMENT_PROVIDER_API_URL',
+  'PAPELIZ_SYNC_PLAN_PRODUCT_IDS',
+  'PAPELIZ_SYNC_PAYMENT_PROVIDER_API_KEY',
+  'PAPELIZ_SYNC_PAYMENT_PROVIDER_WEBHOOK_SECRET',
+]
+
+// The payment settings for the local Account Worker's .dev.vars, and one status line that names the file
+// and the settings, never a value. The API address is always set (the test API or empty), so the live API
+// in the Worker's wrangler.jsonc never applies locally.
+function readPapelizSyncLocalPaymentSettings() {
+  const paymentSettingsFileForDisplay = path.relative(papelizRepositoryRoot, papelizSyncLocalPaymentSettingsFilePath)
+  const paymentSettingValues = Object.fromEntries(papelizSyncLocalPaymentSettingNames.map((paymentSettingName) => [paymentSettingName, '']))
+  if (!existsSync(papelizSyncLocalPaymentSettingsFilePath)) {
+    return {
+      paymentDevVars: { PAPELIZ_SYNC_PAYMENT_PROVIDER_API_URL: '' },
+      paymentSettingsStatusLine: ` [note] Billing off: ${paymentSettingsFileForDisplay} doesn't exist. To test billing in the payment provider's test mode, copy ${papelizSyncLocalPaymentSettingsExampleFileName} beside it to that name.`,
+    }
+  }
+  const seenPaymentSettingNames = new Set()
+  const paymentSettingsFileLines = readFileSync(papelizSyncLocalPaymentSettingsFilePath, 'utf8').split(/\r?\n/)
+  for (const [paymentSettingsLineIndex, paymentSettingsLine] of paymentSettingsFileLines.entries()) {
+    const trimmedPaymentSettingsLine = paymentSettingsLine.trim()
+    if (trimmedPaymentSettingsLine === '' || trimmedPaymentSettingsLine.startsWith('#')) continue
+    const paymentSettingNameEnd = trimmedPaymentSettingsLine.indexOf('=')
+    const paymentSettingName = paymentSettingNameEnd === -1 ? '' : trimmedPaymentSettingsLine.slice(0, paymentSettingNameEnd).trim()
+    // The line itself is never quoted back: a key pasted on its own line must not reach the console.
+    if (!papelizSyncLocalPaymentSettingNames.includes(paymentSettingName)) {
+      throw new PapelizLauncherError(`${paymentSettingsFileForDisplay}, line ${paymentSettingsLineIndex + 1}: not NAME=value for one of ${papelizSyncLocalPaymentSettingNames.join(', ')}.`)
+    }
+    if (seenPaymentSettingNames.has(paymentSettingName)) throw new PapelizLauncherError(`${paymentSettingsFileForDisplay} sets ${paymentSettingName} twice.`)
+    seenPaymentSettingNames.add(paymentSettingName)
+    const paymentSettingValue = trimmedPaymentSettingsLine.slice(paymentSettingNameEnd + 1).trim().replace(/^(['"])(.*)\1$/, '$2')
+    // .dev.vars holds each value in single quotes.
+    if (paymentSettingValue.includes("'")) throw new PapelizLauncherError(`${paymentSettingsFileForDisplay}: ${paymentSettingName} can't contain a single quote.`)
+    paymentSettingValues[paymentSettingName] = paymentSettingValue
+  }
+  const paymentProviderApiUrl = paymentSettingValues.PAPELIZ_SYNC_PAYMENT_PROVIDER_API_URL.replace(/\/+$/, '')
+  if (paymentProviderApiUrl !== '' && paymentProviderApiUrl !== papelizSyncLocalPaymentProviderTestApiUrl) {
+    throw new PapelizLauncherError(`${paymentSettingsFileForDisplay}: PAPELIZ_SYNC_PAYMENT_PROVIDER_API_URL must be the test API, ${papelizSyncLocalPaymentProviderTestApiUrl}. A local run never uses the live API.`)
+  }
+  const paymentProviderApiKey = paymentSettingValues.PAPELIZ_SYNC_PAYMENT_PROVIDER_API_KEY
+  if (paymentProviderApiKey !== '' && !paymentProviderApiKey.startsWith(papelizSyncLocalPaymentProviderTestApiKeyPrefix)) {
+    throw new PapelizLauncherError(`${paymentSettingsFileForDisplay}: PAPELIZ_SYNC_PAYMENT_PROVIDER_API_KEY is not a test key (a test key starts with ${papelizSyncLocalPaymentProviderTestApiKeyPrefix}). A local run never uses a live key.`)
+  }
+  const planProductIdsText = paymentSettingValues.PAPELIZ_SYNC_PLAN_PRODUCT_IDS
+  if (planProductIdsText !== '') {
+    let planProductIds = null
+    try {
+      planProductIds = JSON.parse(planProductIdsText)
+    } catch {
+      // Reported just below.
+    }
+    if (typeof planProductIds !== 'object' || planProductIds === null || Array.isArray(planProductIds)) {
+      throw new PapelizLauncherError(`${paymentSettingsFileForDisplay}: PAPELIZ_SYNC_PLAN_PRODUCT_IDS is not a JSON object.`)
+    }
+  }
+  const paymentDevVars = { PAPELIZ_SYNC_PAYMENT_PROVIDER_API_URL: paymentProviderApiUrl }
+  for (const paymentSettingName of papelizSyncLocalPaymentSettingNames) {
+    if (paymentSettingName !== 'PAPELIZ_SYNC_PAYMENT_PROVIDER_API_URL' && paymentSettingValues[paymentSettingName] !== '') paymentDevVars[paymentSettingName] = paymentSettingValues[paymentSettingName]
+  }
+  // A checkout needs the first three settings; a webhook needs all four.
+  const emptyPaymentSettingNames = papelizSyncLocalPaymentSettingNames.filter((paymentSettingName) => paymentSettingValues[paymentSettingName] === '')
+  const isLocalCheckoutOn = !emptyPaymentSettingNames.some((paymentSettingName) => paymentSettingName !== 'PAPELIZ_SYNC_PAYMENT_PROVIDER_WEBHOOK_SECRET')
+  if (!isLocalCheckoutOn) {
+    return { paymentDevVars, paymentSettingsStatusLine: ` [note] Billing off: ${paymentSettingsFileForDisplay} leaves ${emptyPaymentSettingNames.join(', ')} empty.` }
+  }
+  const localWebhooksDescription = emptyPaymentSettingNames.length === 0 ? 'webhooks on' : 'webhooks off (PAPELIZ_SYNC_PAYMENT_PROVIDER_WEBHOOK_SECRET is empty)'
+  return { paymentDevVars, paymentSettingsStatusLine: ` [ready] Billing in the payment provider's test mode, from ${paymentSettingsFileForDisplay}: checkout on, ${localWebhooksDescription}.` }
+}
+
 // Made on the first run and kept, so device sessions and their grants outlast a restart.
 async function readOrCreatePapelizSyncLocalGrantSigningKey() {
   const grantSigningKeyFilePath = path.join(papelizSyncLocalWorkersStateDirectory, 'papeliz-sync-local-grant-signing-key.json')
@@ -690,6 +770,8 @@ async function preparePapelizSyncLocalWorkers(webappSyncLocalOrigin) {
     throw new PapelizLauncherError('This checkout has no Papeliz Sync Workers (sync/), so there is nothing to run locally.')
   }
   if (!existsSync(path.join(syncWorkspaceRoot, 'node_modules'))) throw new PapelizLauncherError("Papeliz Sync's packages aren't installed. Run: pnpm --dir sync install")
+  // Read first, so a live key or the live API stops the run before any file is written.
+  const { paymentDevVars, paymentSettingsStatusLine } = readPapelizSyncLocalPaymentSettings()
   const requireFromAccountWorker = createRequire(path.join(accountWorkerFolder, 'package.json'))
   const wranglerPackageJsonPath = requireFromAccountWorker.resolve('wrangler/package.json')
   const wranglerCommandFilePath = path.join(path.dirname(wranglerPackageJsonPath), JSON.parse(readFileSync(wranglerPackageJsonPath, 'utf8')).bin.wrangler)
@@ -757,6 +839,7 @@ async function preparePapelizSyncLocalWorkers(webappSyncLocalOrigin) {
     PAPELIZ_SYNC_SIGN_IN_TOKEN_ISSUER: papelizSyncLocalSignInProviderOrigin,
     PAPELIZ_SYNC_SIGN_IN_JWKS_URL: `${papelizSyncLocalSignInProviderOrigin}/.well-known/jwks.json`,
     PAPELIZ_SYNC_CHECKOUT_SUCCESS_URL: `${webappSyncLocalOrigin}/`,
+    ...paymentDevVars,
     PAPELIZ_SYNC_LOCAL_RUNTIME_WITHOUT_JURISDICTIONS: 'true',
   })
   const vaultWorkerConfigFilePath = writePapelizSyncLocalWorkerFiles(vaultWorkerConfig.name, vaultWorkerConfig, {
@@ -777,6 +860,7 @@ async function preparePapelizSyncLocalWorkers(webappSyncLocalOrigin) {
     wranglerCommandFilePath,
     accountDatabases,
     accountWorkerConfigFilePath,
+    paymentSettingsStatusLine,
     templateGalleryShardDatabases,
     templateGalleryWorkerConfigFilePath,
     workerConfigFilePaths: [routerConfigFilePath, accountWorkerConfigFilePath, vaultWorkerConfigFilePath, templateGalleryWorkerConfigFilePath],
@@ -833,6 +917,8 @@ async function runPapelizSyncLocalWorkersTarget(launcherRequest, launcherTarget,
   const stateDirectoryForDisplay = path.relative(papelizRepositoryRoot, papelizSyncLocalWorkersStateDirectory)
   if (launcherRequest.dryRun) {
     console.log(` [plan] Write each Worker's local config and .dev.vars into ${stateDirectoryForDisplay}/ (Git-ignored), with a made-up grant signing key, Standard vault key wrap secret and sign-in link hash secret kept there`)
+    console.log(` [plan] Give the local Account Worker the payment provider's test-mode settings from ${path.relative(papelizRepositoryRoot, papelizSyncLocalPaymentSettingsFilePath)} (Git-ignored), refusing a live key or the live API:`)
+    console.log(readPapelizSyncLocalPaymentSettings().paymentSettingsStatusLine)
     console.log(` [plan] wrangler d1 migrations apply <each account database (the main index and every place's, spares included) and template gallery shard> --local, then wrangler dev with the router, Account, Sync and Templates Workers on ${localWorkersRouterOrigin}`)
     console.log(` [plan] pnpm run site:dev ${nextServerArguments(papelizSyncSignInPageDevServerPort).join(' ')} (unless a server already answers on ${papelizSyncSignInPageDevServerPort})`)
     console.log(` [plan] pnpm ${webappScriptArguments.join(' ')}, with the real Sync engine and its proxy to ${localWorkersRouterOrigin} and ${signInPageDevServerOrigin}`)
@@ -844,6 +930,7 @@ async function runPapelizSyncLocalWorkersTarget(launcherRequest, launcherTarget,
   }
   const preparedLocalWorkers = await preparePapelizSyncLocalWorkers(webappSyncLocalOrigin)
   console.log(` [ready] Local Workers' configs and settings in ${stateDirectoryForDisplay}/`)
+  console.log(preparedLocalWorkers.paymentSettingsStatusLine)
   // Each account database, and each shard of the template gallery, gets the migrations its binding names.
   // CI makes wrangler apply them without asking first.
   const localShardMigrations = [
