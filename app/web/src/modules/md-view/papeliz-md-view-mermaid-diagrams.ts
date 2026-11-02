@@ -1,7 +1,20 @@
 // ```mermaid blocks drawn as diagrams, in the editable MD View and on the locked page. Mermaid is
 // large, so it loads (its own chunk) only when a note first shows a diagram. It runs with
-// `securityLevel: 'strict'`: labels can hold no HTML or script, and click handlers are off. The
-// diagrams take their colors from the app's theme and are drawn again when the theme changes.
+// `securityLevel: 'strict'`: labels can hold no HTML or script, and click handlers are off. Nothing
+// a diagram names is loaded from outside the vault (papeliz-md-view-mermaid-outside-addresses.ts):
+// an image shape shows a placeholder picture instead. The diagrams take their colors from the app's
+// theme and are drawn again when the theme changes.
+
+import {
+  findOutsideAddressInMermaidDiagramSettings,
+  findOutsideAddressInParsedMermaidDiagram,
+  papelizMermaidLabelSanitizerSettings,
+  papelizMermaidOutsideAddressErrorMessage,
+  papelizMermaidSecureSettingNames,
+  papelizMermaidSourceHtmlTagPattern,
+  removeOutsideAddressesFromMermaidDiagramSource,
+  removeOutsideAddressesFromMermaidDiagramSvgText,
+} from './papeliz-md-view-mermaid-outside-addresses'
 
 type PapelizMermaidApi = (typeof import('mermaid'))['default']
 type PapelizShownTheme = 'light' | 'dark'
@@ -268,6 +281,8 @@ function describePapelizMermaidSettings(
   return {
     startOnLoad: false,
     securityLevel: 'strict',
+    secure: papelizMermaidSecureSettingNames,
+    dompurifyConfig: papelizMermaidLabelSanitizerSettings,
     // HTML labels sit in `<foreignObject>`, which a canvas won't draw; paper needs plain SVG text.
     ...(printFontFamily === null ? {} : { htmlLabels: false }),
     // A diagram with a mistake throws; MD View shows the message beside the source instead.
@@ -321,20 +336,38 @@ function shortenMermaidErrorMessage(mermaidError: unknown): string {
   return firstErrorLine.length > 160 ? `${firstErrorLine.slice(0, 157)}…` : firstErrorLine
 }
 
-// An HTML tag in a diagram's source, `<name …>`, with its quoted values read whole.
-const papelizMermaidSourceHtmlTagPattern = /<[A-Za-z][^\s/>]*(?:[\s/](?:"[^"]*"|'[^']*'|[^"'>])*)?>/g
-// Inside such a tag: a quoted value, kept as it is, or an event-handler attribute with its value
-// (`onerror=alert(1)`, `onload="…"`, `onclick='…'`, `onmouseover=#quot;…#quot;` in Mermaid's quotes).
+// Inside an HTML tag in the source: a quoted value, kept as it is, or an event-handler attribute
+// with its value (`onerror=alert(1)`, `onload="…"`, `onclick='…'`, `onmouseover=#quot;…#quot;` in
+// Mermaid's quotes).
 const papelizMermaidSourceHtmlTagPartPattern = /"[^"]*"|'[^']*'|(?<=[\s/"'])on[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|#(?:quot|34);[\s\S]*?#(?:quot|34);|[^\s>]*)/gi
 
-// Mermaid's strict mode takes a label's event handlers out (`<img src=x onerror=…>` is drawn as
-// `<img src="x">`), but its sanitizer first reads the label in a scratch HTML document, and Chromium
+// Mermaid's strict mode takes a label's event handlers out (`<b onclick=…>` is drawn as `<b>`, and
+// Papeliz's label settings drop an `<img>` whole), but its sanitizer first reads the label in a
+// scratch HTML document, and Chromium
 // reports any handler it reads there to the page's security policy, though nothing in that document
 // can run. Taking the handlers out of the source first draws the same diagram, with nothing reported.
 export function removeEventHandlerAttributesFromMermaidDiagramSource(mermaidDiagramSource: string): string {
   return mermaidDiagramSource.replace(papelizMermaidSourceHtmlTagPattern, (htmlTagText) =>
     htmlTagText.replace(papelizMermaidSourceHtmlTagPartPattern, (htmlTagPartText) => (/^["']/.test(htmlTagPartText) ? htmlTagPartText : '')),
   )
+}
+
+// What Mermaid itself read from a diagram, before it draws: its own settings, and what it parsed. A
+// diagram that still asks for a file from outside (in a way the source rewrite doesn't know, such as
+// a JSON escape in its settings) is not drawn. A diagram with a mistake is left to `render`, which
+// gives Mermaid's message.
+async function findOutsideAddressBeforeMermaidDraw(papelizMermaidApi: PapelizMermaidApi, mermaidDiagramSourceToDraw: string): Promise<string | null> {
+  const mermaidParseResult = await papelizMermaidApi.parse(mermaidDiagramSourceToDraw, { suppressErrors: true })
+  if (mermaidParseResult === false) return null
+  const settingsOutsideAddress = findOutsideAddressInMermaidDiagramSettings(mermaidParseResult.config)
+  if (settingsOutsideAddress !== null) return settingsOutsideAddress
+  let parsedMermaidDiagram: Awaited<ReturnType<PapelizMermaidApi['mermaidAPI']['getDiagramFromText']>>
+  try {
+    parsedMermaidDiagram = await papelizMermaidApi.mermaidAPI.getDiagramFromText(mermaidDiagramSourceToDraw)
+  } catch {
+    return null
+  }
+  return findOutsideAddressInParsedMermaidDiagram(parsedMermaidDiagram.db)
 }
 
 // One draw, after every draw before it: Mermaid's settings are global.
@@ -348,10 +381,12 @@ function queuePapelizMermaidDraw(mermaidDiagramSource: string, describeMermaidSe
     }
     papelizMermaidDiagramCount += 1
     const mermaidDiagramElementId = `papeliz-mermaid-diagram-${papelizMermaidDiagramCount}`
+    const mermaidDiagramSourceToDraw = removeOutsideAddressesFromMermaidDiagramSource(removeEventHandlerAttributesFromMermaidDiagramSource(mermaidDiagramSource))
     try {
       papelizMermaidApi.initialize(namesItsOwnMermaidTheme(mermaidDiagramSource) ? keepOnlyPapelizMermaidTypeface(describeMermaidSettings()) : describeMermaidSettings())
-      const { svg: mermaidDiagramSvgText } = await papelizMermaidApi.render(mermaidDiagramElementId, removeEventHandlerAttributesFromMermaidDiagramSource(mermaidDiagramSource))
-      return { mermaidDiagramSvgText }
+      if ((await findOutsideAddressBeforeMermaidDraw(papelizMermaidApi, mermaidDiagramSourceToDraw)) !== null) return { mermaidDiagramErrorMessage: papelizMermaidOutsideAddressErrorMessage }
+      const { svg: mermaidDiagramSvgText } = await papelizMermaidApi.render(mermaidDiagramElementId, mermaidDiagramSourceToDraw)
+      return { mermaidDiagramSvgText: removeOutsideAddressesFromMermaidDiagramSvgText(mermaidDiagramSvgText) }
     } catch (mermaidError) {
       // Mermaid draws in a scratch element under <body>; a failed draw can leave it there.
       document.getElementById(`d${mermaidDiagramElementId}`)?.remove()

@@ -286,8 +286,9 @@ test('a label’s event handler reaches no HTML reader, so the security policy h
   expect(labelHandlerReport.reportedPolicyViolations).toEqual([])
   expect(labelHandlerReport.drawErrorMessages).toEqual([])
   expect(labelHandlerReport.handlerElementCount).toBe(0)
-  // Drawn as strict mode draws it: the bold text and the picture, with no handler.
+  // Drawn with the bold text and no handler. The picture goes too: a label loads no file
+  // (papeliz-mermaid-diagram-outside-addresses.browser-test.ts).
   expect(labelHandlerReport.shownLabelHtml).toContain('<b>bold?</b>')
-  expect(labelHandlerReport.shownLabelHtml).toMatch(/<img src="x"[^>]*>/)
+  expect(labelHandlerReport.shownLabelHtml).not.toContain('<img')
   expect(labelHandlerReport.shownLabelHtml).not.toContain('onerror')
 })
