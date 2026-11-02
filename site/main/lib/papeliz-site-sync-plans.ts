@@ -74,16 +74,24 @@ export const papelizSiteSyncFreePlan = {
   papelizSiteSyncFreePlanNoteHistoryDayCount: 7,
 } as const
 
-// The Free card's lines, in the paid cards' order, with its device limit and both kinds of
-// encryption said outright, since they are where Free differs or might be expected to.
+// Every plan, Free included, offers both kinds of vault.
+export const papelizSiteSyncPlanEncryptionLine = 'Standard and End-to-end encryption'
+
+// A storage line: old versions count toward storage, as the app's Settings › Sync says.
+function describePapelizSiteSyncPlanStorageLine(papelizSiteSyncPlanStorageLabel: string): string {
+  return `${papelizSiteSyncPlanStorageLabel} storage, old versions included`
+}
+
+// The Free card's lines, in the paid cards' order. Free's file count in a vault is a hidden limit, so
+// it has no line.
 export function describePapelizSiteSyncFreePlanLimits(): string[] {
   return [
-    `${papelizSiteSyncFreePlan.papelizSiteSyncFreePlanStorageLabel} storage`,
+    describePapelizSiteSyncPlanStorageLine(papelizSiteSyncFreePlan.papelizSiteSyncFreePlanStorageLabel),
     `${papelizSiteSyncFreePlan.papelizSiteSyncFreePlanVaultLimit} synced vault`,
     `${papelizSiteSyncFreePlan.papelizSiteSyncFreePlanConnectedDeviceLimit} devices`,
     `${papelizSiteSyncFreePlan.papelizSiteSyncFreePlanLargestFileLabel} per file`,
     `${papelizSiteSyncFreePlan.papelizSiteSyncFreePlanNoteHistoryDayCount} days of note history`,
-    'Standard and End-to-end encryption',
+    papelizSiteSyncPlanEncryptionLine,
   ]
 }
 
@@ -150,6 +158,16 @@ export function readPapelizSiteSyncPlanYearlyMonthsSaved(papelizSiteSyncPlan: Pa
   return Math.round((readPapelizSiteSyncPlanYearlySavingUsd(papelizSiteSyncPlan) / papelizSiteSyncPlanYearlyMonthlyRateUsd) * 10) / 10
 }
 
+// How much less a year billed yearly costs than twelve months billed monthly, in whole percent.
+export function readPapelizSiteSyncPlanYearlyDiscountPercent(papelizSiteSyncPlan: PapelizSiteSyncPlan): number {
+  return Math.round((readPapelizSiteSyncPlanYearlySavingUsd(papelizSiteSyncPlan) / (papelizSiteSyncPlan.papelizSiteSyncPlanMonthlyPriceUsd * 12)) * 100)
+}
+
+// The lowest price for a month on any paid plan, billed yearly: where the paid plans start.
+export function readPapelizSiteSyncStartingYearlyMonthlyRateUsd(): number {
+  return Math.min(...papelizSiteSyncPlans.map((papelizSiteSyncPlan) => readPapelizSiteSyncPlanMonthlyRateUsd(papelizSiteSyncPlan, 'yearly')))
+}
+
 // Whole dollars without cents ("$4"), otherwise two decimals ("$4.50").
 export function formatPapelizSiteSyncUsd(papelizSiteSyncAmountUsd: number): string {
   const papelizSiteSyncAmountIsWholeDollars = Number.isInteger(papelizSiteSyncAmountUsd)
@@ -161,14 +179,17 @@ export function formatPapelizSiteSyncUsd(papelizSiteSyncAmountUsd: number): stri
   }).format(papelizSiteSyncAmountUsd)
 }
 
-// A plan card's lines, the limits people see. The largest file reads "50 MB per file", number first
-// like the lines around it (Adam, 2026-11-01: "we need to clairfy on Files up to 50mb").
+// A plan card's lines, the limits people see, the same on the Pricing, Sync and account pages. The
+// largest file reads "50 MB per file", number first like the lines around it (Adam, 2026-11-01: "we
+// need to clairfy on Files up to 50mb").
 export function describePapelizSiteSyncPlanLimits(papelizSiteSyncPlan: PapelizSiteSyncPlan): string[] {
   return [
-    `${papelizSiteSyncPlan.papelizSiteSyncPlanStorageLabel} storage`,
+    describePapelizSiteSyncPlanStorageLine(papelizSiteSyncPlan.papelizSiteSyncPlanStorageLabel),
     `${papelizSiteSyncPlan.papelizSiteSyncPlanVaultLimit} synced vaults`,
     `${papelizSiteSyncPlan.papelizSiteSyncPlanFilesPerVaultLimit.toLocaleString('en-US')} files in each vault`,
+    `${papelizSiteSyncConnectedDeviceLimit} devices`,
     `${papelizSiteSyncPlan.papelizSiteSyncPlanLargestFileLabel} per file`,
     `${papelizSiteSyncPlan.papelizSiteSyncPlanNoteHistoryMonthCount} months of note history`,
+    papelizSiteSyncPlanEncryptionLine,
   ]
 }

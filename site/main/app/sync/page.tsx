@@ -3,13 +3,7 @@ import { PapelizSiteCenteredPageHero } from '@/components/marketing/papeliz-site
 import { PapelizSiteQuestionList } from '@/components/pricing/papeliz-site-question-list'
 import { PapelizSiteSyncPlanGrid } from '@/components/pricing/papeliz-site-sync-plan-grid'
 import { createPapelizSitePageMetadata } from '@/lib/papeliz-site-seo'
-import {
-  papelizSiteSyncConnectedDeviceLimit,
-  papelizSiteSyncEducationAndNonProfitDiscountPercent,
-  papelizSiteSyncFreePlan,
-  papelizSiteSyncFreeSignUpHref,
-  papelizSiteSyncRefundWindowDayCount,
-} from '@/lib/papeliz-site-sync-plans'
+import { papelizSiteSyncConnectedDeviceLimit, papelizSiteSyncFreePlan, papelizSiteSyncFreeSignUpHref } from '@/lib/papeliz-site-sync-plans'
 import { papelizSiteSyncQuestions } from '@/lib/papeliz-site-sync-questions'
 
 export const metadata = createPapelizSitePageMetadata({
@@ -203,23 +197,10 @@ export default function PapelizSiteSyncPage() {
         <PapelizSiteSyncSectionHeading
           papelizSiteSyncSectionHeadingId="sync-plans-title"
           papelizSiteSyncSectionHeadingTitle="Pricing"
-          papelizSiteSyncSectionHeadingLead="Free, and three paid plans billed monthly or yearly. Prices in USD."
+          papelizSiteSyncSectionHeadingLead="Free, and three paid plans billed yearly or monthly. Prices in USD."
         />
-        <PapelizSiteSyncPlanGrid papelizSiteSyncPlanGridShows="every-plan" />
-        <dl className="mx-auto mt-8 max-w-3xl space-y-2.5 text-sm leading-relaxed text-papeliz-ink-muted">
-          <div className="flex gap-2">
-            <dt className="shrink-0 font-semibold text-papeliz-ink">Refunds</dt>
-            <dd>No trial. A full refund within {papelizSiteSyncRefundWindowDayCount} days of subscribing to a paid plan.</dd>
-          </div>
-          <div className="flex gap-2">
-            <dt className="shrink-0 font-semibold text-papeliz-ink">Education and non-profits</dt>
-            <dd>{papelizSiteSyncEducationAndNonProfitDiscountPercent}% off any plan, as a code after a short check.</dd>
-          </div>
-          <div className="flex gap-2">
-            <dt className="shrink-0 font-semibold text-papeliz-ink">Signing up</dt>
-            <dd>Choose a plan above, or in Papeliz under Settings › Sync.</dd>
-          </div>
-        </dl>
+        {/* The Pricing page's plan block. Refunds, the discount and signing up are answered in Pricing's FAQ. */}
+        <PapelizSiteSyncPlanGrid />
       </section>
 
       <PapelizSiteQuestionList

@@ -3,7 +3,9 @@ import {
   papelizSiteSyncConnectedDeviceLimit,
   papelizSiteSyncEducationAndNonProfitDiscountPercent,
   papelizSiteSyncFreePlan,
+  papelizSiteSyncPlans,
   papelizSiteSyncRefundWindowDayCount,
+  readPapelizSiteSyncPlanYearlyDiscountPercent,
 } from './papeliz-site-sync-plans'
 
 // An answer is plain text, or text with links.
@@ -42,7 +44,21 @@ export const papelizSitePricingQuestions: PapelizSiteQuestion[] = [
     papelizSiteQuestionAnchor: 'free-trial-and-refunds',
     papelizSiteQuestionText: 'Is there a free trial?',
     papelizSiteQuestionAnswerParts: [
-      `No, but there is a Free plan: ${papelizSiteSyncFreePlan.papelizSiteSyncFreePlanStorageLabel} of storage, ${papelizSiteSyncFreePlan.papelizSiteSyncFreePlanVaultLimit} synced vault and ${papelizSiteSyncFreePlan.papelizSiteSyncFreePlanConnectedDeviceLimit} devices. A paid plan can be fully refunded within ${papelizSiteSyncRefundWindowDayCount} days of subscribing.`,
+      `No. Free is a plan, not a trial, and it stays free: ${papelizSiteSyncFreePlan.papelizSiteSyncFreePlanStorageLabel} of storage, ${papelizSiteSyncFreePlan.papelizSiteSyncFreePlanVaultLimit} synced vault and ${papelizSiteSyncFreePlan.papelizSiteSyncFreePlanConnectedDeviceLimit} devices. A paid plan can be fully refunded within ${papelizSiteSyncRefundWindowDayCount} days of subscribing.`,
+    ],
+  },
+  {
+    papelizSiteQuestionAnchor: 'monthly-or-yearly',
+    papelizSiteQuestionText: 'Can I pay monthly?',
+    papelizSiteQuestionAnswerParts: [
+      `Yes. Yearly is chosen first, and costs ${readPapelizSiteSyncPlanYearlyDiscountPercent(papelizSiteSyncPlans[0]!)}% less than twelve months billed monthly. Monthly is one click away, above the plans.`,
+    ],
+  },
+  {
+    papelizSiteQuestionAnchor: 'what-counts-toward-storage',
+    papelizSiteQuestionText: 'What counts toward my storage?',
+    papelizSiteQuestionAnswerParts: [
+      'Every file you sync, with its old versions. You can delete old versions to free up space; the current version of each file always stays.',
     ],
   },
   {
