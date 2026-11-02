@@ -3,7 +3,7 @@ import type {
   PapelizSyncBillingPeriod,
   PapelizSyncEngine,
   PapelizSyncEngineSnapshot,
-  PapelizSyncPlanName,
+  PapelizSyncPaidPlanName,
   PapelizSyncSignInAttempt,
   PapelizSyncSignInOutcome,
   PapelizSyncStoragePlace,
@@ -18,7 +18,7 @@ import { describePapelizSyncActionFailure, pickNearestPapelizSyncStoragePlaceFor
 // papeliz-sync-settings-gear-request-store.ts.
 
 export interface PapelizSyncChosenPlan {
-  syncPlanName: PapelizSyncPlanName
+  syncPlanName: PapelizSyncPaidPlanName
   syncBillingPeriod: PapelizSyncBillingPeriod
 }
 

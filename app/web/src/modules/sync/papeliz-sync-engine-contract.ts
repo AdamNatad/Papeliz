@@ -20,8 +20,11 @@
 export type PapelizSyncStoragePlace = 'enam' | 'wnam' | 'eu' | 'apac' | 'oc'
 export const papelizSyncStoragePlaces: readonly PapelizSyncStoragePlace[] = ['enam', 'wnam', 'eu', 'apac', 'oc']
 
-export type PapelizSyncPlanName = 'standard' | 'plus' | 'pro'
-export const papelizSyncPlanNames: readonly PapelizSyncPlanName[] = ['standard', 'plus', 'pro']
+// Free comes with a signed-in account that has no paid plan; only the paid plans are sold.
+export type PapelizSyncPaidPlanName = 'standard' | 'plus' | 'pro'
+export const papelizSyncPaidPlanNames: readonly PapelizSyncPaidPlanName[] = ['standard', 'plus', 'pro']
+export type PapelizSyncPlanName = 'free' | PapelizSyncPaidPlanName
+export const papelizSyncPlanNames: readonly PapelizSyncPlanName[] = ['free', ...papelizSyncPaidPlanNames]
 
 export type PapelizSyncBillingPeriod = 'monthly' | 'yearly'
 
@@ -50,6 +53,8 @@ export interface PapelizSyncVisiblePlanLimits {
   syncFilesPerVaultLimit: number
   syncLargestFileByteLimit: number
   syncNoteHistoryMonthCount: number
+  // The note history in days; the months above are the same length in whole 30-day months.
+  syncNoteHistoryDayCount: number
   syncAttachmentHistoryDayCount: number
   syncConnectedDeviceLimit: number
 }
@@ -57,7 +62,7 @@ export interface PapelizSyncVisiblePlanLimits {
 // A plan as the Sync page offers it before subscribing. The prices are part of the engine, not of this
 // app: a build without the engine shows no prices.
 export interface PapelizSyncPlanOfferReading {
-  syncPlanName: PapelizSyncPlanName
+  syncPlanName: PapelizSyncPaidPlanName
   syncBillingPeriod: PapelizSyncBillingPeriod
   // Formatted by the engine with Intl.NumberFormat in the reader's own number format, for the whole
   // billing period. The screen shows it as it is and adds "a month" or "a year" from the billing period.
@@ -398,7 +403,7 @@ export interface PapelizSyncEngine {
   // Its session ends now and its last grant within the hour; its notes stay on it.
   removeSyncDevice(papelizSyncDeviceId: string): Promise<PapelizSyncActionOutcome>
   // The checkout and the subscription's own page, each to open in a new tab.
-  createSyncCheckoutPageUrl(syncPlanName: PapelizSyncPlanName, syncBillingPeriod: PapelizSyncBillingPeriod): Promise<PapelizSyncActionOutcome<string>>
+  createSyncCheckoutPageUrl(syncPlanName: PapelizSyncPaidPlanName, syncBillingPeriod: PapelizSyncBillingPeriod): Promise<PapelizSyncActionOutcome<string>>
   createSyncBillingPortalUrl(): Promise<PapelizSyncActionOutcome<string>>
   // Deletes the subscription, every synced copy and the version history; notes on devices stay.
   deleteSyncAccount(): Promise<PapelizSyncActionOutcome>

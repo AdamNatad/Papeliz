@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { papelizSyncPlanNames, type PapelizSyncBillingPeriod, type PapelizSyncPlanName } from './papeliz-sync-engine-contract'
+import { papelizSyncPaidPlanNames, type PapelizSyncBillingPeriod, type PapelizSyncPaidPlanName } from './papeliz-sync-engine-contract'
 
 // Asks for the Settings gear on its Sync page: the status bar's Sync state when clicked, and a plan
 // picked on the website's pricing page, which arrives in the address:
@@ -18,7 +18,7 @@ const papelizSyncBillingPeriodsInAddress: readonly PapelizSyncBillingPeriod[] = 
 // What the address picked; either may be missing. The Sync page draws the plan picked and opens its
 // plans on the billing period.
 export interface PapelizSyncPlanPick {
-  pickedSyncPlanName: PapelizSyncPlanName | null
+  pickedSyncPlanName: PapelizSyncPaidPlanName | null
   pickedSyncBillingPeriod: PapelizSyncBillingPeriod | null
 }
 
@@ -37,8 +37,9 @@ export function requestPapelizSettingsGearSyncPage(): void {
   usePapelizSyncSettingsGearRequestStore.setState((requestState) => ({ settingsGearSyncPageRequestCount: requestState.settingsGearSyncPageRequestCount + 1 }))
 }
 
-function isPapelizSyncPlanName(addressValue: string | null): addressValue is PapelizSyncPlanName {
-  return papelizSyncPlanNames.some((syncPlanName) => syncPlanName === addressValue)
+// Only a paid plan: Free is never sold, so no address picks it.
+function isPapelizSyncPaidPlanName(addressValue: string | null): addressValue is PapelizSyncPaidPlanName {
+  return papelizSyncPaidPlanNames.some((syncPaidPlanName) => syncPaidPlanName === addressValue)
 }
 
 function isPapelizSyncBillingPeriod(addressValue: string | null): addressValue is PapelizSyncBillingPeriod {
@@ -50,7 +51,7 @@ export function readPapelizSyncPlanPickFromAddressSearch(addressSearch: string):
   const addressSearchParameters = new URLSearchParams(addressSearch)
   const syncPlanNameInAddress = addressSearchParameters.get(papelizSyncPlanAddressParameterName)
   const syncBillingPeriodInAddress = addressSearchParameters.get(papelizSyncBillingPeriodAddressParameterName)
-  const pickedSyncPlanName = isPapelizSyncPlanName(syncPlanNameInAddress) ? syncPlanNameInAddress : null
+  const pickedSyncPlanName = isPapelizSyncPaidPlanName(syncPlanNameInAddress) ? syncPlanNameInAddress : null
   const pickedSyncBillingPeriod = isPapelizSyncBillingPeriod(syncBillingPeriodInAddress) ? syncBillingPeriodInAddress : null
   if (pickedSyncPlanName === null && pickedSyncBillingPeriod === null) return null
   return { pickedSyncPlanName, pickedSyncBillingPeriod }

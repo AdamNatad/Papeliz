@@ -103,12 +103,23 @@ const papelizSyncFakeEngineThisDeviceId = 'pzdev_aaaaaaaaaaaaaaaaaaaaaaaaaa'
 const papelizSyncFakeEngineFreshSignInMilliseconds = 10 * 60_000
 
 const papelizSyncFakeEnginePlanLimits: Record<PapelizSyncPlanName, PapelizSyncVisiblePlanLimits> = {
+  free: {
+    syncStorageByteLimit: 10e6,
+    syncedVaultLimit: 1,
+    syncFilesPerVaultLimit: 10_000,
+    syncLargestFileByteLimit: 5e6,
+    syncNoteHistoryMonthCount: 0,
+    syncNoteHistoryDayCount: 7,
+    syncAttachmentHistoryDayCount: 7,
+    syncConnectedDeviceLimit: 2,
+  },
   standard: {
     syncStorageByteLimit: 10e9,
     syncedVaultLimit: 5,
     syncFilesPerVaultLimit: 100_000,
     syncLargestFileByteLimit: 50e6,
     syncNoteHistoryMonthCount: 6,
+    syncNoteHistoryDayCount: 180,
     syncAttachmentHistoryDayCount: 30,
     syncConnectedDeviceLimit: 20,
   },
@@ -118,6 +129,7 @@ const papelizSyncFakeEnginePlanLimits: Record<PapelizSyncPlanName, PapelizSyncVi
     syncFilesPerVaultLimit: 250_000,
     syncLargestFileByteLimit: 1e9,
     syncNoteHistoryMonthCount: 24,
+    syncNoteHistoryDayCount: 720,
     syncAttachmentHistoryDayCount: 30,
     syncConnectedDeviceLimit: 20,
   },
@@ -127,6 +139,7 @@ const papelizSyncFakeEnginePlanLimits: Record<PapelizSyncPlanName, PapelizSyncVi
     syncFilesPerVaultLimit: 500_000,
     syncLargestFileByteLimit: 2e9,
     syncNoteHistoryMonthCount: 36,
+    syncNoteHistoryDayCount: 1080,
     syncAttachmentHistoryDayCount: 30,
     syncConnectedDeviceLimit: 20,
   },

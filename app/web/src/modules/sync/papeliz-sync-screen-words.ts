@@ -17,6 +17,7 @@ import type {
 export const papelizSyncPageIntro = 'Keep your vaults in sync across web, desktop and mobile. Choose End-to-end encryption for the vaults you want only you to read.'
 
 export const papelizSyncPlanDisplayNames: Record<PapelizSyncPlanName, string> = {
+  free: 'Free',
   standard: 'Standard',
   plus: 'Plus',
   pro: 'Pro',

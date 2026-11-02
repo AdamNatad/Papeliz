@@ -110,6 +110,7 @@ describe('the plans', () => {
         syncFilesPerVaultLimit: 250_000,
         syncLargestFileByteLimit: 1e9,
         syncNoteHistoryMonthCount: 24,
+        syncNoteHistoryDayCount: 720,
         syncAttachmentHistoryDayCount: 30,
         syncConnectedDeviceLimit: 20,
       }),

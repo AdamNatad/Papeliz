@@ -606,9 +606,9 @@ const papelizSyncSignInPageDevServerPort = 14203
 // (site/main/app/account/papeliz-account-config.ts): the Account Worker checks its tokens.
 const papelizSyncLocalSignInProviderOrigin = 'https://certain-cub-9360.clerk.accounts.dev'
 const papelizSyncLocalGrantSigningKeyId = 'papeliz-sync-local-workers-grant-key'
-// How the Account Worker binds each shard of its account directory, and the Templates Worker each shard
-// of its gallery.
-const papelizSyncAccountDirectoryShardBindingPattern = /^PAPELIZ_SYNC_ACCOUNT_DIRECTORY_S\d{4}$/
+// How the Account Worker binds its account databases (the main index and each place's), and the
+// Templates Worker each shard of its gallery.
+const papelizSyncAccountDatabaseBindingPattern = /^PAPELIZ_ACCOUNT_D1_(S0000|[A-Z]+_S\d{4})$/
 const papelizTemplateGalleryShardBindingPattern = /^PAPELIZ_TEMPLATE_GALLERY_S\d{4}$/
 // Made-up R2 signing values: the router answers the links they sign, and nothing is sent to R2.
 const papelizSyncLocalR2SigningSettings = {
@@ -638,6 +638,17 @@ function readOrCreatePapelizSyncLocalStandardVaultKeyWrapSecret() {
   const standardVaultKeyWrapSecretText = Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64url')
   writeFileSync(standardVaultKeyWrapSecretFilePath, `${standardVaultKeyWrapSecretText}\n`)
   return standardVaultKeyWrapSecretText
+}
+
+// The Account Worker keys each sign-in's hash in its main account index with this secret: 32 random bytes
+// as base64url, made on the first run and kept, so local sign-ins still find their accounts after a
+// restart. Never printed.
+function readOrCreatePapelizSyncLocalSignInLinkHashSecret() {
+  const signInLinkHashSecretFilePath = path.join(papelizSyncLocalWorkersStateDirectory, 'papeliz-sync-local-sign-in-link-hash-secret.txt')
+  if (existsSync(signInLinkHashSecretFilePath)) return readFileSync(signInLinkHashSecretFilePath, 'utf8').trim()
+  const signInLinkHashSecretText = Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64url')
+  writeFileSync(signInLinkHashSecretFilePath, `${signInLinkHashSecretText}\n`)
+  return signInLinkHashSecretText
 }
 
 // The Templates Worker keys each account's hash with this secret: 32 random bytes as base64url, made on
@@ -705,10 +716,11 @@ async function preparePapelizSyncLocalWorkers(webappSyncLocalOrigin) {
   accountWorkerConfig.d1_databases ??= []
   const vaultWorkerConfig = readWorkerConfigForLocalRun(vaultWorkerFolder)
   const templateGalleryWorkerConfig = readWorkerConfigForLocalRun(templateGalleryWorkerFolder)
-  // The account directory's shards, each its own local D1 database (sync/README.md, "Account directory").
-  const accountDirectoryShardDatabases = accountWorkerConfig.d1_databases.filter((d1Database) => papelizSyncAccountDirectoryShardBindingPattern.test(d1Database.binding ?? ''))
-  if (accountDirectoryShardDatabases.length === 0) {
-    throw new PapelizLauncherError("The Account Worker's wrangler.jsonc binds no account directory shard (PAPELIZ_SYNC_ACCOUNT_DIRECTORY_S<4 digits>).")
+  // The account databases, each its own local D1 database: the main index and every place's, spares
+  // included (sync/README.md, "Account databases").
+  const accountDatabases = accountWorkerConfig.d1_databases.filter((d1Database) => papelizSyncAccountDatabaseBindingPattern.test(d1Database.binding ?? ''))
+  if (!accountDatabases.some((d1Database) => d1Database.binding === 'PAPELIZ_ACCOUNT_D1_S0000')) {
+    throw new PapelizLauncherError("The Account Worker's wrangler.jsonc binds no main account index (PAPELIZ_ACCOUNT_D1_S0000).")
   }
   // The template gallery's shards, each its own local D1 database.
   const templateGalleryShardDatabases = (templateGalleryWorkerConfig.d1_databases ?? []).filter((d1Database) => papelizTemplateGalleryShardBindingPattern.test(d1Database.binding ?? ''))
@@ -731,7 +743,7 @@ async function preparePapelizSyncLocalWorkers(webappSyncLocalOrigin) {
         { binding: 'PAPELIZ_TEMPLATE_GALLERY_WORKER', service: templateGalleryWorkerConfig.name },
       ],
       durable_objects: { bindings: [{ name: 'PAPELIZ_SYNC_ACCOUNT_DURABLE_OBJECT', class_name: 'PapelizSyncAccountDurableObject', script_name: accountWorkerConfig.name }] },
-      d1_databases: accountDirectoryShardDatabases,
+      d1_databases: accountDatabases,
       r2_buckets: vaultWorkerConfig.r2_buckets,
     },
     {},
@@ -740,6 +752,7 @@ async function preparePapelizSyncLocalWorkers(webappSyncLocalOrigin) {
     PAPELIZ_SYNC_GRANT_SIGNING_PRIVATE_KEY: JSON.stringify(grantSigningPrivateJwk),
     PAPELIZ_SYNC_GRANT_PUBLIC_KEY_SET: grantPublicKeySetText,
     PAPELIZ_SYNC_STANDARD_VAULT_KEY_WRAP_SECRET: readOrCreatePapelizSyncLocalStandardVaultKeyWrapSecret(),
+    PAPELIZ_SYNC_SIGN_IN_LINK_HASH_SECRET: readOrCreatePapelizSyncLocalSignInLinkHashSecret(),
     PAPELIZ_SYNC_ALLOWED_SIGN_IN_ORIGINS: webappSyncLocalOrigin,
     PAPELIZ_SYNC_SIGN_IN_TOKEN_ISSUER: papelizSyncLocalSignInProviderOrigin,
     PAPELIZ_SYNC_SIGN_IN_JWKS_URL: `${papelizSyncLocalSignInProviderOrigin}/.well-known/jwks.json`,
@@ -762,7 +775,7 @@ async function preparePapelizSyncLocalWorkers(webappSyncLocalOrigin) {
   })
   return {
     wranglerCommandFilePath,
-    accountDirectoryShardDatabases,
+    accountDatabases,
     accountWorkerConfigFilePath,
     templateGalleryShardDatabases,
     templateGalleryWorkerConfigFilePath,
@@ -819,8 +832,8 @@ async function runPapelizSyncLocalWorkersTarget(launcherRequest, launcherTarget,
   const signInPageDevServerOrigin = `http://${papelizLoopbackHost}:${papelizSyncSignInPageDevServerPort}`
   const stateDirectoryForDisplay = path.relative(papelizRepositoryRoot, papelizSyncLocalWorkersStateDirectory)
   if (launcherRequest.dryRun) {
-    console.log(` [plan] Write each Worker's local config and .dev.vars into ${stateDirectoryForDisplay}/ (Git-ignored), with a made-up grant signing key and Standard vault key wrap secret kept there`)
-    console.log(` [plan] wrangler d1 migrations apply <each account directory and template gallery shard> --local, then wrangler dev with the router, Account, Sync and Templates Workers on ${localWorkersRouterOrigin}`)
+    console.log(` [plan] Write each Worker's local config and .dev.vars into ${stateDirectoryForDisplay}/ (Git-ignored), with a made-up grant signing key, Standard vault key wrap secret and sign-in link hash secret kept there`)
+    console.log(` [plan] wrangler d1 migrations apply <each account database (the main index and every place's, spares included) and template gallery shard> --local, then wrangler dev with the router, Account, Sync and Templates Workers on ${localWorkersRouterOrigin}`)
     console.log(` [plan] pnpm run site:dev ${nextServerArguments(papelizSyncSignInPageDevServerPort).join(' ')} (unless a server already answers on ${papelizSyncSignInPageDevServerPort})`)
     console.log(` [plan] pnpm ${webappScriptArguments.join(' ')}, with the real Sync engine and its proxy to ${localWorkersRouterOrigin} and ${signInPageDevServerOrigin}`)
     return 0
@@ -831,12 +844,12 @@ async function runPapelizSyncLocalWorkersTarget(launcherRequest, launcherTarget,
   }
   const preparedLocalWorkers = await preparePapelizSyncLocalWorkers(webappSyncLocalOrigin)
   console.log(` [ready] Local Workers' configs and settings in ${stateDirectoryForDisplay}/`)
-  // Each shard of the account directory, and of the template gallery, gets its Worker's migrations. CI
-  // makes wrangler apply them without asking first.
+  // Each account database, and each shard of the template gallery, gets the migrations its binding names.
+  // CI makes wrangler apply them without asking first.
   const localShardMigrations = [
-    ...preparedLocalWorkers.accountDirectoryShardDatabases.map((shardDatabase) => ({
+    ...preparedLocalWorkers.accountDatabases.map((shardDatabase) => ({
       shardDatabase,
-      shardKindDescription: 'account directory shard',
+      shardKindDescription: 'account database',
       workerConfigFilePath: preparedLocalWorkers.accountWorkerConfigFilePath,
     })),
     ...preparedLocalWorkers.templateGalleryShardDatabases.map((shardDatabase) => ({
@@ -916,7 +929,7 @@ async function runPapelizSyncLocalWorkersTarget(launcherRequest, launcherTarget,
     console.log(` [ready] Papeliz with Sync against local Workers: ${webappUrl}  (Ctrl+C to stop)`)
     console.log(` [ready] Sign-in page on the app's origin: ${webappSyncLocalOrigin}/account/`)
     console.log(` [note] Plans: GET ${webappSyncLocalOrigin}/papeliz-sync-local-workers/account-plan lists the local accounts;`)
-    console.log('        POST {"syncPlanName":"standard"} to it gives every local account a plan (plus, pro, or null for none).')
+    console.log('        POST {"syncPlanName":"standard"} to it gives every local account a plan (free, plus, pro, or null for none).')
     if (launcherRequest.openBrowser) openUrlInBrowser(webappUrl)
   })
 

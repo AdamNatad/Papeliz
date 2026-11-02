@@ -8,7 +8,7 @@
 //   this Worker rewrites those links in the Sync Worker's replies to point here, on the app's own
 //   origin, and answers them from the same local buckets the Sync Worker binds;
 // - `/papeliz-sync-local-workers/account-plan`: GET lists the local accounts and their plans; POST
-//   gives them a plan, as the payment provider's webhook will once billing is built.
+//   gives them a plan, Free as a sign-in does and a paid one as the payment provider's webhook does.
 // It never runs on Cloudflare. The webapp's dev server proxies these paths here
 // (papeliz-sync-engine-vite-plugin.mjs).
 import papelizSyncR2StorageStandIn from '../../sync/papeliz-sync-client/test/end-to-end/papeliz-sync-test-storage-and-sign-in-stand-in.mjs'
@@ -17,9 +17,10 @@ const papelizSyncLocalR2StoragePathPrefix = '/papeliz-sync-local-r2-storage'
 const papelizSyncLocalAccountPlanPath = '/papeliz-sync-local-workers/account-plan'
 // R2's S3 host, with `.eu` before `r2.cloudflarestorage.com` for a bucket in the EU jurisdiction.
 const papelizSyncR2S3OriginPattern = /https:\/\/[0-9a-f]{32}(?:\.eu)?\.r2\.cloudflarestorage\.com\//g
-const papelizSyncLocalPlanNames = ['standard', 'plus', 'pro']
-// The directory's shards, as the Account Worker binds them (its wrangler.jsonc).
-const papelizSyncAccountDirectoryShardBindingPattern = /^PAPELIZ_SYNC_ACCOUNT_DIRECTORY_S\d{4}$/
+const papelizSyncLocalPlanNames = ['free', 'standard', 'plus', 'pro']
+const papelizSyncLocalFreePlanName = 'free'
+// Each place's account databases, as the Account Worker binds them (its wrangler.jsonc).
+const papelizSyncPlaceAccountDatabaseBindingPattern = /^PAPELIZ_ACCOUNT_D1_[A-Z]+_S\d{4}$/
 
 // The Sync Worker's reply, with every R2 link turned into this origin's local storage path.
 async function rewritePapelizSyncR2LinksInVaultReply(vaultWorkerResponse, papelizSyncLocalOrigin) {
@@ -34,16 +35,16 @@ async function rewritePapelizSyncR2LinksInVaultReply(vaultWorkerResponse, papeli
   })
 }
 
-// The local accounts, from every shard of the Account Worker's directory (the same local D1 databases,
-// each bound here under the Account Worker's own binding name), oldest first.
+// The local accounts, from every place's account databases (the same local D1 databases, each bound here
+// under the Account Worker's own binding name), oldest first.
 async function listPapelizSyncLocalAccounts(routerBindings) {
   const localAccountRows = []
-  for (const [routerBindingName, accountDirectoryShard] of Object.entries(routerBindings)) {
-    if (!papelizSyncAccountDirectoryShardBindingPattern.test(routerBindingName)) continue
-    const { results: shardAccountRows } = await accountDirectoryShard
-      .prepare('SELECT papeliz_sync_account_id, sync_plan_name, sync_subscription_state, sync_account_created_at FROM papeliz_sync_account_directory_entries')
+  for (const [routerBindingName, placeAccountDatabase] of Object.entries(routerBindings)) {
+    if (!papelizSyncPlaceAccountDatabaseBindingPattern.test(routerBindingName)) continue
+    const { results: databaseAccountRows } = await placeAccountDatabase
+      .prepare('SELECT papeliz_sync_account_id, sync_plan_name, sync_subscription_state, sync_account_created_at FROM papeliz_account_entries')
       .all()
-    localAccountRows.push(...shardAccountRows)
+    localAccountRows.push(...databaseAccountRows)
   }
   localAccountRows.sort((olderAccountRow, newerAccountRow) => olderAccountRow.sync_account_created_at - newerAccountRow.sync_account_created_at)
   return localAccountRows.map((localAccountRow) => ({
@@ -53,8 +54,9 @@ async function listPapelizSyncLocalAccounts(routerBindings) {
   }))
 }
 
-// `{ "syncPlanName": "standard" | "plus" | "pro" | null, "papelizSyncAccountId"?: "pzacct_…" }`: an
-// active subscription renewing in 30 days, or none, for the one account or else every local account.
+// `{ "syncPlanName": "free" | "standard" | "plus" | "pro" | null, "papelizSyncAccountId"?: "pzacct_…" }`:
+// an active subscription renewing in 30 days for a paid plan, Free with no subscription, or no plan at
+// all (until the next sign-in gives Free), for the one account or else every local account.
 async function setPapelizSyncLocalAccountPlan(localAccountPlanRequest, routerBindings) {
   const { papelizSyncAccountId, syncPlanName } = await localAccountPlanRequest.json().catch(() => ({}))
   if (syncPlanName !== null && !papelizSyncLocalPlanNames.includes(syncPlanName)) {
@@ -70,12 +72,13 @@ async function setPapelizSyncLocalAccountPlan(localAccountPlanRequest, routerBin
   const nowAt = Date.now()
   const localAccountPlanOutcomes = {}
   for (const papelizSyncLocalAccountId of papelizSyncAccountIds) {
+    const isPaidPlan = syncPlanName !== null && syncPlanName !== papelizSyncLocalFreePlanName
     localAccountPlanOutcomes[papelizSyncLocalAccountId] = await accountDurableObjectNamespace
       .get(accountDurableObjectNamespace.idFromName(papelizSyncLocalAccountId))
       .applyPapelizSyncSubscriptionChange({
         syncPlanName,
-        syncSubscriptionState: syncPlanName === null ? 'not-subscribed' : 'active',
-        syncSubscriptionRenewsAt: syncPlanName === null ? null : nowAt + 30 * 86_400_000,
+        syncSubscriptionState: isPaidPlan ? 'active' : 'not-subscribed',
+        syncSubscriptionRenewsAt: isPaidPlan ? nowAt + 30 * 86_400_000 : null,
         syncSubscriptionEndsAt: null,
         syncReadOnlyUntil: null,
         syncSyncedCopyDeletedAt: null,
