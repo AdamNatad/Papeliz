@@ -12,7 +12,7 @@ import {
   type PapelizHtmlExportFontFileReader,
 } from './papeliz-html-export-fonts'
 import { buildPapelizHtmlExportNoteArticle, getPapelizHtmlExportNoteLanguageTag, type PapelizHtmlExportMermaidDiagramDrawer } from './papeliz-html-export-note-article'
-import { buildPapelizHtmlExportNoteStylesheet } from './papeliz-html-export-note-stylesheet'
+import { buildPapelizHtmlExportNoteStylesheet, type PapelizHtmlExportLook } from './papeliz-html-export-note-stylesheet'
 import papelizHtmlExportOneNotePageStylesheetText from './papeliz-html-export-one-note-page.css?raw'
 import { createPapelizHtmlExportVaultFileResolver, getPapelizHtmlExportPictureMediaType } from './papeliz-html-export-vault-files'
 
@@ -26,6 +26,8 @@ export interface PapelizOneNoteHtmlExportOptions {
   resolveWikilinkTarget: PapelizWikilinkTargetResolver
   // The note's text settings at export time (font, size, width), as MD View shows them.
   htmlExportNoteTypography: PapelizNoteTypography
+  // The theme it starts in and its accent; missing, MD View's own.
+  htmlExportLook?: PapelizHtmlExportLook
   drawHtmlExportMermaidDiagramSvg: PapelizHtmlExportMermaidDiagramDrawer | null
   readHtmlExportFontFileBytes?: PapelizHtmlExportFontFileReader
   // The vault's files that aren't notes: a picture the note shows goes inside the page.
@@ -87,6 +89,7 @@ export async function buildPapelizOneNoteHtmlExportFile(oneNoteExportOptions: Pa
     buildPapelizHtmlExportNoteStylesheet({
       htmlExportThemeChoice: 'follow-device',
       htmlExportNoteTypography: oneNoteExportOptions.htmlExportNoteTypography,
+      htmlExportLook: oneNoteExportOptions.htmlExportLook,
       fontFaceCss: buildPapelizHtmlExportFontFaceCss(htmlExportFontFaces, (htmlExportFontFace) => fontFileDataUrlsByFileName.get(htmlExportFontFace.fontFileName) ?? ''),
     }),
     papelizHtmlExportOneNotePageStylesheetText.trim(),

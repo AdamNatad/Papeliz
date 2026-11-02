@@ -13,12 +13,12 @@ import {
 import type { PapelizPdfExportLocalFontData } from '../pdf-export/papeliz-pdf-export-computer-fonts'
 import {
   papelizExportPaperSizeSettingName,
+  papelizHtmlExportSettingsSettingName,
   papelizTemplateExportSettingsSettingName,
   readPapelizUserSetting,
   writePapelizUserSetting,
 } from '../settings/papeliz-user-settings'
-import { findPapelizTemplateExportDetailsProblem } from '../template-gallery/papeliz-template-export-details'
-import { papelizTemplateCategoryTags, papelizTemplateLicenseIds } from '../template-gallery/papeliz-template-gallery-contract'
+import { findPapelizTemplateExportDetailsProblem, listPapelizTemplateExportTags } from '../template-gallery/papeliz-template-export-details'
 import { PapelizPillButton } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { PapelizSlidingChoiceGroup } from '../ui/papeliz-sliding-choice-group'
@@ -27,8 +27,15 @@ import { PapelizVaultOperationError } from '../vault/papeliz-vault-adapter'
 import { getVaultEntryParentFolderRelativePath } from '../vault/papeliz-vault-relative-paths'
 import { buildThenSavePapelizExportFile, type PapelizExportFileKind } from './papeliz-export-file-save'
 import { PapelizSettingsGearExportFormatSettingsDialog } from './papeliz-settings-gear-export-format-settings-dialog'
+import {
+  PapelizSettingsGearExportHtmlSettings,
+  papelizDefaultSettingsGearHtmlExportSettings,
+  papelizSettingsGearHtmlExportStartingThemeChoices,
+  type PapelizSettingsGearHtmlExportSettings,
+} from './papeliz-settings-gear-export-html-settings'
 import { PapelizSettingsGearExportTemplateSettings, type PapelizSettingsGearTemplateExportSettings } from './papeliz-settings-gear-export-template-settings'
 import { usePapelizNoteTypographyStore } from './papeliz-note-typography-store'
+import { papelizNoteColumnWidthChoices, papelizNoteFontFamilyChoices } from './papeliz-settings-gear-pages'
 import {
   buildPapelizExportNoteTree,
   findExportNotesMatchingSearch,
@@ -203,9 +210,9 @@ function createPapelizSettingsGearTemplateExportSettings(vaultDisplayName: strin
   return {
     templateExportName: vaultDisplayName,
     templateExportDescription: '',
-    templateExportCategoryTag: null,
+    templateExportTagTexts: ['', '', ''],
     templateExportFirstNotePath: null,
-    templateExportLicenseId: 'MIT',
+    templateExportLicenseText: 'MIT',
     templateExportOptionalNoteRelativePaths: [],
   }
 }
@@ -218,9 +225,11 @@ function readStoredTemplateExportSettings(storedTemplateExportSettings: unknown,
   return {
     templateExportName: readStoredText(storedSettingFields['templateExportName'], startingSettings.templateExportName),
     templateExportDescription: readStoredText(storedSettingFields['templateExportDescription'], ''),
-    templateExportCategoryTag: papelizTemplateCategoryTags.find((categoryTag) => categoryTag === storedSettingFields['templateExportCategoryTag']) ?? null,
+    templateExportTagTexts: Array.isArray(storedSettingFields['templateExportTagTexts'])
+      ? [0, 1, 2].map((tagTextIndex) => readStoredText((storedSettingFields['templateExportTagTexts'] as unknown[])[tagTextIndex], ''))
+      : ['', '', ''],
     templateExportFirstNotePath: typeof storedSettingFields['templateExportFirstNotePath'] === 'string' ? storedSettingFields['templateExportFirstNotePath'] : null,
-    templateExportLicenseId: papelizTemplateLicenseIds.find((licenseId) => licenseId === storedSettingFields['templateExportLicenseId']) ?? 'MIT',
+    templateExportLicenseText: readStoredText(storedSettingFields['templateExportLicenseText'], 'MIT'),
     templateExportOptionalNoteRelativePaths: Array.isArray(storedSettingFields['templateExportOptionalNoteRelativePaths'])
       ? storedSettingFields['templateExportOptionalNoteRelativePaths'].filter((optionalNotePath): optionalNotePath is string => typeof optionalNotePath === 'string')
       : [],
@@ -309,9 +318,31 @@ function PapelizExportTreeRow({
   )
 }
 
-// The formats with settings of their own, opened by the gear on their row. HTML has none: it follows
-// the Accessibility page's font, text size and width.
-const papelizSettingsGearExportFormatsWithSettings: ReadonlySet<PapelizSettingsGearExportFormat> = new Set(['word', 'pdf', 'template'])
+// Every format has settings of its own, opened by the gear on its row.
+const papelizSettingsGearExportFormatsWithSettings: ReadonlySet<PapelizSettingsGearExportFormat> = new Set(['word', 'pdf', 'html', 'template'])
+
+// HTML's settings as kept: only what reads as them, the rest as they start.
+function readStoredHtmlExportSettings(storedHtmlExportSettings: unknown): PapelizSettingsGearHtmlExportSettings | null {
+  if (typeof storedHtmlExportSettings !== 'object' || storedHtmlExportSettings === null) return null
+  const storedSettingFields = storedHtmlExportSettings as Record<string, unknown>
+  const storedNoteTypography = storedSettingFields['htmlExportNoteTypography']
+  const storedNoteTypographyFields = typeof storedNoteTypography === 'object' && storedNoteTypography !== null ? (storedNoteTypography as Record<string, unknown>) : null
+  const storedStartingThemeChoice = papelizSettingsGearHtmlExportStartingThemeChoices.find(
+    (startingThemeChoice) => startingThemeChoice.htmlExportStartingTheme === storedSettingFields['htmlExportStartingTheme'],
+  )
+  const storedAccentHexColor = storedSettingFields['htmlExportAccentHexColor']
+  return {
+    htmlExportNoteTypography:
+      storedNoteTypographyFields !== null &&
+      papelizNoteFontFamilyChoices.some((fontChoice) => fontChoice.noteFontFamily === storedNoteTypographyFields['noteFontFamily']) &&
+      typeof storedNoteTypographyFields['noteFontSize'] === 'number' &&
+      papelizNoteColumnWidthChoices.some((widthChoice) => widthChoice.noteColumnWidth === storedNoteTypographyFields['noteColumnWidth'])
+        ? (storedNoteTypographyFields as unknown as PapelizSettingsGearHtmlExportSettings['htmlExportNoteTypography'])
+        : null,
+    htmlExportStartingTheme: storedStartingThemeChoice?.htmlExportStartingTheme ?? 'device',
+    htmlExportAccentHexColor: typeof storedAccentHexColor === 'string' && /^#[0-9a-f]{6}$/i.test(storedAccentHexColor) ? storedAccentHexColor : null,
+  }
+}
 
 interface PapelizSettingsGearExportFormatListProps {
   chosenExportFormat: PapelizSettingsGearExportFormat
@@ -515,6 +546,24 @@ export function PapelizSettingsGearExportPage() {
   const [templateExportSettings, setTemplateExportSettings] = useState<PapelizSettingsGearTemplateExportSettings>(() =>
     createPapelizSettingsGearTemplateExportSettings(openVaultDisplayName),
   )
+  // HTML's settings, kept in this browser.
+  const [htmlExportSettings, setHtmlExportSettings] = useState<PapelizSettingsGearHtmlExportSettings>(papelizDefaultSettingsGearHtmlExportSettings)
+  const hasChangedHtmlExportSettingsRef = useRef(false)
+  useEffect(() => {
+    let isHtmlSettingWanted = true
+    void readPapelizUserSetting<unknown>(papelizHtmlExportSettingsSettingName, null).then((storedHtmlExportSettings) => {
+      const readHtmlExportSettings = readStoredHtmlExportSettings(storedHtmlExportSettings)
+      if (isHtmlSettingWanted && !hasChangedHtmlExportSettingsRef.current && readHtmlExportSettings !== null) setHtmlExportSettings(readHtmlExportSettings)
+    })
+    return () => {
+      isHtmlSettingWanted = false
+    }
+  }, [])
+  const changeHtmlExportSettings = (changedHtmlExportSettings: PapelizSettingsGearHtmlExportSettings) => {
+    hasChangedHtmlExportSettingsRef.current = true
+    setHtmlExportSettings(changedHtmlExportSettings)
+    void writePapelizUserSetting(papelizHtmlExportSettingsSettingName, changedHtmlExportSettings)
+  }
   // The format whose settings dialog is open, if any.
   const [openedExportFormatSettings, setOpenedExportFormatSettings] = useState<PapelizSettingsGearExportFormat | null>(null)
   const hasChangedTemplateExportSettingsRef = useRef(false)
@@ -668,7 +717,8 @@ export function PapelizSettingsGearExportPage() {
             vaultDisplayName: papelizVaultDisplayName,
             exportVaultNoteRelativePaths: [...exportVaultNoteRelativePaths],
             everyVaultNoteRelativePath: everyExportNoteRelativePath,
-            htmlExportNoteTypography: { noteFontFamily, noteFontSize, noteColumnWidth },
+            htmlExportNoteTypography: htmlExportSettings.htmlExportNoteTypography ?? { noteFontFamily, noteFontSize, noteColumnWidth },
+            htmlExportLook: { htmlExportStartingTheme: htmlExportSettings.htmlExportStartingTheme, htmlExportAccentHexColor: htmlExportSettings.htmlExportAccentHexColor },
             onHtmlExportProgress: onExportProgress,
             htmlExportAbortSignal: exportAbortSignal,
           })
@@ -677,8 +727,7 @@ export function PapelizSettingsGearExportPage() {
       }
     }
     if (chosenExportFormat === 'template') {
-      const templateExportCategoryTag = templateExportSettings.templateExportCategoryTag
-      if (templateExportCategoryTag === null || shownTemplateFirstNotePath === null) return null
+      if (shownTemplateFirstNotePath === null) return null
       const templateExportModule = await import('../template-gallery/papeliz-template-export')
       const templateExportFileKind = templateExportModule.describePapelizTemplateExportFile(templateExportSettings.templateExportName, papelizVaultDisplayName)
       return {
@@ -696,9 +745,9 @@ export function PapelizSettingsGearExportPage() {
             templateExportDetails: {
               templateExportName: templateExportSettings.templateExportName,
               templateExportDescription: templateExportSettings.templateExportDescription,
-              templateExportCategoryTag,
+              templateExportTags: listPapelizTemplateExportTags(templateExportSettings.templateExportTagTexts),
               templateExportFirstNotePath: shownTemplateFirstNotePath,
-              templateExportLicenseId: templateExportSettings.templateExportLicenseId,
+              templateExportLicenseText: templateExportSettings.templateExportLicenseText,
             },
             onTemplateExportProgress: onExportProgress,
             templateExportAbortSignal: exportAbortSignal,
@@ -864,7 +913,12 @@ export function PapelizSettingsGearExportPage() {
       <PapelizSettingsGearExportFormatList
         chosenExportFormat={chosenExportFormat}
         onExportFormatSelect={setChosenExportFormat}
-        exportFormatSettingsSummaries={{ word: exportPaperSummary, pdf: exportPaperSummary }}
+        exportFormatSettingsSummaries={{
+          word: exportPaperSummary,
+          pdf: exportPaperSummary,
+          html: papelizSettingsGearHtmlExportStartingThemeChoices.find((startingThemeChoice) => startingThemeChoice.htmlExportStartingTheme === htmlExportSettings.htmlExportStartingTheme)
+            ?.startingThemeLabel,
+        }}
         onExportFormatSettingsOpen={setOpenedExportFormatSettings}
       />
       {openedExportFormatSettings !== null && openedExportFormatRow !== undefined && (
@@ -873,7 +927,13 @@ export function PapelizSettingsGearExportPage() {
           ExportFormatSettingsIcon={openedExportFormatRow.ExportFormatIcon}
           onExportFormatSettingsClose={() => setOpenedExportFormatSettings(null)}
         >
-          {openedExportFormatSettings === 'template' ? (
+          {openedExportFormatSettings === 'html' ? (
+            <PapelizSettingsGearExportHtmlSettings
+              htmlExportSettings={htmlExportSettings}
+              onHtmlExportSettingsChange={changeHtmlExportSettings}
+              accessibilityNoteTypography={{ noteFontFamily, noteFontSize, noteColumnWidth }}
+            />
+          ) : openedExportFormatSettings === 'template' ? (
             <PapelizSettingsGearExportTemplateSettings
               templateExportSettings={templateExportSettings}
               onTemplateExportSettingsChange={changeTemplateExportSettings}

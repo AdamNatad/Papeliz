@@ -1,8 +1,10 @@
-import { LoaderCircle, Monitor, Moon, RotateCcw, Sun } from 'lucide-react'
+import { Lock, LockOpen, LoaderCircle, Maximize2, Monitor, Moon, RotateCcw, Sun, type LucideIcon } from 'lucide-react'
 import { lazy, Suspense, useState, type ReactNode } from 'react'
 import { PapelizSlidingChoiceGroup } from '../ui/papeliz-sliding-choice-group'
 import { usePapelizThemeStore, type PapelizThemePreference } from '../ui/papeliz-theme'
+import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { PapelizKeyBindingsList } from './papeliz-key-bindings-list'
+import { usePapelizKeyBindingShortcutLabel } from './papeliz-key-bindings-store'
 import { PapelizNoteTextSizeSlider } from './papeliz-note-text-size-slider'
 import { PapelizSettingsGearReminderTab } from './papeliz-settings-gear-reminder-tab'
 import { PapelizSettingsGearVaultTab } from './papeliz-settings-gear-vault-tab'
@@ -23,13 +25,13 @@ const papelizThemeChoices = [
   { papelizThemePreference: 'system', themeChoiceLabel: 'Device', ThemeChoiceIcon: Monitor },
 ] as const satisfies ReadonlyArray<{ papelizThemePreference: PapelizThemePreference; themeChoiceLabel: string; ThemeChoiceIcon: typeof Sun }>
 
-const papelizNoteFontFamilyChoices: ReadonlyArray<{ noteFontFamily: PapelizNoteFontFamily; fontChoiceLabel: string; fontChoiceFontClassName: string }> = [
+export const papelizNoteFontFamilyChoices: ReadonlyArray<{ noteFontFamily: PapelizNoteFontFamily; fontChoiceLabel: string; fontChoiceFontClassName: string }> = [
   { noteFontFamily: 'sans', fontChoiceLabel: 'Sans', fontChoiceFontClassName: 'font-sans' },
   { noteFontFamily: 'serif', fontChoiceLabel: 'Serif', fontChoiceFontClassName: 'font-serif' },
   { noteFontFamily: 'mono', fontChoiceLabel: 'Mono', fontChoiceFontClassName: 'font-mono' },
 ]
 
-const papelizNoteColumnWidthChoices: ReadonlyArray<{ noteColumnWidth: PapelizNoteColumnWidth; widthChoiceLabel: string }> = [
+export const papelizNoteColumnWidthChoices: ReadonlyArray<{ noteColumnWidth: PapelizNoteColumnWidth; widthChoiceLabel: string }> = [
   { noteColumnWidth: 'narrow', widthChoiceLabel: 'Narrow' },
   { noteColumnWidth: 'normal', widthChoiceLabel: 'Normal' },
   { noteColumnWidth: 'wide', widthChoiceLabel: 'Wide' },
@@ -46,12 +48,12 @@ function PapelizSettingsGearFieldLabel({ children, isFirstField = false }: { chi
 }
 
 interface PapelizSettingsGearAccessibilityPageProps {
-  // The workspace adds the note tabs and a note's text; the start page has only the theme.
+  // The workspace adds the tabs, a note's text and the two switches; the start page has only the theme.
   areVaultNoteSettingsShown: boolean
 }
 
-// Accessibility: the theme, the note tabs, and how a note's text reads (its font, size and width,
-// with a reset). Changes show at once and are remembered.
+// Accessibility: the theme, the tabs, how a note's text reads (its font, size and width, with a
+// reset), and the Lock All Notes and Focus Mode switches. Changes show at once and are remembered.
 export function PapelizSettingsGearAccessibilityPage({ areVaultNoteSettingsShown }: PapelizSettingsGearAccessibilityPageProps) {
   const papelizThemePreference = usePapelizThemeStore((themeState) => themeState.papelizThemePreference)
   const setPapelizThemePreference = usePapelizThemeStore((themeState) => themeState.setPapelizThemePreference)
@@ -79,8 +81,13 @@ export function PapelizSettingsGearAccessibilityPage({ areVaultNoteSettingsShown
   )
 }
 
-// The workspace's part of Accessibility: the note tabs, then a note's text.
+// The workspace's part of Accessibility: the tabs, a note's text, then Lock All Notes and Focus Mode.
 function PapelizSettingsGearVaultNoteSettings() {
+  const isWholeVaultEditingLocked = usePapelizWorkspaceStore((workspaceState) => workspaceState.isWholeVaultEditingLocked)
+  const setWholeVaultEditingLocked = usePapelizWorkspaceStore((workspaceState) => workspaceState.setWholeVaultEditingLocked)
+  const isFocusModeOn = usePapelizWorkspaceStore((workspaceState) => workspaceState.isFocusModeOn)
+  const setFocusModeOn = usePapelizWorkspaceStore((workspaceState) => workspaceState.setFocusModeOn)
+  const focusModeShortcutLabel = usePapelizKeyBindingShortcutLabel('focus-mode-toggle')
   const noteTabsLayout = usePapelizNoteTabsLayoutStore((noteTabsLayoutState) => noteTabsLayoutState.noteTabsLayout)
   const setNoteTabsLayout = usePapelizNoteTabsLayoutStore((noteTabsLayoutState) => noteTabsLayoutState.setNoteTabsLayout)
   const noteFontFamily = usePapelizNoteTypographyStore((typographyState) => typographyState.noteFontFamily)
@@ -94,9 +101,9 @@ function PapelizSettingsGearVaultNoteSettings() {
 
   return (
     <>
-      <PapelizSettingsGearFieldLabel>Note Tabs</PapelizSettingsGearFieldLabel>
+      <PapelizSettingsGearFieldLabel>Tabs</PapelizSettingsGearFieldLabel>
       <PapelizSlidingChoiceGroup
-        slidingChoiceGroupLabel="Note Tabs"
+        slidingChoiceGroupLabel="Tabs"
         slidingChoiceGroupRole="radiogroup"
         chosenSlidingChoiceValue={noteTabsLayout}
         onSlidingChoiceSelect={setNoteTabsLayout}
@@ -145,7 +152,58 @@ function PapelizSettingsGearVaultNoteSettings() {
         <RotateCcw className="size-3.5" aria-hidden="true" />
         Reset Text Settings
       </button>
+
+      <div className="mt-3.5 divide-y divide-papeliz-line overflow-hidden rounded-xl border border-papeliz-line bg-papeliz-surface">
+        <PapelizSettingsGearSwitchRow
+          switchRowLabel="Lock All Notes"
+          switchRowTitle={
+            isWholeVaultEditingLocked ? 'Every note is locked. Turn it off; notes you locked one by one stay locked.' : 'Lock every note in this vault, so they can be read but not changed'
+          }
+          isSwitchRowOn={isWholeVaultEditingLocked}
+          SwitchRowIcon={isWholeVaultEditingLocked ? Lock : LockOpen}
+          onSwitchRowToggle={() => setWholeVaultEditingLocked(!isWholeVaultEditingLocked)}
+        />
+        <PapelizSettingsGearSwitchRow
+          switchRowLabel="Focus Mode"
+          switchRowTitle={`Focus Mode (${focusModeShortcutLabel})`}
+          isSwitchRowOn={isFocusModeOn}
+          SwitchRowIcon={Maximize2}
+          onSwitchRowToggle={() => setFocusModeOn(!isFocusModeOn)}
+        />
+      </div>
     </>
+  )
+}
+
+interface PapelizSettingsGearSwitchRowProps {
+  switchRowLabel: string
+  switchRowTitle: string
+  isSwitchRowOn: boolean
+  SwitchRowIcon: LucideIcon
+  onSwitchRowToggle: () => void
+}
+
+// Lock All Notes and Focus Mode: rows that turn something on and off, with a switch at their end.
+function PapelizSettingsGearSwitchRow({ switchRowLabel, switchRowTitle, isSwitchRowOn, SwitchRowIcon, onSwitchRowToggle }: PapelizSettingsGearSwitchRowProps) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={isSwitchRowOn}
+      title={switchRowTitle}
+      onClick={onSwitchRowToggle}
+      className="flex h-10 w-full items-center gap-2.5 px-3 text-left text-[13px] font-medium transition-colors hover:bg-papeliz-hover focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-papeliz-blue pointer-coarse:h-11"
+    >
+      <SwitchRowIcon className={joinPapelizClassNames('size-4 flex-none', isSwitchRowOn ? 'text-papeliz-blue' : 'text-papeliz-ink-muted')} aria-hidden="true" />
+      <span className="min-w-0 flex-1 truncate">{switchRowLabel}</span>
+      <span
+        aria-hidden="true"
+        className={joinPapelizClassNames(
+          'relative h-4 w-7 flex-none rounded-full transition-colors after:absolute after:top-0.5 after:size-3 after:rounded-full after:bg-white after:shadow-[0_1px_2px_rgb(17_17_18/0.25)] after:transition-[left] after:duration-150',
+          isSwitchRowOn ? 'bg-papeliz-blue after:left-3.5' : 'bg-papeliz-line-strong after:left-0.5',
+        )}
+      />
+    </button>
   )
 }
 

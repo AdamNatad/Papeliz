@@ -2,11 +2,9 @@ import { useId, useState } from 'react'
 import {
   formatPapelizTemplateTagDisplayName,
   papelizTemplateCategoryTags,
-  papelizTemplateLicenseDisplayNames,
-  papelizTemplateLicenseIds,
-  type PapelizTemplateCategoryTag,
-  type PapelizTemplateLicenseId,
 } from '../template-gallery/papeliz-template-gallery-contract'
+import { listPapelizTemplateExportTags } from '../template-gallery/papeliz-template-export-details'
+import { PapelizSettingsGearExportLicenseField } from './papeliz-settings-gear-export-license-field'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { PapelizListboxSelect } from '../ui/papeliz-listbox-select'
 import { PapelizSlidingChoiceGroup } from '../ui/papeliz-sliding-choice-group'
@@ -18,14 +16,23 @@ import { PapelizSlidingChoiceGroup } from '../ui/papeliz-sliding-choice-group'
 export interface PapelizSettingsGearTemplateExportSettings {
   templateExportName: string
   templateExportDescription: string
-  templateExportCategoryTag: PapelizTemplateCategoryTag | null
+  // As typed in the Category, Subcategory and Label boxes; made tags when exported.
+  templateExportTagTexts: string[]
   templateExportFirstNotePath: string | null
-  templateExportLicenseId: PapelizTemplateLicenseId
+  // A license's name as picked or typed.
+  templateExportLicenseText: string
   // Ticked notes that come only with All, not with Recommended.
   templateExportOptionalNoteRelativePaths: string[]
 }
 
 type PapelizSettingsGearTemplateSettingsTab = 'details' | 'files'
+
+// Three tags at most: the main category, its subcategory, a label.
+const papelizTemplateSettingsTagBoxes: ReadonlyArray<{ templateTagBoxLabel: string; templateTagBoxPlaceholder: string }> = [
+  { templateTagBoxLabel: 'Category', templateTagBoxPlaceholder: 'Coding' },
+  { templateTagBoxLabel: 'Subcategory', templateTagBoxPlaceholder: 'Optional' },
+  { templateTagBoxLabel: 'Label', templateTagBoxPlaceholder: 'Optional' },
+]
 
 const papelizTemplateSettingsFieldClassName = 'mt-1.5 h-9 w-full rounded-full border border-papeliz-line-strong bg-papeliz-surface px-3.5 text-[13px] text-papeliz-ink'
 const papelizTemplateSettingsLabelClassName = 'mt-3 block text-[12.5px] font-medium'
@@ -48,6 +55,7 @@ export function PapelizSettingsGearExportTemplateSettings({
   const [chosenTemplateSettingsTab, setChosenTemplateSettingsTab] = useState<PapelizSettingsGearTemplateSettingsTab>('details')
   const templateSettingsFieldIdPrefix = useId()
   const changeTemplateExportSettings = (changedSettings: Partial<PapelizSettingsGearTemplateExportSettings>) => onTemplateExportSettingsChange({ ...templateExportSettings, ...changedSettings })
+  const templateExportTags = listPapelizTemplateExportTags(templateExportSettings.templateExportTagTexts)
   const optionalNoteRelativePaths = new Set(templateExportSettings.templateExportOptionalNoteRelativePaths)
   const setNoteOptional = (vaultNoteRelativePath: string, isNoteOptional: boolean) => {
     const changedOptionalNoteRelativePaths = new Set(optionalNoteRelativePaths)
@@ -96,24 +104,37 @@ export function PapelizSettingsGearExportTemplateSettings({
               onChange={(changeEvent) => changeTemplateExportSettings({ templateExportDescription: changeEvent.target.value })}
               className="mt-1.5 w-full resize-none rounded-2xl border border-papeliz-line-strong bg-papeliz-surface px-3.5 py-2 text-[13px] leading-snug text-papeliz-ink placeholder:text-papeliz-ink-subtle"
             />
-            <label id={`${templateSettingsFieldIdPrefix}-category-label`} className={papelizTemplateSettingsLabelClassName} htmlFor={`${templateSettingsFieldIdPrefix}-category`}>
-              Category
-            </label>
-            <PapelizListboxSelect
-              listboxSelectTriggerId={`${templateSettingsFieldIdPrefix}-category`}
-              listboxSelectLabelId={`${templateSettingsFieldIdPrefix}-category-label`}
-              listboxSelectOptions={papelizTemplateCategoryTags.map((templateCategoryTag) => ({
-                listboxOptionValue: templateCategoryTag,
-                listboxOptionLabel: formatPapelizTemplateTagDisplayName(templateCategoryTag),
-              }))}
-              chosenListboxOptionValue={templateExportSettings.templateExportCategoryTag ?? ''}
-              listboxSelectPlaceholder="Choose a category"
-              onListboxOptionChoose={(chosenCategoryTag) => {
-                const templateCategoryTag = papelizTemplateCategoryTags.find((categoryTag) => categoryTag === chosenCategoryTag)
-                if (templateCategoryTag !== undefined) changeTemplateExportSettings({ templateExportCategoryTag: templateCategoryTag })
-              }}
-              className="mt-1.5"
-            />
+            <p className={papelizTemplateSettingsLabelClassName}>Tags</p>
+            <div className="mt-1.5 grid grid-cols-3 gap-1.5">
+              {papelizTemplateSettingsTagBoxes.map((templateTagBox, templateTagIndex) => (
+                <label key={templateTagBox.templateTagBoxLabel} className="min-w-0">
+                  <span className="block text-[11.5px] text-papeliz-ink-subtle">{templateTagBox.templateTagBoxLabel}</span>
+                  <input
+                    type="text"
+                    maxLength={40}
+                    list={templateTagIndex === 0 ? `${templateSettingsFieldIdPrefix}-suggested-categories` : undefined}
+                    placeholder={templateTagBox.templateTagBoxPlaceholder}
+                    value={templateExportSettings.templateExportTagTexts[templateTagIndex] ?? ''}
+                    onChange={(changeEvent) => {
+                      const changedTagTexts = [0, 1, 2].map((tagTextIndex) => templateExportSettings.templateExportTagTexts[tagTextIndex] ?? '')
+                      changedTagTexts[templateTagIndex] = changeEvent.target.value
+                      changeTemplateExportSettings({ templateExportTagTexts: changedTagTexts })
+                    }}
+                    className="mt-1 h-9 w-full min-w-0 rounded-full border border-papeliz-line-strong bg-papeliz-surface px-3 text-[13px] text-papeliz-ink placeholder:text-papeliz-ink-subtle"
+                  />
+                </label>
+              ))}
+            </div>
+            <datalist id={`${templateSettingsFieldIdPrefix}-suggested-categories`}>
+              {papelizTemplateCategoryTags.map((suggestedCategoryTag) => (
+                <option key={suggestedCategoryTag} value={formatPapelizTemplateTagDisplayName(suggestedCategoryTag)} />
+              ))}
+            </datalist>
+            <p className="mt-1.5 text-[11.5px] leading-snug text-papeliz-ink-subtle">
+              {templateExportTags.length === 0
+                ? 'The first tag is its category; make your own or pick one.'
+                : `Shows as ${templateExportTags.map(formatPapelizTemplateTagDisplayName).join(' › ')}.`}
+            </p>
             <label id={`${templateSettingsFieldIdPrefix}-first-note-label`} className={papelizTemplateSettingsLabelClassName} htmlFor={`${templateSettingsFieldIdPrefix}-first-note`}>
               First Note
             </label>
@@ -128,23 +149,11 @@ export function PapelizSettingsGearExportTemplateSettings({
               className="mt-1.5"
             />
             <p className="mt-1.5 text-[11.5px] leading-snug text-papeliz-ink-subtle">Opens first in a vault made from it, and always comes.</p>
-            <label id={`${templateSettingsFieldIdPrefix}-license-label`} className={papelizTemplateSettingsLabelClassName} htmlFor={`${templateSettingsFieldIdPrefix}-license`}>
-              License
-            </label>
-            <PapelizListboxSelect
-              listboxSelectTriggerId={`${templateSettingsFieldIdPrefix}-license`}
-              listboxSelectLabelId={`${templateSettingsFieldIdPrefix}-license-label`}
-              listboxSelectOptions={papelizTemplateLicenseIds.map((templateLicenseId) => ({ listboxOptionValue: templateLicenseId, listboxOptionLabel: papelizTemplateLicenseDisplayNames[templateLicenseId] }))}
-              chosenListboxOptionValue={templateExportSettings.templateExportLicenseId}
-              onListboxOptionChoose={(chosenLicenseId) => {
-                const templateLicenseId = papelizTemplateLicenseIds.find((licenseId) => licenseId === chosenLicenseId)
-                if (templateLicenseId !== undefined) changeTemplateExportSettings({ templateExportLicenseId: templateLicenseId })
-              }}
-              className="mt-1.5"
+            <p className={papelizTemplateSettingsLabelClassName}>License</p>
+            <PapelizSettingsGearExportLicenseField
+              typedTemplateLicenseText={templateExportSettings.templateExportLicenseText}
+              onTemplateLicenseTextChange={(changedLicenseText) => changeTemplateExportSettings({ templateExportLicenseText: changedLicenseText })}
             />
-            <p className="mt-1.5 text-[11.5px] leading-snug text-papeliz-ink-subtle">
-              {templateExportSettings.templateExportLicenseId === 'MIT' ? 'The .zip includes its LICENSE file.' : 'Add its LICENSE file on GitHub before you submit.'}
-            </p>
           </>
         ) : (
           <>

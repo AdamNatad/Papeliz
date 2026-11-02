@@ -98,7 +98,7 @@ export const papelizHelpWritingArticles: readonly PapelizHelpArticle[] = [
       ]),
       helpSection('Lock every note', [
         helpParagraph(
-          'Open the gear at the right end of the top bar and turn on **Lock All Notes**. Every note in the vault stays locked until you turn it off. Notes you locked one by one stay locked after that.',
+          'Open the gear at the right end of the top bar, choose **Accessibility** and turn on **Lock All Notes**. Every note in the vault stays locked until you turn it off. Notes you locked one by one stay locked after that.',
         ),
         helpNote('Locking is a Papeliz setting. It doesn’t change the files’ permissions on your disk, and other apps can still edit them.'),
       ]),
@@ -261,7 +261,7 @@ tags: [garden, plans]
       ]),
       helpSection('Note tabs', [
         helpParagraph(
-          '**Note Tabs**, also on the **Accessibility** page, picks how tabs show when they don’t fit in one row. **Scroll** keeps one row that scrolls sideways, and **Stack** wraps them onto more rows, so every tab shows.',
+          '**Tabs**, also on the **Accessibility** page, picks how tabs show when they don’t fit in one row. **Scroll** keeps one row that scrolls sideways, and **Stack** wraps them onto more rows, so every tab shows.',
         ),
       ]),
       helpSection('Panels', [

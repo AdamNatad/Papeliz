@@ -4,6 +4,7 @@ import type { PapelizVaultAdapter } from '../vault/papeliz-vault-adapter'
 import type { PapelizNoteTypography } from '../workspace/papeliz-note-typography-store'
 import papelizWebappStylesheetText from '../../papeliz-webapp.css?raw'
 import { readPapelizHtmlExportMdViewStyles } from './papeliz-html-export-md-view-styles'
+import type { PapelizHtmlExportLook } from './papeliz-html-export-note-stylesheet'
 import type { PapelizHtmlExportMermaidDiagramDrawer } from './papeliz-html-export-note-article'
 import { buildPapelizOneNoteHtmlExportFile, getPapelizHtmlExportFileNameForNote } from './papeliz-html-export-one-note-file'
 import { buildPapelizHtmlExportSiteZipFile, getPapelizHtmlExportSiteZipFileName } from './papeliz-html-export-site'
@@ -19,6 +20,8 @@ export interface PapelizVaultHtmlExportOptions {
   // Every note in the vault: links resolve over them as MD View resolves them.
   everyVaultNoteRelativePath: readonly string[]
   htmlExportNoteTypography: PapelizNoteTypography
+  // HTML's settings: the theme the pages start in and their accent; missing, MD View's own.
+  htmlExportLook?: PapelizHtmlExportLook
   onHtmlExportProgress?: (exportedNoteCount: number, htmlExportNoteCount: number) => void
   htmlExportAbortSignal?: AbortSignal
 }
@@ -85,6 +88,7 @@ export async function exportPapelizVaultNotesAsHtml(vaultExportOptions: PapelizV
       ...onlySiteNote,
       resolveWikilinkTarget: createPapelizWikilinkTargetResolver(vaultExportOptions.everyVaultNoteRelativePath),
       htmlExportNoteTypography: vaultExportOptions.htmlExportNoteTypography,
+      htmlExportLook: vaultExportOptions.htmlExportLook,
       drawHtmlExportMermaidDiagramSvg,
       htmlExportVaultAttachmentFileRelativePaths,
       readHtmlExportVaultFileBytes,
@@ -97,6 +101,7 @@ export async function exportPapelizVaultNotesAsHtml(vaultExportOptions: PapelizV
     htmlExportSiteNotes,
     htmlExportVaultNoteRelativePaths: vaultExportOptions.everyVaultNoteRelativePath,
     htmlExportNoteTypography: vaultExportOptions.htmlExportNoteTypography,
+    htmlExportLook: vaultExportOptions.htmlExportLook,
     drawHtmlExportMermaidDiagramSvg,
     htmlExportVaultAttachmentFileRelativePaths,
     readHtmlExportVaultFileBytes,

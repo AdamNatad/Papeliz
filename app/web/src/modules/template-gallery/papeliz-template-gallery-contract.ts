@@ -27,7 +27,8 @@ export interface PapelizTemplateManifest {
   papelizTemplateManifestVersion: 1
   templateName: string
   templateDescription: string
-  // Up to 5: its Category first (`papelizTemplateCategoryTags`), then its subcategory and extra labels.
+  // 1 to 3 tags: its main category first, then its subcategory, then a label. Any tag of the right
+  // shape, so authors make their own categories.
   templateTags: string[]
   // Opens first, in MD View: "START.md", "Guides/Read me first.md".
   templateFirstNotePath: string
@@ -75,9 +76,9 @@ export const papelizTemplateLicenseDisplayNames: Readonly<Record<PapelizTemplate
   MIT: 'MIT',
 }
 
-// A template's tags: the first is its Category, one of these; the second, when there is one, is its
-// subcategory, and any further tags are extra labels. Every tag after the first is any tag of the
-// right shape ("project-workflow").
+// A template's tags: the first is its main category, the second its subcategory, the third a label,
+// each any tag of the right shape ("project-workflow"), so authors make their own categories. These
+// three are the categories Papeliz started with, suggested when a template is made.
 export type PapelizTemplateCategoryTag = 'coding' | 'education' | 'research'
 export const papelizTemplateCategoryTags: readonly PapelizTemplateCategoryTag[] = ['coding', 'education', 'research']
 

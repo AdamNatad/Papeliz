@@ -7,7 +7,7 @@ import {
   createPapelizSiteTemplatePagePath,
   formatPapelizSiteTemplateTagDisplayName,
   orderPapelizSiteTemplatesForList,
-  papelizSiteTemplateCategoryTags,
+  listPapelizSiteTemplateCategoryTags,
   papelizSiteTemplateLicenseDisplayNames,
   papelizSiteTemplatesSnapshotPath,
   readPapelizSiteTemplatesSnapshot,
@@ -28,7 +28,8 @@ type PapelizSiteTemplatesCategoryChoice = PapelizSiteTemplateCategoryTag | 'all'
 
 const papelizSiteTemplatesCategoryChipClassName = 'inline-flex min-h-9 items-center rounded-full border px-4 text-sm font-medium transition-colors'
 
-// The Templates list: chips for the categories, then a row per template, Featured first. Once on the
+// The Templates list: chips for the categories (Papeliz's first three, then any other a template has),
+// then a row per template, Featured first. Once on the
 // page it reads the same hourly list the app reads, from this site's own address, so the counts and
 // any template listed since the build show without a new build. If that read fails, the build's list
 // stays.
@@ -55,7 +56,7 @@ export function PapelizSiteTemplatesList({ papelizSiteTemplatesBuildSnapshot, pa
   const papelizSiteTemplatesShown = orderPapelizSiteTemplatesForList(papelizSiteTemplatesSnapshot).filter(
     (papelizSiteTemplateRow) => papelizSiteTemplatesCategoryChoice === 'all' || papelizSiteTemplateRow.templateTags[0] === papelizSiteTemplatesCategoryChoice,
   )
-  const papelizSiteTemplatesCategoryChoices: PapelizSiteTemplatesCategoryChoice[] = ['all', ...papelizSiteTemplateCategoryTags]
+  const papelizSiteTemplatesCategoryChoices: PapelizSiteTemplatesCategoryChoice[] = ['all', ...listPapelizSiteTemplateCategoryTags(papelizSiteTemplatesSnapshot.templateGallerySnapshotRows)]
 
   return (
     <div className="mx-auto max-w-4xl">

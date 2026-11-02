@@ -1,4 +1,4 @@
-import { Accessibility, ChevronLeft, ChevronRight, FolderX, Lock, LockOpen, Maximize2, RefreshCw, Settings, Share, User, WandSparkles, type LucideIcon } from 'lucide-react'
+import { Accessibility, ChevronLeft, ChevronRight, FolderX, RefreshCw, Settings, Share, User, WandSparkles, type LucideIcon } from 'lucide-react'
 import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { usePapelizAssistantPanelUiStore } from '../assistant/papeliz-assistant-panel-ui-store'
@@ -7,7 +7,6 @@ import { PapelizIconButton } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { usePapelizMediaQuery } from '../ui/papeliz-media-query'
 import { subscribeToPapelizWindowWidthChange } from '../ui/papeliz-window-width-change'
-import { usePapelizKeyBindingShortcutLabel } from './papeliz-key-bindings-store'
 import { PapelizSettingsGearExportPage } from './papeliz-settings-gear-export-page'
 import {
   PapelizSettingsGearAccessibilityPage,
@@ -36,7 +35,7 @@ const papelizSettingsGearPageChoices: Record<PapelizSettingsGearPage, { settings
 }
 
 // The list's groups, split by lines: Account | Sync, Settings, Export | Accessibility, AI Assistant
-// (then the switches and Close Vault in the workspace). The start page has no vault, so no Settings,
+// (then Close Vault in the workspace). The start page has no vault, so no Settings,
 // Export or AI Assistant, and its Accessibility has only the theme.
 const papelizSettingsGearWorkspacePageGroups: ReadonlyArray<ReadonlyArray<PapelizSettingsGearPage>> = [
   ['account'],
@@ -52,31 +51,6 @@ function PapelizSettingsGearListLine() {
   return <div role="separator" className="mx-1.5 my-1 h-px flex-none bg-papeliz-line" />
 }
 
-interface PapelizSettingsGearSwitchRowProps {
-  switchRowLabel: string
-  switchRowTitle: string
-  isSwitchRowOn: boolean
-  SwitchRowIcon: LucideIcon
-  onSwitchRowToggle: () => void
-}
-
-// Lock All Notes and Focus Mode: rows that turn something on and off, with a switch at their end.
-function PapelizSettingsGearSwitchRow({ switchRowLabel, switchRowTitle, isSwitchRowOn, SwitchRowIcon, onSwitchRowToggle }: PapelizSettingsGearSwitchRowProps) {
-  return (
-    <button type="button" role="switch" aria-checked={isSwitchRowOn} title={switchRowTitle} onClick={onSwitchRowToggle} className={joinPapelizClassNames(papelizSettingsGearRowClassName, 'gap-2 pr-2')}>
-      <SwitchRowIcon className={joinPapelizClassNames('size-4 flex-none', isSwitchRowOn ? 'text-papeliz-blue' : 'text-papeliz-ink-muted')} aria-hidden="true" />
-      <span className="min-w-0 flex-1 truncate">{switchRowLabel}</span>
-      <span
-        aria-hidden="true"
-        className={joinPapelizClassNames(
-          'relative h-4 w-7 flex-none rounded-full transition-colors after:absolute after:top-0.5 after:size-3 after:rounded-full after:bg-white after:shadow-[0_1px_2px_rgb(17_17_18/0.25)] after:transition-[left] after:duration-150',
-          isSwitchRowOn ? 'bg-papeliz-blue after:left-3.5' : 'bg-papeliz-line-strong after:left-0.5',
-        )}
-      />
-    </button>
-  )
-}
-
 // The panel's one height, whichever page shows: the whole list fits, and a longer page (Sync, Export)
 // scrolls inside it. A short window takes what room there is below the gear.
 const papelizSettingsGearPanelHeightPixels = 520
@@ -88,7 +62,7 @@ function measureSettingsGearPanelAnchor(settingsGearButtonElement: HTMLElement):
 }
 
 interface PapelizSettingsGearButtonProps {
-  // The workspace's gear has every page, the switches and Close Vault; the start page's has Account,
+  // The workspace's gear has every page and Close Vault; the start page's has Account,
   // Sync and Accessibility (the theme only), since no vault is open there.
   settingsGearPlace: 'workspace' | 'start-page'
 }
@@ -100,12 +74,7 @@ interface PapelizSettingsGearButtonProps {
 export function PapelizSettingsGearButton({ settingsGearPlace }: PapelizSettingsGearButtonProps) {
   const isWorkspaceSettingsGear = settingsGearPlace === 'workspace'
   const isSettingsGearSideBySide = usePapelizMediaQuery('(min-width: 768px)')
-  const isWholeVaultEditingLocked = usePapelizWorkspaceStore((workspaceState) => workspaceState.isWholeVaultEditingLocked)
-  const setWholeVaultEditingLocked = usePapelizWorkspaceStore((workspaceState) => workspaceState.setWholeVaultEditingLocked)
-  const isFocusModeOn = usePapelizWorkspaceStore((workspaceState) => workspaceState.isFocusModeOn)
-  const setFocusModeOn = usePapelizWorkspaceStore((workspaceState) => workspaceState.setFocusModeOn)
   const setVaultCloseConfirmationShown = usePapelizWorkspaceStore((workspaceState) => workspaceState.setVaultCloseConfirmationShown)
-  const focusModeShortcutLabel = usePapelizKeyBindingShortcutLabel('focus-mode-toggle')
   const [settingsGearPanelAnchor, setSettingsGearPanelAnchor] = useState<{ anchorRight: number; anchorTop: number } | null>(null)
   const [chosenSettingsGearPage, setChosenSettingsGearPage] = useState<PapelizSettingsGearPage>('accessibility')
   // Phones only: a page is open over the list.
@@ -206,7 +175,7 @@ export function PapelizSettingsGearButton({ settingsGearPlace }: PapelizSettings
   }
 
   const settingsGearList = (
-    <nav aria-label="Settings" className="flex min-h-0 flex-col gap-0.5">
+    <nav aria-label="Settings" className="flex min-h-0 flex-1 flex-col gap-0.5">
       {settingsGearPageGroups.map((settingsGearPageGroup, settingsGearPageGroupIndex) => (
         <div key={settingsGearPageGroup.join('-')} className="flex flex-col gap-0.5">
           {settingsGearPageGroupIndex > 0 && <PapelizSettingsGearListLine />}
@@ -238,24 +207,6 @@ export function PapelizSettingsGearButton({ settingsGearPlace }: PapelizSettings
       ))}
       {isWorkspaceSettingsGear && (
         <>
-          <PapelizSettingsGearSwitchRow
-            switchRowLabel="Lock All Notes"
-            switchRowTitle={
-              isWholeVaultEditingLocked
-                ? 'Every note is locked. Turn it off; notes you locked one by one stay locked.'
-                : 'Lock every note in this vault, so they can be read but not changed'
-            }
-            isSwitchRowOn={isWholeVaultEditingLocked}
-            SwitchRowIcon={isWholeVaultEditingLocked ? Lock : LockOpen}
-            onSwitchRowToggle={() => setWholeVaultEditingLocked(!isWholeVaultEditingLocked)}
-          />
-          <PapelizSettingsGearSwitchRow
-            switchRowLabel="Focus Mode"
-            switchRowTitle={`Focus Mode (${focusModeShortcutLabel})`}
-            isSwitchRowOn={isFocusModeOn}
-            SwitchRowIcon={Maximize2}
-            onSwitchRowToggle={() => setFocusModeOn(!isFocusModeOn)}
-          />
           <div className="mt-auto flex-none border-t border-papeliz-line pt-1.5">
             <button
               type="button"

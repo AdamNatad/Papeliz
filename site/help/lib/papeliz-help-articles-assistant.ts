@@ -195,14 +195,14 @@ export const papelizHelpAssistantArticles: readonly PapelizHelpArticle[] = [
     articleSections: [
       helpSection('Turn it on', [
         helpParagraph(
-          'Press `Ctrl+Shift+F`, or open the gear at the right end of the top bar and turn on **Focus Mode**. The file list and the Assistant panel step away, and a large message box floats at the bottom of the note.',
+          'Press `Ctrl+Shift+F`, or open the gear at the right end of the top bar, choose **Accessibility** and turn on **Focus Mode**. The file list and the Assistant panel step away, and a large message box floats at the bottom of the note.',
         ),
       ]),
       helpSection('Ask without leaving the note', [
         helpParagraph('Send a message from the floating box. The latest answer rises above it, and you can put it away when you’re done.'),
       ]),
       helpSection('Leave focus mode', [
-        helpParagraph('Press `Esc` or `Ctrl+Shift+F`, choose **Exit Focus** in the top bar, or turn off **Focus Mode** in the gear.'),
+        helpParagraph('Press `Esc` or `Ctrl+Shift+F`, choose **Exit Focus** in the top bar, or turn off **Focus Mode** on the gear’s **Accessibility** page.'),
       ]),
     ],
     relatedArticleSlugs: ['chat-with-the-assistant', 'keyboard-shortcuts'],

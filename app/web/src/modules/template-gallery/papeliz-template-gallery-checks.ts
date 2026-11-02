@@ -1,6 +1,4 @@
 import {
-  isPapelizTemplateCategoryTag,
-  papelizTemplateCategoryTags,
   papelizTemplateLicenseDisplayNames,
   papelizTemplateManifestFileName,
   papelizTemplateTagPattern,
@@ -37,13 +35,9 @@ export const papelizTemplatePathLengthLimit = 200
 export const papelizTemplateMostFolderDepth = 8
 const papelizTemplateNameLongestLength = 80
 const papelizTemplateDescriptionLongestLength = 300
-const papelizTemplateMostTagCount = 5
+// The main category, the subcategory and a label.
+const papelizTemplateMostTagCount = 3
 const papelizTemplateTagLongestLength = 30
-// "coding", "education" or "research".
-const papelizTemplateCategoryWords = `${papelizTemplateCategoryTags
-  .slice(0, -1)
-  .map((templateCategoryTag) => `"${templateCategoryTag}"`)
-  .join(', ')} or "${papelizTemplateCategoryTags.at(-1) ?? ''}"`
 // In each of templateIncludedPaths and templateExcludedPaths.
 const papelizTemplateMostPathPatternCount = 30
 // What jsDelivr serves from GitHub at most.
@@ -321,15 +315,13 @@ export function parsePapelizTemplateManifest(templateManifestText: string): Pape
     templateTags.length > papelizTemplateMostTagCount ||
     templateTags.some((templateTag) => typeof templateTag !== 'string' || !papelizTemplateTagPattern.test(templateTag) || templateTag.length > papelizTemplateTagLongestLength)
   ) {
-    return manifestProblem(`The manifest’s templateTags must be a list of up to ${papelizTemplateMostTagCount} tags in lower case, its category first, such as ["coding", "project-workflow"].`)
+    return manifestProblem(
+      `The manifest’s templateTags must be a list of up to ${papelizTemplateMostTagCount} tags in lower case: its main category, then its subcategory and a label, such as ["coding", "project-workflow"].`,
+    )
   }
-  // The first tag is the template's Category; the rest are its subcategory and extra labels.
-  const templateCategoryTag = (templateTags as string[])[0]
-  if (templateCategoryTag === undefined) {
-    return manifestProblem(`The manifest’s templateTags must start with the template’s category: ${papelizTemplateCategoryWords}, such as ["coding", "project-workflow"].`)
-  }
-  if (!isPapelizTemplateCategoryTag(templateCategoryTag)) {
-    return manifestProblem(`The manifest’s first tag, “${templateCategoryTag}”, must be the template’s category: ${papelizTemplateCategoryWords}. Put one of them first, such as ["coding", "project-workflow"].`)
+  // The first tag is the template's main category, any tag; the second its subcategory, the third a label.
+  if ((templateTags as string[]).length === 0) {
+    return manifestProblem('The manifest’s templateTags must start with the template’s main category, such as ["coding", "project-workflow"].')
   }
   if (findTemplateRelativePathShapeProblem(templateFirstNotePath) || !isTemplateNoteRelativePath(templateFirstNotePath as string)) {
     return manifestProblem('The manifest’s templateFirstNotePath must be the path of a .md note in the repository, such as "START.md".')

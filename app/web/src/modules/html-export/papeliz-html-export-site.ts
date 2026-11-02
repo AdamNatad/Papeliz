@@ -8,7 +8,7 @@ import papelizHtmlExportAstroSitePackageManifest from '../../../../html-export-a
 import papelizHtmlExportAstroSiteReadmeText from '../../../../html-export-astro-site/README.md?raw'
 import { buildPapelizHtmlExportFontFaceCss, choosePapelizHtmlExportFontFaces, readPapelizHtmlExportFontFileBytes, type PapelizHtmlExportFontFileReader } from './papeliz-html-export-fonts'
 import type { PapelizHtmlExportMermaidDiagramDrawer, PapelizHtmlExportMermaidDrawResult, PapelizHtmlExportTheme } from './papeliz-html-export-note-article'
-import { buildPapelizHtmlExportNoteStylesheet } from './papeliz-html-export-note-stylesheet'
+import { buildPapelizHtmlExportNoteStylesheet, type PapelizHtmlExportLook, type PapelizHtmlExportStartingTheme } from './papeliz-html-export-note-stylesheet'
 import { getPapelizSafeFileNameStem, type PapelizHtmlExportVaultFileReader } from './papeliz-html-export-one-note-file'
 import { buildPapelizHtmlExportSiteContent, papelizHtmlExportSiteAssetFolderName, type PapelizHtmlExportSiteContentOptions } from './papeliz-html-export-site-content'
 import { fillPapelizHtmlExportSitePageShell } from './papeliz-html-export-site-page-shell'
@@ -28,6 +28,8 @@ export interface PapelizHtmlExportSiteOptions extends Omit<PapelizHtmlExportSite
   // Every note in the vault, exported or not: links resolve over them as MD View resolves them.
   htmlExportVaultNoteRelativePaths: readonly string[]
   htmlExportNoteTypography: PapelizNoteTypography
+  // The theme the site starts in (its readers can still switch) and its accent; missing, MD View's own.
+  htmlExportLook?: PapelizHtmlExportLook
   readHtmlExportFontFileBytes?: PapelizHtmlExportFontFileReader
   // Reads a picture or other file the notes use, for its copy.
   readHtmlExportVaultFileBytes: PapelizHtmlExportVaultFileReader
@@ -46,6 +48,21 @@ async function readPapelizHtmlExportAstroTemplateText(templateFilePath: string):
   const loadTemplateSourceText = papelizHtmlExportAstroTemplateSourceLoaders[`${papelizHtmlExportAstroTemplateFolderPrefix}${templateFilePath}`]
   if (loadTemplateSourceText === undefined) throw new Error(`The website template has no ${templateFilePath}.`)
   return loadTemplateSourceText()
+}
+
+// The site's two theme scripts start a reader who hasn't chosen yet on the device's theme; HTML's
+// settings can start them on Light or Dark instead. Only the "device" default changes.
+const papelizHtmlExportSiteThemeScriptFileNames: ReadonlySet<string> = new Set(['papeliz-site.js', 'papeliz-site-theme-boot.js'])
+
+export function setPapelizHtmlExportSiteStartingTheme(siteThemeScriptText: string, htmlExportStartingTheme: PapelizHtmlExportStartingTheme): string {
+  if (htmlExportStartingTheme === 'device') return siteThemeScriptText
+  return siteThemeScriptText
+    .replace(/\|\| 'device'/g, `|| '${htmlExportStartingTheme}'`)
+    .replace(/(var papelizSiteThemePreference = |return )'device'/g, `$1'${htmlExportStartingTheme}'`)
+}
+
+function isPapelizHtmlExportSiteThemeScript(siteFilePath: string): boolean {
+  return papelizHtmlExportSiteThemeScriptFileNames.has(siteFilePath.slice(siteFilePath.lastIndexOf('/') + 1))
 }
 
 // The exported project's own package.json: Astro, at the version Papeliz's template is built with.
@@ -99,6 +116,7 @@ export async function buildPapelizHtmlExportSiteFiles(siteOptions: PapelizHtmlEx
   const mdViewStylesheetText = `${buildPapelizHtmlExportNoteStylesheet({
     htmlExportThemeChoice: 'site-theme-switch',
     htmlExportNoteTypography: siteOptions.htmlExportNoteTypography,
+    htmlExportLook: siteOptions.htmlExportLook,
     fontFaceCss: buildPapelizHtmlExportFontFaceCss(htmlExportFontFaces, (htmlExportFontFace) => `fonts/${htmlExportFontFace.fontFileName}`),
   })}\n`
   const siteAssetTextFiles: Array<[string, string]> = [
@@ -107,7 +125,13 @@ export async function buildPapelizHtmlExportSiteFiles(siteOptions: PapelizHtmlEx
     ['papeliz-site.js', await readPapelizHtmlExportAstroTemplateText('public/papeliz-site/papeliz-site.js')],
     ['papeliz-site-theme-boot.js', await readPapelizHtmlExportAstroTemplateText('public/papeliz-site/papeliz-site-theme-boot.js')],
   ]
-  for (const [siteAssetFileName, siteAssetFileText] of siteAssetTextFiles) addSiteTextFile(`${papelizHtmlExportSiteAssetFolderName}/${siteAssetFileName}`, siteAssetFileText)
+  const htmlExportStartingTheme = siteOptions.htmlExportLook?.htmlExportStartingTheme ?? 'device'
+  for (const [siteAssetFileName, siteAssetFileText] of siteAssetTextFiles) {
+    addSiteTextFile(
+      `${papelizHtmlExportSiteAssetFolderName}/${siteAssetFileName}`,
+      isPapelizHtmlExportSiteThemeScript(siteAssetFileName) ? setPapelizHtmlExportSiteStartingTheme(siteAssetFileText, htmlExportStartingTheme) : siteAssetFileText,
+    )
+  }
   const readHtmlExportFontFileBytes = siteOptions.readHtmlExportFontFileBytes ?? readPapelizHtmlExportFontFileBytes
   const fontFileEntries: Array<[string, Uint8Array]> = []
   for (const htmlExportFontFace of htmlExportFontFaces) {
@@ -126,7 +150,9 @@ export async function buildPapelizHtmlExportSiteFiles(siteOptions: PapelizHtmlEx
 
   // The Astro project: the template as it is, then what this export adds to it.
   for (const [templateSourceModulePath, loadTemplateSourceText] of Object.entries(papelizHtmlExportAstroTemplateSourceLoaders).sort(([firstPath], [secondPath]) => (firstPath < secondPath ? -1 : 1))) {
-    addAstroProjectTextFile(templateSourceModulePath.slice(papelizHtmlExportAstroTemplateFolderPrefix.length), await loadTemplateSourceText())
+    const templateFilePath = templateSourceModulePath.slice(papelizHtmlExportAstroTemplateFolderPrefix.length)
+    const templateSourceText = await loadTemplateSourceText()
+    addAstroProjectTextFile(templateFilePath, isPapelizHtmlExportSiteThemeScript(templateFilePath) ? setPapelizHtmlExportSiteStartingTheme(templateSourceText, htmlExportStartingTheme) : templateSourceText)
   }
   addAstroProjectTextFile('README.md', papelizHtmlExportAstroSiteReadmeText)
   addAstroProjectTextFile('astro.config.mjs', papelizHtmlExportAstroSiteConfigText)

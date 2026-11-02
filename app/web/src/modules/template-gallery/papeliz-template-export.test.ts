@@ -8,15 +8,15 @@ import {
   findPapelizTemplateExportFileReferences,
   writePapelizTemplateExportMitLicenseText,
 } from './papeliz-template-export'
-import { findPapelizTemplateExportDetailsProblem, type PapelizTemplateExportDetails } from './papeliz-template-export-details'
+import { findPapelizTemplateExportDetailsProblem, listPapelizTemplateExportTags, type PapelizTemplateExportDetails } from './papeliz-template-export-details'
 import { detectPapelizTemplateLicenseId, findPapelizTemplateOptionalFileRelativePaths, parsePapelizTemplateManifest } from './papeliz-template-gallery-checks'
 
 const exampleTemplateExportDetails: PapelizTemplateExportDetails = {
   templateExportName: 'Study notes',
   templateExportDescription: 'A vault to study with.',
-  templateExportCategoryTag: 'education',
+  templateExportTags: ['education'],
   templateExportFirstNotePath: 'Start here.md',
-  templateExportLicenseId: 'MIT',
+  templateExportLicenseText: 'MIT',
 }
 
 describe('findPapelizTemplateExportFileReferences', () => {
@@ -57,10 +57,20 @@ describe('the template it writes', () => {
   })
 
   it('asks for a name, a description and a category first', () => {
-    expect(findPapelizTemplateExportDetailsProblem({ ...exampleTemplateExportDetails, templateExportName: ' ' })).toBe('Give the template a name in Template Settings.')
-    expect(findPapelizTemplateExportDetailsProblem({ ...exampleTemplateExportDetails, templateExportDescription: '' })).toBe('Describe the template in Template Settings.')
-    expect(findPapelizTemplateExportDetailsProblem({ ...exampleTemplateExportDetails, templateExportCategoryTag: null })).toBe('Choose the template’s category in Template Settings.')
-    expect(findPapelizTemplateExportDetailsProblem(exampleTemplateExportDetails)).toBeNull()
+    const typedTemplateDetails = { ...exampleTemplateExportDetails, templateExportTagTexts: ['Education', '', ''] }
+    expect(findPapelizTemplateExportDetailsProblem({ ...typedTemplateDetails, templateExportName: ' ' })).toBe('Give the template a name in Template Settings.')
+    expect(findPapelizTemplateExportDetailsProblem({ ...typedTemplateDetails, templateExportDescription: '' })).toBe('Describe the template in Template Settings.')
+    expect(findPapelizTemplateExportDetailsProblem({ ...typedTemplateDetails, templateExportTagTexts: ['', 'notes', ''] })).toBe('Give the template a category in Template Settings.')
+    expect(findPapelizTemplateExportDetailsProblem(typedTemplateDetails)).toBeNull()
+  })
+
+  it('makes the typed category, subcategory and label into tags, any words the author likes', () => {
+    expect(listPapelizTemplateExportTags(['Gardening', 'Seed Saving', 'AI Agents!'])).toEqual(['gardening', 'seed-saving', 'ai-agents'])
+    expect(listPapelizTemplateExportTags(['Journal', '', ''])).toEqual(['journal'])
+    const { templateManifestProblemSentence } = parsePapelizTemplateManifest(
+      JSON.stringify(buildPapelizTemplateExportManifest({ ...exampleTemplateExportDetails, templateExportTags: listPapelizTemplateExportTags(['Gardening', 'Seed Saving', 'Notes']) }, [])),
+    )
+    expect(templateManifestProblemSentence).toBeNull()
   })
 })
 
@@ -99,10 +109,21 @@ describe('exportPapelizVaultNotesAsTemplate', () => {
       templateExportVault: { vaultAdapter, vaultDisplayName: 'Sample vault' },
       templateExportVaultNoteRelativePaths: ['Start here.md'],
       templateExportOptionalNoteRelativePaths: new Set(),
-      templateExportDetails: { ...exampleTemplateExportDetails, templateExportLicenseId: 'CC-BY-4.0' },
+      templateExportDetails: { ...exampleTemplateExportDetails, templateExportLicenseText: 'cc-by-4.0' },
     })
     const { importZipEntries } = readPapelizImportZipFile(new Uint8Array(await templateExportFileBlob.arrayBuffer()))
     expect(importZipEntries.map((importZipEntry) => importZipEntry.importZipEntryPath).sort()).toEqual(['Start here.md', 'papeliz-template.json'])
-    expect(templateExportNotices[0]).toContain('CC BY 4.0')
+    expect(templateExportNotices[0]).toBe('Add the CC BY 4.0 text as a file named LICENSE before you submit.')
+  })
+
+  it('takes a license of the author’s own, and says to add its file', async () => {
+    const vaultAdapter = new PapelizInMemoryVaultAdapter([{ vaultNoteRelativePath: 'Start here.md', vaultNoteText: 'Hello.' }])
+    const { templateExportNotices } = await exportPapelizVaultNotesAsTemplate({
+      templateExportVault: { vaultAdapter, vaultDisplayName: 'Sample vault' },
+      templateExportVaultNoteRelativePaths: ['Start here.md'],
+      templateExportOptionalNoteRelativePaths: new Set(),
+      templateExportDetails: { ...exampleTemplateExportDetails, templateExportLicenseText: 'Garden Club License' },
+    })
+    expect(templateExportNotices).toEqual(['Add your license, “Garden Club License”, as a file named LICENSE before you submit.'])
   })
 })

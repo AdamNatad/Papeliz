@@ -293,29 +293,25 @@ describe('template checks', () => {
     expect(parsePapelizTemplateManifest(JSON.stringify(manifestWithoutPaths)).templateManifest).toMatchObject({ templateIncludedPaths: ['**'], templateExcludedPaths: [] })
   })
 
-  it('takes a category as the first tag, then a subcategory and labels of any tag shape', () => {
-    for (const templateTags of [['coding'], ['education', 'language-learning'], ['research', 'coding', 'ai-agents', 'notes-2026', 'x']]) {
+  it('takes any main category as the first tag, then a subcategory and a label, up to 3 tags', () => {
+    for (const templateTags of [['coding'], ['education', 'language-learning'], ['journal', 'seed-saving', 'ai-agents']]) {
       expect(parsePapelizTemplateManifest(JSON.stringify({ ...gardenJournalManifest, templateTags })).templateManifest?.templateTags).toEqual(templateTags)
     }
-    expect(parsePapelizTemplateManifest(JSON.stringify({ ...gardenJournalManifest, templateTags: ['journal', 'coding'] })).templateManifestProblemSentence).toBe(
-      'The manifest’s first tag, “journal”, must be the template’s category: "coding", "education" or "research". Put one of them first, such as ["coding", "project-workflow"].',
-    )
     expect(parsePapelizTemplateManifest(JSON.stringify({ ...gardenJournalManifest, templateTags: [] })).templateManifestProblemSentence).toBe(
-      'The manifest’s templateTags must start with the template’s category: "coding", "education" or "research", such as ["coding", "project-workflow"].',
+      'The manifest’s templateTags must start with the template’s main category, such as ["coding", "project-workflow"].',
     )
     expect(parsePapelizTemplateManifest(JSON.stringify({ ...gardenJournalManifest, templateTags: ['coding', 'Project Workflow'] })).templateManifestProblemSentence).toBe(
-      'The manifest’s templateTags must be a list of up to 5 tags in lower case, its category first, such as ["coding", "project-workflow"].',
+      'The manifest’s templateTags must be a list of up to 3 tags in lower case: its main category, then its subcategory and a label, such as ["coding", "project-workflow"].',
     )
-    expect(parsePapelizTemplateManifest(JSON.stringify({ ...gardenJournalManifest, templateTags: ['coding', 'a', 'b', 'c', 'd', 'e'] })).templateManifest).toBeNull()
+    expect(parsePapelizTemplateManifest(JSON.stringify({ ...gardenJournalManifest, templateTags: ['coding', 'a', 'b', 'c'] })).templateManifest).toBeNull()
   })
 
-  it('fails the manifest check of a template whose first tag isn’t a category', async () => {
+  it('passes the manifest check of a template whose main category is its author’s own', async () => {
     const templateCheckReport = await checkTemplateFixture({
       ...createGardenJournalTemplateFiles(),
       'papeliz-template.json': JSON.stringify({ ...gardenJournalManifest, templateTags: ['gardening', 'journal'] }),
     })
-    expect(listFailedCheckIds(templateCheckReport)).toEqual(['manifest-valid'])
-    expect(findCheckResult(templateCheckReport, 'manifest-valid').templateCheckSentence).toContain('“gardening”, must be the template’s category')
+    expect(listFailedCheckIds(templateCheckReport)).toEqual([])
   })
 
   it('matches path patterns from the root', () => {

@@ -18,9 +18,10 @@ export const papelizSiteTemplateLicenseDisplayNames: Readonly<Record<PapelizSite
   MIT: 'MIT',
 }
 
-// A template's first tag is its Category, one of these; the second is its subcategory; any more are
-// extra labels (Adam, 2026-11-02).
-export type PapelizSiteTemplateCategoryTag = 'coding' | 'education' | 'research'
+// A template's first tag is its Category, any tag its author chose; the second is its subcategory and
+// the third a label (Adam, 2026-11-02). These are the Categories Papeliz started with: the chips show
+// them first, then every other Category a listed template has.
+export type PapelizSiteTemplateCategoryTag = string
 export const papelizSiteTemplateCategoryTags: readonly PapelizSiteTemplateCategoryTag[] = ['coding', 'education', 'research']
 
 export interface PapelizSiteTemplatesSnapshotRow {
@@ -62,7 +63,8 @@ const papelizSiteTemplateRepositoryNamePattern = /^[A-Za-z0-9._-]{1,100}$/
 const papelizSiteTemplateCommitShaPattern = /^[0-9a-f]{40}$/
 // The shape of every tag: lower-case words of letters and digits, joined by single hyphens.
 const papelizSiteTemplateTagPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
-const papelizSiteTemplateMostTagCount = 5
+// The Category, the subcategory and a label.
+const papelizSiteTemplateMostTagCount = 3
 const papelizSiteTemplateNameMostLength = 100
 const papelizSiteTemplateDescriptionMostLength = 500
 
@@ -78,8 +80,14 @@ function isPapelizSiteTemplateText(textCandidate: unknown, textMostLength: numbe
   return typeof textCandidate === 'string' && textCandidate.trim().length > 0 && textCandidate.length <= textMostLength
 }
 
-export function isPapelizSiteTemplateCategoryTag(templateTag: string): templateTag is PapelizSiteTemplateCategoryTag {
-  return (papelizSiteTemplateCategoryTags as readonly string[]).includes(templateTag)
+// The Category chips: Papeliz's first three, then every other Category a listed template has, A to Z.
+export function listPapelizSiteTemplateCategoryTags(snapshotRows: readonly Pick<PapelizSiteTemplatesSnapshotRow, 'templateTags'>[]): PapelizSiteTemplateCategoryTag[] {
+  const otherCategoryTags = new Set<string>()
+  for (const snapshotRow of snapshotRows) {
+    const templateCategoryTag = snapshotRow.templateTags[0]
+    if (templateCategoryTag !== undefined && !papelizSiteTemplateCategoryTags.includes(templateCategoryTag)) otherCategoryTags.add(templateCategoryTag)
+  }
+  return [...papelizSiteTemplateCategoryTags, ...[...otherCategoryTags].sort()]
 }
 
 function isPapelizSiteTemplateRepositoryName(repositoryNameCandidate: unknown): repositoryNameCandidate is string {
@@ -106,8 +114,7 @@ export function readPapelizSiteTemplatesSnapshotRow(rowCandidate: unknown): Pape
     !Array.isArray(templateTags) ||
     templateTags.length === 0 ||
     templateTags.length > papelizSiteTemplateMostTagCount ||
-    !templateTags.every((templateTag) => typeof templateTag === 'string' && papelizSiteTemplateTagPattern.test(templateTag)) ||
-    !isPapelizSiteTemplateCategoryTag(templateTags[0] as string)
+    !templateTags.every((templateTag) => typeof templateTag === 'string' && papelizSiteTemplateTagPattern.test(templateTag))
   ) {
     return null
   }
@@ -213,7 +220,7 @@ export interface PapelizSiteTemplateCategoryNames {
 export function readPapelizSiteTemplateCategoryNames(snapshotRow: PapelizSiteTemplatesSnapshotRow): PapelizSiteTemplateCategoryNames {
   const [templateCategoryTag, templateSubcategoryTag, ...templateExtraTags] = snapshotRow.templateTags
   return {
-    templateCategoryTag: templateCategoryTag as PapelizSiteTemplateCategoryTag,
+    templateCategoryTag: templateCategoryTag ?? '',
     templateCategoryDisplayName: formatPapelizSiteTemplateTagDisplayName(templateCategoryTag ?? ''),
     templateSubcategoryDisplayName: templateSubcategoryTag === undefined ? null : formatPapelizSiteTemplateTagDisplayName(templateSubcategoryTag),
     templateExtraTagDisplayNames: templateExtraTags.map(formatPapelizSiteTemplateTagDisplayName),

@@ -7,6 +7,7 @@ import {
   isPapelizSiteTemplateNew,
   orderPapelizSiteTemplatesForList,
   readPapelizSiteTemplateCategoryNames,
+  listPapelizSiteTemplateCategoryTags,
   readPapelizSiteTemplatesSnapshot,
 } from './papeliz-site-templates'
 
@@ -64,13 +65,25 @@ describe('the website Templates list', () => {
         { ...papelizSiteTestTemplateRow, papelizTemplateGalleryId: 'TEST-OWNER/test-notes', templateRepositoryOwner: 'TEST-OWNER', templateRepositoryName: 'test-notes' },
         { ...papelizSiteTestTemplateRow, papelizTemplateGalleryId: 'test-owner/..', templateRepositoryName: '..' },
         { ...papelizSiteTestTemplateRow, papelizTemplateGalleryId: 'bad--owner/Notes', templateRepositoryOwner: 'bad--owner', templateRepositoryName: 'Notes' },
-        { ...papelizSiteTestTemplateRow, papelizTemplateGalleryId: 'other/Notes', templateRepositoryOwner: 'other', templateRepositoryName: 'Notes', templateTags: ['cooking'] },
+        { ...papelizSiteTestTemplateRow, papelizTemplateGalleryId: 'other/Notes', templateRepositoryOwner: 'other', templateRepositoryName: 'Notes', templateTags: ['cooking', 'a', 'b', 'c'] },
         { ...papelizSiteTestTemplateRow, papelizTemplateGalleryId: 'other/Sha', templateRepositoryOwner: 'other', templateRepositoryName: 'Sha', templateCommitSha: 'main' },
         { ...papelizSiteTestTemplateRow, papelizTemplateGalleryId: 'other/Name', templateRepositoryOwner: 'other', templateRepositoryName: 'Name', templateLicenseId: 'GPL-3.0' },
         { ...papelizSiteTestTemplateRow, papelizTemplateGalleryId: 'someone/else', templateRepositoryOwner: 'other', templateRepositoryName: 'else' },
       ]),
     )
     expect(papelizSiteTemplatesSnapshot?.templateGallerySnapshotRows.map((snapshotRow) => snapshotRow.papelizTemplateGalleryId)).toEqual(['test-owner/Test-Notes'])
+  })
+
+  it('keeps a template whose Category is its author’s own, and gives that Category a chip after the first three', () => {
+    const papelizSiteTemplatesSnapshot = readPapelizSiteTemplatesSnapshot(
+      createPapelizSiteTestSnapshot([
+        papelizSiteTestTemplateRow,
+        { ...papelizSiteTestTemplateRow, papelizTemplateGalleryId: 'other/Garden', templateRepositoryOwner: 'other', templateRepositoryName: 'Garden', templateTags: ['gardening', 'seed-saving'] },
+        { ...papelizSiteTestTemplateRow, papelizTemplateGalleryId: 'other/Bakes', templateRepositoryOwner: 'other', templateRepositoryName: 'Bakes', templateTags: ['baking'] },
+      ]),
+    )
+    expect(papelizSiteTemplatesSnapshot?.templateGallerySnapshotRows.map((snapshotRow) => snapshotRow.papelizTemplateGalleryId)).toContain('other/Garden')
+    expect(listPapelizSiteTemplateCategoryTags(papelizSiteTemplatesSnapshot?.templateGallerySnapshotRows ?? [])).toEqual(['coding', 'education', 'research', 'baking', 'gardening'])
   })
 
   it('lists Featured first, in their order, then the rest newest first', () => {

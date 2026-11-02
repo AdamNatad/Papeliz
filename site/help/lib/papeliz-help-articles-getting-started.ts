@@ -308,10 +308,8 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
           '**Sync**: keep your vaults in sync across web, desktop and mobile, with end-to-end encryption for the vaults you choose. A paid add-on, coming soon.',
           '**Settings**: the tabs **Vault**, the open vault’s name (a vault kept in your browser renames here; a folder vault takes its folder’s name), and **Key Bindings**, the shortcuts you can change. See [[keyboard-shortcuts]]. In a vault kept in your browser, a third tab, **Reminder**, holds the backup reminder and **Download Backup**. See [[keep-a-vault-in-your-browser]].',
           '**Export**: download notes as Word, PDF or HTML files. See **Export** below.',
-          '**Accessibility**: the theme, how note tabs show, and how your notes’ text looks: font, size and width. See [[text-settings-and-theme]].',
+          '**Accessibility**: the theme, how tabs show, how your notes’ text looks (font, size and width), and the **Lock All Notes** and **Focus Mode** switches. See [[text-settings-and-theme]], [[switch-views-and-lock]] and [[focus-mode|focus mode]].',
           '**AI Assistant**: choose the provider and add your key. See [[bring-your-own-key]].',
-          '**Lock All Notes**: a switch that locks every note in the vault. See [[switch-views-and-lock]].',
-          '**Focus Mode**: a switch for [[focus-mode|focus mode]].',
           '**Close Vault**, at the bottom: back to the start page. See [[open-a-folder]].',
         ]),
       ]),
@@ -320,7 +318,10 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
           'Tick the notes you want. The open note comes ticked, and opening a folder lets you pick single notes inside it. Then pick a format and press **Export**. One note downloads as one file; several download as one `.zip`, folders kept.',
         ),
         helpParagraph(
-          'For Word and PDF, press the gear on the format’s row to choose the **Paper**: Letter, A4 and the other sizes Google Docs offers, or **Custom** for your own width and height, from 3 to 22 inches a side (76.2 to 558.8 mm). The row shows the paper you chose. Papeliz starts with your region’s paper and remembers the one you pick. HTML has no gear: it uses your font, text size and width from **Accessibility**.',
+          'For Word and PDF, press the gear on the format’s row to choose the **Paper**: Letter, A4 and the other sizes Google Docs offers, or **Custom** for your own width and height, from 3 to 22 inches a side (76.2 to 558.8 mm). The row shows the paper you chose. Papeliz starts with your region’s paper and remembers the one you pick.',
+        ),
+        helpParagraph(
+          'HTML’s gear sets the **Theme** the pages open in (Light, Dark or Device; a website’s readers can still switch it), an **Accent Color** for links, tags and callouts, and the pages’ **Font**, **Text Size** and **Text Width**, which start as your **Accessibility** settings. **Use My Accessibility Text** goes back to those.',
         ),
         helpBulletList([
           '**Word**: an editable `.docx` for each note, with its headings, lists, tables, callouts, footnotes, pictures and diagrams. In a `.zip`, a link to another exported note opens that note’s file once the `.zip` is unpacked.',
@@ -338,7 +339,7 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
       ]),
       helpSection('Export as a template', [
         helpParagraph(
-          'Press the gear on **Template**’s row to open **Template Settings**. **Details** holds the template’s name, a short description, its category, the note it opens first and its license. **Files** marks each ticked note **Recommended** or **Optional**: Recommended notes always come, and Optional ones come only when someone chooses All or ticks them. Pictures and files a note links to come with it.',
+          'Press the gear on **Template**’s row to open **Template Settings**. **Details** holds the template’s name, a short description, up to three **Tags** (its category, which can be any word, then a subcategory and a label), the note it opens first and its license. **Files** marks each ticked note **Recommended** or **Optional**: Recommended notes always come, and Optional ones come only when someone chooses All or ticks them. Pictures and files a note links to come with it.',
         ),
         helpParagraph(
           'Export downloads one `.zip` with the notes in their folders, a `papeliz-template.json` written from the settings and, for MIT, a `LICENSE`. For CC0 1.0 or CC BY 4.0, add that license as a file named `LICENSE` on GitHub. Put the files in a public GitHub repository, then share it with **Submit Template**. Papeliz keeps the settings for each vault.',

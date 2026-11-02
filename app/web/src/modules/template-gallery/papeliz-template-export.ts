@@ -5,11 +5,13 @@ import { getVaultEntryParentFolderRelativePath } from '../vault/papeliz-vault-re
 import { getPapelizSafeFileNameStem } from '../workspace/papeliz-export-file-save'
 import { parsePapelizTemplateManifest } from './papeliz-template-gallery-checks'
 import { findPapelizTemplateExportDetailsProblem, type PapelizTemplateExportDetails } from './papeliz-template-export-details'
-import { papelizTemplateLicenseDisplayNames, papelizTemplateManifestFileName, type PapelizTemplateManifest } from './papeliz-template-gallery-contract'
+import { findPapelizTemplateExportLicensePreset } from './papeliz-template-export-licenses'
+import { papelizTemplateManifestFileName, type PapelizTemplateManifest } from './papeliz-template-gallery-contract'
 
 // Export › Template from the open vault: the Settings gear's Export page loads this with `import()`
 // when someone exports. The ticked notes, with their folders, the pictures and files they link to,
-// a `papeliz-template.json` written from the Template Settings, and for MIT a LICENSE, in one `.zip`.
+// a `papeliz-template.json` written from the Template Settings, and for MIT a LICENSE, in one `.zip`
+// (for any other license, the person adds its LICENSE file).
 // Its files go into a public GitHub repository as they are, ready for Submit Template.
 
 export interface PapelizTemplateExportRequest {
@@ -81,7 +83,7 @@ export function buildPapelizTemplateExportManifest(templateExportDetails: Papeli
     papelizTemplateManifestVersion: 1,
     templateName: templateExportDetails.templateExportName.trim(),
     templateDescription: templateExportDetails.templateExportDescription.trim(),
-    templateTags: [templateExportDetails.templateExportCategoryTag],
+    templateTags: [...templateExportDetails.templateExportTags],
     templateFirstNotePath: templateExportDetails.templateExportFirstNotePath,
     templateIncludedPaths: ['**'],
     templateExcludedPaths: [],
@@ -122,7 +124,7 @@ export async function exportPapelizVaultNotesAsTemplate(templateExportRequest: P
   const { templateExportVault, templateExportVaultNoteRelativePaths, templateExportOptionalNoteRelativePaths, templateExportDetails, onTemplateExportProgress, templateExportAbortSignal } =
     templateExportRequest
   const { vaultAdapter } = templateExportVault
-  const detailsProblem = findPapelizTemplateExportDetailsProblem(templateExportDetails)
+  const detailsProblem = findPapelizTemplateExportDetailsProblem({ ...templateExportDetails, templateExportTagTexts: templateExportDetails.templateExportTags })
   if (detailsProblem !== null) throw new PapelizVaultOperationError(detailsProblem)
   if (!templateExportVaultNoteRelativePaths.includes(templateExportDetails.templateExportFirstNotePath)) {
     throw new PapelizVaultOperationError('The first note isn’t among the ticked notes. Tick it, or choose another in Template Settings.')
@@ -166,11 +168,16 @@ export async function exportPapelizVaultNotesAsTemplate(templateExportRequest: P
   zipEntries.push({ zipEntryPath: papelizTemplateManifestFileName, zipEntryBytes: papelizTemplateExportTextEncoder.encode(templateManifestText) })
 
   const templateExportNotices: string[] = []
-  if (templateExportDetails.templateExportLicenseId === 'MIT') {
+  // MIT's text comes in the .zip; any other license's, the person adds.
+  const licensePreset = findPapelizTemplateExportLicensePreset(templateExportDetails.templateExportLicenseText)
+  if (licensePreset?.templateLicenseSpdxId === 'MIT') {
     zipEntries.push({ zipEntryPath: 'LICENSE', zipEntryBytes: papelizTemplateExportTextEncoder.encode(writePapelizTemplateExportMitLicenseText(new Date().getFullYear(), templateExportDetails.templateExportName)) })
   } else {
-    const licenseDisplayName = papelizTemplateLicenseDisplayNames[templateExportDetails.templateExportLicenseId]
-    templateExportNotices.push(`Add ${licenseDisplayName} as a file named LICENSE before you submit: on GitHub, a new file named LICENSE offers it among its license templates.`)
+    templateExportNotices.push(
+      licensePreset !== undefined
+        ? `Add the ${licensePreset.templateLicenseDisplayName} text as a file named LICENSE before you submit.`
+        : `Add your license, “${templateExportDetails.templateExportLicenseText.trim()}”, as a file named LICENSE before you submit.`,
+    )
   }
   return {
     templateExportFileBlob: await writePapelizExportZipFile(zipEntries, { zipEntryModifiedDate: new Date() }),

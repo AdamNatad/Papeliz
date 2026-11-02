@@ -32,6 +32,8 @@ export const papelizAssistantRunOptionsSettingName = 'papelizAssistantRunOptions
 export const papelizAssistantModelPricesSettingName = 'papelizAssistantModelPrices'
 // The paper Word and PDF exports print on, a named size or a custom one (papeliz-settings-gear-export-page.tsx).
 export const papelizExportPaperSizeSettingName = 'papelizExportPaperSize'
+// Export › HTML's settings: theme, accent and its own text settings (papeliz-settings-gear-export-page.tsx).
+export const papelizHtmlExportSettingsSettingName = 'papelizHtmlExportSettings'
 // Export › Template's settings, by vault id (papeliz-settings-gear-export-page.tsx).
 export const papelizTemplateExportSettingsSettingName = 'papelizTemplateExportSettings'
 
