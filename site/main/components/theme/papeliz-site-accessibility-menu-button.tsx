@@ -83,7 +83,7 @@ export function PapelizSiteAccessibilityMenuButton() {
         }}
         className="grid size-[34px] flex-none cursor-pointer place-items-center rounded-full text-white/90 transition-[background-color,color,transform] duration-150 ease-out hover:bg-white/15 hover:text-white focus-visible:outline-white active:scale-[.94] aria-expanded:bg-white/15"
       >
-        {/* A solid mark, as the GitHub mark beside it, so it reads clearly on the blue bar (Adam, 2026-10-31). */}
+        {/* A solid mark, as the GitHub mark beside it, so it reads clearly on the blue bar. */}
         <FaUniversalAccess className="size-[18px]" aria-hidden="true" />
       </button>
       {papelizSiteAccessibilityMenuAnchor !== null && (

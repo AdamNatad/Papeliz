@@ -1,7 +1,7 @@
 "use client";
 
-// Adam Natad's profile, kept as it is on his other site and recoloured in Papeliz blue (Adam, 2026-10-28:
-// "follow our Adam Natad page ... as is and just change color"). It names his other apps and companies by design.
+// Adam Natad's profile, the same page as on his own site, recoloured in Papeliz blue. It names his other apps and
+// companies by design.
 
 import Link from "next/link";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
@@ -126,7 +126,7 @@ type AdamNatadProfileOlderSoftware = {
   name: string;
 };
 
-// Adam's older software (2026-10-28), oldest first.
+// The older software, oldest first.
 const ADAM_NATAD_PROFILE_OLDER_SOFTWARE: AdamNatadProfileOlderSoftware[] = [
   { years: "2015–2019", name: "iSCSI Diskless Boot Software" },
   { years: "2016", name: "Game Menu Launchers" },
@@ -180,7 +180,7 @@ function AdamNatadProfileInlineLink({
   /** onCard: Papeliz blue; onCardInk: bold ink, to highlight a name in running text; onCloudflareOrange: white. */
   surface?: "onCard" | "onCardInk" | "onCloudflareOrange";
   /**
-   * Keep a name such as a company name on one line (Adam, 2026-10-13), but only once the nearest container is at least
+   * Keep a name such as a company name on one line, but only once the nearest container is at least
    * this wide, about the name's own width: in a narrower column it wraps rather than running out of its card.
    */
   keepOnOneLineFromContainerWidth?: keyof typeof ADAM_NATAD_PROFILE_KEEP_ON_ONE_LINE_CLASSES;
@@ -247,7 +247,7 @@ function AdamNatadProfileLinkList({ rows }: { rows: AdamNatadProfileLinkRow[] })
   );
 }
 
-// A bordered list panel, as Apps and Games use (Adam, 2026-10-14): rows divided by a soft line, filling their column.
+// A bordered list panel, as Apps and Games use: rows divided by a soft line, filling their column.
 // Side by side, two panels match heights and share their rows out evenly (the section passes its `auto-rows-fr`).
 const ADAM_NATAD_PROFILE_LIST_PANEL_CLASS =
   "grid flex-1 divide-y divide-papeliz-line overflow-hidden rounded-lg border border-papeliz-line-strong bg-papeliz-surface";
@@ -370,8 +370,8 @@ type AdamNatadProfileProductGroup = {
   items: AdamNatadProfileProduct[];
 };
 
-// Status badges: a soft tint with a dot in the status's own colour, beside the name (Adam, 2026-10-14: everything but
-// Panulat is In Development, in blue).
+// Status badges: a soft tint with a dot in the status's own colour, beside the name. Everything but Panulat is In
+// Development, in blue.
 const ADAM_NATAD_PROFILE_PRODUCT_STATUS: Record<
   AdamNatadProfileProductStatus,
   { label: string; shortLabel: string; badgeClassName: string; dotClassName: string }
@@ -403,8 +403,8 @@ function AdamNatadProfileProductStatusBadge({
       className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-[3px] text-[11.5px] font-semibold leading-none ${statusStyle.badgeClassName} ${className}`}
     >
       <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${statusStyle.dotClassName}`} />
-      {/* The full label once the column fits it beside the name, the short one on a narrow column (Adam, 2026-10-14:
-          "In Dev"); screen readers always hear the full label. */}
+      {/* The full label once the column fits it beside the name, the short one ("In Dev") on a narrow column; screen
+          readers always hear the full label. */}
       <span className="hidden @min-[20rem]:inline">{statusStyle.label}</span>
       <span aria-hidden="true" className="@min-[20rem]:hidden">
         {statusStyle.shortLabel}
@@ -453,7 +453,7 @@ function AdamNatadProfileProductIconTile({ icon }: { icon: AdamNatadProfileProdu
 /**
  * One app or game in its group's panel: icon, then the name with its status badge beside it (wrapping under the name on a
  * narrow column), then one line. Every row links to its site (the domains are Adam's) and takes a warm tan tint on hover,
- * without an arrow (Adam, 2026-10-14).
+ * without an arrow.
  */
 function AdamNatadProfileProductRow({ product }: { product: AdamNatadProfileProduct }) {
   const rowClass = "flex items-center gap-3 px-3 py-3.5 @min-[20rem]:gap-4 @min-[20rem]:px-4";
@@ -476,10 +476,9 @@ function AdamNatadProfileProductRow({ product }: { product: AdamNatadProfileProd
   if (!product.href) {
     return <div className={rowClass}>{content}</div>;
   }
-  // Hover and keyboard focus tint the row the site's warm tan, text unchanged (Adam, 2026-10-14: picked over the darker
-  // espresso); pressed is the tan x0.94.
+  // Hover and keyboard focus tint the row the site's warm tan, text unchanged; pressed is the tan x0.94.
   const linkClass = `group ${rowClass} transition-colors duration-150 hover:bg-papeliz-blue-soft focus-visible:bg-papeliz-blue-soft active:bg-papeliz-blue-soft-hover`;
-  // Every row opens in a new tab, Papeliz's own home page included, so the reader keeps this page (Adam, 2026-10-14).
+  // Every row opens in a new tab, Papeliz's own home page included, so the reader keeps this page.
   return (
     <a href={product.href} target="_blank" rel="noopener noreferrer" className={linkClass}>
       {content}
@@ -489,7 +488,7 @@ function AdamNatadProfileProductRow({ product }: { product: AdamNatadProfileProd
 }
 
 // The timeline's gradient, oldest entry first: green for life at the start, then teal, sky, indigo and violet as the
-// years run on (Adam, 2026-10-14). The same stops paint the line in adam-natad-profile.module.css; keep them in step.
+// years run on. The same stops paint the line in adam-natad-profile.module.css; keep them in step.
 const ADAM_NATAD_PROFILE_TIMELINE_GRADIENT_STOPS = ["#22C55E", "#14B8A6", "#0EA5E9", "#6366F1", "#8B5CF6"];
 
 /** The colour at a point (0 to 1) along the timeline's gradient. */
@@ -625,7 +624,7 @@ const ADAM_NATAD_PROFILE_HERO_SOCIAL_LINK_VISIBILITY = [
 ] as const;
 
 /**
- * The round links under the intro, as on adamnatad.com (Adam, 2026-10-14): his site (his avatar, no frame), then X,
+ * The round links under the intro, as on adamnatad.com: his site (his avatar, no frame), then X,
  * LinkedIn, GitHub, YouTube, Instagram, Facebook, Reddit, TikTok, Spotify and Amazon in their brand colours. The row
  * uses the space it has; the links that do not fit wait in the "…" menu (name and domain): dark brown, opening right
  * under "…" with a pointer to it and kept inside the row's width; Esc, a click elsewhere or a resize closes it. Hover and
@@ -721,7 +720,7 @@ function AdamNatadProfileHeroSocialLinks({
 
   return (
     <div ref={moreAreaRef} className="@container relative">
-      {/* Centred under the intro (Adam, 2026-10-14). */}
+      {/* Centred under the intro. */}
       <div className="flex items-center justify-center gap-3">
         {heroSocialLinks.map((heroSocialLink, heroSocialLinkIndex) => (
           <a
@@ -803,10 +802,9 @@ export function PapelizSiteAdamNatadProfile({ adamNatadProfileConfig }: { adamNa
     { label: "NatadTech Solutions OPC", value: "Founder and President" },
   ];
 
-  // Apps and games as a calm list (Adam, 2026-10-14: option C; no company named here, Panulat only one row since this is
-  // its site; everything but Panulat In Development). Every item links to its own domain; flovade.com and
-  // harvestmare.com are Adam's, not yet serving a site on 2026-10-14. Apps are Panulat, Papeliz, FloVade (Adam,
-  // 2026-10-28); Papeliz is available at papeliz.com (Adam: "already available at its .com domain").
+  // Apps and games as a calm list: no company named here, Panulat one row among the others, everything but Panulat In
+  // Development. Every item links to its own domain; flovade.com and harvestmare.com are his own domains and may not
+  // serve a site yet. Apps are Panulat, Papeliz and FloVade; Papeliz is available at papeliz.com.
   const productAndGameGroups: AdamNatadProfileProductGroup[] = [
     {
       title: "Apps",
@@ -863,8 +861,8 @@ export function PapelizSiteAdamNatadProfile({ adamNatadProfileConfig }: { adamNa
     },
   ];
 
-  // Where his books are, and who registers and catalogs them, as list panels like Apps and Games (Adam, 2026-10-28:
-  // the section "feels outdated"). Each store's mark sits on its own colour.
+  // Where his books are, and who registers and catalogs them, as list panels like Apps and Games. Each store's mark
+  // sits on its own colour.
   const bookStoreLinks: AdamNatadProfilePanelLink[] = [
     {
       name: "Amazon",
@@ -920,7 +918,7 @@ export function PapelizSiteAdamNatadProfile({ adamNatadProfileConfig }: { adamNa
     },
   ];
 
-  // Only these three, in this order (Adam, 2026-10-28). Papeliz links its site.
+  // Only these three, in this order. Papeliz links its site.
   const openSourceProjects: {
     name: string;
     description: string;
@@ -952,7 +950,7 @@ export function PapelizSiteAdamNatadProfile({ adamNatadProfileConfig }: { adamNa
   ];
 
 
-  // Adam's own Personal Timeline (2026-10-14), word for word.
+  // The Personal Timeline, kept word for word as the author wrote it.
   const timelineEntries: AdamNatadProfileTimelineEntry[] = [
     {
       period: "September 1997 · Birth",
@@ -1022,12 +1020,11 @@ export function PapelizSiteAdamNatadProfile({ adamNatadProfileConfig }: { adamNa
   ];
 
   // The three links under the intro are peers, so they share one style: the site's blue button, hover and pressed
-  // in the darker blue. Each leads with its site's own icon (Adam,
-  // 2026-10-13: brown buttons, the brand icon on the left, no arrow on the right); the icons are copies of each site's
-  // favicon in public/images.
+  // in the darker blue. Each leads with its site's own icon on the left, with no arrow on the right; the icons are
+  // copies of each site's favicon in public/images.
   const companyWebsiteButtonBaseClass =
     "inline-flex min-h-12 items-center justify-center gap-2.5 rounded-md bg-papeliz-blue px-5 text-base font-medium text-papeliz-on-blue transition-[background-color,scale] duration-150 ease-out hover:bg-papeliz-blue-hover active:scale-[0.985] active:bg-papeliz-blue-hover";
-  // In a company card the button spans the card's full width (Adam, 2026-10-13).
+  // In a company card the button spans the card's full width.
   const companyWebsiteButtonClass = `${companyWebsiteButtonBaseClass} w-full`;
   // Each company card's website button, led by the site's own icon.
   const companyWebsiteLinks = [
@@ -1047,7 +1044,7 @@ export function PapelizSiteAdamNatadProfile({ adamNatadProfileConfig }: { adamNa
   const [natadCorporationHeroLink, natadTechHeroLink] = companyWebsiteLinks;
 
 
-  // Each company card ends with the same big button as the top ones (Adam, 2026-10-13), in place of a website line.
+  // Each company card ends with the same big button as the top ones, in place of a website line.
   const renderCompanyWebsiteButton = (companyHeroLink: (typeof companyWebsiteLinks)[number]) => (
     <a
       href={companyHeroLink.href}
@@ -1066,7 +1063,7 @@ export function PapelizSiteAdamNatadProfile({ adamNatadProfileConfig }: { adamNa
         decoding="async"
       />
       {/* The label steps down with the button's own width (a container query on its wrapper): "Visit Official
-          Website", then "Visit Site", then "Visit" (Adam, 2026-10-13). Screen readers hear the visible label plus the
+          Website", then "Visit Site", then "Visit". Screen readers hear the visible label plus the
           company's name. */}
       <span className="hidden whitespace-nowrap @min-[15.5rem]:inline">Visit Official Website</span>
       <span className="hidden whitespace-nowrap @min-[9.5rem]:inline @min-[15.5rem]:hidden">Visit Site</span>
@@ -1080,7 +1077,7 @@ export function PapelizSiteAdamNatadProfile({ adamNatadProfileConfig }: { adamNa
   const cardClass = "rounded-xl border border-papeliz-line bg-papeliz-surface-soft p-5 sm:p-8";
   const innerPanelClass = "rounded-lg border border-papeliz-line bg-papeliz-surface p-5 sm:p-6";
 
-  // The two company cards (Adam, 2026-10-13): name, motto, a generic summary, then Role, Incorporated and Country as
+  // The two company cards: name, motto, a generic summary, then Role, Incorporated and Country as
   // labelled rows, so the role no longer sits as an all-caps label above the name.
   const companyCards = [
     {
@@ -1110,7 +1107,7 @@ export function PapelizSiteAdamNatadProfile({ adamNatadProfileConfig }: { adamNa
   return (
     <div className="mx-auto w-full min-w-0 max-w-5xl space-y-5 pb-16 sm:space-y-6 [&_a:focus-visible]:outline-2 [&_a:focus-visible]:outline-offset-4 [&_a:focus-visible]:outline-papeliz-blue [&_button:focus-visible]:outline-2 [&_button:focus-visible]:outline-offset-4 [&_button:focus-visible]:outline-papeliz-blue">
       {/* Who he is */}
-      {/* Three layouts by the card's own width (container queries; Adam, 2026-10-13/14): up to 28rem of card (about 520 px screens)
+      {/* Three layouts by the card's own width (container queries): up to 28rem of card (about 520 px screens)
           a centred profile, the badge over the photo over the name, then the intro; from 28rem the photo floats right, scaling with the card, with the
           badge, name and the start of the intro beside it and the rest flowing full width under it; the name scales
           too (9cqi, 28 to 48 px); from 48rem the photo sits on the right beside all the text, once
@@ -1118,7 +1115,7 @@ export function PapelizSiteAdamNatadProfile({ adamNatadProfileConfig }: { adamNa
       <section className={`${cardClass} @container`}>
         <div className="flex flex-col items-center gap-4 @min-[28rem]:flow-root @min-[48rem]:grid @min-[48rem]:grid-cols-[minmax(0,1fr)_13rem] @min-[48rem]:[grid-template-areas:'header_photo'_'body_photo'] @min-[54rem]:grid-cols-[minmax(0,1fr)_17rem] @min-[54rem]:gap-x-12">
           <div className="order-2 w-full max-w-[10rem] [grid-area:photo] @min-[28rem]:float-right @min-[28rem]:max-w-none @min-[28rem]:mb-3 @min-[28rem]:ml-4 @min-[28rem]:w-[clamp(6rem,30cqi,10rem)] @min-[30rem]:mb-4 @min-[30rem]:ml-6 @min-[48rem]:float-none @min-[48rem]:m-0 @min-[48rem]:w-full @min-[48rem]:max-w-none @min-[48rem]:self-center">
-            {/* Opens in the page's lightbox on click (Adam, 2026-10-14); the wrapper keeps the photo's own rounding and
+            {/* Opens in the page's lightbox on click; the wrapper keeps the photo's own rounding and
                 tan edge on the viewer's thumbnail button. */}
             <div className="rounded-[1.6rem] [&_button]:rounded-[1.6rem] [&_button]:border-papeliz-line [&_button]:bg-papeliz-surface-gray">
               <PapelizSiteAdamNatadLightbox
@@ -1140,7 +1137,7 @@ export function PapelizSiteAdamNatadProfile({ adamNatadProfileConfig }: { adamNa
           </div>
 
           <div className="order-4 mt-1 w-full min-w-0 [grid-area:body] @min-[28rem]:mt-5 @min-[30rem]:mt-6 @min-[48rem]:mt-0 @min-[48rem]:self-start">
-            {/* Games named beside the software, the books and the music (Adam, 2026-10-28: "where is Games?"). */}
+            {/* Games named beside the software, the books and the music. */}
             <p className="text-lg leading-relaxed text-papeliz-ink">
               <strong className="font-semibold text-papeliz-ink">Adam Natad</strong>{" "}
               (Jose Adam Climaco Natad) is a
@@ -1209,7 +1206,7 @@ export function PapelizSiteAdamNatadProfile({ adamNatadProfileConfig }: { adamNa
           ))}
         </div>
 
-        {/* Startup support (Adam, 2026-10-13): Cloudflare's orange one shade deeper (#C0560C) so white text keeps 4.5:1;
+        {/* Startup support: Cloudflare's orange one shade deeper (#C0560C) so white text keeps 4.5:1;
             the official logo (Cloudflare's press kit PNG; it has no SVG) sits on a white tile, as its black wordmark
             needs; normal-case labels, no icon chips. The layout follows the panel's own width (a container query):
             wide, one row (logo | heading and sentence | facts); medium, the facts stack in a right-hand column beside
@@ -1255,7 +1252,7 @@ export function PapelizSiteAdamNatadProfile({ adamNatadProfileConfig }: { adamNa
           title="Apps and Games"
           description="Apps that think, and worlds worth getting lost in."
         />
-        {/* Side by side, every row and both panels share one height (Adam, 2026-10-14: unify the sizes): the panels
+        {/* Side by side, every row and both panels share one height: the panels
             stretch to the taller one and share it out in equal rows. Stacked, each row is as tall as its own text. */}
         <div className="mt-6 grid gap-x-6 gap-y-6 @min-[44rem]:grid-cols-2">
           {productAndGameGroups.map((productGroup) => (
@@ -1289,7 +1286,7 @@ export function PapelizSiteAdamNatadProfile({ adamNatadProfileConfig }: { adamNa
       </section>
 
       {/* Authorship: the two lines, then where the books are and who registers them, as list panels like Apps and
-          Games, with the certificate beside them (Adam, 2026-10-28: "feels outdated"). */}
+          Games, with the certificate beside them. */}
       <section className={`${cardClass} @container/adam-natad-authorship`}>
         <AdamNatadProfileSectionHeading
           icon={<BookOpen className="h-5 w-5" />}
@@ -1354,8 +1351,7 @@ export function PapelizSiteAdamNatadProfile({ adamNatadProfileConfig }: { adamNa
           title="Legacy software"
           description="Earlier software projects"
         />
-        {/* Older software first, oldest first, then the two product lines, in panels like Apps and Games (Adam,
-            2026-10-28: "improve this", "add in my older software"). */}
+        {/* Older software first, oldest first, then the two product lines, in panels like Apps and Games. */}
         <div className="mt-6 space-y-6">
           <AdamNatadProfileOlderSoftwarePanel items={ADAM_NATAD_PROFILE_OLDER_SOFTWARE} />
           <div className="grid gap-6 @min-[44rem]/adam-natad-legacy-software:grid-cols-2">

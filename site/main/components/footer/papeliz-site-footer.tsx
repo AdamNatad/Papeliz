@@ -18,9 +18,9 @@ function normalizePapelizSiteFooterPath(papelizSiteFooterPath: string) {
   return papelizSiteFooterPath !== '/' ? papelizSiteFooterPath.replace(/\/+$/, '') : '/'
 }
 
-// The footer, in Papeliz blue (Adam, 2026-10-28): on the left the mark, the
-// description and the community buttons; on the right "Made with ❤️" over every page's link and the copyright. Text
-// stays at 90% white or more, so it keeps WCAG AA on the light theme's blue.
+// The footer, in Papeliz blue: on the left the mark, the description and the community buttons; on
+// the right "Made with ❤️" over every page's link and the copyright. Text stays at 90% white or more,
+// so it keeps WCAG AA on the light theme's blue.
 export function PapelizSiteFooter() {
   const papelizSiteCurrentPath = normalizePapelizSiteFooterPath(usePathname())
 

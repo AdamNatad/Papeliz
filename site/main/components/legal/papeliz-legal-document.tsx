@@ -16,10 +16,10 @@ type PapelizLegalDocumentProps = {
   children: ReactNode
 }
 
-// The shared layout of the license, terms and privacy pages (Adam, 2026-10-28): a Legal menu
-// with the three documents on the left, kept in view while reading, and the document beside it with a large title,
-// a one-line summary and sections ruled under their headings. Below 801 px the menu sits above the document, its
-// links in a row.
+// The shared layout of the license, terms and privacy pages: a Legal menu with the three documents
+// on the left, kept in view while reading, and the document beside it with a large title, a one-line
+// summary and sections ruled under their headings. Below 801 px the menu sits above the document,
+// its links in a row.
 export function PapelizLegalDocument({
   papelizLegalDocumentPath,
   papelizLegalDocumentTitle,

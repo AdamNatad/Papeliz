@@ -24,8 +24,8 @@ const papelizSiteHelpNavigationLinks: PapelizSiteNavigationLink[] = papelizSiteH
   ? [{ papelizSiteNavigationHref: papelizSiteHelpUrl, papelizSiteNavigationLabel: 'Help', papelizSiteNavigationIsExternal: true }]
   : []
 
-// The top menu (Adam, 2026-10-31, "Menu 1"): Pricing, Sync and
-// Features as links, then the Resources menu. Templates sits beside Sync (the Templates plan).
+// The top menu: Pricing, Sync and Features as links, then the Resources menu. Templates sits beside
+// Sync (the Templates plan).
 export const papelizSiteHeaderLinks: PapelizSiteNavigationLink[] = [
   { papelizSiteNavigationHref: '/pricing/', papelizSiteNavigationLabel: 'Pricing' },
   { papelizSiteNavigationHref: '/sync/', papelizSiteNavigationLabel: 'Sync' },
@@ -83,9 +83,9 @@ export const papelizSiteHeaderPhoneRowLinks: PapelizSiteNavigationLink[] = [
   papelizSiteHeaderCommunityLink,
 ]
 
-// The footer's "Made with ❤️" links: only pages the top bar's links and the phone row do not show (Adam,
-// 2026-10-28: "remove redundants thats already on the Top Menu"), the legal ones named as in their Legal
-// menu. Changelog and AI Providers stay here for phones, which have no Resources menu.
+// The footer's "Made with ❤️" links: only pages the top bar's links and the phone row do not show, so
+// no link appears twice, the legal ones named as in their Legal menu. Changelog and AI Providers stay
+// here for phones, which have no Resources menu.
 export const papelizSiteFooterLinks: PapelizSiteNavigationLink[] = [
   { papelizSiteNavigationHref: '/adam-natad/', papelizSiteNavigationLabel: 'Adam Natad' },
   { papelizSiteNavigationHref: '/changelog/', papelizSiteNavigationLabel: 'Changelog' },

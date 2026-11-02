@@ -7,8 +7,8 @@ import { papelizSiteAccountUrl } from './papeliz-site-config'
 export type PapelizSiteSyncPlanId = 'standard' | 'plus' | 'pro'
 export type PapelizSiteSyncBillingPeriod = 'monthly' | 'yearly'
 
-// Yearly is chosen first wherever a paid plan is offered, with Monthly one click away (Adam,
-// 2026-11-02): the Monthly / Yearly switches, the paid plans' Sign up and a plan chosen in an address.
+// Yearly is chosen first wherever a paid plan is offered, with Monthly one click away: the Monthly /
+// Yearly switches, the paid plans' Sign up and a plan chosen in an address.
 export const papelizSiteSyncPreselectedBillingPeriod: PapelizSiteSyncBillingPeriod = 'yearly'
 
 export type PapelizSiteSyncPlan = {
@@ -180,8 +180,8 @@ export function formatPapelizSiteSyncUsd(papelizSiteSyncAmountUsd: number): stri
 }
 
 // A plan card's lines, the limits people see, the same on the Pricing, Sync and account pages. The
-// largest file reads "50 MB per file", number first like the lines around it (Adam, 2026-11-01: "we
-// need to clairfy on Files up to 50mb").
+// largest file reads "50 MB per file", number first like the lines around it, so it reads as a limit
+// on each file rather than on all files together.
 export function describePapelizSiteSyncPlanLimits(papelizSiteSyncPlan: PapelizSiteSyncPlan): string[] {
   return [
     describePapelizSiteSyncPlanStorageLine(papelizSiteSyncPlan.papelizSiteSyncPlanStorageLabel),

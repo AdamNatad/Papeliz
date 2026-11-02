@@ -11,8 +11,8 @@ export const papelizSiteTemplatesSnapshotPath = '/api/templates/gallery'
 const papelizSiteTemplateNewDayCount = 14
 const papelizSiteTemplateDayMilliseconds = 24 * 60 * 60 * 1000
 
-// A template's license, any one its author chose (Adam, 2026-11-02): the SPDX id of a well-known one,
-// or LicenseRef-Custom for an author's own, as the app's check names them.
+// A template's license, any one its author chose: the SPDX id of a well-known one, or
+// LicenseRef-Custom for an author's own, as the app's check names them.
 export type PapelizSiteTemplateLicenseId = string
 const papelizSiteTemplateCustomLicenseId = 'LicenseRef-Custom'
 const papelizSiteTemplateLicenseDisplayNames: Readonly<Record<string, string>> = {
@@ -43,7 +43,7 @@ export function describePapelizSiteTemplateLicenseName(templateLicenseId: Papeli
 }
 
 // A template's first tag is its Category, any tag its author chose; the second is its subcategory and
-// the third a label (Adam, 2026-11-02). These are the Categories Papeliz started with: the chips show
+// the third a label. These are the Categories Papeliz started with: the chips show
 // them first, then every other Category a listed template has.
 export type PapelizSiteTemplateCategoryTag = string
 export const papelizSiteTemplateCategoryTags: readonly PapelizSiteTemplateCategoryTag[] = ['coding', 'education', 'research']

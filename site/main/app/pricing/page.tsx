@@ -12,8 +12,8 @@ export const metadata = createPapelizSitePageMetadata({
   papelizSitePagePath: '/pricing/',
 })
 
-// Pricing (Adam, 2026-10-31): Papeliz is free without limits; then Papeliz Sync, the one add-on, with
-// every plan as the Sync page shows it (Adam, 2026-11-02: "A · Four cards"); then the questions.
+// Pricing: Papeliz is free without limits; then Papeliz Sync, the one add-on, with its plans as four
+// cards, the same block the Sync page shows; then the questions.
 export default function PapelizSitePricingPage() {
   return (
     <div className="mx-auto max-w-6xl px-4 pb-16 sm:px-6 sm:pb-20">

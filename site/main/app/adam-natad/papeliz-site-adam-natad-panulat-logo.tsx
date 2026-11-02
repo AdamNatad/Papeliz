@@ -1,4 +1,4 @@
-// Panulat's logo, for its row in the Adam Natad page's Apps list (Adam, 2026-10-28: the page kept as it is).
+// Panulat's logo, for its row in the Adam Natad page's Apps list.
 import * as React from "react";
 
 type PapelizSiteAdamNatadPanulatLogoProps = Omit<React.SVGProps<SVGSVGElement>, "children"> & {

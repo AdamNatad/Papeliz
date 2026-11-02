@@ -6,7 +6,7 @@
 // were: a file is rewritten only after its image data is checked to be byte-identical. Folders are
 // searched recursively, skipping dependencies, builds and Git. `--staged` cleans the images being
 // committed and re-stages them; the Git pre-commit hook (`--install-git-hook`) runs it on every
-// commit. Node.js only, no packages.
+// commit, then runs the chat quote check on the lines the commit adds. Node.js only, no packages.
 
 import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
@@ -26,21 +26,28 @@ PNG, JPEG, WebP and SVG files, in place. Pixels and color profiles are kept unch
 Options:
   --check             Report which files carry metadata without changing them (exits 1 if any do)
   --staged            Clean the images staged for the next commit and stage the cleaned files
-  --install-git-hook  Install the Git pre-commit hook that runs --staged on every commit
+  --install-git-hook  Install the Git pre-commit hook that runs --staged and the chat quote check
+                      (build_tools/shared/code-comment-chat-quotes/) on every commit
   --help              Show this help
 `
 
 const papelizStripImageMetadataScriptPath = 'build_tools/shared/image-metadata/papeliz-strip-image-metadata.mjs'
-const papelizMetadataPreCommitHookText = `#!/bin/sh
-# Papeliz hard rule: no image enters Git with metadata (C2PA, EXIF, XMP and the like). Cleans every
-# staged PNG, JPEG, WebP and SVG and stages the cleaned file. Local hook (.git/hooks), installed by:
+const papelizCodeChatQuoteCheckScriptPath = 'build_tools/shared/code-comment-chat-quotes/papeliz-check-code-comment-chat-quotes.mjs'
+// The whole Papeliz pre-commit hook: this file installs it, and it runs both commit checks.
+const papelizPreCommitHookText = `#!/bin/sh
+# Papeliz pre-commit checks. Local hook (.git/hooks), installed by:
 #   node ${papelizStripImageMetadataScriptPath} --install-git-hook
+# 1. No image enters Git with metadata (C2PA, EXIF, XMP and the like): every staged PNG, JPEG, WebP
+#    and SVG is cleaned and the cleaned file staged.
+# 2. No code quotes or retells a conversation: the lines a commit adds to code files are checked
+#    for chat quotes.
 
 if ! command -v node >/dev/null 2>&1; then
-  echo "Papeliz: Node.js was not found, so image metadata could not be checked; commit refused." >&2
+  echo "Papeliz: Node.js was not found, so the pre-commit checks could not run; commit refused." >&2
   exit 1
 fi
-exec node ${papelizStripImageMetadataScriptPath} --staged
+node ${papelizStripImageMetadataScriptPath} --staged || exit 1
+exec node ${papelizCodeChatQuoteCheckScriptPath} --staged
 `
 
 const skippedFolderNames = new Set(['node_modules', '.git', '.next', 'out', 'dist', 'build', 'coverage', '.turbo'])
@@ -249,22 +256,23 @@ function listStagedImagePaths() {
     .filter((stagedPath) => imageFormatByExtension[path.extname(stagedPath).toLowerCase()])
 }
 
-async function installPapelizMetadataGitHook() {
+async function installPapelizPreCommitGitHook() {
   const repositoryRoot = runGitCommand(['rev-parse', '--show-toplevel']).trim()
   const gitHooksFolder = path.resolve(repositoryRoot, runGitCommand(['-C', repositoryRoot, 'rev-parse', '--git-path', 'hooks']).trim())
   const preCommitHookPath = path.join(gitHooksFolder, 'pre-commit')
   if (existsSync(preCommitHookPath)) {
     const existingHookText = await readFile(preCommitHookPath, 'utf8')
-    if (existingHookText === papelizMetadataPreCommitHookText) {
+    if (existingHookText === papelizPreCommitHookText) {
       console.log(`  already installed: ${preCommitHookPath}`)
       return
     }
+    // An earlier Papeliz hook (it runs this file) is replaced; any other hook is left for its owner.
     if (!existingHookText.includes(`${papelizStripImageMetadataScriptPath} --staged`)) {
-      throw new Error(`${preCommitHookPath} already exists. Add this line to it instead: node ${papelizStripImageMetadataScriptPath} --staged`)
+      throw new Error(`${preCommitHookPath} already exists. Add these lines to it instead: node ${papelizStripImageMetadataScriptPath} --staged || exit 1, then node ${papelizCodeChatQuoteCheckScriptPath} --staged`)
     }
   }
   await mkdir(gitHooksFolder, { recursive: true })
-  await writeFile(preCommitHookPath, papelizMetadataPreCommitHookText, { mode: 0o755 })
+  await writeFile(preCommitHookPath, papelizPreCommitHookText, { mode: 0o755 })
   console.log(`  installed: ${preCommitHookPath}`)
 }
 
@@ -279,7 +287,7 @@ async function runPapelizStripImageMetadata() {
   const isStagedRun = commandLineArguments.includes('--staged')
   const inputPaths = commandLineArguments.filter((commandLineArgument) => !commandLineArgument.startsWith('-'))
   if (commandLineArguments.includes('--install-git-hook')) {
-    await installPapelizMetadataGitHook()
+    await installPapelizPreCommitGitHook()
     return
   }
   if (commandLineArguments.includes('--help') || commandLineArguments.includes('-h') || (inputPaths.length === 0 && !isStagedRun)) {

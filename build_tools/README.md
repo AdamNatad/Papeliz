@@ -19,6 +19,7 @@ build_tools/
     ├── launcher/       papeliz-launcher.mjs
     ├── image-to-svg/   papeliz-image-to-svg.mjs
     ├── image-metadata/ papeliz-strip-image-metadata.mjs
+    ├── code-comment-chat-quotes/ papeliz-check-code-comment-chat-quotes.mjs
     └── deploy-folder/  papeliz-deploy-folder-assemble.mjs
 ```
 
@@ -81,9 +82,30 @@ build_tools/design/<macos|linux>/strip-image-metadata.sh <file or folder>... [--
 repository (`.`) before adding a picture to `branding/`, `app/web/public/` or `site/*/public/`.
 
 The Git pre-commit hook runs it on every commit: images staged for the commit are cleaned and
-staged again, and a commit stops if a staged image also has unstaged edits. Install the hook once
-per clone (it lives in `.git/hooks/`, which Git does not track):
+staged again, and a commit stops if a staged image also has unstaged edits. The same hook then runs
+the chat quote check below. Install the hook once per clone (it lives in `.git/hooks/`, which Git
+does not track):
 
 ```text
 node build_tools/shared/image-metadata/papeliz-strip-image-metadata.mjs --install-git-hook
 ```
+
+## Chat quote check
+
+Code and its comments say what the code does and why. They never quote or retell a conversation
+about it: who asked for it, when, in what words, or which option was picked.
+`papeliz-check-code-comment-chat-quotes.mjs` finds such quotes in code and configuration files
+(TypeScript, JavaScript, CSS, HTML, shell, JSON, YAML and the like) and reports each one as
+`file:line`, with exit code 1. It never reads Markdown or plain text. It skips dependencies, builds,
+`test_trash/` and any path listed in `.papeliz-code-comment-chat-quotes-ignore` at the repository
+root, one per line. Node.js only, no packages.
+
+```text
+node build_tools/shared/code-comment-chat-quotes/papeliz-check-code-comment-chat-quotes.mjs [<file or folder>...]
+node build_tools/shared/code-comment-chat-quotes/papeliz-check-code-comment-chat-quotes.mjs --staged
+```
+
+With no path it checks every file Git tracks or would track. `--staged` checks only the lines the
+next commit adds, and the pre-commit hook runs it in that mode, so a line already in Git does not
+stop a commit. The patterns are in `papeliz-code-comment-chat-quote-patterns.mjs`, which an editor or
+agent hook can import to check text before it is written.

@@ -20,8 +20,8 @@ const papelizSiteInstallSteps = [
   },
 ]
 
-// The Download page (Adam, 2026-10-31): every app in one panel in the top bar's blue, each row a link
-// once its app's address is set, then how to install and where to get help.
+// The Download page: every app in one panel in the top bar's blue, each row a link once its app's
+// address is set, then how to install and where to get help.
 export default function PapelizSiteDownloadPage() {
   return (
     <div className="mx-auto max-w-6xl space-y-4 px-4 pt-10 pb-16 sm:px-6 sm:pt-14 sm:pb-20">

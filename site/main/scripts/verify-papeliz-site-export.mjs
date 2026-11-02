@@ -5,7 +5,7 @@
 // - every internal link in the exported HTML points at a file in out/;
 // - the license page carries the repository's root LICENSE text;
 // - page text names no other project or event, and names the default provider only on the home and
-//   providers pages; the Adam Natad page alone may name Adam's other apps (Adam, 2026-10-28);
+//   providers pages; the Adam Natad page alone may name the author's other apps;
 // - page text uses the app's view names (MD Code, MD View), not the retired MD Editor and MD Viewer;
 // - no exported page or route payload points at a loopback address;
 // - the Templates pages show their authors' own words (a template's name, description and tags, from
@@ -61,10 +61,10 @@ const papelizSiteExpectedFiles = ['404.html', 'robots.txt', 'sitemap.xml', '_hea
 const papelizSiteLinkPrefixesServedElsewhere = ['/app/', '/help/']
 
 const papelizSiteBannedTextPatterns = [/panulat/i, /cerebral valley/i, /\bllama\b/i]
-// Papeliz is built for this hackathon, so any page may name it (Adam, 2026-10-31); its "Meta" is not
-// the default provider.
+// Papeliz is built for this hackathon, so any page may name it; its "Meta" is not the default
+// provider.
 const papelizSiteHackathonName = 'Meta Global AI Developer Hackathon 2026'
-// The Adam Natad page is kept as it is on Adam's other site, so it names his other apps (Adam, 2026-10-28).
+// The Adam Natad page is the author's profile, so it names the author's other apps.
 const papelizSiteBannedTextAllowedByPage = { 'adam-natad/index.html': [/panulat/i] }
 const papelizSiteProviderNamePatterns = [/\bMeta\b/, /\bMuse\b/]
 const papelizSiteProviderNameAllowedPages = ['index.html', 'providers/index.html']

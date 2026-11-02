@@ -6,8 +6,8 @@ import { PapelizSiteAdamNatadProfile, type AdamNatadProfileConfig } from './pape
 
 const papelizSiteAdamNatadPagePath = '/adam-natad/'
 
-// The exact description of natadtech.com/adam-natad (Adam, 2026-10-13: "just the text so its consistent in google"),
-// shared by the meta, Open Graph, Twitter and JSON-LD descriptions. Change the sites together.
+// The exact description of natadtech.com/adam-natad, word for word so search engines see one description, shared
+// by the meta, Open Graph, Twitter and JSON-LD descriptions. Change the sites together.
 const papelizSiteAdamNatadProfileDescription =
   "Adam Natad (Jose Adam Climaco Natad) was born on September 1, 1997, in Juan Climaco Sr. (Magdugo), Toledo City, Cebu, Philippines. His passion for technology and creativity began early, crafting short videos in Adobe After Effects at just 10–12 years old. By 13–15, he was already developing web applications using HTML, CSS, and JavaScript. Adam's journey into software development took a significant leap at 16 when he started learning PHP and MySQL, leading to the creation of his first CMS and e-commerce platform. Over the years, Adam has honed his skills in various programming languages and frameworks, including Laravel and Flutter. He is the founder of NatadTech Solutions OPC, a company dedicated to delivering innovative software solutions. Adam is also an accomplished author with several published books on programming and technology. His dedication to excellence and innovation continues to drive his contributions to the tech community."
 

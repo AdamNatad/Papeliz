@@ -24,16 +24,15 @@ type PapelizSiteSyncPlanCardProps = {
   papelizSiteSyncPlanCardTitle: string
   papelizSiteSyncPlanCardPriceUsd: number
   // Under the price: how a paid plan is billed, or that Free needs no card. The card shows no whole
-  // year's price (Adam, 2026-11-02: "dont show the total year price on the cards").
+  // year's price: every card compares by its price for a month.
   papelizSiteSyncPlanCardPriceNote: string
   papelizSiteSyncPlanCardSignUpHref: string | null
   papelizSiteSyncPlanCardLines: string[]
 }
 
 // One card: the name, the price for a month, how it is billed, its button, then its lines with green
-// checks. A paid plan's button reads Subscribe (Adam, 2026-11-03: "it shouldnt say Sign up it should say
-// Subscribe"): signed in, it goes straight to checkout; signed out, sign-in comes first. Free's reads Sign
-// up, since Free has no checkout.
+// checks. A paid plan's button reads Subscribe, since it leads to a checkout: signed in, it goes
+// straight there; signed out, sign-in comes first. Free's reads Sign up, since Free has no checkout.
 function PapelizSiteSyncPlanCard({
   papelizSiteSyncPlanCardPlanId,
   papelizSiteSyncPlanCardTitle,
@@ -52,7 +51,7 @@ function PapelizSiteSyncPlanCard({
         <span className="text-5xl leading-[1.15] font-semibold tracking-[-0.04em]">{formatPapelizSiteSyncUsd(papelizSiteSyncPlanCardPriceUsd)}</span>
         <span className="text-sm text-papeliz-ink-subtle">USD</span>
       </div>
-      {/* "USD" alone beside the price (Adam, 2026-10-31); the line under it says how it is billed, or that Free needs no card. */}
+      {/* "USD" alone beside the price; the line under it says how it is billed, or that Free needs no card. */}
       <p className="mt-2 min-h-6 text-base text-papeliz-ink-muted">{papelizSiteSyncPlanCardPriceNote}</p>
       {papelizSiteSyncPlanCardSignUpHref && (
         <a
@@ -74,8 +73,8 @@ function PapelizSiteSyncPlanCard({
   )
 }
 
-// Papeliz Sync's plans, the same block on the Pricing and Sync pages (Adam, 2026-11-02: "A · Four
-// cards"): the Monthly / Yearly switch, then Free and the three paid plans, each with every limit.
+// Papeliz Sync's plans as four cards, the same block on the Pricing and Sync pages: the Monthly /
+// Yearly switch, then Free and the three paid plans, each with every limit.
 // Yearly is chosen on load; its badge counts the saving in months, and its info mark opens the table
 // behind it.
 export function PapelizSiteSyncPlanGrid() {
@@ -87,7 +86,7 @@ export function PapelizSiteSyncPlanGrid() {
           papelizSiteBillingPeriodSwitchLabel="Billing period"
           papelizSiteChosenBillingPeriod={papelizSiteChosenSyncBillingPeriod}
           onPapelizSiteBillingPeriodChoose={setPapelizSiteChosenSyncBillingPeriod}
-          // Monthly on the left, Yearly on the right and chosen (Adam, 2026-11-02), as on the account page.
+          // Monthly on the left, Yearly on the right and chosen, as on the account page.
           papelizSiteBillingPeriodChoices={[
             { papelizSiteBillingPeriodChoiceValue: 'monthly', papelizSiteBillingPeriodChoiceLabel: 'Monthly' },
             {

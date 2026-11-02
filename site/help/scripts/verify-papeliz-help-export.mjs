@@ -23,8 +23,8 @@ const papelizHelpBasePath = '/help'
 const papelizHelpProviderArticleSlug = 'choose-a-provider'
 
 const papelizHelpBannedWordPatterns = [/\bpanulat\b/i, /cerebral\s+valley/i, /\bllama\b/i]
-// Papeliz is built for this hackathon, so any guide may name it (Adam, 2026-10-31); its "Meta" is not
-// the default provider.
+// Papeliz is built for this hackathon, so any guide may name it; its "Meta" is not the default
+// provider.
 const papelizHelpHackathonName = 'Meta Global AI Developer Hackathon 2026'
 const papelizHelpProviderOnlyWordPatterns = [/\bmeta\b/i, /\bmuse\b/i]
 

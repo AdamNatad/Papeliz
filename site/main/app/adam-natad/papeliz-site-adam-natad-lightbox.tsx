@@ -3,8 +3,8 @@
  *
  * BASIC Viewer with optional natural thumbnails
  * - Single-image lightbox (NO slides / NO carousel)
- * - Click thumbnail -> the image opens large over a dimmed ink backdrop (Adam, 2026-10-14: no titled bar, no
- *   frame): rounded, shadowed, shown whole (object-contain), its name as a caption beneath, a round close button
+ * - Click thumbnail -> the image opens large over a dimmed ink backdrop, with no title bar and no frame:
+ *   rounded, shadowed, shown whole (object-contain), its name as a caption beneath, a round close button
  * - ESC, the close button or the backdrop closes; focus moves to the close button and back to the thumbnail
  * - It fades and scales in (@starting-style), still with reduced motion
  *

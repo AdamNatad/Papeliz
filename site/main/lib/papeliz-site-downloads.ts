@@ -13,9 +13,9 @@ export type PapelizSiteDownloadTarget = {
   PapelizSiteDownloadTargetLogo: ComponentType<{ className?: string; 'aria-hidden'?: boolean | 'true' }>
 }
 
-// Every app Papeliz offers, as the Download page lists them (Adam, 2026-10-31: "just add it all we will
-// add the links later"). Fill in each app's link as it is published. The page gives each one the anchor
-// papeliz-download-<id>, which the account page's download menu links to.
+// Every app Papeliz offers, as the Download page lists them, each listed before its link exists. Fill
+// in each app's link as it is published. The page gives each one the anchor papeliz-download-<id>,
+// which the account page's download menu links to.
 export const papelizSiteDownloadTargets: readonly PapelizSiteDownloadTarget[] = [
   {
     papelizSiteDownloadTargetId: 'windows',

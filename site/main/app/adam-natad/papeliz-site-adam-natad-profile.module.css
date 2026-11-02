@@ -1,6 +1,6 @@
 /* Text links on the Adam Natad page. As in the footer, an underline slides in from the left on hover or keyboard focus;
-   here it is drawn as a background so it also follows a link that wraps onto a second line. At rest there is no line
-   (Adam, 2026-10-28): the link's colour and weight set it apart from the text around it. */
+   here it is drawn as a background so it also follows a link that wraps onto a second line. At rest there is no line:
+   the link's colour and weight set it apart from the text around it. */
 .adamNatadProfileInlineLink {
   font-weight: 500;
   text-decoration: none;
@@ -22,7 +22,7 @@
   background-image: linear-gradient(var(--color-papeliz-blue), var(--color-papeliz-blue));
 }
 
-/* A name highlighted in running text (the timeline's company names, Adam 2026-10-14): bold, in the text's ink. */
+/* A name highlighted in running text (the timeline's company names): bold, in the text's ink. */
 .adamNatadProfileInlineLinkOnCardInk {
   color: var(--color-papeliz-ink);
   font-weight: 700;
@@ -42,7 +42,7 @@
   }
 }
 
-/* The Personal Timeline (Adam, 2026-10-14: colourful and animated). A faint track with a green-to-violet gradient fill
+/* The Personal Timeline, colourful and animated. A faint track with a green-to-violet gradient fill
    that draws down as the reader scrolls (the page sets --adam-natad-profile-timeline-progress from 0 to 1), a glowing
    tip at its end, and a dot per entry that lights up in its own colour (--adam-natad-profile-timeline-dot-color) with
    one pulse when reached. Entries fade up as they come into view. With reduced motion everything shows filled, still. */

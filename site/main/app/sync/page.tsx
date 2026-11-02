@@ -123,12 +123,12 @@ function PapelizSiteSyncCardItem({ papelizSiteSyncCard }: { papelizSiteSyncCard:
   )
 }
 
-// Papeliz Sync's own page (Adam, 2026-10-31): what it does,
-// what stays private, what syncs and where, then the plans and the questions.
+// Papeliz Sync's own page: what it does, what stays private, what syncs and where, then the plans
+// and the questions.
 export default function PapelizSiteSyncPage() {
-  // The top's See plans, then Subscribe, which checks out Standard, billed yearly, like that plan's own
-  // Subscribe below: signed in, straight to checkout; signed out, sign-in first (Adam, 2026-11-03: "see
-  // plans on the left and Subscribe on the right", then "Standard, yearly").
+  // The top's two buttons: See plans on the left, Subscribe on the right. Subscribe checks out
+  // Standard, billed yearly, like that plan's own Subscribe below: signed in, straight to checkout;
+  // signed out, sign-in first.
   const papelizSiteSyncHeroSubscribeHref = createPapelizSiteSyncSignUpHref('standard', 'yearly')
   return (
     <div className="mx-auto max-w-6xl space-y-16 px-4 pb-16 sm:px-6 sm:pb-20">

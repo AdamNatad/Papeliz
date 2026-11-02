@@ -17,9 +17,9 @@ export const papelizSiteCanonicalOrigin: string | null = 'https://papeliz.com'
 // The webapp is served at /app/ on the same domain as the site.
 export const papelizSiteAppUrl: string | null = '/app/'
 // The Download page (app/download/), which lists every app: the header's Use App menu and the account
-// page's download menu link to it (Adam, 2026-10-31). Each app's own link is in lib/papeliz-site-downloads.ts.
+// page's download menu link to it. Each app's own link is in lib/papeliz-site-downloads.ts.
 export const papelizSiteDownloadUrl: string | null = '/download/'
-// My Account opens the sign-in and account page (app/account/), live with Papeliz Sync (Adam, 2026-10-31).
+// My Account opens the sign-in and account page (app/account/), live with Papeliz Sync.
 export const papelizSiteAccountUrl: string | null = '/account/'
 // The Templates pages (app/templates/), which ship with the Templates Worker. While null, the header
 // leaves the Templates link out; the pages are still built.
