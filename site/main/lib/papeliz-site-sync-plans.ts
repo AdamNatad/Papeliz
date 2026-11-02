@@ -34,7 +34,7 @@ export const papelizSiteSyncPlans: readonly PapelizSiteSyncPlan[] = [
     papelizSiteSyncPlanVaultLimit: 5,
     papelizSiteSyncPlanFilesPerVaultLimit: 100_000,
     papelizSiteSyncPlanLargestFileLabel: '50 MB',
-    papelizSiteSyncPlanNoteHistoryMonthCount: 6,
+    papelizSiteSyncPlanNoteHistoryMonthCount: 1,
   },
   {
     papelizSiteSyncPlanId: 'plus',
@@ -45,7 +45,7 @@ export const papelizSiteSyncPlans: readonly PapelizSiteSyncPlan[] = [
     papelizSiteSyncPlanVaultLimit: 20,
     papelizSiteSyncPlanFilesPerVaultLimit: 250_000,
     papelizSiteSyncPlanLargestFileLabel: '1 GB',
-    papelizSiteSyncPlanNoteHistoryMonthCount: 24,
+    papelizSiteSyncPlanNoteHistoryMonthCount: 12,
   },
   {
     papelizSiteSyncPlanId: 'pro',
@@ -56,7 +56,7 @@ export const papelizSiteSyncPlans: readonly PapelizSiteSyncPlan[] = [
     papelizSiteSyncPlanVaultLimit: 100,
     papelizSiteSyncPlanFilesPerVaultLimit: 500_000,
     papelizSiteSyncPlanLargestFileLabel: '2 GB',
-    papelizSiteSyncPlanNoteHistoryMonthCount: 36,
+    papelizSiteSyncPlanNoteHistoryMonthCount: 12,
   },
 ]
 
@@ -189,7 +189,7 @@ export function describePapelizSiteSyncPlanLimits(papelizSiteSyncPlan: PapelizSi
     `${papelizSiteSyncPlan.papelizSiteSyncPlanFilesPerVaultLimit.toLocaleString('en-US')} files in each vault`,
     `${papelizSiteSyncConnectedDeviceLimit} devices`,
     `${papelizSiteSyncPlan.papelizSiteSyncPlanLargestFileLabel} per file`,
-    `${papelizSiteSyncPlan.papelizSiteSyncPlanNoteHistoryMonthCount} months of version history`,
+    `${papelizSiteSyncPlan.papelizSiteSyncPlanNoteHistoryMonthCount} ${papelizSiteSyncPlan.papelizSiteSyncPlanNoteHistoryMonthCount === 1 ? 'month' : 'months'} of version history`,
     papelizSiteSyncPlanEncryptionLine,
   ]
 }

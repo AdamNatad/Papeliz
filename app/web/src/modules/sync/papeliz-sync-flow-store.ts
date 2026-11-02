@@ -14,8 +14,8 @@ import { openPapelizSyncNewTabFromClick, openPapelizSyncNewTabWhenAddressIsReady
 import { describePapelizSyncActionFailure, pickNearestPapelizSyncStoragePlaceForThisDevice } from './papeliz-sync-screen-words'
 
 // Where Papeliz Sync's flows stand, outside any one screen, so closing the Settings gear midway
-// loses nothing: the subscribe flow (Choose a plan → storage place → sign in → checkout), the set-up
-// dialog and the note clash dialog. Requests for the gear on Sync are in
+// loses nothing: the subscribe flow (Choose a plan → storage place → sign in → checkout), a sign-in
+// whose tab the browser blocked, the set-up dialog and the note clash dialog. Requests for the gear on Sync are in
 // papeliz-sync-settings-gear-request-store.ts.
 
 export interface PapelizSyncChosenPlan {
@@ -43,6 +43,10 @@ export type PapelizSyncSetUpDialogRequest =
 interface PapelizSyncFlowState {
   syncSubscribeStep: PapelizSyncSubscribeStep | null
   syncSubscribeFailureWords: string | null
+  // A sign-in whose new tab the browser blocked: the sign-in page's address, for a Sign In link the person
+  // presses themselves (browsers don't block those) and Copy Sign-In URL to Clipboard. The sign-in waits on it
+  // as on a tab that opened. Null while no sign-in is blocked.
+  blockedSyncSignInPageUrl: string | null
   syncSetUpDialogRequest: PapelizSyncSetUpDialogRequest | null
   // The clash the dialog shows, and the ones put off with Later (until Settle on the Sync page).
   shownSyncNoteClashId: string | null
@@ -57,6 +61,7 @@ interface PapelizSyncFlowState {
 export const usePapelizSyncFlowStore = create<PapelizSyncFlowState>()(() => ({
   syncSubscribeStep: null,
   syncSubscribeFailureWords: null,
+  blockedSyncSignInPageUrl: null,
   syncSetUpDialogRequest: null,
   shownSyncNoteClashId: null,
   laterSyncNoteClashIds: [],
@@ -81,60 +86,62 @@ export function canPapelizSyncAccountSync(syncAccount: Pick<PapelizSyncAccountRe
 // The sign-in started from a click, waiting for the other tab. One at a time: a new one replaces it.
 let currentSyncSignInAttempt: PapelizSyncSignInAttempt | null = null
 
-export type PapelizSyncSignInFromClickOutcome = PapelizSyncSignInOutcome | { syncSignInOutcome: 'blocked' }
+export type PapelizSyncSignInFromClickOutcome = PapelizSyncSignInOutcome
 
-// Opens the sign-in page in a new tab from the click, and waits for it to hand the sign-in back.
+// Waits for the attempt to hand the sign-in back. When the browser blocked its tab, the sign-in page's
+// address waits in the store for the person to open it themselves; it goes once the attempt ends.
+function followPapelizSyncSignInAttempt(syncSignInAttempt: PapelizSyncSignInAttempt, isSyncSignInTabBlocked: boolean): Promise<PapelizSyncSignInFromClickOutcome> {
+  currentSyncSignInAttempt = syncSignInAttempt
+  setSyncFlowState({ blockedSyncSignInPageUrl: isSyncSignInTabBlocked ? syncSignInAttempt.syncSignInPageUrl : null })
+  return syncSignInAttempt.syncSignInOutcome.finally(() => {
+    if (currentSyncSignInAttempt !== syncSignInAttempt) return
+    currentSyncSignInAttempt = null
+    setSyncFlowState({ blockedSyncSignInPageUrl: null })
+  })
+}
+
+// Opens the sign-in page in a new tab from the click, and waits for it to hand the sign-in back. A
+// blocked tab leaves the sign-in waiting, with its address for a link (blockedSyncSignInPageUrl).
 export function startPapelizSyncSignInFromClick(
   papelizSyncEngine: PapelizSyncEngine,
   papelizSyncStoragePlaceForNewAccount: PapelizSyncStoragePlace | null,
 ): Promise<PapelizSyncSignInFromClickOutcome> {
   currentSyncSignInAttempt?.cancelSyncSignIn()
   const syncSignInAttempt = papelizSyncEngine.startSyncSignIn({ papelizSyncStoragePlaceForNewAccount })
-  currentSyncSignInAttempt = syncSignInAttempt
-  if (!openPapelizSyncNewTabFromClick(syncSignInAttempt.syncSignInPageUrl)) {
-    syncSignInAttempt.cancelSyncSignIn()
-    currentSyncSignInAttempt = null
-    return Promise.resolve({ syncSignInOutcome: 'blocked' })
-  }
-  return syncSignInAttempt.syncSignInOutcome.finally(() => {
-    if (currentSyncSignInAttempt === syncSignInAttempt) currentSyncSignInAttempt = null
-  })
+  return followPapelizSyncSignInAttempt(syncSignInAttempt, !openPapelizSyncNewTabFromClick(syncSignInAttempt.syncSignInPageUrl))
 }
 
 export function cancelPapelizSyncSignIn(): void {
   currentSyncSignInAttempt?.cancelSyncSignIn()
   currentSyncSignInAttempt = null
+  setSyncFlowState({ blockedSyncSignInPageUrl: null })
 }
 
 // The same from a click made before the engine has loaded (Synced Vaults on the start screen): a
 // blank tab opens from the click, then goes to the sign-in page once the engine is there. The tab
-// closes again when the engine doesn't load, or finds this device signed in already.
+// closes again when the engine doesn't load, or finds this device signed in already. A blocked blank
+// tab leaves the sign-in waiting on its address, as above, once the engine is there.
 export async function startPapelizSyncSignInFromClickBeforeEngineLoads(
   loadPapelizSyncEngine: () => Promise<PapelizSyncEngine | null>,
 ): Promise<PapelizSyncSignInFromClickOutcome> {
   const syncSignInTab = window.open('about:blank', '_blank')
-  if (syncSignInTab === null) return { syncSignInOutcome: 'blocked' }
-  syncSignInTab.opener = null
+  if (syncSignInTab !== null) syncSignInTab.opener = null
   const papelizSyncEngine = await loadPapelizSyncEngine()
   if (papelizSyncEngine === null) {
-    syncSignInTab.close()
+    syncSignInTab?.close()
     return { syncSignInOutcome: 'failed', syncSignInFailureMessage: 'Papeliz Sync didn’t load. Check your connection, then try again.' }
   }
   if (papelizSyncEngine.getSyncEngineSnapshot().syncSignIn.syncSignInKind === 'signed-in') {
-    syncSignInTab.close()
+    syncSignInTab?.close()
     return { syncSignInOutcome: 'signed-in' }
   }
   currentSyncSignInAttempt?.cancelSyncSignIn()
   const syncSignInAttempt = papelizSyncEngine.startSyncSignIn({ papelizSyncStoragePlaceForNewAccount: null })
-  currentSyncSignInAttempt = syncSignInAttempt
-  syncSignInTab.location.replace(syncSignInAttempt.syncSignInPageUrl)
-  return syncSignInAttempt.syncSignInOutcome.finally(() => {
-    if (currentSyncSignInAttempt === syncSignInAttempt) currentSyncSignInAttempt = null
-  })
+  syncSignInTab?.location.replace(syncSignInAttempt.syncSignInPageUrl)
+  return followPapelizSyncSignInAttempt(syncSignInAttempt, syncSignInTab === null)
 }
 
 export function describePapelizSyncSignInFromClickFailure(signInFromClickOutcome: PapelizSyncSignInFromClickOutcome): string | null {
-  if (signInFromClickOutcome.syncSignInOutcome === 'blocked') return papelizSyncBlockedNewTabWords
   if (signInFromClickOutcome.syncSignInOutcome === 'failed') return `Signing in didn’t finish: ${signInFromClickOutcome.syncSignInFailureMessage}`
   return null
 }
@@ -299,6 +306,7 @@ export function resetPapelizSyncFlowsForTests(): void {
   setSyncFlowState({
     syncSubscribeStep: null,
     syncSubscribeFailureWords: null,
+    blockedSyncSignInPageUrl: null,
     syncSetUpDialogRequest: null,
     shownSyncNoteClashId: null,
     laterSyncNoteClashIds: [],

@@ -86,6 +86,13 @@ describe("every plan's lines", () => {
       expect(papelizSiteTestPaidPlanLines.at(-1)).toBe(papelizSiteSyncPlanEncryptionLine)
     }
   })
+
+  it('say "1 month" of version history for one month, and "months" for more', () => {
+    const papelizSiteTestStandardPlan = papelizSiteSyncPlans.find((papelizSiteSyncPlan) => papelizSiteSyncPlan.papelizSiteSyncPlanId === 'standard')
+    if (papelizSiteTestStandardPlan === undefined) throw new Error('No Standard plan')
+    expect(describePapelizSiteSyncPlanLimits({ ...papelizSiteTestStandardPlan, papelizSiteSyncPlanNoteHistoryMonthCount: 1 })).toContain('1 month of version history')
+    expect(describePapelizSiteSyncPlanLimits({ ...papelizSiteTestStandardPlan, papelizSiteSyncPlanNoteHistoryMonthCount: 12 })).toContain('12 months of version history')
+  })
 })
 
 describe('yearly savings', () => {

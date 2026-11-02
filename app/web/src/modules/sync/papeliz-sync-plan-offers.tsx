@@ -1,19 +1,26 @@
 import { useEffect, useRef, useState, type ReactNode, type Ref } from 'react'
 import { PapelizPillButton } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
+import { PapelizInfoTip } from '../ui/papeliz-info-tip'
 import { PapelizSlidingChoiceGroup } from '../ui/papeliz-sliding-choice-group'
 import type { PapelizSyncBillingPeriod, PapelizSyncEngine, PapelizSyncEngineSnapshot, PapelizSyncPlanOfferReading } from './papeliz-sync-engine-contract'
 import { choosePapelizSyncPlan, describePapelizSyncSignInFromClickFailure, isPapelizSyncSubscriptionCurrent, startPapelizSyncSignInFromClick } from './papeliz-sync-flow-store'
 import { PapelizSyncChip, PapelizSyncFailureLine, PapelizSyncLoadingLine, PapelizSyncTextButton } from './papeliz-sync-page-parts'
-import { describePapelizSyncActionFailureNow, describePapelizSyncPlanCardLine, describePapelizSyncPlanPrice, papelizSyncPlanDisplayNames } from './papeliz-sync-screen-words'
+import {
+  describePapelizSyncActionFailureNow,
+  describePapelizSyncPlanCardLine,
+  describePapelizSyncPlanDetailLines,
+  describePapelizSyncPlanPrice,
+  papelizSyncPlanDisplayNames,
+} from './papeliz-sync-screen-words'
 import { findPapelizSyncPlanOffersFirstBillingPeriod, usePapelizSyncSettingsGearRequestStore } from './papeliz-sync-settings-gear-request-store'
 
-// The Sync page's Plans tab: Yearly | Monthly, then Free and each paid plan as a short card (its name,
+// The Sync page's Plans tab: Monthly | Yearly (Yearly chosen at first), then Free and each paid plan as a short card (its name,
 // its price for a month, one line of what it holds) with Sign In, Choose or "Current Plan". The engine
 // reads the plans from its own table, with no request, so they show at once, signed out or offline.
-// The details (version history's length, devices, file sizes) are in the help guide, not here. A plan
-// picked on the website's pricing page (in the address) is drawn picked, on its billing period, and
-// scrolled to.
+// The info icon by a plan's name shows its details (storage, synced vaults, devices, the largest file,
+// version history) on hover and keyboard focus. A plan picked on the website's pricing page (in the
+// address) is drawn picked, on its billing period, and scrolled to.
 
 type PapelizSyncPlanOffersState =
   | { planOffersStateKind: 'loading' }
@@ -23,17 +30,27 @@ type PapelizSyncPlanOffersState =
 // The plan drawn picked, in blue, when the address picked none and no paid plan is current.
 const papelizSyncDefaultHighlightedPlanName = 'plus'
 
-interface PapelizSyncPlanCardProps {
+export interface PapelizSyncPlanCardProps {
   syncPlanCardName: string
   syncPlanCardPriceLine: string
   syncPlanCardLimitLine: string
+  syncPlanCardDetailLines: readonly string[]
   isSyncPlanCardHighlighted: boolean
   syncPlanCardAction: ReactNode
   syncPlanCardRef?: Ref<HTMLLIElement>
   children?: ReactNode
 }
 
-function PapelizSyncPlanCard({ syncPlanCardName, syncPlanCardPriceLine, syncPlanCardLimitLine, isSyncPlanCardHighlighted, syncPlanCardAction, syncPlanCardRef, children }: PapelizSyncPlanCardProps) {
+export function PapelizSyncPlanCard({
+  syncPlanCardName,
+  syncPlanCardPriceLine,
+  syncPlanCardLimitLine,
+  syncPlanCardDetailLines,
+  isSyncPlanCardHighlighted,
+  syncPlanCardAction,
+  syncPlanCardRef,
+  children,
+}: PapelizSyncPlanCardProps) {
   return (
     <li
       ref={syncPlanCardRef}
@@ -41,7 +58,15 @@ function PapelizSyncPlanCard({ syncPlanCardName, syncPlanCardPriceLine, syncPlan
     >
       <div className="flex items-center gap-2">
         <div className="min-w-0 flex-1">
-          <p className="text-[13px] leading-tight font-semibold">{syncPlanCardName}</p>
+          <div className="flex items-center">
+            <p className="text-[13px] leading-tight font-semibold">{syncPlanCardName}</p>
+            <PapelizInfoTip
+              infoTipButtonLabel={`About ${syncPlanCardName}`}
+              infoTipTitle={`${syncPlanCardName} plan`}
+              infoTipLines={syncPlanCardDetailLines}
+              infoTipButtonClassName="-my-0.5 ml-1"
+            />
+          </div>
           <p className="text-[12px] text-papeliz-ink-muted">{syncPlanCardPriceLine}</p>
         </div>
         {syncPlanCardAction}
@@ -119,11 +144,12 @@ export function PapelizSyncPlanOffersSection({ papelizSyncEngine, syncEngineSnap
       <PapelizSlidingChoiceGroup<PapelizSyncBillingPeriod>
         slidingChoiceGroupLabel="Billing"
         slidingChoiceGroupRole="radiogroup"
+        slidingChoiceGroupTone="solid-blue"
         chosenSlidingChoiceValue={chosenSyncBillingPeriod}
         onSlidingChoiceSelect={setChosenSyncBillingPeriod}
         slidingChoices={[
-          { slidingChoiceValue: 'yearly', slidingChoiceContent: 'Yearly' },
           { slidingChoiceValue: 'monthly', slidingChoiceContent: 'Monthly' },
+          { slidingChoiceValue: 'yearly', slidingChoiceContent: 'Yearly' },
         ]}
       />
       <ul className="mt-2 flex flex-col gap-1.5">
@@ -132,6 +158,7 @@ export function PapelizSyncPlanOffersSection({ papelizSyncEngine, syncEngineSnap
           syncPlanCardName={papelizSyncPlanDisplayNames.free}
           syncPlanCardPriceLine="No card needed"
           syncPlanCardLimitLine={describePapelizSyncPlanCardLine(papelizSyncEngine.readSyncFreePlanLimits())}
+          syncPlanCardDetailLines={describePapelizSyncPlanDetailLines(papelizSyncEngine.readSyncFreePlanLimits())}
           isSyncPlanCardHighlighted={false}
           syncPlanCardAction={
             isSyncAccountOnFreePlan
@@ -166,6 +193,7 @@ export function PapelizSyncPlanOffersSection({ papelizSyncEngine, syncEngineSnap
               syncPlanCardName={syncPlanDisplayName}
               syncPlanCardPriceLine={describePapelizSyncPlanPrice(syncPlanOffer.syncDisplayPricePerMonth, syncPlanOffer.syncBillingPeriod)}
               syncPlanCardLimitLine={describePapelizSyncPlanCardLine(syncPlanOffer.syncVisiblePlanLimits)}
+              syncPlanCardDetailLines={describePapelizSyncPlanDetailLines(syncPlanOffer.syncVisiblePlanLimits)}
               isSyncPlanCardHighlighted={isPlanHighlighted}
               syncPlanCardAction={
                 currentPaidSyncPlanName !== null ? (

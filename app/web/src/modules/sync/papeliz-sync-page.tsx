@@ -4,8 +4,17 @@ import { PapelizSlidingChoiceGroup } from '../ui/papeliz-sliding-choice-group'
 import { PapelizPillButton } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { usePapelizWorkspaceStore } from '../workspace/papeliz-workspace-store'
-import type { PapelizSyncAccountReading, PapelizSyncAccountVaultReading, PapelizSyncActionOutcome, PapelizSyncEngine, PapelizSyncEngineSnapshot, PapelizSyncWhatSyncsChoices } from './papeliz-sync-engine-contract'
+import type {
+  PapelizSyncAccountReading,
+  PapelizSyncAccountVaultReading,
+  PapelizSyncActionOutcome,
+  PapelizSyncEngine,
+  PapelizSyncEngineSnapshot,
+  PapelizSyncOldVersionDeletionReading,
+  PapelizSyncWhatSyncsChoices,
+} from './papeliz-sync-engine-contract'
 import { PapelizSyncEngineGate } from './papeliz-sync-engine-gate'
+import { PapelizSyncFreeUpSpaceDialog } from './papeliz-sync-free-up-space-dialog'
 import {
   cancelPapelizSyncSignIn,
   canPapelizSyncAccountSync,
@@ -15,7 +24,9 @@ import {
   showPapelizSyncMissingFiles,
   showPapelizSyncNoteClash,
   startPapelizSyncSignInFromClick,
+  usePapelizSyncFlowStore,
 } from './papeliz-sync-flow-store'
+import { PapelizSyncBlockedSignInLinks } from './papeliz-sync-blocked-sign-in-links'
 import { openPapelizSyncNewTabWhenAddressIsReady, papelizSyncBlockedNewTabWords } from './papeliz-sync-new-tab'
 import {
   PapelizSyncFailureLine,
@@ -36,6 +47,7 @@ import {
   describePapelizSyncDay,
   describePapelizSyncFileCount,
   describePapelizSyncMissingFilesNotice,
+  describePapelizSyncOldVersionDeletion,
   describePapelizSyncStatusForStatusBar,
   describePapelizSyncStoragePlaceLine,
   describePapelizSyncTimeAgo,
@@ -52,9 +64,10 @@ import { usePapelizSyncSettingsGearRequestStore } from './papeliz-sync-settings-
 // The gear's Sync page, in two tabs. Plans: Free and the paid plans, with Sign In, Choose or Current
 // Plan. Settings: signed out, Sign In; signed in on Free or a plan, this vault's switch (turning it on
 // opens Turn on Sync, which asks Standard or End-to-end), the synced vaults with their kinds, what
-// syncs, storage, Old versions and Pause on this device, with what to do when storage is full, a
-// payment failed, the subscription ended or an End-to-end vault is locked here. It opens on Settings
-// once signed in, on Plans otherwise, or when a plan in the address asks.
+// syncs, storage with Free Up Space, Old versions and Pause on this device, with what to do when storage is
+// full (Free Up Space, and Change Plan or See Plans), a payment failed, the subscription ended or an
+// End-to-end vault is locked here. It opens on Settings once signed in, on Plans otherwise, or when a plan
+// in the address asks.
 
 function PapelizSyncManageSubscriptionButton({ papelizSyncEngine, manageButtonLabel = 'Manage Subscription' }: { papelizSyncEngine: PapelizSyncEngine; manageButtonLabel?: string }) {
   const [manageFailureWords, setManageFailureWords] = useState<string | null>(null)
@@ -78,6 +91,27 @@ function PapelizSyncManageSubscriptionButton({ papelizSyncEngine, manageButtonLa
   )
 }
 
+// While a sign-in waits: on the tab that opened, or, when the browser blocked it, on its Sign In link and
+// Copy Sign-In URL to Clipboard. Cancel lets it go either way.
+function PapelizSyncSignInWaitingLine({ className }: { className?: string }) {
+  const isSyncSignInTabBlocked = usePapelizSyncFlowStore((syncFlowState) => syncFlowState.blockedSyncSignInPageUrl !== null)
+  if (!isSyncSignInTabBlocked) {
+    return (
+      <PapelizSyncPageSmallText className={className}>
+        Finish signing in in the new tab. <PapelizSyncTextButton onClick={cancelPapelizSyncSignIn}>Cancel</PapelizSyncTextButton>
+      </PapelizSyncPageSmallText>
+    )
+  }
+  return (
+    <div className={className}>
+      <PapelizSyncBlockedSignInLinks signInLinksAlignment="from-left-edge" />
+      <PapelizSyncPageSmallText className="mt-1.5">
+        <PapelizSyncTextButton onClick={cancelPapelizSyncSignIn}>Cancel</PapelizSyncTextButton>
+      </PapelizSyncPageSmallText>
+    </div>
+  )
+}
+
 // The Plans tab: the plan cards, and, while a sign-in started from Free's card waits, how to cancel it.
 // A paid plan being paid for changes through the billing page.
 function PapelizSyncPlansTab({ papelizSyncEngine, syncEngineSnapshot }: { papelizSyncEngine: PapelizSyncEngine; syncEngineSnapshot: PapelizSyncEngineSnapshot }) {
@@ -92,11 +126,7 @@ function PapelizSyncPlansTab({ papelizSyncEngine, syncEngineSnapshot }: { papeli
           </div>
         }
       />
-      {syncEngineSnapshot.syncSignIn.syncSignInKind === 'waiting-for-sign-in-page' && (
-        <PapelizSyncPageSmallText className="mt-1.5">
-          Finish signing in in the new tab. <PapelizSyncTextButton onClick={cancelPapelizSyncSignIn}>Cancel</PapelizSyncTextButton>
-        </PapelizSyncPageSmallText>
-      )}
+      {syncEngineSnapshot.syncSignIn.syncSignInKind === 'waiting-for-sign-in-page' && <PapelizSyncSignInWaitingLine className="mt-1.5" />}
     </div>
   )
 }
@@ -146,13 +176,25 @@ const papelizSyncWhatSyncsSwitchRows: ReadonlyArray<{ whatSyncsChoiceName: keyof
 ]
 
 // Sync on: this account is subscribed (or its subscription ended with vaults syncing here).
-function PapelizSyncOnState({ papelizSyncEngine, syncEngineSnapshot, syncAccount }: { papelizSyncEngine: PapelizSyncEngine; syncEngineSnapshot: PapelizSyncEngineSnapshot; syncAccount: PapelizSyncAccountReading }) {
+function PapelizSyncOnState({
+  papelizSyncEngine,
+  syncEngineSnapshot,
+  syncAccount,
+  onSyncPlansTabShow,
+}: {
+  papelizSyncEngine: PapelizSyncEngine
+  syncEngineSnapshot: PapelizSyncEngineSnapshot
+  syncAccount: PapelizSyncAccountReading
+  onSyncPlansTabShow: () => void
+}) {
   const openVault = usePapelizWorkspaceStore((workspaceState) => workspaceState.openVault)
   const activeVaultNoteRelativePath = usePapelizWorkspaceStore((workspaceState) => workspaceState.activeVaultNoteRelativePath)
   const [syncPageActionFailureWords, setSyncPageActionFailureWords] = useState<string | null>(null)
   const [isVaultSwitchBusy, setIsVaultSwitchBusy] = useState(false)
   const [accountVaultsOutcome, setAccountVaultsOutcome] = useState<PapelizSyncActionOutcome<PapelizSyncAccountVaultReading[]> | null>(null)
   const [accountVaultDialogRequest, setAccountVaultDialogRequest] = useState<PapelizSyncAccountVaultDialogRequest | null>(null)
+  const [isFreeUpSpaceDialogShown, setIsFreeUpSpaceDialogShown] = useState(false)
+  const [freeUpSpaceOutcome, setFreeUpSpaceOutcome] = useState<PapelizSyncActionOutcome<PapelizSyncOldVersionDeletionReading> | null>(null)
   const currentTime = usePapelizSyncClockTime()
   const isOpenVaultSyncable = openVault !== null && openVault.papelizVaultAdapter.papelizVaultKind !== 'sample-vault-in-memory'
   const openVaultSyncReading = openVault === null ? undefined : syncEngineSnapshot.syncLocalVaults.find((syncLocalVault) => syncLocalVault.papelizVaultId === openVault.papelizVaultId)
@@ -216,6 +258,18 @@ function PapelizSyncOnState({ papelizSyncEngine, syncEngineSnapshot, syncAccount
     reportSyncPageActionOutcome(vaultSwitchOutcome)
   }
   const isOpenVaultLockedHere = openVaultSyncReading?.syncVaultLockState === 'locked'
+  // Deleting old versions is a change to the synced copy, so a read-only or paused account can't.
+  const accountVaultsForFreeUpSpace = accountVaultsOutcome?.syncActionOutcome === 'done' ? accountVaultsOutcome.syncActionDoneValue : []
+  const isFreeUpSpaceOffered = !isReadOnly && !syncAccount.isSyncAccountPaused && accountVaultsForFreeUpSpace.length > 0
+  const openFreeUpSpaceDialog = () => {
+    setFreeUpSpaceOutcome(null)
+    setIsFreeUpSpaceDialogShown(true)
+  }
+  const freeUpSpaceButton = (
+    <PapelizPillButton pillButtonVariant="line" pillButtonSize="small" onClick={openFreeUpSpaceDialog}>
+      Free Up Space
+    </PapelizPillButton>
+  )
 
   return (
     <div>
@@ -249,9 +303,22 @@ function PapelizSyncOnState({ papelizSyncEngine, syncEngineSnapshot, syncAccount
       )}
       {isReadOnly && readSyncEndedNotice(syncAccount, currentTime)}
       {isOverStorage && !isReadOnly && (
-        <PapelizSyncPageNotice syncPageNoticeAction={<PapelizSyncManageSubscriptionButton papelizSyncEngine={papelizSyncEngine} manageButtonLabel="Change Plan" />}>
+        <PapelizSyncPageNotice
+          syncPageNoticeAction={
+            <>
+              {isFreeUpSpaceOffered && freeUpSpaceButton}
+              {syncAccount.syncPlanName === 'free' ? (
+                <PapelizPillButton pillButtonVariant="line" pillButtonSize="small" onClick={onSyncPlansTabShow}>
+                  See Plans
+                </PapelizPillButton>
+              ) : (
+                <PapelizSyncManageSubscriptionButton papelizSyncEngine={papelizSyncEngine} manageButtonLabel="Change Plan" />
+              )}
+            </>
+          }
+        >
           <b>Your Sync storage is full.</b> Uploads wait until there’s room; downloads go on, and every change stays saved on this device. Old versions count toward storage and
-          are thinned as they age, which frees room over time. To sync again now, move to a bigger plan.
+          are thinned as they age. To sync again now, free up space by deleting old versions, or move to a bigger plan.
         </PapelizSyncPageNotice>
       )}
       {syncAccount.isSyncAccountPaused && (
@@ -407,7 +474,28 @@ function PapelizSyncOnState({ papelizSyncEngine, syncEngineSnapshot, syncAccount
           <PapelizSyncPageSmallText className="mt-1">
             {formatPapelizSyncByteSize(syncAccount.syncStorageUsedByteLength)} of {formatPapelizSyncByteSize(syncVisiblePlanLimits.syncStorageByteLimit)}, old versions included
           </PapelizSyncPageSmallText>
+          {isFreeUpSpaceOffered && <div className="mt-2">{freeUpSpaceButton}</div>}
+          {freeUpSpaceOutcome !== null &&
+            (freeUpSpaceOutcome.syncActionOutcome === 'done' ? (
+              <PapelizSyncPageSmallText className="mt-1.5">{describePapelizSyncOldVersionDeletion(freeUpSpaceOutcome.syncActionDoneValue)}</PapelizSyncPageSmallText>
+            ) : (
+              <PapelizSyncFailureLine className="mt-1.5">{describePapelizSyncActionFailureNow(freeUpSpaceOutcome)}</PapelizSyncFailureLine>
+            ))}
         </>
+      )}
+      {isFreeUpSpaceDialogShown && (
+        <PapelizSyncFreeUpSpaceDialog
+          papelizSyncEngine={papelizSyncEngine}
+          accountVaults={accountVaultsForFreeUpSpace}
+          initialPapelizSyncVaultId={openVaultSyncedVaultId}
+          onFreeUpSpaceDone={(doneFreeUpSpaceOutcome) => {
+            setIsFreeUpSpaceDialogShown(false)
+            setFreeUpSpaceOutcome(doneFreeUpSpaceOutcome)
+            // Each vault's size changed with it.
+            setAccountVaultsReadCount((readCount) => readCount + 1)
+          }}
+          onFreeUpSpaceCancel={() => setIsFreeUpSpaceDialogShown(false)}
+        />
       )}
 
       <div className="mt-3 flex flex-wrap justify-between gap-1.5">
@@ -464,9 +552,7 @@ function PapelizSyncSettingsTab({
       <div>
         <PapelizSyncPageText>Sign in to sync your vaults. Every account comes with Free.</PapelizSyncPageText>
         {syncSignIn.syncSignInKind === 'waiting-for-sign-in-page' ? (
-          <PapelizSyncPageSmallText className="mt-2">
-            Finish signing in in the new tab. <PapelizSyncTextButton onClick={cancelPapelizSyncSignIn}>Cancel</PapelizSyncTextButton>
-          </PapelizSyncPageSmallText>
+          <PapelizSyncSignInWaitingLine className="mt-2" />
         ) : (
           <PapelizPillButton
             pillButtonVariant="primary"
@@ -499,7 +585,7 @@ function PapelizSyncSettingsTab({
       </div>
     )
   }
-  return <PapelizSyncOnState papelizSyncEngine={papelizSyncEngine} syncEngineSnapshot={syncEngineSnapshot} syncAccount={syncAccount} />
+  return <PapelizSyncOnState papelizSyncEngine={papelizSyncEngine} syncEngineSnapshot={syncEngineSnapshot} syncAccount={syncAccount} onSyncPlansTabShow={onSyncPlansTabShow} />
 }
 
 function PapelizSyncPageForSnapshot({ papelizSyncEngine, syncEngineSnapshot }: { papelizSyncEngine: PapelizSyncEngine; syncEngineSnapshot: PapelizSyncEngineSnapshot }) {

@@ -338,6 +338,13 @@ export interface PapelizSyncFileVersionReading {
   isSyncFileDeletedInVersion: boolean
 }
 
+// What deleting old versions removed, or would remove: how many versions, and the storage it frees.
+// Contents another file or a kept version still holds stay, so they free nothing.
+export interface PapelizSyncOldVersionDeletionReading {
+  syncOldVersionCount: number
+  syncFreedStoredByteLength: number
+}
+
 // The three-way merge the platform passes in (the app's own, for two tabs and other apps): the text
 // both sides started from, the other device's and this device's. `clash` when the same lines changed
 // differently; the clash dialog then settles the note with the same merge.
@@ -471,4 +478,13 @@ export interface PapelizSyncEngine {
   readSyncFileVersionBytes(papelizVaultId: string, vaultFileRelativePath: string, syncFileVersion: number): Promise<PapelizSyncActionOutcome<Uint8Array>>
   // Writes that version back as the newest, on every device.
   restoreSyncFileVersion(papelizVaultId: string, vaultFileRelativePath: string, syncFileVersion: number): Promise<PapelizSyncActionOutcome>
+  // Deleting old versions frees storage, on every device; a file's newest version always stays. One old
+  // version, or all of a file's (`not-found` for the newest, or a version no longer kept).
+  deleteSyncFileVersion(papelizVaultId: string, vaultFileRelativePath: string, syncFileVersion: number): Promise<PapelizSyncActionOutcome<PapelizSyncOldVersionDeletionReading>>
+  deleteSyncFileOldVersions(papelizVaultId: string, vaultFileRelativePath: string): Promise<PapelizSyncActionOutcome<PapelizSyncOldVersionDeletionReading>>
+  // Free Up Space, for any synced vault on the account, open here or not, locked or not: every old version
+  // saved at least this many days ago, or all of them when null. The reading deletes nothing. The account
+  // reading is refreshed after a delete, so storage shows the room freed.
+  readSyncVaultOldVersionSpace(papelizSyncVaultId: string, syncOldVersionsOlderThanDayCount: number | null): Promise<PapelizSyncActionOutcome<PapelizSyncOldVersionDeletionReading>>
+  deleteSyncVaultOldVersions(papelizSyncVaultId: string, syncOldVersionsOlderThanDayCount: number | null): Promise<PapelizSyncActionOutcome<PapelizSyncOldVersionDeletionReading>>
 }

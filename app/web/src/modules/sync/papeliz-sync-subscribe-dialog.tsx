@@ -11,6 +11,7 @@ import {
   goBackInPapelizSyncSubscribeFlow,
   type PapelizSyncSubscribeStep,
 } from './papeliz-sync-flow-store'
+import { PapelizSyncBlockedSignInLinks } from './papeliz-sync-blocked-sign-in-links'
 import { PapelizSyncDialogFrame, PapelizSyncFailureLine } from './papeliz-sync-page-parts'
 import { papelizSyncPlanDisplayNames, papelizSyncStoragePlaceDescriptions, pickNearestPapelizSyncStoragePlaceForThisDevice } from './papeliz-sync-screen-words'
 
@@ -109,6 +110,7 @@ export function PapelizSyncSubscribeDialog({ papelizSyncEngine, syncEngineSnapsh
             ? 'Finish signing in on the page that opened in a new tab. It comes back here by itself.'
             : `${chosenPlanLine}. Next you sign in or create your account in a new tab, then check out. Already have an account? It keeps the place it has.`}
         </p>
+        {isSigningIn && <PapelizSyncBlockedSignInLinks signInLinksAlignment="from-left-edge" className="mt-3" />}
         {failureLine}
       </PapelizSyncDialogFrame>
     )

@@ -5,9 +5,11 @@ import { createPapelizFakeBrowserVaultEnvironment } from '../vault/papeliz-fake-
 import { PapelizInMemoryVaultAdapter } from '../vault/papeliz-in-memory-vault-adapter'
 import { createPapelizSyncFakeEngine, papelizSyncFakeEngineVaultPassphrase, readPapelizSyncFakeEngineStoragePlaceForNewAccount, type PapelizSyncFakeEngine } from './papeliz-sync-fake-engine'
 import {
+  cancelPapelizSyncSignIn,
   choosePapelizSyncPlan,
   continuePapelizSyncSubscribeToCheckout,
   continuePapelizSyncSubscribeToSignIn,
+  describePapelizSyncSignInFromClickFailure,
   followPapelizSyncSnapshotInFlows,
   goBackInPapelizSyncSubscribeFlow,
   putOffPapelizSyncMissingFiles,
@@ -40,6 +42,8 @@ import {
   isPapelizSyncVaultLockedHere,
   readPapelizSyncAccountVaultPlace,
 } from './papeliz-sync-synced-vaults-section'
+import { readPapelizSyncSyncedVaultsPageStep } from './papeliz-sync-synced-vaults-page'
+import { describePapelizSyncPlanCardLine, describePapelizSyncPlanDetailLines } from './papeliz-sync-screen-words'
 
 // The screens' flows, run against the fake engine. The browser's new tabs are stood in for by a
 // fake `window.open` that records what each tab was sent to.
@@ -143,14 +147,23 @@ describe('the subscribe flow', () => {
     expect(papelizSyncFakeEngine.fakeEngineCallNames).not.toContain('startSyncSignIn')
   })
 
-  it('says so when the browser blocks the new tab, and opens nothing', async () => {
+  it('keeps the sign-in waiting when the browser blocks its tab, with the address to press or copy, and goes on once signed in', async () => {
     const papelizSyncFakeEngine = createPapelizSyncFakeEngine({ fakeEngineScenario: 'signed-out' })
     isPapelizSyncTestTabBlocked = true
     choosePapelizSyncPlan(papelizSyncFakeEngine, papelizSyncFakeEngine.getSyncEngineSnapshot(), { syncPlanName: 'pro', syncBillingPeriod: 'yearly' })
     choosePapelizSyncStoragePlace('apac')
-    await continuePapelizSyncSubscribeToSignIn(papelizSyncFakeEngine)
-    expect(usePapelizSyncFlowStore.getState().syncSubscribeStep?.syncSubscribeStepKind).toBe('storage-place')
-    expect(usePapelizSyncFlowStore.getState().syncSubscribeFailureWords).toMatch(/blocked the new tab/)
+    const signInStep = continuePapelizSyncSubscribeToSignIn(papelizSyncFakeEngine)
+    expect(papelizSyncTestTabs).toHaveLength(0)
+    expect(usePapelizSyncFlowStore.getState()).toMatchObject({
+      syncSubscribeStep: { syncSubscribeStepKind: 'signing-in' },
+      syncSubscribeFailureWords: null,
+      blockedSyncSignInPageUrl: 'about:blank#papeliz-sync-fake-sign-in',
+    })
+    // The person pressed Sign In (or pasted the copied address) and signed in there.
+    papelizSyncFakeEngine.finishFakeSyncSignIn()
+    await signInStep
+    expect(usePapelizSyncFlowStore.getState().syncSubscribeStep?.syncSubscribeStepKind).toBe('ready-for-checkout')
+    expect(usePapelizSyncFlowStore.getState().blockedSyncSignInPageUrl).toBeNull()
   })
 
   it('goes back from waiting for sign-in to the place, cancelling the sign-in', async () => {
@@ -305,6 +318,37 @@ describe('the fake engine, as Turn on Sync and the Sync page drive it', () => {
     expect(new Set(planOffersOutcome.syncActionDoneValue.map((syncPlanOffer) => syncPlanOffer.syncDisplayPrice))).toEqual(new Set(['0.00 XTS']))
     expect(planOffersOutcome.syncActionDoneValue).toHaveLength(6)
   })
+
+  it('puts each plan’s synced vaults on its card, and its other details in its tooltip, from its own limits', async () => {
+    const papelizSyncFakeEngine = createPapelizSyncFakeEngine({ fakeEngineScenario: 'signed-out' })
+    const planOffersOutcome = await papelizSyncFakeEngine.listSyncPlanOffers()
+    if (planOffersOutcome.syncActionOutcome !== 'done') throw new Error('The fake refused the plans')
+    const yearlyPlusOffer = planOffersOutcome.syncActionDoneValue.find((syncPlanOffer) => syncPlanOffer.syncPlanName === 'plus' && syncPlanOffer.syncBillingPeriod === 'yearly')
+    if (yearlyPlusOffer === undefined) throw new Error('The fake has no yearly Plus')
+    expect(describePapelizSyncPlanCardLine(yearlyPlusOffer.syncVisiblePlanLimits)).toBe('20 Vaults · Version History')
+    expect(describePapelizSyncPlanDetailLines(yearlyPlusOffer.syncVisiblePlanLimits)).toEqual([
+      '100 GB of storage.',
+      '20 synced vaults.',
+      'Up to 20 devices.',
+      'Files up to 1 GB each.',
+      'Notes keep 12 months of version history.',
+      'Attachments keep 2 weeks of version history.',
+    ])
+    const freePlanLimits = papelizSyncFakeEngine.readSyncFreePlanLimits()
+    expect(describePapelizSyncPlanCardLine(freePlanLimits)).toBe('1 Vault · Version History')
+    expect(describePapelizSyncPlanDetailLines(freePlanLimits)).toEqual([
+      '10 MB of storage.',
+      '1 synced vault.',
+      'Up to 2 devices.',
+      'Files up to 5 MB each.',
+      'Notes keep 7 days of version history.',
+      'Attachments keep 7 days of version history.',
+    ])
+    // Storage is in the tooltip only, never on a card's line.
+    for (const syncPlanOffer of planOffersOutcome.syncActionDoneValue) {
+      expect(describePapelizSyncPlanCardLine(syncPlanOffer.syncVisiblePlanLimits)).not.toMatch(/\b(KB|MB|GB|TB)\b/)
+    }
+  })
 })
 
 describe('clashes', () => {
@@ -418,9 +462,47 @@ describe('signing in from Synced Vaults, before the engine has loaded', () => {
     expect(papelizSyncTestTabs[1]?.isClosed).toBe(true)
   })
 
-  it('says so when the browser blocks the tab', async () => {
+  it('keeps the sign-in waiting when the browser blocks the tab, with the address to press or copy, once the engine is there', async () => {
     isPapelizSyncTestTabBlocked = true
-    expect(await startPapelizSyncSignInFromClickBeforeEngineLoads(async () => null)).toEqual({ syncSignInOutcome: 'blocked' })
+    const papelizSyncFakeEngine = createPapelizSyncFakeEngine({ fakeEngineScenario: 'new-device' })
+    const signInFromClick = startPapelizSyncSignInFromClickBeforeEngineLoads(async () => papelizSyncFakeEngine)
+    await settleFakeCalls()
+    expect(papelizSyncTestTabs).toHaveLength(0)
+    expect(usePapelizSyncFlowStore.getState().blockedSyncSignInPageUrl).toBe('about:blank#papeliz-sync-fake-sign-in')
+    // The page shows that step: Sign In and Copy Sign-In URL to Clipboard in the middle.
+    const syncEngineSnapshot = papelizSyncFakeEngine.getSyncEngineSnapshot()
+    expect(readPapelizSyncSyncedVaultsPageStep(true, 'in-this-build', syncEngineSnapshot)).toBe('waiting-for-sign-in')
+    papelizSyncFakeEngine.finishFakeSyncSignIn()
+    expect(await signInFromClick).toEqual({ syncSignInOutcome: 'signed-in' })
+    expect(usePapelizSyncFlowStore.getState().blockedSyncSignInPageUrl).toBeNull()
+    // With no engine, nothing waits.
+    expect(await startPapelizSyncSignInFromClickBeforeEngineLoads(async () => null)).toMatchObject({ syncSignInOutcome: 'failed' })
+    expect(usePapelizSyncFlowStore.getState().blockedSyncSignInPageUrl).toBeNull()
+  })
+})
+
+describe('signing in from Settings › Sync and Settings › Account', () => {
+  it('keeps a blocked sign-in waiting with its address, until it is cancelled or a tab opens for a new one', async () => {
+    const papelizSyncFakeEngine = createPapelizSyncFakeEngine({ fakeEngineScenario: 'signed-out' })
+    isPapelizSyncTestTabBlocked = true
+    const blockedSignIn = startPapelizSyncSignInFromClick(papelizSyncFakeEngine, null)
+    expect(papelizSyncTestTabs).toHaveLength(0)
+    expect(usePapelizSyncFlowStore.getState().blockedSyncSignInPageUrl).toBe('about:blank#papeliz-sync-fake-sign-in')
+    expect(papelizSyncFakeEngine.getSyncEngineSnapshot().syncSignIn.syncSignInKind).toBe('waiting-for-sign-in-page')
+    // A blocked sign-in has nothing to say in words: the link and the copy button stand in for them.
+    cancelPapelizSyncSignIn()
+    expect(await blockedSignIn).toEqual({ syncSignInOutcome: 'cancelled' })
+    expect(describePapelizSyncSignInFromClickFailure(await blockedSignIn)).toBeNull()
+    expect(usePapelizSyncFlowStore.getState().blockedSyncSignInPageUrl).toBeNull()
+
+    void startPapelizSyncSignInFromClick(papelizSyncFakeEngine, null)
+    expect(usePapelizSyncFlowStore.getState().blockedSyncSignInPageUrl).not.toBeNull()
+    isPapelizSyncTestTabBlocked = false
+    const openedSignIn = startPapelizSyncSignInFromClick(papelizSyncFakeEngine, null)
+    expect(papelizSyncTestTabs).toHaveLength(1)
+    expect(usePapelizSyncFlowStore.getState().blockedSyncSignInPageUrl).toBeNull()
+    papelizSyncFakeEngine.finishFakeSyncSignIn()
+    expect(await openedSignIn).toEqual({ syncSignInOutcome: 'signed-in' })
   })
 })
 
@@ -553,5 +635,77 @@ describe('Synced Vaults, vault by vault', () => {
 
     attachTestVaultToFakeEngine(papelizSyncFakeEngine, 'vault-work', 'Work')
     expect(await papelizSyncFakeEngine.downloadSyncedVaultInto('pzvault_eeeeeeeeeeeeeeeeeeeeeeeeee', 'vault-work')).toMatchObject({ syncActionOutcome: 'done' })
+  })
+})
+
+describe('deleting old versions to free storage', () => {
+  it("deletes one of a note's old versions, then every old one, never the newest, and storage drops each time", async () => {
+    const papelizSyncFakeEngine = createPapelizSyncFakeEngine({ fakeEngineScenario: 'on' })
+    attachTestVaultToFakeEngine(papelizSyncFakeEngine, 'vault-a', 'Field Notes')
+    const readFakeStorageUsed = () => papelizSyncFakeEngine.getSyncEngineSnapshot().syncAccount?.syncStorageUsedByteLength ?? 0
+    const listVersionNumbers = async () => {
+      const listedOutcome = await papelizSyncFakeEngine.listSyncFileVersions('vault-a', 'Garden.md')
+      return listedOutcome.syncActionOutcome === 'done' ? listedOutcome.syncActionDoneValue.map((fileVersion) => fileVersion.syncFileVersion) : []
+    }
+    const storageBefore = readFakeStorageUsed()
+    expect(await papelizSyncFakeEngine.deleteSyncFileVersion('vault-a', 'Garden.md', 2)).toEqual({
+      syncActionOutcome: 'done',
+      syncActionDoneValue: { syncOldVersionCount: 1, syncFreedStoredByteLength: 2048 },
+    })
+    expect(await listVersionNumbers()).toEqual([3, 1])
+    expect(readFakeStorageUsed()).toBe(storageBefore - 2048)
+    expect(await papelizSyncFakeEngine.deleteSyncFileVersion('vault-a', 'Garden.md', 3)).toMatchObject({ syncActionOutcome: 'failed', syncActionFailureKind: 'not-found' })
+    expect(await papelizSyncFakeEngine.deleteSyncFileOldVersions('vault-a', 'Garden.md')).toEqual({
+      syncActionOutcome: 'done',
+      syncActionDoneValue: { syncOldVersionCount: 1, syncFreedStoredByteLength: 1024 },
+    })
+    expect(await listVersionNumbers()).toEqual([3])
+  })
+
+  it('reads what Free Up Space frees for each age, frees it, and clears the storage-full state', async () => {
+    const papelizSyncFakeEngine = createPapelizSyncFakeEngine({ fakeEngineScenario: 'over-storage' })
+    attachTestVaultToFakeEngine(papelizSyncFakeEngine, 'vault-a', 'Field Notes')
+    const syncAccount = papelizSyncFakeEngine.getSyncEngineSnapshot().syncAccount
+    const papelizSyncVaultId = readFakeLocalVault(papelizSyncFakeEngine, 'vault-a')?.papelizSyncVaultId ?? ''
+    expect(syncAccount?.syncStorageUsedByteLength).toBe(syncAccount?.syncVisiblePlanLimits?.syncStorageByteLimit)
+    expect(readFakeLocalVault(papelizSyncFakeEngine, 'vault-a')?.syncVaultStatus).toMatchObject({ syncStatusKind: 'waiting', syncWaitingReason: 'over-storage' })
+    const readSpace = async (syncOldVersionsOlderThanDayCount: number | null) => {
+      const spaceOutcome = await papelizSyncFakeEngine.readSyncVaultOldVersionSpace(papelizSyncVaultId, syncOldVersionsOlderThanDayCount)
+      return spaceOutcome.syncActionOutcome === 'done' ? spaceOutcome.syncActionDoneValue : null
+    }
+    expect(await readSpace(365)).toEqual({ syncOldVersionCount: 31, syncFreedStoredByteLength: 2.2e6 })
+    expect(await readSpace(30)).toEqual({ syncOldVersionCount: 260, syncFreedStoredByteLength: 21.3e6 })
+    expect(await papelizSyncFakeEngine.deleteSyncVaultOldVersions(papelizSyncVaultId, 30)).toEqual({
+      syncActionOutcome: 'done',
+      syncActionDoneValue: { syncOldVersionCount: 260, syncFreedStoredByteLength: 21.3e6 },
+    })
+    // Storage is under the limit again, so the page no longer says it's full.
+    const syncAccountAfter = papelizSyncFakeEngine.getSyncEngineSnapshot().syncAccount
+    expect((syncAccountAfter?.syncStorageUsedByteLength ?? 0) < (syncAccountAfter?.syncVisiblePlanLimits?.syncStorageByteLimit ?? 0)).toBe(true)
+    expect(readFakeLocalVault(papelizSyncFakeEngine, 'vault-a')?.syncVaultStatus.syncStatusKind).toBe('synced')
+    // What is left: nothing older than 30 days, and the newer ones for All.
+    expect(await readSpace(90)).toEqual({ syncOldVersionCount: 0, syncFreedStoredByteLength: 0 })
+    expect(await readSpace(null)).toEqual({ syncOldVersionCount: 152, syncFreedStoredByteLength: 38.4e6 - 21.3e6 })
+  })
+
+  it('needs a signed-in device', async () => {
+    const papelizSyncFakeEngine = createPapelizSyncFakeEngine({ fakeEngineScenario: 'signed-out' })
+    expect(await papelizSyncFakeEngine.readSyncVaultOldVersionSpace('pzvault_dddddddddddddddddddddddddd', null)).toMatchObject({ syncActionFailureKind: 'signed-out' })
+  })
+})
+
+describe('Synced Vaults on the start page', () => {
+  it('lists the vaults of a Free account, which needs no subscription, and asks a plan only of an account with none', () => {
+    const papelizSyncFakeEngine = createPapelizSyncFakeEngine({ fakeEngineScenario: 'on' })
+    const syncEngineSnapshot = papelizSyncFakeEngine.getSyncEngineSnapshot()
+    const syncAccount = syncEngineSnapshot.syncAccount
+    if (syncAccount === null) throw new Error('The on scenario is signed in')
+    const readStepFor = (accountChanges: Partial<typeof syncAccount>) =>
+      readPapelizSyncSyncedVaultsPageStep(true, 'in-this-build', { ...syncEngineSnapshot, syncAccount: { ...syncAccount, ...accountChanges } })
+    expect(readStepFor({ syncPlanName: 'free', syncSubscriptionState: 'not-subscribed' })).toBe('synced-vault-list')
+    expect(readStepFor({ syncPlanName: 'standard', syncSubscriptionState: 'active' })).toBe('synced-vault-list')
+    expect(readStepFor({ syncPlanName: 'standard', syncSubscriptionState: 'ended-read-only' })).toBe('synced-vault-list')
+    expect(readStepFor({ syncPlanName: null, syncSubscriptionState: 'not-subscribed' })).toBe('no-subscription')
+    expect(readStepFor({ syncPlanName: 'standard', syncSubscriptionState: 'ended-held' })).toBe('subscription-held')
   })
 })

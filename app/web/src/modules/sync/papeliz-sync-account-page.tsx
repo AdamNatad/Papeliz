@@ -12,7 +12,8 @@ import type {
   PapelizSyncEngineSnapshot,
 } from './papeliz-sync-engine-contract'
 import { rememberPapelizSyncUsedOnThisDevice, usePapelizSyncEngineStore } from './papeliz-sync-engine-store'
-import { cancelPapelizSyncSignIn, describePapelizSyncSignInFromClickFailure, startPapelizSyncSignInFromClick } from './papeliz-sync-flow-store'
+import { PapelizSyncSignInPageLinks } from './papeliz-sync-blocked-sign-in-links'
+import { cancelPapelizSyncSignIn, describePapelizSyncSignInFromClickFailure, startPapelizSyncSignInFromClick, usePapelizSyncFlowStore } from './papeliz-sync-flow-store'
 import { openPapelizSyncNewTabWhenAddressIsReady, papelizSyncBlockedNewTabWords } from './papeliz-sync-new-tab'
 import { PapelizSyncFailureLine, PapelizSyncLoadingLine, PapelizSyncPageBox, PapelizSyncPageLabel, PapelizSyncPageRow, PapelizSyncPageSmallText, PapelizSyncPageText } from './papeliz-sync-page-parts'
 import { papelizSyncTextFieldClassName } from './papeliz-sync-passphrase-fields'
@@ -62,9 +63,10 @@ function PapelizSyncDeviceRowName({ syncDeviceShownName }: { syncDeviceShownName
   return <span title={syncDeviceShownName}>{syncDeviceShownName}</span>
 }
 
+// Centered in the page area, up and down as well as across.
 function PapelizSyncAccountCenteredState({ accountStateTitle, children }: { accountStateTitle: string; children: ReactNode }) {
   return (
-    <div className="flex flex-col items-center px-1 pt-2 pb-1 text-center">
+    <div className="flex min-h-full flex-col items-center justify-center px-1 pt-2 pb-1 text-center">
       <span
         className="mb-2.5 grid size-10 place-items-center rounded-[10px] bg-linear-to-br from-papeliz-gradient-start to-papeliz-gradient-end shadow-[0_4px_12px_rgb(0_64_160/0.2)]"
         aria-hidden="true"
@@ -337,12 +339,23 @@ function PapelizSyncSignedInAccount({ papelizSyncEngine, syncEngineSnapshot }: {
 }
 
 export function PapelizSyncAccountPage() {
+  const blockedSyncSignInPageUrl = usePapelizSyncFlowStore((syncFlowState) => syncFlowState.blockedSyncSignInPageUrl)
   return (
     <PapelizSyncEngineGate
       renderSyncEnginePage={(papelizSyncEngine, syncEngineSnapshot) => {
         const syncSignIn = syncEngineSnapshot.syncSignIn
         if (syncSignIn.syncSignInKind === 'signed-in') return <PapelizSyncSignedInAccount papelizSyncEngine={papelizSyncEngine} syncEngineSnapshot={syncEngineSnapshot} />
         if (syncSignIn.syncSignInKind === 'waiting-for-sign-in-page') {
+          if (blockedSyncSignInPageUrl !== null) {
+            return (
+              <PapelizSyncAccountCenteredState accountStateTitle="Sign in to Papeliz">
+                <PapelizSyncSignInPageLinks syncSignInPageUrl={blockedSyncSignInPageUrl} className="mt-1.5" />
+                <PapelizPillButton pillButtonVariant="gray" className="mt-3.5 w-full" onClick={cancelPapelizSyncSignIn}>
+                  Cancel
+                </PapelizPillButton>
+              </PapelizSyncAccountCenteredState>
+            )
+          }
           return (
             <PapelizSyncAccountCenteredState accountStateTitle="Finish in the new tab">
               <p className="mt-1 flex items-center gap-1.5 text-[12px] text-papeliz-ink-subtle" role="status">

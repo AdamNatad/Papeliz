@@ -4,7 +4,11 @@ import {
   countPapelizSyncPassphraseCharacters,
   describePapelizSyncFileCount,
   describePapelizSyncMissingFilesNotice,
+  describePapelizSyncOldVersionCount,
+  describePapelizSyncOldVersionDeletion,
+  describePapelizSyncOldVersionSpace,
   describePapelizSyncPlanCardLine,
+  describePapelizSyncPlanDetailLines,
   describePapelizSyncPlanPrice,
   describePapelizSyncStatusForStatusBar,
   describePapelizSyncStoragePlaceLine,
@@ -13,6 +17,7 @@ import {
   introducePapelizSyncMissingFilesDialog,
   isPapelizSyncPassphraseLongEnough,
   papelizSyncMissingFilesDialogWords,
+  papelizSyncOldVersionAgeChoices,
   papelizSyncVaultEncryptionKindDisplayNames,
   papelizSyncVaultEncryptionKindReaderLines,
   papelizSyncVaultNameReadableLine,
@@ -96,31 +101,52 @@ describe('the storage place', () => {
 })
 
 describe('the plans', () => {
-  it('lists the visible limits in decimal units, as the plans count them', () => {
-    expect(
-      describePapelizSyncPlanCardLine({
-        syncStorageByteLimit: 100e9,
-        syncedVaultLimit: 20,
-        syncFilesPerVaultLimit: 250_000,
-        syncLargestFileByteLimit: 1e9,
-        syncNoteHistoryMonthCount: 24,
-        syncNoteHistoryDayCount: 720,
-        syncAttachmentHistoryDayCount: 30,
-        syncConnectedDeviceLimit: 20,
-      }),
-    ).toBe('100 GB · 20 vaults · Version History')
-    expect(
-      describePapelizSyncPlanCardLine({
-        syncStorageByteLimit: 10e6,
-        syncedVaultLimit: 1,
-        syncFilesPerVaultLimit: 10_000,
-        syncLargestFileByteLimit: 5e6,
-        syncNoteHistoryMonthCount: 0,
-        syncNoteHistoryDayCount: 7,
-        syncAttachmentHistoryDayCount: 7,
-        syncConnectedDeviceLimit: 2,
-      }),
-    ).toBe('10 MB · 1 vault · Version History')
+  const examplePaidPlanLimits = {
+    syncStorageByteLimit: 100e9,
+    syncedVaultLimit: 5,
+    syncFilesPerVaultLimit: 250_000,
+    syncLargestFileByteLimit: 1e9,
+    syncNoteHistoryMonthCount: 12,
+    syncNoteHistoryDayCount: 360,
+    syncAttachmentHistoryDayCount: 14,
+    syncConnectedDeviceLimit: 20,
+  }
+  const exampleFreePlanLimits = {
+    syncStorageByteLimit: 10e6,
+    syncedVaultLimit: 1,
+    syncFilesPerVaultLimit: 10_000,
+    syncLargestFileByteLimit: 5e6,
+    syncNoteHistoryMonthCount: 0,
+    syncNoteHistoryDayCount: 7,
+    syncAttachmentHistoryDayCount: 7,
+    syncConnectedDeviceLimit: 2,
+  }
+
+  it('puts the synced vaults on the card, with a capital V and no storage', () => {
+    expect(describePapelizSyncPlanCardLine(examplePaidPlanLimits)).toBe('5 Vaults · Version History')
+    expect(describePapelizSyncPlanCardLine(exampleFreePlanLimits)).toBe('1 Vault · Version History')
+  })
+
+  it('lists the details in the plan’s tooltip, in decimal units, as the plans count them', () => {
+    expect(describePapelizSyncPlanDetailLines(examplePaidPlanLimits)).toEqual([
+      '100 GB of storage.',
+      '5 synced vaults.',
+      'Up to 20 devices.',
+      'Files up to 1 GB each.',
+      'Notes keep 12 months of version history.',
+      'Attachments keep 2 weeks of version history.',
+    ])
+    expect(describePapelizSyncPlanDetailLines({ ...exampleFreePlanLimits, syncConnectedDeviceLimit: 1 })).toEqual([
+      '10 MB of storage.',
+      '1 synced vault.',
+      'Up to 1 device.',
+      'Files up to 5 MB each.',
+      'Notes keep 7 days of version history.',
+      'Attachments keep 7 days of version history.',
+    ])
+    expect(describePapelizSyncPlanDetailLines({ ...examplePaidPlanLimits, syncNoteHistoryMonthCount: 1, syncNoteHistoryDayCount: 30 })).toContain(
+      'Notes keep 1 month of version history.',
+    )
     expect(formatPapelizSyncByteSize(24.31e9)).toBe('24.3 GB')
     expect(formatPapelizSyncByteSize(512)).toBe('512 B')
   })
@@ -197,5 +223,35 @@ describe('the missing-files dialog', () => {
     expect(papelizSyncMissingFilesDialogWords.deletedChoiceText).toBe('removes them from Sync and from your other devices, which move them to their trash.')
     expect(titlePapelizSyncMissingFilesDeleteConfirm(14)).toBe('Delete 14 Files from Sync?')
     expect(describePapelizSyncMissingFilesNotice(2, 'Field Notes')).toBe('2 synced files are missing from “Field Notes” on this device. They’re still on Sync, and nothing is deleted until you choose.')
+  })
+})
+
+describe('Free Up Space and deleting old versions', () => {
+  it('offers over 30 days, over 90 days, over a year and all, and says what each deletes and frees before it is confirmed', () => {
+    expect(papelizSyncOldVersionAgeChoices.map((ageChoice) => [ageChoice.oldVersionAgeChoiceLabel, ageChoice.syncOldVersionsOlderThanDayCount])).toEqual([
+      ['Over 30 Days', 30],
+      ['Over 90 Days', 90],
+      ['Over a Year', 365],
+      ['All', null],
+    ])
+    expect(describePapelizSyncOldVersionSpace({ syncOldVersionCount: 260, syncFreedStoredByteLength: 21.3e6 }, 30)).toBe(
+      'Deletes 260 old versions saved more than 30 days ago and frees 21.3 MB.',
+    )
+    expect(describePapelizSyncOldVersionSpace({ syncOldVersionCount: 1, syncFreedStoredByteLength: 2048 }, 365)).toBe('Deletes 1 old version saved more than a year ago and frees 2 KB.')
+    expect(describePapelizSyncOldVersionSpace({ syncOldVersionCount: 412, syncFreedStoredByteLength: 38.4e6 }, null)).toBe('Deletes all 412 old versions and frees 38.4 MB.')
+    expect(describePapelizSyncOldVersionSpace({ syncOldVersionCount: 0, syncFreedStoredByteLength: 0 }, 90)).toBe('There are no old versions saved more than 90 days ago to delete.')
+    // Contents another file still holds stay.
+    expect(describePapelizSyncOldVersionSpace({ syncOldVersionCount: 3, syncFreedStoredByteLength: 0 }, null)).toBe(
+      'Deletes all 3 old versions. Other files still hold the same contents, so this frees no storage.',
+    )
+  })
+
+  it('says what a delete did', () => {
+    expect(describePapelizSyncOldVersionDeletion({ syncOldVersionCount: 260, syncFreedStoredByteLength: 21.3e6 })).toBe('Freed 21.3 MB: 260 old versions deleted.')
+    expect(describePapelizSyncOldVersionDeletion({ syncOldVersionCount: 0, syncFreedStoredByteLength: 0 })).toBe('There were no old versions to delete.')
+    expect(describePapelizSyncOldVersionDeletion({ syncOldVersionCount: 2, syncFreedStoredByteLength: 0 })).toBe(
+      'Deleted 2 old versions. Other files still hold the same contents, so no storage was freed.',
+    )
+    expect(describePapelizSyncOldVersionCount(1)).toBe('1 old version')
   })
 })

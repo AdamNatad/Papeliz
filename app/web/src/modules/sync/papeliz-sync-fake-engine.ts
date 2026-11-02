@@ -15,6 +15,7 @@ import type {
   PapelizSyncLocalVaultReading,
   PapelizSyncNoteClashSummary,
   PapelizSyncNoteClashTexts,
+  PapelizSyncOldVersionDeletionReading,
   PapelizSyncOpenLocalVault,
   PapelizSyncPlanName,
   PapelizSyncPlanOfferReading,
@@ -118,9 +119,9 @@ const papelizSyncFakeEnginePlanLimits: Record<PapelizSyncPlanName, PapelizSyncVi
     syncedVaultLimit: 5,
     syncFilesPerVaultLimit: 100_000,
     syncLargestFileByteLimit: 50e6,
-    syncNoteHistoryMonthCount: 6,
-    syncNoteHistoryDayCount: 180,
-    syncAttachmentHistoryDayCount: 30,
+    syncNoteHistoryMonthCount: 1,
+    syncNoteHistoryDayCount: 30,
+    syncAttachmentHistoryDayCount: 14,
     syncConnectedDeviceLimit: 20,
   },
   plus: {
@@ -128,9 +129,9 @@ const papelizSyncFakeEnginePlanLimits: Record<PapelizSyncPlanName, PapelizSyncVi
     syncedVaultLimit: 20,
     syncFilesPerVaultLimit: 250_000,
     syncLargestFileByteLimit: 1e9,
-    syncNoteHistoryMonthCount: 24,
-    syncNoteHistoryDayCount: 720,
-    syncAttachmentHistoryDayCount: 30,
+    syncNoteHistoryMonthCount: 12,
+    syncNoteHistoryDayCount: 360,
+    syncAttachmentHistoryDayCount: 14,
     syncConnectedDeviceLimit: 20,
   },
   pro: {
@@ -138,11 +139,28 @@ const papelizSyncFakeEnginePlanLimits: Record<PapelizSyncPlanName, PapelizSyncVi
     syncedVaultLimit: 100,
     syncFilesPerVaultLimit: 500_000,
     syncLargestFileByteLimit: 2e9,
-    syncNoteHistoryMonthCount: 36,
-    syncNoteHistoryDayCount: 1080,
-    syncAttachmentHistoryDayCount: 30,
+    syncNoteHistoryMonthCount: 12,
+    syncNoteHistoryDayCount: 360,
+    syncAttachmentHistoryDayCount: 14,
     syncConnectedDeviceLimit: 20,
   },
+}
+
+// Every synced vault's old versions, by how long ago they were saved: those saved at least this many days
+// ago (0: all of them), with their count and the storage deleting them frees. Made up, the same for every
+// vault.
+const papelizSyncFakeEngineOldVersionSpaceByAgeDayCount: ReadonlyArray<{ syncOldVersionsOlderThanDayCount: number } & PapelizSyncOldVersionDeletionReading> = [
+  { syncOldVersionsOlderThanDayCount: 0, syncOldVersionCount: 412, syncFreedStoredByteLength: 38.4e6 },
+  { syncOldVersionsOlderThanDayCount: 30, syncOldVersionCount: 260, syncFreedStoredByteLength: 21.3e6 },
+  { syncOldVersionsOlderThanDayCount: 90, syncOldVersionCount: 140, syncFreedStoredByteLength: 9.6e6 },
+  { syncOldVersionsOlderThanDayCount: 365, syncOldVersionCount: 31, syncFreedStoredByteLength: 2.2e6 },
+]
+
+function readPapelizSyncFakeEngineOldVersionSpace(syncOldVersionsOlderThanDayCount: number): PapelizSyncOldVersionDeletionReading {
+  const oldVersionSpace = [...papelizSyncFakeEngineOldVersionSpaceByAgeDayCount]
+    .reverse()
+    .find((oldVersionSpaceRow) => oldVersionSpaceRow.syncOldVersionsOlderThanDayCount <= syncOldVersionsOlderThanDayCount)
+  return { syncOldVersionCount: oldVersionSpace?.syncOldVersionCount ?? 0, syncFreedStoredByteLength: oldVersionSpace?.syncFreedStoredByteLength ?? 0 }
 }
 
 export interface PapelizSyncFakeEngineOptions {
@@ -332,6 +350,10 @@ export class PapelizSyncFakeEngine implements PapelizSyncEngine {
   // Files missing on this device, by the synced vault: held until Download them again or They were deleted.
   private readonly fakeMissingFileCountsBySyncVaultId = new Map<string, number>()
   private fakeRemovedDeviceIds = new Set<string>()
+  // Old versions deleted: each note's by its path, and each synced vault's by the age deleted down to (0:
+  // every old version).
+  private readonly fakeDeletedFileVersionsByRelativePath = new Map<string, Set<number>>()
+  private readonly fakeDeletedOldVersionAgeDayCountsBySyncVaultId = new Map<string, number>()
   private readonly fakeAccountOnlyVaults: PapelizSyncFakeAccountOnlyVault[]
   // A synced vault downloaded here, by its synced vault: the vault on this device that syncs with it.
   private readonly fakeDownloadedPapelizVaultIdsBySyncVaultId = new Map<string, string>()
@@ -538,7 +560,13 @@ export class PapelizSyncFakeEngine implements PapelizSyncEngine {
     if (this.fakeEngineSnapshot.syncAccount?.syncSubscriptionState === 'ended-read-only') {
       return { syncStatusKind: 'subscription-ended', syncReadOnlyUntil: this.fakeEngineSnapshot.syncAccount.syncReadOnlyUntil }
     }
-    if (this.fakeEngineScenario === 'over-storage') {
+    // Storage full until old versions are deleted to make room.
+    const fakeSyncAccount = this.fakeEngineSnapshot.syncAccount
+    if (
+      this.fakeEngineScenario === 'over-storage' &&
+      fakeSyncAccount?.syncVisiblePlanLimits != null &&
+      fakeSyncAccount.syncStorageUsedByteLength >= fakeSyncAccount.syncVisiblePlanLimits.syncStorageByteLimit
+    ) {
       return { syncStatusKind: 'waiting', syncWaitingFileCount: 3, syncWaitingReason: 'over-storage', syncResumesAt: null }
     }
     if (this.fakeEngineSnapshot.syncNoteClashesToSettle.length > 0) {
@@ -1212,17 +1240,24 @@ export class PapelizSyncFakeEngine implements PapelizSyncEngine {
     return papelizSyncVaultId !== undefined && this.fakeMissingFileCountsBySyncVaultId.has(papelizSyncVaultId) ? papelizSyncVaultId : null
   }
 
-  async listSyncFileVersions(papelizVaultId: string, _vaultFileRelativePath: string): Promise<PapelizSyncActionOutcome<PapelizSyncFileVersionReading[]>> {
+  async listSyncFileVersions(papelizVaultId: string, vaultFileRelativePath: string): Promise<PapelizSyncActionOutcome<PapelizSyncFileVersionReading[]>> {
     await this.waitForFakeCall('listSyncFileVersions')
     const syncLocalVault = this.fakeEngineSnapshot.syncLocalVaults.find((otherLocalVault) => otherLocalVault.papelizVaultId === papelizVaultId)
     if (syncLocalVault === undefined) return createFakeFailedOutcome('not-found')
     if (syncLocalVault.syncVaultLockState === 'locked') return createFakeFailedOutcome('locked')
+    return createFakeDoneOutcome(this.listFakeFileVersions(vaultFileRelativePath))
+  }
+
+  // Version 3 is the newest; the old ones a delete took away are gone.
+  private listFakeFileVersions(vaultFileRelativePath: string): PapelizSyncFileVersionReading[] {
     const currentTime = this.fakeCurrentTime()
-    return createFakeDoneOutcome([
+    const deletedFileVersions = this.fakeDeletedFileVersionsByRelativePath.get(vaultFileRelativePath)
+    const fakeFileVersions: PapelizSyncFileVersionReading[] = [
       { syncFileVersion: 3, syncFileChangedAt: currentTime - 5 * 60_000, syncFileChangedOnDeviceName: null, syncFileStoredByteLength: 2048, isSyncFileDeletedInVersion: false },
       { syncFileVersion: 2, syncFileChangedAt: currentTime - 3 * 60 * 60_000, syncFileChangedOnDeviceName: 'Phone', syncFileStoredByteLength: 2048, isSyncFileDeletedInVersion: false },
       { syncFileVersion: 1, syncFileChangedAt: currentTime - 3 * 24 * 60 * 60_000, syncFileChangedOnDeviceName: 'Laptop', syncFileStoredByteLength: 1024, isSyncFileDeletedInVersion: false },
-    ])
+    ]
+    return fakeFileVersions.filter((fakeFileVersion) => !deletedFileVersions?.has(fakeFileVersion.syncFileVersion))
   }
 
   async readSyncFileVersionBytes(_papelizVaultId: string, _vaultFileRelativePath: string, syncFileVersion: number): Promise<PapelizSyncActionOutcome<Uint8Array>> {
@@ -1233,6 +1268,71 @@ export class PapelizSyncFakeEngine implements PapelizSyncEngine {
   async restoreSyncFileVersion(_papelizVaultId: string, _vaultFileRelativePath: string, _syncFileVersion: number): Promise<PapelizSyncActionOutcome> {
     await this.waitForFakeCall('restoreSyncFileVersion')
     return createFakeDoneOutcome(null)
+  }
+
+  async deleteSyncFileVersion(papelizVaultId: string, vaultFileRelativePath: string, syncFileVersion: number): Promise<PapelizSyncActionOutcome<PapelizSyncOldVersionDeletionReading>> {
+    await this.waitForFakeCall('deleteSyncFileVersion')
+    return this.deleteFakeFileVersions(papelizVaultId, vaultFileRelativePath, syncFileVersion)
+  }
+
+  async deleteSyncFileOldVersions(papelizVaultId: string, vaultFileRelativePath: string): Promise<PapelizSyncActionOutcome<PapelizSyncOldVersionDeletionReading>> {
+    await this.waitForFakeCall('deleteSyncFileOldVersions')
+    return this.deleteFakeFileVersions(papelizVaultId, vaultFileRelativePath, null)
+  }
+
+  async readSyncVaultOldVersionSpace(papelizSyncVaultId: string, syncOldVersionsOlderThanDayCount: number | null): Promise<PapelizSyncActionOutcome<PapelizSyncOldVersionDeletionReading>> {
+    await this.waitForFakeCall('readSyncVaultOldVersionSpace')
+    if (!this.isFakeSignedIn()) return createFakeFailedOutcome('signed-out')
+    return createFakeDoneOutcome(this.readFakeVaultOldVersionSpace(papelizSyncVaultId, syncOldVersionsOlderThanDayCount ?? 0))
+  }
+
+  async deleteSyncVaultOldVersions(papelizSyncVaultId: string, syncOldVersionsOlderThanDayCount: number | null): Promise<PapelizSyncActionOutcome<PapelizSyncOldVersionDeletionReading>> {
+    await this.waitForFakeCall('deleteSyncVaultOldVersions')
+    if (!this.isFakeSignedIn()) return createFakeFailedOutcome('signed-out')
+    const syncOldVersionsAgeDayCount = syncOldVersionsOlderThanDayCount ?? 0
+    const oldVersionDeletion = this.readFakeVaultOldVersionSpace(papelizSyncVaultId, syncOldVersionsAgeDayCount)
+    const deletedAgeDayCount = this.fakeDeletedOldVersionAgeDayCountsBySyncVaultId.get(papelizSyncVaultId)
+    if (deletedAgeDayCount === undefined || syncOldVersionsAgeDayCount < deletedAgeDayCount) this.fakeDeletedOldVersionAgeDayCountsBySyncVaultId.set(papelizSyncVaultId, syncOldVersionsAgeDayCount)
+    this.freeFakeStorage(oldVersionDeletion.syncFreedStoredByteLength)
+    return createFakeDoneOutcome(oldVersionDeletion)
+  }
+
+  // What deleting the old versions saved at least this many days ago frees now: none of those a delete
+  // already took.
+  private readFakeVaultOldVersionSpace(papelizSyncVaultId: string, syncOldVersionsAgeDayCount: number): PapelizSyncOldVersionDeletionReading {
+    const deletedAgeDayCount = this.fakeDeletedOldVersionAgeDayCountsBySyncVaultId.get(papelizSyncVaultId)
+    if (deletedAgeDayCount === undefined) return readPapelizSyncFakeEngineOldVersionSpace(syncOldVersionsAgeDayCount)
+    if (syncOldVersionsAgeDayCount >= deletedAgeDayCount) return { syncOldVersionCount: 0, syncFreedStoredByteLength: 0 }
+    const chosenOldVersionSpace = readPapelizSyncFakeEngineOldVersionSpace(syncOldVersionsAgeDayCount)
+    const deletedOldVersionSpace = readPapelizSyncFakeEngineOldVersionSpace(deletedAgeDayCount)
+    return {
+      syncOldVersionCount: chosenOldVersionSpace.syncOldVersionCount - deletedOldVersionSpace.syncOldVersionCount,
+      syncFreedStoredByteLength: chosenOldVersionSpace.syncFreedStoredByteLength - deletedOldVersionSpace.syncFreedStoredByteLength,
+    }
+  }
+
+  // One old version, or every one (null); the newest is never one of them.
+  private deleteFakeFileVersions(papelizVaultId: string, vaultFileRelativePath: string, syncFileVersion: number | null): PapelizSyncActionOutcome<PapelizSyncOldVersionDeletionReading> {
+    const syncLocalVault = this.fakeEngineSnapshot.syncLocalVaults.find((otherLocalVault) => otherLocalVault.papelizVaultId === papelizVaultId)
+    if (syncLocalVault === undefined) return createFakeFailedOutcome('not-found')
+    if (syncLocalVault.syncVaultLockState === 'locked') return createFakeFailedOutcome('locked')
+    const [newestFileVersion, ...oldFileVersions] = this.listFakeFileVersions(vaultFileRelativePath)
+    const deletedOldFileVersions = oldFileVersions.filter((oldFileVersion) => syncFileVersion === null || oldFileVersion.syncFileVersion === syncFileVersion)
+    if (newestFileVersion === undefined || (syncFileVersion !== null && deletedOldFileVersions.length === 0)) return createFakeFailedOutcome('not-found')
+    const deletedFileVersions = this.fakeDeletedFileVersionsByRelativePath.get(vaultFileRelativePath) ?? new Set<number>()
+    for (const deletedOldFileVersion of deletedOldFileVersions) deletedFileVersions.add(deletedOldFileVersion.syncFileVersion)
+    this.fakeDeletedFileVersionsByRelativePath.set(vaultFileRelativePath, deletedFileVersions)
+    const syncFreedStoredByteLength = deletedOldFileVersions.reduce((freedByteSum, deletedOldFileVersion) => freedByteSum + deletedOldFileVersion.syncFileStoredByteLength, 0)
+    this.freeFakeStorage(syncFreedStoredByteLength)
+    return createFakeDoneOutcome({ syncOldVersionCount: deletedOldFileVersions.length, syncFreedStoredByteLength })
+  }
+
+  // Storage drops at once, as the engine reads the account again after a delete.
+  private freeFakeStorage(syncFreedStoredByteLength: number): void {
+    const syncAccount = this.fakeEngineSnapshot.syncAccount
+    if (syncAccount === null || syncFreedStoredByteLength <= 0) return
+    this.changeFakeAccount({ syncStorageUsedByteLength: Math.max(0, syncAccount.syncStorageUsedByteLength - syncFreedStoredByteLength) })
+    this.refreshFakeLocalVaultStatuses()
   }
 }
 

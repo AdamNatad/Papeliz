@@ -3,6 +3,7 @@ import { papelizHelpFilesArticles } from './papeliz-help-articles-files'
 import { papelizHelpGettingStartedArticles } from './papeliz-help-articles-getting-started'
 import { papelizHelpPrivacyArticles } from './papeliz-help-articles-privacy'
 import { papelizHelpReferenceArticles } from './papeliz-help-articles-reference'
+import { papelizHelpSyncArticles } from './papeliz-help-articles-sync'
 import { papelizHelpWritingArticles } from './papeliz-help-articles-writing'
 import type { PapelizHelpArticle, PapelizHelpGroupSlug } from './papeliz-help-content-blocks'
 
@@ -29,6 +30,7 @@ const papelizHelpArticlesInCatalogOrder: readonly PapelizHelpArticle[] = [
   ...papelizHelpAssistantArticles,
   ...papelizHelpPrivacyArticles,
   ...papelizHelpReferenceArticles,
+  ...papelizHelpSyncArticles,
 ]
 
 // Every article, ordered by group, then as written within its group.

@@ -2,6 +2,7 @@ import type {
   PapelizSyncActionFailureKind,
   PapelizSyncActionOutcome,
   PapelizSyncBillingPeriod,
+  PapelizSyncOldVersionDeletionReading,
   PapelizSyncPlanName,
   PapelizSyncSignInMethod,
   PapelizSyncStatusReading,
@@ -131,11 +132,75 @@ export function describePapelizSyncFileCount(syncFileCount: number): string {
   return `${syncFileCount.toLocaleString('en-US')} ${syncFileCount === 1 ? 'file' : 'files'}`
 }
 
-// A plan card's one line: its storage, its synced vaults and Version History, which every plan has.
-// How long versions are kept, devices and file sizes are in the help guide, not on the card.
+// Free Up Space: which old versions to delete, by how long ago each was saved. The newest version of every
+// file always stays.
+export type PapelizSyncOldVersionAgeChoice = '30-days' | '90-days' | 'a-year' | 'all'
+
+export const papelizSyncOldVersionAgeChoices: ReadonlyArray<{
+  oldVersionAgeChoice: PapelizSyncOldVersionAgeChoice
+  oldVersionAgeChoiceLabel: string
+  syncOldVersionsOlderThanDayCount: number | null
+}> = [
+  { oldVersionAgeChoice: '30-days', oldVersionAgeChoiceLabel: 'Over 30 Days', syncOldVersionsOlderThanDayCount: 30 },
+  { oldVersionAgeChoice: '90-days', oldVersionAgeChoiceLabel: 'Over 90 Days', syncOldVersionsOlderThanDayCount: 90 },
+  { oldVersionAgeChoice: 'a-year', oldVersionAgeChoiceLabel: 'Over a Year', syncOldVersionsOlderThanDayCount: 365 },
+  { oldVersionAgeChoice: 'all', oldVersionAgeChoiceLabel: 'All', syncOldVersionsOlderThanDayCount: null },
+]
+
+// "1 old version", "260 old versions".
+export function describePapelizSyncOldVersionCount(syncOldVersionCount: number): string {
+  return `${syncOldVersionCount.toLocaleString('en-US')} old ${syncOldVersionCount === 1 ? 'version' : 'versions'}`
+}
+
+function describePapelizSyncOldVersionAge(syncOldVersionsOlderThanDayCount: number | null): string {
+  if (syncOldVersionsOlderThanDayCount === null) return ''
+  return syncOldVersionsOlderThanDayCount === 365 ? ' saved more than a year ago' : ` saved more than ${syncOldVersionsOlderThanDayCount} days ago`
+}
+
+// What Free Up Space would do, before it is confirmed. Contents a kept file or version still holds stay,
+// so deleting such a version frees nothing.
+export function describePapelizSyncOldVersionSpace(oldVersionSpace: PapelizSyncOldVersionDeletionReading, syncOldVersionsOlderThanDayCount: number | null): string {
+  const oldVersionAge = describePapelizSyncOldVersionAge(syncOldVersionsOlderThanDayCount)
+  if (oldVersionSpace.syncOldVersionCount === 0) return `There are no old versions${oldVersionAge} to delete.`
+  const deletedOldVersions = `${syncOldVersionsOlderThanDayCount === null ? 'all ' : ''}${describePapelizSyncOldVersionCount(oldVersionSpace.syncOldVersionCount)}${oldVersionAge}`
+  if (oldVersionSpace.syncFreedStoredByteLength === 0) return `Deletes ${deletedOldVersions}. Other files still hold the same contents, so this frees no storage.`
+  return `Deletes ${deletedOldVersions} and frees ${formatPapelizSyncByteSize(oldVersionSpace.syncFreedStoredByteLength)}.`
+}
+
+// What a delete of old versions did.
+export function describePapelizSyncOldVersionDeletion(oldVersionDeletion: PapelizSyncOldVersionDeletionReading): string {
+  if (oldVersionDeletion.syncOldVersionCount === 0) return 'There were no old versions to delete.'
+  const deletedOldVersions = describePapelizSyncOldVersionCount(oldVersionDeletion.syncOldVersionCount)
+  if (oldVersionDeletion.syncFreedStoredByteLength === 0) return `Deleted ${deletedOldVersions}. Other files still hold the same contents, so no storage was freed.`
+  return `Freed ${formatPapelizSyncByteSize(oldVersionDeletion.syncFreedStoredByteLength)}: ${deletedOldVersions} deleted.`
+}
+
+// A plan card's one line: its synced vaults ("5 Vaults", "1 Vault") and Version History, which every
+// plan has. Storage and the rest are in the plan's tooltip.
 export function describePapelizSyncPlanCardLine(syncVisiblePlanLimits: PapelizSyncVisiblePlanLimits): string {
-  const { syncStorageByteLimit, syncedVaultLimit } = syncVisiblePlanLimits
-  return `${formatPapelizSyncByteSize(syncStorageByteLimit)} · ${syncedVaultLimit.toLocaleString('en-US')} ${syncedVaultLimit === 1 ? 'vault' : 'vaults'} · Version History`
+  const { syncedVaultLimit } = syncVisiblePlanLimits
+  return `${syncedVaultLimit.toLocaleString('en-US')} ${syncedVaultLimit === 1 ? 'Vault' : 'Vaults'} · Version History`
+}
+
+// "7 days", "2 weeks", "1 month", "12 months", as the help guide words a plan's version history.
+function describePapelizSyncPlanHistoryLength(syncHistoryMonthCount: number, syncHistoryDayCount: number): string {
+  if (syncHistoryMonthCount > 0) return `${syncHistoryMonthCount} ${syncHistoryMonthCount === 1 ? 'month' : 'months'}`
+  if (syncHistoryDayCount > 7 && syncHistoryDayCount % 7 === 0) return `${syncHistoryDayCount / 7} weeks`
+  return `${syncHistoryDayCount} ${syncHistoryDayCount === 1 ? 'day' : 'days'}`
+}
+
+// A plan's tooltip, one point each: storage, synced vaults, devices, the largest file, and how long notes
+// and attachments keep their old versions, all from the plan's own limits.
+export function describePapelizSyncPlanDetailLines(syncVisiblePlanLimits: PapelizSyncVisiblePlanLimits): string[] {
+  const { syncStorageByteLimit, syncedVaultLimit, syncConnectedDeviceLimit, syncLargestFileByteLimit } = syncVisiblePlanLimits
+  return [
+    `${formatPapelizSyncByteSize(syncStorageByteLimit)} of storage.`,
+    `${syncedVaultLimit.toLocaleString('en-US')} synced ${syncedVaultLimit === 1 ? 'vault' : 'vaults'}.`,
+    `Up to ${syncConnectedDeviceLimit.toLocaleString('en-US')} ${syncConnectedDeviceLimit === 1 ? 'device' : 'devices'}.`,
+    `Files up to ${formatPapelizSyncByteSize(syncLargestFileByteLimit)} each.`,
+    `Notes keep ${describePapelizSyncPlanHistoryLength(syncVisiblePlanLimits.syncNoteHistoryMonthCount, syncVisiblePlanLimits.syncNoteHistoryDayCount)} of version history.`,
+    `Attachments keep ${describePapelizSyncPlanHistoryLength(0, syncVisiblePlanLimits.syncAttachmentHistoryDayCount)} of version history.`,
+  ]
 }
 
 // The engine's formatted price for a month, shown as it is: "$5 a month", "$4 a month, billed yearly".

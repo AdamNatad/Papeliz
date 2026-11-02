@@ -23,12 +23,14 @@ import {
 } from './papeliz-sync-engine-store'
 import {
   cancelPapelizSyncSignIn,
+  canPapelizSyncAccountSync,
   describePapelizSyncSignInFromClickFailure,
-  isPapelizSyncSubscriptionCurrent,
   startPapelizSyncSignInFromClick,
   startPapelizSyncSignInFromClickBeforeEngineLoads,
+  usePapelizSyncFlowStore,
   type PapelizSyncSignInFromClickOutcome,
 } from './papeliz-sync-flow-store'
+import { PapelizSyncSignInPageLinks } from './papeliz-sync-blocked-sign-in-links'
 import { usePapelizSyncClockTime } from './papeliz-sync-clock'
 import { usePapelizSyncSyncedVaultsPagePreviewStore, type PapelizSyncSyncedVaultsPageStep } from './papeliz-sync-synced-vaults-page-preview-store'
 import { PapelizSyncDetailPieces, PapelizSyncFailureLine, PapelizSyncLoadingLine, PapelizSyncTextButton } from './papeliz-sync-page-parts'
@@ -73,7 +75,7 @@ const papelizSyncSyncedVaultsPageStepsBeforeSignIn: ReadonlySet<PapelizSyncSynce
   'waiting-for-sign-in',
 ])
 
-function readSyncedVaultsPageStep(
+export function readPapelizSyncSyncedVaultsPageStep(
   isSyncedVaultFetchStarted: boolean,
   syncEngineLoadState: PapelizSyncEngineLoadState,
   syncEngineSnapshot: PapelizSyncEngineSnapshot | null,
@@ -87,9 +89,9 @@ function readSyncedVaultsPageStep(
   if (syncSignIn.syncSignInKind === 'signed-out') return 'signed-out'
   if (syncAccount === null) return 'reading-account'
   const syncSubscriptionState = syncAccount.syncSubscriptionState
-  // Read-only after a subscription ended still downloads.
+  // Read-only after a subscription ended still downloads; Free syncs with no subscription.
   if (syncSubscriptionState === 'ended-held') return 'subscription-held'
-  if (!isPapelizSyncSubscriptionCurrent(syncSubscriptionState) && syncSubscriptionState !== 'ended-read-only') return 'no-subscription'
+  if (!canPapelizSyncAccountSync(syncAccount) && syncSubscriptionState !== 'ended-read-only') return 'no-subscription'
   return 'synced-vault-list'
 }
 
@@ -107,6 +109,56 @@ function PapelizSyncSyncedVaultsPageCenteredStep({ SyncedVaultsPageStepIcon, syn
 
 function PapelizSyncSyncedVaultsPageStepText({ children }: { children: ReactNode }) {
   return <p className="max-w-[310px] text-[12.5px] leading-[1.5] text-papeliz-ink-muted">{children}</p>
+}
+
+type PapelizSyncSyncedVaultsSignInStepName = Extract<PapelizSyncSyncedVaultsPageStep, 'waiting-for-fetch' | 'signed-out' | 'device-removed' | 'waiting-for-sign-in'>
+
+// The steps before sign-in: Sign In in the middle, under the heading. While a sign-in waits on a tab the
+// browser blocked, its link and Copy Sign-In URL to Clipboard stand in for it.
+export function PapelizSyncSyncedVaultsSignInStep({
+  syncedVaultsSignInStep,
+  blockedSyncSignInPageUrl,
+  onSignInClick,
+}: {
+  syncedVaultsSignInStep: PapelizSyncSyncedVaultsSignInStepName
+  blockedSyncSignInPageUrl: string | null
+  onSignInClick: () => void
+}) {
+  if (syncedVaultsSignInStep === 'waiting-for-sign-in' && blockedSyncSignInPageUrl === null) {
+    return (
+      <PapelizSyncSyncedVaultsPageCenteredStep SyncedVaultsPageStepIcon={Cloud} syncedVaultsPageStepTitle="Finish signing in in the new tab">
+        <PapelizSyncSyncedVaultsPageStepText>Papeliz carries on here once you’re signed in.</PapelizSyncSyncedVaultsPageStepText>
+        <p className="mt-1 text-[12px] text-papeliz-ink-subtle">
+          Tab didn’t open? <PapelizSyncTextButton onClick={onSignInClick}>Open the Sign-In Page</PapelizSyncTextButton>
+        </p>
+      </PapelizSyncSyncedVaultsPageCenteredStep>
+    )
+  }
+  return (
+    <PapelizSyncSyncedVaultsPageCenteredStep
+      SyncedVaultsPageStepIcon={syncedVaultsSignInStep === 'waiting-for-fetch' ? CloudDownload : Cloud}
+      syncedVaultsPageStepTitle={syncedVaultsSignInStep === 'waiting-for-fetch' ? 'Synced Vaults' : 'Sign in to see your synced vaults'}
+    >
+      {syncedVaultsSignInStep === 'device-removed' && <PapelizSyncSyncedVaultsPageStepText>This device was signed out of Sync.</PapelizSyncSyncedVaultsPageStepText>}
+      {blockedSyncSignInPageUrl !== null ? (
+        <PapelizSyncSignInPageLinks syncSignInPageUrl={blockedSyncSignInPageUrl} className="mt-1" />
+      ) : (
+        <button
+          type="button"
+          onClick={onSignInClick}
+          className={joinPapelizClassNames(newVaultFormFooterButtonClassName, newVaultFormFooterActionButtonColorClassName, 'mt-2.5 min-w-[128px]')}
+        >
+          Sign In
+        </button>
+      )}
+    </PapelizSyncSyncedVaultsPageCenteredStep>
+  )
+}
+
+// Before sign-in the page has no footer (Esc and the sidebar leave it); afterwards Close sits at the
+// footer's left edge in every step.
+export function isPapelizSyncSyncedVaultsPageFooterShown(syncedVaultsPageStep: PapelizSyncSyncedVaultsPageStep): boolean {
+  return !['waiting-for-fetch', 'signed-out', 'device-removed', 'waiting-for-sign-in'].includes(syncedVaultsPageStep)
 }
 
 // The "…" button at the top right of the vault list: its tooltip says what it's for, and its menu
@@ -198,10 +250,12 @@ export function PapelizSyncSyncedVaultsPage({
   // dev fake engine) reads its vaults at once. Until then the page reads nothing.
   const [isSyncedVaultFetchStarted, setSyncedVaultFetchStarted] = useState(() => isPapelizSyncUsedOnThisDevice() || readPapelizSyncDevFakeEngineScenarioText() !== null)
   const syncedVaultsPageStep =
-    heldSyncedVaultsPagePreview?.previewSyncedVaultsPageStep ?? readSyncedVaultsPageStep(isSyncedVaultFetchStarted, syncEngineLoadState, syncEngineReading?.syncEngineSnapshot ?? null)
+    heldSyncedVaultsPagePreview?.previewSyncedVaultsPageStep ?? readPapelizSyncSyncedVaultsPageStep(isSyncedVaultFetchStarted, syncEngineLoadState, syncEngineReading?.syncEngineSnapshot ?? null)
 
   const syncClockTime = usePapelizSyncClockTime()
-  // Why the sign-in Fetch started didn't happen, when it didn't.
+  const liveBlockedSyncSignInPageUrl = usePapelizSyncFlowStore((syncFlowState) => syncFlowState.blockedSyncSignInPageUrl)
+  const blockedSyncSignInPageUrl = heldSyncedVaultsPagePreview === null ? liveBlockedSyncSignInPageUrl : null
+  // Why the sign-in the first step's Sign In started didn't happen, when it didn't.
   const [syncedVaultsPageSignInFailureWords, setSyncedVaultsPageSignInFailureWords] = useState<string | null>(null)
   const [syncedVaultsPageActionWords, setSyncedVaultsPageActionWords] = useState<string | null>(null)
   const [isSyncedVaultsPageActionRunning, setSyncedVaultsPageActionRunning] = useState(false)
@@ -304,10 +358,10 @@ export function PapelizSyncSyncedVaultsPage({
     )
   }
 
-  // Fetch, on a device not signed in here: the sign-in page opens in a new tab from this click (before
-  // the engine has loaded, a blank tab that goes there once it has, and closes if it finds this device
-  // signed in after all), then the engine loads and the account's vaults are read once the list shows.
-  // Only the click itself may open the tab.
+  // The first step's Sign In, on a device not signed in here: the sign-in page opens in a new tab from
+  // this click (before the engine has loaded, a blank tab that goes there once it has, and closes if it
+  // finds this device signed in after all), then the engine loads and the account's vaults are read once
+  // the list shows. Only the click itself may open the tab; a blocked one leaves a link to press.
   const fetchSyncedVaultsFromClick = () => {
     if (heldSyncedVaultsPagePreview !== null) return
     setSyncedVaultFetchStarted(true)
@@ -391,7 +445,7 @@ export function PapelizSyncSyncedVaultsPage({
   }
 
   // The page's heading line, body and footer action, for the step it's on.
-  let syncedVaultsPageSubtitle = 'Download a vault from your Papeliz Sync account.'
+  let syncedVaultsPageSubtitle = 'Download a vault from your Papeliz Sync Account.'
   let syncedVaultsPageBody: ReactNode = null
   // Its icon is the solid check for an action that confirms a choice (Sign in, Pick Folder, Download,
   // Unlock); Try again and See plans have their own.
@@ -399,18 +453,15 @@ export function PapelizSyncSyncedVaultsPage({
 
   switch (syncedVaultsPageStep) {
     case 'waiting-for-fetch':
+    case 'signed-out':
+    case 'device-removed':
+    case 'waiting-for-sign-in':
       syncedVaultsPageBody = (
-        <PapelizSyncSyncedVaultsPageCenteredStep SyncedVaultsPageStepIcon={CloudDownload} syncedVaultsPageStepTitle="Fetch your synced vaults">
-          <PapelizSyncSyncedVaultsPageStepText>Fetch opens the Sync sign-in page in a new tab, then reads your vaults.</PapelizSyncSyncedVaultsPageStepText>
-          <button
-            type="button"
-            onClick={fetchSyncedVaultsFromClick}
-            className={joinPapelizClassNames(newVaultFormFooterButtonClassName, newVaultFormFooterActionButtonColorClassName, 'mt-2.5 min-w-[128px]')}
-          >
-            <CloudDownload className="size-[15px] flex-none" aria-hidden="true" />
-            Fetch
-          </button>
-        </PapelizSyncSyncedVaultsPageCenteredStep>
+        <PapelizSyncSyncedVaultsSignInStep
+          syncedVaultsSignInStep={syncedVaultsPageStep}
+          blockedSyncSignInPageUrl={blockedSyncSignInPageUrl}
+          onSignInClick={syncedVaultsPageStep === 'waiting-for-fetch' ? fetchSyncedVaultsFromClick : signInFromClick}
+        />
       )
       break
     case 'loading-engine':
@@ -428,30 +479,6 @@ export function PapelizSyncSyncedVaultsPage({
           if (heldSyncedVaultsPagePreview === null) void loadPapelizSyncEngine()
         },
       }
-      break
-    case 'signed-out':
-    case 'device-removed':
-      syncedVaultsPageBody = (
-        <PapelizSyncSyncedVaultsPageCenteredStep SyncedVaultsPageStepIcon={Cloud} syncedVaultsPageStepTitle="Sign in to see your synced vaults">
-          <PapelizSyncSyncedVaultsPageStepText>
-            {syncedVaultsPageStep === 'device-removed' ? 'This device was signed out of Sync. ' : ''}The sign-in page opens in a new tab.
-          </PapelizSyncSyncedVaultsPageStepText>
-          <p className="mt-1 text-[12px] text-papeliz-ink-subtle">
-            No subscription? Sync is a paid add-on. <PapelizSyncTextButton onClick={requestPapelizSettingsGearSyncPage}>See Plans</PapelizSyncTextButton>
-          </p>
-        </PapelizSyncSyncedVaultsPageCenteredStep>
-      )
-      syncedVaultsPagePrimaryAction = { primaryActionLabel: 'Sign In', onPrimaryActionSelect: signInFromClick }
-      break
-    case 'waiting-for-sign-in':
-      syncedVaultsPageBody = (
-        <PapelizSyncSyncedVaultsPageCenteredStep SyncedVaultsPageStepIcon={Cloud} syncedVaultsPageStepTitle="Finish signing in in the new tab">
-          <PapelizSyncSyncedVaultsPageStepText>Papeliz carries on here once you’re signed in.</PapelizSyncSyncedVaultsPageStepText>
-          <p className="mt-1 text-[12px] text-papeliz-ink-subtle">
-            Tab didn’t open? <PapelizSyncTextButton onClick={signInFromClick}>Open the Sign-In Page</PapelizSyncTextButton>
-          </p>
-        </PapelizSyncSyncedVaultsPageCenteredStep>
-      )
       break
     case 'reading-account':
       syncedVaultsPageBody = <PapelizSyncLoadingLine>Reading your account…</PapelizSyncLoadingLine>
@@ -784,6 +811,7 @@ export function PapelizSyncSyncedVaultsPage({
   const isSyncedVaultsRefreshTurning = isSyncAccountRefreshRunning || syncedVaultsPageStep === 'reading-account' || (isSyncedVaultListShown && accountVaultsOutcome === null)
   // The sign-in the button started counts only while the page still waits on signing in.
   const isSignInStepShown = syncedVaultsPageStep === 'signed-out' || syncedVaultsPageStep === 'device-removed' || syncedVaultsPageStep === 'waiting-for-sign-in'
+  const isSyncedVaultsPageFooterShown = isPapelizSyncSyncedVaultsPageFooterShown(syncedVaultsPageStep)
   const shownSyncedVaultsPageFailureWords = syncedVaultsPageActionWords ?? (isSignInStepShown ? syncedVaultsPageSignInFailureWords : null)
   const chosenAccountVaultName = chosenAccountVault?.syncVaultName ?? 'This vault'
 
@@ -841,23 +869,25 @@ export function PapelizSyncSyncedVaultsPage({
         {shownSyncedVaultsPageFailureWords !== null && <PapelizSyncFailureLine className="mt-1 px-0.5">{shownSyncedVaultsPageFailureWords}</PapelizSyncFailureLine>}
       </div>
 
-      {/* Close at the left edge in every step, the action at the right, as in New Vault's form. */}
-      <div ref={syncedVaultsPageFooterRef} className="flex items-center justify-between gap-2 border-t border-papeliz-line p-3">
-        <button type="button" onClick={onSyncedVaultsPageClose} className={joinPapelizClassNames(newVaultFormFooterButtonClassName, newVaultFormFooterCancelButtonColorClassName)}>
-          Close
-        </button>
-        {syncedVaultsPagePrimaryAction !== null && (
-          <button
-            type="button"
-            disabled={syncedVaultsPagePrimaryAction.isPrimaryActionDisabled}
-            onClick={syncedVaultsPagePrimaryAction.onPrimaryActionSelect}
-            className={joinPapelizClassNames(newVaultFormFooterButtonClassName, newVaultFormFooterActionButtonColorClassName)}
-          >
-            {isSyncedVaultsPageActionRunning && <LoaderCircle className="size-[15px] flex-none animate-spin" aria-hidden="true" />}
-            {syncedVaultsPagePrimaryAction.primaryActionLabel}
+      {/* Once signed in, Close at the left edge, the action at the right, as in New Vault's form. */}
+      {isSyncedVaultsPageFooterShown && (
+        <div ref={syncedVaultsPageFooterRef} className="flex items-center justify-between gap-2 border-t border-papeliz-line p-3">
+          <button type="button" onClick={onSyncedVaultsPageClose} className={joinPapelizClassNames(newVaultFormFooterButtonClassName, newVaultFormFooterCancelButtonColorClassName)}>
+            Close
           </button>
-        )}
-      </div>
+          {syncedVaultsPagePrimaryAction !== null && (
+            <button
+              type="button"
+              disabled={syncedVaultsPagePrimaryAction.isPrimaryActionDisabled}
+              onClick={syncedVaultsPagePrimaryAction.onPrimaryActionSelect}
+              className={joinPapelizClassNames(newVaultFormFooterButtonClassName, newVaultFormFooterActionButtonColorClassName)}
+            >
+              {isSyncedVaultsPageActionRunning && <LoaderCircle className="size-[15px] flex-none animate-spin" aria-hidden="true" />}
+              {syncedVaultsPagePrimaryAction.primaryActionLabel}
+            </button>
+          )}
+        </div>
+      )}
 
       {isCopyOnlyWarningShown && (
         <PapelizConfirmDialog
