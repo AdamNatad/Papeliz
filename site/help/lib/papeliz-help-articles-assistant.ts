@@ -26,7 +26,7 @@ export const papelizHelpAssistantArticles: readonly PapelizHelpArticle[] = [
       ]),
       helpSection('Set it up', [
         helpNumberedSteps([
-          'Open the gear at the right end of the top bar and choose **AI Assistant**, or choose **Choose a Provider** in the Assistant panel. Both open the same page, with the tabs **Provider**, **Model** and **Price**.',
+          'Open the gear at the right end of the top bar and choose **AI Provider**, or choose **Choose a Provider** in the Assistant panel. Both open the same page, with the tabs **Provider**, **Model** and **Price**.',
           'On **Provider**, pick a provider, and its base URL fills in. See [[choose-a-provider]].',
           'Paste your API key. Servers running on your own computer usually don’t need one.',
           'On **Model**, choose **Load Models**, then pick a model from the provider’s list.',
@@ -44,7 +44,7 @@ export const papelizHelpAssistantArticles: readonly PapelizHelpArticle[] = [
         ),
       ]),
       helpSection('Change or remove a key', [
-        helpParagraph('Open the gear’s **AI Assistant** page again to switch provider or model. **Forget This Key** removes the key from this browser.'),
+        helpParagraph('Open the gear’s **AI Provider** page again to switch provider or model. **Forget This Key** removes the key from this browser.'),
       ]),
     ],
     relatedArticleSlugs: [papelizHelpProviderArticleSlug, 'where-your-key-goes', 'chat-with-the-assistant'],
@@ -104,7 +104,7 @@ export const papelizHelpAssistantArticles: readonly PapelizHelpArticle[] = [
     articleSections: [
       helpSection('The Assistant panel', [
         helpParagraph(
-          'The Assistant panel docks on the right, with three tabs: **Chat**, **Backlinks** and **Outline**. The **AI Assistant** button in the top bar, just left of the gear, opens and closes it.',
+          'The Assistant panel docks on the right, with three tabs: **Chat**, **Backlinks** and **Outline**. The **AI Assistant** button in the top bar, left of **Export** and the gear, opens and closes it.',
         ),
       ]),
       helpSection('Ask', [

@@ -292,7 +292,7 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
   {
     papelizHelpArticleSlug: 'settings-gear',
     articleTitle: 'The Settings gear',
-    articleSummary: 'Accessibility, key bindings, backups, export, locking, focus mode and closing the vault, in one panel.',
+    articleSummary: 'Accessibility, key bindings, backups, locking, focus mode and closing the vault in one panel, and Export beside it.',
     papelizHelpGroupSlug: 'getting-started',
     papelizHelpArticleAvailability: 'available',
     articleSections: [
@@ -307,15 +307,14 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
           '**Account**: coming soon.',
           '**Sync**: keep your vaults in sync across web, desktop and mobile, with end-to-end encryption for the vaults you choose. A paid add-on, coming soon.',
           '**Settings**: the tabs **Vault**, the open vault’s name (a vault kept in your browser renames here; a folder vault takes its folder’s name), and **Key Bindings**, the shortcuts you can change. See [[keyboard-shortcuts]]. In a vault kept in your browser, a third tab, **Reminder**, holds the backup reminder and **Download Backup**. See [[keep-a-vault-in-your-browser]].',
-          '**Export**: download notes as Word, PDF or HTML files. See **Export** below.',
           '**Accessibility**: the theme, how tabs show, how your notes’ text looks (font, size and width), and the **Lock All Notes** and **Focus Mode** switches. See [[text-settings-and-theme]], [[switch-views-and-lock]] and [[focus-mode|focus mode]].',
-          '**AI Assistant**: choose the provider and add your key. See [[bring-your-own-key]].',
+          '**AI Provider**: choose the provider and add your key. See [[bring-your-own-key]].',
           '**Close Vault**, at the bottom: back to the start page. See [[open-a-folder]].',
         ]),
       ]),
       helpSection('Export', [
         helpParagraph(
-          'Tick the notes you want. The open note comes ticked, and opening a folder lets you pick single notes inside it. Then pick a format and press **Export**. One note downloads as one file; several download as one `.zip`, folders kept.',
+          'Export has its own button on the top bar, between the AI Assistant and the gear. It opens a panel: tick the notes you want. The open note comes ticked, and opening a folder lets you pick single notes inside it. Then pick a format and press **Export**. One note downloads as one file; several download as one `.zip`, folders kept.',
         ),
         helpParagraph(
           'For Word and PDF, press the gear on the format’s row to choose the **Paper**: Letter, A4 and the other sizes Google Docs offers, or **Custom** for your own width and height, from 3 to 22 inches a side (76.2 to 558.8 mm). The row shows the paper you chose. Papeliz starts with your region’s paper and remembers the one you pick.',

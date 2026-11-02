@@ -1,4 +1,4 @@
-import { Accessibility, ChevronLeft, ChevronRight, FolderX, RefreshCw, Settings, Share, User, WandSparkles, type LucideIcon } from 'lucide-react'
+import { Accessibility, ChevronLeft, ChevronRight, FolderX, RefreshCw, Settings, User, WandSparkles, type LucideIcon } from 'lucide-react'
 import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { usePapelizAssistantPanelUiStore } from '../assistant/papeliz-assistant-panel-ui-store'
@@ -7,7 +7,6 @@ import { PapelizIconButton } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { usePapelizMediaQuery } from '../ui/papeliz-media-query'
 import { subscribeToPapelizWindowWidthChange } from '../ui/papeliz-window-width-change'
-import { PapelizSettingsGearExportPage } from './papeliz-settings-gear-export-page'
 import {
   PapelizSettingsGearAccessibilityPage,
   PapelizSettingsGearSettingsPage,
@@ -16,9 +15,9 @@ import {
 import { PapelizTopbarFrostedSquareButton } from './papeliz-topbar-frosted-square-button'
 import { usePapelizWorkspaceStore } from './papeliz-workspace-store'
 
-type PapelizSettingsGearPage = 'account' | 'sync' | 'settings' | 'export' | 'accessibility' | 'ai-assistant'
+type PapelizSettingsGearPage = 'account' | 'sync' | 'settings' | 'accessibility' | 'ai-assistant'
 
-// Settings › AI Assistant, loaded when it is opened, so the start page's gear carries none of it.
+// Settings › AI Provider, loaded when it is opened, so the start page's gear carries none of it.
 const PapelizAssistantProviderSettingsPage = lazy(() =>
   import('../assistant/papeliz-assistant-provider-settings-page').then((providerSettingsPageModule) => ({
     default: providerSettingsPageModule.PapelizAssistantProviderSettingsPage,
@@ -29,17 +28,16 @@ const papelizSettingsGearPageChoices: Record<PapelizSettingsGearPage, { settings
   account: { settingsGearPageLabel: 'Account', SettingsGearPageIcon: User },
   sync: { settingsGearPageLabel: 'Sync', SettingsGearPageIcon: RefreshCw },
   settings: { settingsGearPageLabel: 'Settings', SettingsGearPageIcon: Settings },
-  export: { settingsGearPageLabel: 'Export', SettingsGearPageIcon: Share },
   accessibility: { settingsGearPageLabel: 'Accessibility', SettingsGearPageIcon: Accessibility },
-  'ai-assistant': { settingsGearPageLabel: 'AI Assistant', SettingsGearPageIcon: WandSparkles },
+  'ai-assistant': { settingsGearPageLabel: 'AI Provider', SettingsGearPageIcon: WandSparkles },
 }
 
-// The list's groups, split by lines: Account | Sync, Settings, Export | Accessibility, AI Assistant
-// (then Close Vault in the workspace). The start page has no vault, so no Settings,
-// Export or AI Assistant, and its Accessibility has only the theme.
+// The list's groups, split by lines: Account | Sync, Settings | Accessibility, AI Provider (then Close
+// Vault in the workspace). Export has its own button on the top bar. The start page has no vault, so no
+// Settings or AI Provider, and its Accessibility has only the theme.
 const papelizSettingsGearWorkspacePageGroups: ReadonlyArray<ReadonlyArray<PapelizSettingsGearPage>> = [
   ['account'],
-  ['sync', 'settings', 'export'],
+  ['sync', 'settings'],
   ['accessibility', 'ai-assistant'],
 ]
 const papelizSettingsGearStartPagePageGroups: ReadonlyArray<ReadonlyArray<PapelizSettingsGearPage>> = [['account'], ['sync'], ['accessibility']]
@@ -114,7 +112,7 @@ export function PapelizSettingsGearButton({ settingsGearPlace }: PapelizSettings
 
   useEffect(() => {
     if (!isWorkspaceSettingsGear) return
-    // Opens on AI Assistant when the Assistant asks for its provider settings (Choose a Provider, the
+    // Opens on AI Provider when the Assistant asks for its provider settings (Choose a Provider, the
     // model chip, an error's link), and takes the request back.
     const openAssistantProviderSettingsPage = () => {
       const settingsGearButtonElement = settingsGearButtonRef.current
@@ -163,7 +161,6 @@ export function PapelizSettingsGearButton({ settingsGearPlace }: PapelizSettings
   const renderSettingsGearPage = (): ReactNode => {
     if (chosenSettingsGearPage === 'account' || chosenSettingsGearPage === 'sync') return <PapelizSettingsGearTeaserPage settingsGearTeaser={chosenSettingsGearPage} />
     if (chosenSettingsGearPage === 'settings') return <PapelizSettingsGearSettingsPage />
-    if (chosenSettingsGearPage === 'export') return <PapelizSettingsGearExportPage />
     if (chosenSettingsGearPage === 'ai-assistant') {
       return (
         <Suspense fallback={null}>

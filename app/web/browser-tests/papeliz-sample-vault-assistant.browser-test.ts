@@ -103,7 +103,7 @@ async function playTestProvider(
   return { testProviderChatRequests, refusedOutsideRequestUrls }
 }
 
-// Settings for a Custom provider at the test provider's address, on the Settings panel's AI Assistant
+// Settings for a Custom provider at the test provider's address, on the Settings panel's AI Provider
 // page, which the panel's set-up button opens: the provider, address and key on Provider, the model on
 // Model, then Save, and Esc closes the panel.
 async function setUpTestProvider(page: Page): Promise<void> {

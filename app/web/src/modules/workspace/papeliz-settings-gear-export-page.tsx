@@ -46,7 +46,7 @@ import {
 } from './papeliz-settings-gear-export-note-tree'
 import { usePapelizWorkspaceStore } from './papeliz-workspace-store'
 
-// The Settings gear's Export page (papeliz-settings-gear-button.tsx): tick notes in the vault's
+// The Export panel's page (papeliz-topbar-export-button.tsx, on the top bar): tick notes in the vault's
 // folder tree, pick a format row (its gear opens its settings in a dialog), press Export. One note
 // downloads as one file; several as one .zip, folders kept (a template is always a .zip). Each format's engine loads with `import()` only when
 // someone exports with it.

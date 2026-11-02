@@ -185,7 +185,7 @@ Three raised beds this year. See [[Reading list]] #garden
       ]),
       helpSection('The assistant can’t connect', [
         helpParagraph(
-          'Choose **Test Connection** on the gear’s **AI Assistant** page, and check the key, the base URL and the model. A provider that doesn’t accept calls from a web page can’t be used from Papeliz, and servers on your own computer need to allow Papeliz’s address. See [[choose-a-provider]].',
+          'Choose **Test Connection** on the gear’s **AI Provider** page, and check the key, the base URL and the model. A provider that doesn’t accept calls from a web page can’t be used from Papeliz, and servers on your own computer need to allow Papeliz’s address. See [[choose-a-provider]].',
         ),
       ]),
     ],

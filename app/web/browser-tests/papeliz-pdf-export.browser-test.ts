@@ -27,8 +27,8 @@ async function prepareExportPage(page: Page): Promise<void> {
 }
 
 async function openExportPageWithPdf(page: Page): Promise<void> {
-  await page.getByRole('button', { name: 'Settings', exact: true }).first().click()
-  await page.getByRole('navigation', { name: 'Settings' }).getByRole('button', { name: 'Export' }).click()
+  // Export has its own button on the top bar, beside Settings.
+  await page.getByRole('banner').getByRole('button', { name: 'Export', exact: true }).click()
   await page.getByRole('radio', { name: 'PDF' }).click()
 }
 

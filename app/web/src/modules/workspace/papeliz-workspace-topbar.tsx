@@ -4,6 +4,7 @@ import { PapelizFileListToggleIcon } from '../ui/papeliz-file-list-toggle-icon'
 import { PapelizMark } from '../ui/papeliz-mark'
 import { usePapelizKeyBindingShortcutLabel } from './papeliz-key-bindings-store'
 import { PapelizSettingsGearButton } from './papeliz-settings-gear-button'
+import { PapelizTopbarExportButton } from './papeliz-topbar-export-button'
 import { PapelizTopbarFrostedSquareButton } from './papeliz-topbar-frosted-square-button'
 import { selectIsVaultTextFileTabInFront, selectShownNoteViewMode, usePapelizWorkspaceStore, type PapelizNoteViewMode } from './papeliz-workspace-store'
 
@@ -52,8 +53,8 @@ function PapelizNoteViewSwitch() {
 }
 
 // The blue bar across the top of the workspace: the file list toggle, Papeliz and the vault's name
-// on the left, the view switch in the middle, the Assistant panel and then the Settings gear on the
-// right (in focus mode Exit focus takes the Assistant's place; the gear stays at the edge). The mark
+// on the left, the view switch in the middle, and on the right the Assistant panel, Export and the
+// Settings gear (in focus mode Exit focus takes the Assistant's place; the gear stays at the edge). The mark
 // and Papeliz are only a name: pressing them does nothing (the gear's Close Vault closes the vault).
 // Its two sides share the leftover width equally, so the switch stays centered in the window. Below md the left side never gets narrower than the
 // toggle, the mark and the name, so on the narrowest phones the switch sits a few pixels right of
@@ -110,6 +111,7 @@ export function PapelizWorkspaceTopbar() {
             <WandSparkles className="size-[17px]" aria-hidden="true" />
           </PapelizTopbarFrostedSquareButton>
         )}
+        <PapelizTopbarExportButton />
         <PapelizSettingsGearButton settingsGearPlace="workspace" />
       </div>
     </header>
