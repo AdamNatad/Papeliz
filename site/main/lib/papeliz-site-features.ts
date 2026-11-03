@@ -142,7 +142,7 @@ export const papelizSiteFeatureGroups: PapelizSiteFeatureGroup[] = [
       { papelizSiteFeaturePointTitle: 'Inline edits', papelizSiteFeaturePointBody: 'Select text for Shorter, Rewrite, Fix Grammar or Translate, right where you are writing.' },
       {
         papelizSiteFeaturePointTitle: 'Pictures and speech',
-        papelizSiteFeaturePointBody: 'With your provider’s image and speech models, Imagine makes a picture and Transcribe turns speech into text, in the chat or in your note, and Describe Picture and Edit Picture work on a note’s pictures. Remove C2PA cleans a picture before it’s saved.',
+        papelizSiteFeaturePointBody: 'With your provider’s image and speech models, Imagine makes a picture and Transcribe turns speech into text, in the chat or in your note, and Describe Picture and Edit Picture work on a note’s pictures. Remove Metadata cleans a picture before it’s saved.',
       },
       { papelizSiteFeaturePointTitle: 'Files and pictures', papelizSiteFeaturePointBody: 'Add files and pictures to a message. A picture from another site in an answer loads only when you press Show.' },
       { papelizSiteFeaturePointTitle: 'Sessions and Usage', papelizSiteFeaturePointBody: 'Every chat is saved in the vault as a note. Usage shows the tokens and cost of each model.' },
