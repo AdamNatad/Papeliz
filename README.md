@@ -35,6 +35,42 @@ Available on the web, Windows, macOS, Linux, Android, iOS and HarmonyOS.
 **Try it now at [papeliz.com/app](https://papeliz.com/app/).** Open a folder of notes, keep a vault
 in your browser, or start with the sample vault. Nothing to install, no sign-up.
 
+<p align="center">
+  <img src="docs/images/papeliz-workspace-assistant-imagine.png" alt="The Papeliz workspace: the sample vault's notes, a note in MD View, and the AI Assistant open on Imagine." width="100%" />
+</p>
+
+<!-- DEMO VIDEO LINK: replace "coming soon" below with the link to the 3-minute video once it is up. -->
+**Demo video (3 minutes):** coming soon.
+
+## How Papeliz uses Meta's models
+
+Papeliz is built around the Meta Model API. Every request goes from your browser, or from Papeliz for
+Windows, straight to `https://api.meta.ai/v1` with your own key. Papeliz has no server in between.
+
+| Meta model | What it does in Papeliz | Endpoint |
+| --- | --- | --- |
+| `muse-spark-1.3` | The assistant's Ask, Plan and Write across your whole vault; Rewrite, Shorter, Fix Grammar and Translate on a selection; talking a picture over in Imagine's Ask; writing up a transcript | `POST /v1/chat/completions`, streamed |
+| `muse-spark-1.3` (vision) | Describe Picture: alt text for a picture in a note | `POST /v1/chat/completions`, with the picture as `image_url` |
+| `muse-voice-transcribe-1.0` | The one-press mic in every assistant box, and Transcribe for recordings and audio files, with speaker labels | `POST /v1/asr/transcribe` |
+| `muse-image-1.0` | Imagine's Draw, in the shape you pick; Imagine from a selection in a note | `POST /v1/images/generations` |
+| `muse-image-1.0` | Edit Picture: changes a picture in a note as you ask | `POST /v1/images/edits` |
+
+The models work together. Transcribe sends the audio to Muse Voice Transcribe, which labels who spoke,
+then Muse Spark writes it up. A picture Muse Image draws can be changed by Muse Image and described by
+Muse Spark's vision. Whatever a model writes into a note arrives as a diff you accept or reject.
+
+Where the integration lives:
+
+- [`papeliz-assistant-provider-presets.ts`](app/web/src/modules/assistant/papeliz-assistant-provider-presets.ts):
+  the Meta Model API preset, first in the list, with the Muse Spark models.
+- [`papeliz-assistant-media-provider-presets.ts`](app/web/src/modules/assistant/papeliz-assistant-media-provider-presets.ts):
+  Muse Image's shapes, and Muse Voice Transcribe's audio: 16-bit mono WAV, sent in pieces of under
+  10 minutes.
+- [`papeliz-assistant-image-and-audio-client.ts`](app/web/src/modules/assistant/papeliz-assistant-image-and-audio-client.ts):
+  the calls to `/images/generations`, `/images/edits` and `/asr/transcribe`.
+- [`papeliz-openai-compatible-client.ts`](app/web/src/modules/assistant/papeliz-openai-compatible-client.ts):
+  the streamed calls to `/chat/completions`.
+
 ## Why Papeliz
 
 - **Your files stay yours.** Notes are plain `.md` files in a folder on your disk, or in a vault
@@ -55,6 +91,8 @@ in your browser, or start with the sample vault. Nothing to install, no sign-up.
   the rendered note you can still type in.
 - **Tables and diagrams:** Markdown tables and every Mermaid diagram type (flowcharts, sequence
   diagrams, charts and more) are drawn in MD View, in light and dark. Click one to edit its source.
+- **Pictures and video:** pictures from your vault or the web, `.mp4` and `.webm` videos, and
+  YouTube links that load nothing until you press play.
 - **Linked notes:** wikilinks (`[[note]]`), backlinks, an outline and full-text search.
 - **A file list you can make your own:** colors and icons for any note or folder.
 - **Focus mode** (`Ctrl+Shift+F`): only your note and a floating prompt box.
@@ -80,6 +118,10 @@ in your browser, or start with the sample vault. Nothing to install, no sign-up.
   then Next.
 - **Steer it while it answers,** or queue your next message, and choose how much effort it spends.
 - **Add files and pictures** to the chat.
+- **Speak instead of typing:** a one-press mic in every assistant box, and Transcribe for recordings
+  and audio files, written up into your note.
+- **Imagine:** talk a picture over, draw it in the shape you pick, keep every picture in a gallery,
+  and put one in a note. Edit Picture changes a picture, and Describe Picture writes its alt text.
 - **Edits stay in your hands:** proposals arrive as diffs, inline edits change a selection in
   place, and deleted notes go to the vault's `.trash/` folder. Your saved chats are never touched.
 - **Usage and cost:** tokens and cost for each model you use.
@@ -107,6 +149,8 @@ the preset selected out of the box.
 | --- | --- |
 | Base URL | `https://api.meta.ai/v1` |
 | Model | `muse-spark-1.3` (also `muse-spark-1.1`) |
+| Pictures | `muse-image-1.0` |
+| Speech to text | `muse-voice-transcribe-1.0` |
 | API key | From the [Model API dashboard](https://dev.meta.ai/) → API keys → Create API key |
 | Docs | [Meta Model API quickstart](https://dev.meta.ai/docs/quickstart) |
 
@@ -158,11 +202,14 @@ provider is subject to that provider's own terms and pricing.
 - [x] Export as HTML: one note as a page, or several as a website
 - [x] MD Code with autosave, and MD View, behind one switch
 - [x] Tables and Mermaid diagrams in MD View
+- [x] Pictures and video in MD View
 - [x] Wikilinks (`[[note]]`), backlinks, outline and full-text search
 - [x] Bring-your-own-key settings: Muse Spark preset first, then any OpenAI-compatible provider
 - [x] Assistant chat in Ask, Plan and Write modes, citing your notes as links
 - [x] Proposed edits as diffs; inline edits on a selection
 - [x] Link and tag suggestions across notes
+- [x] Imagine, Edit Picture and Describe Picture with Muse Image and Muse Spark
+- [x] The one-press mic and Transcribe with Muse Voice Transcribe
 - [x] The same note in several tabs or apps, merged safely
 - [x] Focus mode
 - [x] Web, Windows, macOS, Linux, Android, iOS and HarmonyOS
