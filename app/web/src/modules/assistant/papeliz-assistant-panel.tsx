@@ -1,12 +1,11 @@
 import { ArrowLeft, ChartNoAxesColumn, History, ImagePlus, ListChecks, MessageCircleQuestion, PenLine, SquarePen, WandSparkles, X } from 'lucide-react'
-import { PapelizIconButton, PapelizPillButton } from '../ui/papeliz-buttons'
+import { PapelizIconButton } from '../ui/papeliz-buttons'
 import { PapelizSlidingChoiceGroup } from '../ui/papeliz-sliding-choice-group'
 import { PapelizAssistantChatView } from './papeliz-assistant-chat-view'
 import { PapelizAssistantComposer } from './papeliz-assistant-composer'
 import { usePapelizAssistantConversationStore } from './papeliz-assistant-conversation-store'
 import { PapelizAssistantImagineView } from './papeliz-assistant-imagine-view'
 import { usePapelizAssistantPanelUiStore, type PapelizAssistantPanelTab } from './papeliz-assistant-panel-ui-store'
-import { getActivePapelizAssistantProviderConnection, usePapelizAssistantProviderSettingsStore } from './papeliz-assistant-provider-settings-store'
 import { usePapelizAssistantRunOptionsStore, type PapelizAssistantMode } from './papeliz-assistant-run-options-store'
 import { PapelizAssistantSessionsView } from './papeliz-assistant-sessions-view'
 import { PapelizAssistantUsageView } from './papeliz-assistant-usage-view'
@@ -48,22 +47,15 @@ function describeAssistantModeHint(assistantMode: PapelizAssistantMode, isBypass
 // clean and save), Sessions (every chat saved in this vault) and Usage (the tokens and cost the
 // assistant used here) open from the header, in place of the chat. The
 // open note's Outline and Backlinks are under the file list, as This note. The key button opens the
-// provider settings. Until a provider is set up there is nothing to type into: the chat shows the
-// setup card.
+// provider settings. Until a provider is set up, the chat shows the setup card and the box under it
+// offers to choose one.
 export function PapelizAssistantPanel({ onAssistantPanelClose }: PapelizAssistantPanelProps) {
   const assistantPanelTab = usePapelizAssistantPanelUiStore((panelUiState) => panelUiState.assistantPanelTab)
   const setAssistantPanelTab = usePapelizAssistantPanelUiStore((panelUiState) => panelUiState.setAssistantPanelTab)
-  const requestAssistantProviderSettingsPage = usePapelizAssistantPanelUiStore((panelUiState) => panelUiState.requestAssistantProviderSettingsPage)
   const startNewAssistantChat = usePapelizAssistantConversationStore((conversationState) => conversationState.startNewAssistantChat)
-  const hasAssistantChatEntries = usePapelizAssistantConversationStore((conversationState) => conversationState.chatEntries.length > 0)
   const assistantMode = usePapelizAssistantRunOptionsStore((runOptionsState) => runOptionsState.assistantMode)
   const setAssistantMode = usePapelizAssistantRunOptionsStore((runOptionsState) => runOptionsState.setAssistantMode)
   const isBypassPermissionOn = usePapelizAssistantRunOptionsStore((runOptionsState) => runOptionsState.assistantChangePermission === 'bypass-permission')
-  // Read again whenever the provider, the model or their settings change.
-  usePapelizAssistantProviderSettingsStore((settingsState) => settingsState.activeAssistantProviderId)
-  usePapelizAssistantProviderSettingsStore((settingsState) => settingsState.activeAssistantProviderModelName)
-  usePapelizAssistantProviderSettingsStore((settingsState) => settingsState.providerSettingsByProviderId)
-  const isAssistantProviderReady = getActivePapelizAssistantProviderConnection().providerConnectionOutcome === 'ready'
 
   // Imagine, Sessions and Usage open in place of the chat; pressed again, they go back to it.
   const toggleAssistantPanelView = (assistantPanelView: Exclude<PapelizAssistantPanelTab, 'chat'>) =>
@@ -170,22 +162,10 @@ export function PapelizAssistantPanel({ onAssistantPanelClose }: PapelizAssistan
       {assistantPanelTab === 'chat' && (
         <>
           <PapelizAssistantChatView />
-          {isAssistantProviderReady ? (
-            <div className="flex-none px-3.5 pb-2">
-              <PapelizAssistantComposer composerPlacement="panel" />
-            </div>
-          ) : (
-            // An earlier chat can still be read; the setup card is above it only when the chat is
-            // empty, so the way to set up is here instead of a box to type in.
-            hasAssistantChatEntries && (
-              <div className="flex flex-none items-center gap-3 px-[18px] pb-2.5 text-[13px] text-papeliz-ink-muted">
-                <span className="min-w-0 flex-1">Set up a provider to keep chatting.</span>
-                <PapelizPillButton pillButtonVariant="primary" pillButtonSize="small" onClick={() => requestAssistantProviderSettingsPage()}>
-                  Choose a Provider
-                </PapelizPillButton>
-              </div>
-            )
-          )}
+          {/* Before a provider is set up the box carries the way to set one up (and an earlier chat can still be read). */}
+          <div className="flex-none px-3.5 pb-2">
+            <PapelizAssistantComposer composerPlacement="panel" />
+          </div>
         </>
       )}
       {assistantPanelTab === 'imagine' && <PapelizAssistantImagineView />}

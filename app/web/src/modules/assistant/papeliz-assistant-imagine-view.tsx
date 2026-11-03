@@ -1,9 +1,10 @@
-import { FileInput, ImagePlus, Save, Sparkles, Square, Trash2 } from 'lucide-react'
+import { FileAudio, FileInput, ImagePlus, ImageUp, Plus, Save, Sparkles, Square, Trash2 } from 'lucide-react'
 import { useEffect, useId, useRef, useState, type DragEvent } from 'react'
 import { isPapelizDesktopApp } from 'virtual:papeliz-desktop-platform-availability'
 import { PapelizIconButton, PapelizPillButton } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { PapelizListboxSelect } from '../ui/papeliz-listbox-select'
+import { PapelizPopoverMenu, type PapelizPopoverMenuPosition } from '../ui/papeliz-popover-menu'
 import { getVaultEntryName } from '../vault/papeliz-vault-relative-paths'
 import { selectActiveVaultMarkdownNoteRelativePath, usePapelizWorkspaceStore } from '../workspace/papeliz-workspace-store'
 import { describePapelizRemovedImageMetadata, hasPapelizContentCredentials } from './papeliz-assistant-image-metadata-strip'
@@ -18,6 +19,17 @@ import {
   usePapelizChosenAssistantMediaModel,
 } from './papeliz-assistant-media-parts'
 import { findPapelizAssistantImageGenerationPreset } from './papeliz-assistant-media-provider-presets'
+import {
+  PapelizOnePressMicAudioFileInput,
+  PapelizOnePressMicButton,
+  PapelizOnePressMicProblemLine,
+  PapelizOnePressMicRecorderRow,
+  handlePapelizOnePressMicKey,
+  useIsPapelizOnePressMicBusy,
+  usePapelizOnePressMic,
+} from './papeliz-assistant-one-press-mic'
+import { joinPapelizTranscribedWordsToText } from './papeliz-assistant-one-press-mic-controller'
+import { usePapelizAssistantPanelUiStore } from './papeliz-assistant-panel-ui-store'
 
 // What a picture carries, and what Remove C2PA does with it, in one line under the picture.
 function describeImaginePictureMetadataLine(imaginePicture: PapelizImaginePicture): string {
@@ -125,7 +137,9 @@ export function PapelizImaginePictureCard({ imaginePicture }: { imaginePicture: 
 }
 
 // Imagine, in place of the chat: a prompt, the image model and size, Generate, and the pictures in a
-// grid, with a place to bring in a picture of one's own.
+// grid, with a place to bring in a picture of one's own. The prompt box has its own + (bring in a
+// picture, or transcribe an audio file into the prompt) and the one-press mic, which fills the prompt;
+// nothing is made until Generate.
 export function PapelizAssistantImagineView() {
   const { offeredMediaModels, chosenMediaModel, mediaCapableSavedProviderIds } = usePapelizChosenAssistantMediaModel('image-generation')
   const imaginePromptText = usePapelizImagineStore((imagineState) => imagineState.imaginePromptText)
@@ -147,6 +161,22 @@ export function PapelizAssistantImagineView() {
   const [isPictureDragOver, setIsPictureDragOver] = useState(false)
   const pictureFileInputRef = useRef<HTMLInputElement>(null)
   const imagineFieldId = useId()
+  const promptTextAreaRef = useRef<HTMLTextAreaElement>(null)
+  const imagineAudioFileInputRef = useRef<HTMLInputElement>(null)
+  const [promptAddMenuPosition, setPromptAddMenuPosition] = useState<PapelizPopoverMenuPosition | null>(null)
+  const requestAssistantProviderSettingsPage = usePapelizAssistantPanelUiStore((panelUiState) => panelUiState.requestAssistantProviderSettingsPage)
+  // The spoken words join the prompt, and the prompt takes focus with the caret after them.
+  const imagineOnePressMicStore = usePapelizOnePressMic((transcribedWords) => {
+    const { imaginePromptText: typedPromptText, setImaginePromptText: setTypedPromptText } = usePapelizImagineStore.getState()
+    setTypedPromptText(joinPapelizTranscribedWordsToText(typedPromptText, transcribedWords))
+    requestAnimationFrame(() => {
+      const promptTextArea = promptTextAreaRef.current
+      if (promptTextArea === null) return
+      promptTextArea.focus()
+      promptTextArea.setSelectionRange(promptTextArea.value.length, promptTextArea.value.length)
+    })
+  })
+  const isImagineMicBusy = useIsPapelizOnePressMicBusy(imagineOnePressMicStore)
   const insertionCardRef = useRef<HTMLDivElement>(null)
 
   const imageGenerationPreset = chosenMediaModel === null ? null : findPapelizAssistantImageGenerationPreset(chosenMediaModel.papelizAssistantProviderId)
@@ -200,19 +230,77 @@ export function PapelizAssistantImagineView() {
             <label htmlFor={`${imagineFieldId}-prompt`} className="text-[12.5px] font-semibold">
               Prompt
             </label>
-            <textarea
-              id={`${imagineFieldId}-prompt`}
-              className="min-h-[84px] resize-y rounded-2xl border border-papeliz-line-strong bg-papeliz-surface px-3 py-2 text-[13.5px] leading-relaxed outline-none focus-visible:border-papeliz-blue"
-              placeholder="Describe the picture: what’s in it, the style, the light…"
-              value={imaginePromptText}
-              disabled={isGenerating}
-              onChange={(promptChangeEvent) => setImaginePromptText(promptChangeEvent.target.value)}
-              onKeyDown={(promptKeyEvent) => {
-                if (promptKeyEvent.key === 'Enter' && (promptKeyEvent.ctrlKey || promptKeyEvent.metaKey) && canGenerate) {
-                  promptKeyEvent.preventDefault()
-                  void generateImaginePictures(chosenMediaModel)
-                }
-              }}
+            {/* One box: the prompt, then + and the mic. While the mic records, Enter finishes and Esc throws it away. */}
+            <div
+              onKeyDown={(promptBoxKeyEvent) => void handlePapelizOnePressMicKey(promptBoxKeyEvent, imagineOnePressMicStore)}
+              className={joinPapelizClassNames(
+                'rounded-2xl border border-papeliz-line-strong bg-papeliz-surface pt-2 pr-1.5 pb-1.5 pl-3 transition-colors focus-within:border-papeliz-blue',
+                isImagineMicBusy && 'border-papeliz-blue',
+              )}
+            >
+              <textarea
+                ref={promptTextAreaRef}
+                id={`${imagineFieldId}-prompt`}
+                className="block min-h-[56px] w-full resize-y bg-transparent text-[13.5px] leading-relaxed outline-none placeholder:text-papeliz-ink-subtle"
+                placeholder="Describe the picture: what’s in it, the style, the light…"
+                value={imaginePromptText}
+                disabled={isGenerating}
+                readOnly={isImagineMicBusy}
+                onChange={(promptChangeEvent) => setImaginePromptText(promptChangeEvent.target.value)}
+                onKeyDown={(promptKeyEvent) => {
+                  if (isImagineMicBusy) return
+                  if (promptKeyEvent.key === 'Enter' && (promptKeyEvent.ctrlKey || promptKeyEvent.metaKey) && canGenerate) {
+                    promptKeyEvent.preventDefault()
+                    void generateImaginePictures(chosenMediaModel)
+                  }
+                }}
+              />
+              <div className="mt-1 flex min-w-0 items-center gap-0.5">
+                {isImagineMicBusy ? (
+                  <PapelizOnePressMicRecorderRow onePressMicStore={imagineOnePressMicStore} />
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      aria-label="Add"
+                      aria-haspopup="menu"
+                      aria-expanded={promptAddMenuPosition !== null}
+                      title="Bring in a picture, or transcribe an audio file into the prompt"
+                      disabled={isGenerating}
+                      onClick={(clickEvent) => {
+                        const addButtonRect = clickEvent.currentTarget.getBoundingClientRect()
+                        setPromptAddMenuPosition({ menuAnchorLeft: addButtonRect.left, menuAnchorTop: addButtonRect.bottom + 4 })
+                      }}
+                      className="grid size-7 flex-none place-items-center rounded-full border border-papeliz-line text-papeliz-ink-muted transition-colors hover:bg-papeliz-hover hover:text-papeliz-ink disabled:opacity-40 aria-expanded:bg-papeliz-hover pointer-coarse:size-10"
+                    >
+                      <Plus className="size-4" aria-hidden="true" />
+                    </button>
+                    <span className="min-w-1 flex-1" />
+                    <PapelizOnePressMicButton onePressMicStore={imagineOnePressMicStore} isMicDisabled={isGenerating} />
+                  </>
+                )}
+              </div>
+            </div>
+            {promptAddMenuPosition !== null && (
+              <PapelizPopoverMenu
+                menuLabel="Add"
+                menuPosition={promptAddMenuPosition}
+                onMenuClose={() => setPromptAddMenuPosition(null)}
+                menuItems={[
+                  { menuItemKey: 'picture', menuItemLabel: 'Bring In a Picture', MenuItemIcon: ImageUp, onMenuItemSelect: () => pictureFileInputRef.current?.click() },
+                  { menuItemKey: 'audio-file', menuItemLabel: 'Transcribe an Audio File', MenuItemIcon: FileAudio, onMenuItemSelect: () => imagineAudioFileInputRef.current?.click() },
+                ]}
+              />
+            )}
+            <PapelizOnePressMicAudioFileInput
+              onePressMicStore={imagineOnePressMicStore}
+              audioFileInputRef={imagineAudioFileInputRef}
+              audioFileInputLabel="Transcribe an audio file into the prompt"
+            />
+            <PapelizOnePressMicProblemLine
+              onePressMicStore={imagineOnePressMicStore}
+              onBringAudioFile={() => imagineAudioFileInputRef.current?.click()}
+              onChooseProvider={() => requestAssistantProviderSettingsPage()}
             />
           </div>
           <div className="flex flex-wrap items-end gap-2">

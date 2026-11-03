@@ -1,4 +1,4 @@
-import { ArrowUp, Check, ImagePlus, Languages, Lock, MessageSquare, Mic, Paintbrush, Pencil, RotateCw, ScanEye, SpellCheck, TextQuote } from 'lucide-react'
+import { ArrowUp, AudioLines, Check, ImagePlus, Languages, Lock, MessageSquare, Paintbrush, Pencil, RotateCw, ScanEye, SpellCheck, TextQuote } from 'lucide-react'
 import { useEffect, useMemo, useRef, type KeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { PapelizPillButton } from '../ui/papeliz-buttons'
@@ -10,6 +10,16 @@ import { usePapelizInlineEditStore } from './papeliz-assistant-inline-edit-store
 import { PapelizAssistantInlineMediaCardBody } from './papeliz-assistant-inline-media-card-body'
 import { usePapelizInlineMediaStore } from './papeliz-assistant-inline-media-store'
 import { findPapelizNotePictureLinkAround } from './papeliz-assistant-note-picture-links'
+import {
+  PapelizOnePressMicAudioFileInput,
+  PapelizOnePressMicButton,
+  PapelizOnePressMicProblemLine,
+  PapelizOnePressMicRecorderRow,
+  handlePapelizOnePressMicKey,
+  useIsPapelizOnePressMicBusy,
+  usePapelizOnePressMic,
+} from './papeliz-assistant-one-press-mic'
+import { joinPapelizTranscribedWordsToText } from './papeliz-assistant-one-press-mic-controller'
 import { usePapelizAssistantPanelUiStore } from './papeliz-assistant-panel-ui-store'
 import { PapelizTextDiffView } from './papeliz-assistant-proposal-card'
 import { diffPapelizTextByWords } from './papeliz-assistant-text-diff'
@@ -27,7 +37,8 @@ interface PapelizAssistantInlineEditCardProps {
 }
 
 // The edit box under a selected passage: an instruction or a quick action, then the change shown
-// in place as a diff with Accept, Reject and Try Again. Drawn into the editor's block widget. Imagine
+// in place as a diff with Accept, Reject and Try Again. Drawn into the editor's block widget. The mic
+// beside Run speaks the instruction (one press, as in the chat box); Run, or Enter, runs it. Imagine
 // and Transcribe, beside the quick actions (and on the note's right-click menu), turn the card into
 // their own (papeliz-assistant-inline-media-card-body.tsx), which ends in a change shown the same way.
 export function PapelizAssistantInlineEditCard({ inlineEditHostElement, vaultNoteRelativePath }: PapelizAssistantInlineEditCardProps) {
@@ -49,6 +60,15 @@ export function PapelizAssistantInlineEditCard({ inlineEditHostElement, vaultNot
   const inlineMediaAction = usePapelizInlineMediaStore((inlineMediaState) => inlineMediaState.inlineMediaAction)
   const startInlineMediaAction = usePapelizInlineMediaStore((inlineMediaState) => inlineMediaState.startInlineMediaAction)
   const acceptInlineMedia = usePapelizInlineMediaStore((inlineMediaState) => inlineMediaState.acceptInlineMedia)
+  const requestAssistantProviderSettingsPage = usePapelizAssistantPanelUiStore((panelUiState) => panelUiState.requestAssistantProviderSettingsPage)
+  const inlineEditAudioFileInputRef = useRef<HTMLInputElement>(null)
+  // The spoken words join the instruction; nothing runs until Run.
+  const inlineEditOnePressMicStore = usePapelizOnePressMic((transcribedWords) => {
+    const { inlineEditInstruction: typedInstruction, setInlineEditInstruction: setTypedInstruction } = usePapelizInlineEditStore.getState()
+    setTypedInstruction(joinPapelizTranscribedWordsToText(typedInstruction, transcribedWords))
+    requestAnimationFrame(() => inlineEditInstructionInputRef.current?.focus())
+  })
+  const isInlineEditMicBusy = useIsPapelizOnePressMicBusy(inlineEditOnePressMicStore)
 
   const inlineEditEditorView = usePapelizInlineEditStore((inlineEditState) => inlineEditState.inlineEditEditorView)
   // A picture in the passage, or one the passage is part of (Describe Picture and Edit Picture then
@@ -81,6 +101,8 @@ export function PapelizAssistantInlineEditCard({ inlineEditHostElement, vaultNot
   }
 
   const handleInlineEditKeys = (keyboardEvent: KeyboardEvent<HTMLDivElement>) => {
+    // While the mic records, Enter finishes and Esc throws the recording away instead of closing the card.
+    if (handlePapelizOnePressMicKey(keyboardEvent, inlineEditOnePressMicStore)) return
     if (keyboardEvent.key === 'Escape') {
       keyboardEvent.preventDefault()
       keyboardEvent.stopPropagation()
@@ -93,6 +115,19 @@ export function PapelizAssistantInlineEditCard({ inlineEditHostElement, vaultNot
       acceptInlineEdit()
     }
   }
+
+  // Run, also drawn (held) beside the recorder, so ✓ lands on the mic's own spot.
+  const inlineEditRunButton = (
+    <button
+      type="submit"
+      aria-label="Run"
+      title="Run (Enter)"
+      disabled={inlineEditInstruction.trim().length === 0 || inlineEditStage === 'running' || isInlineEditMicBusy}
+      className="grid size-[34px] flex-none place-items-center rounded-full bg-papeliz-gradient-start text-white transition-[transform,opacity] active:scale-90 disabled:opacity-40 pointer-coarse:size-10"
+    >
+      <ArrowUp className="size-4" strokeWidth={2.4} aria-hidden="true" />
+    </button>
+  )
 
   return createPortal(
     <div
@@ -122,26 +157,25 @@ export function PapelizAssistantInlineEditCard({ inlineEditHostElement, vaultNot
               void runInlineEdit(inlineEditInstruction)
             }}
           >
-            <span className="grid size-[22px] flex-none place-items-center rounded-full bg-linear-to-r from-papeliz-gradient-start to-papeliz-gradient-end text-white">
-              <MessageSquare className="size-3" aria-hidden="true" />
-            </span>
-            <input
-              ref={inlineEditInstructionInputRef}
-              value={inlineEditInstruction}
-              onChange={(changeEvent) => setInlineEditInstruction(changeEvent.target.value)}
-              placeholder="What should change? Or pick one below"
-              aria-label="Instruction for the selection"
-              className="min-w-0 flex-1 bg-transparent text-[15px] text-papeliz-ink outline-none placeholder:text-papeliz-ink-subtle"
-            />
-            <button
-              type="submit"
-              aria-label="Run"
-              title="Run (Enter)"
-              disabled={inlineEditInstruction.trim().length === 0 || inlineEditStage === 'running'}
-              className="grid size-[34px] flex-none place-items-center rounded-full bg-papeliz-gradient-start text-white transition-[transform,opacity] active:scale-90 disabled:opacity-40"
-            >
-              <ArrowUp className="size-4" strokeWidth={2.4} aria-hidden="true" />
-            </button>
+            {isInlineEditMicBusy ? (
+              <PapelizOnePressMicRecorderRow onePressMicStore={inlineEditOnePressMicStore} trailingControls={inlineEditRunButton} />
+            ) : (
+              <>
+                <span className="grid size-[22px] flex-none place-items-center rounded-full bg-linear-to-r from-papeliz-gradient-start to-papeliz-gradient-end text-white">
+                  <MessageSquare className="size-3" aria-hidden="true" />
+                </span>
+                <input
+                  ref={inlineEditInstructionInputRef}
+                  value={inlineEditInstruction}
+                  onChange={(changeEvent) => setInlineEditInstruction(changeEvent.target.value)}
+                  placeholder="What should change? Or pick one below"
+                  aria-label="Instruction for the selection"
+                  className="min-w-0 flex-1 bg-transparent text-[15px] text-papeliz-ink outline-none placeholder:text-papeliz-ink-subtle"
+                />
+                <PapelizOnePressMicButton onePressMicStore={inlineEditOnePressMicStore} isMicDisabled={inlineEditStage === 'running'} />
+                {inlineEditRunButton}
+              </>
+            )}
           </form>
           <div className="flex flex-wrap gap-1.5 px-3.5 pb-3">
             {papelizInlineEditQuickActions.map(({ inlineEditQuickAction, quickActionLabel, QuickActionIcon }) => {
@@ -164,8 +198,9 @@ export function PapelizAssistantInlineEditCard({ inlineEditHostElement, vaultNot
               <ImagePlus className="size-3.5" aria-hidden="true" />
               Imagine
             </button>
+            {/* Speech into the note, apart from the mic above, which speaks the instruction. */}
             <button type="button" className="papeliz-assistant-suggestion-chip" disabled={inlineEditStage === 'running'} onClick={() => startInlineMediaAction('transcribe')}>
-              <Mic className="size-3.5" aria-hidden="true" />
+              <AudioLines className="size-3.5" aria-hidden="true" />
               Transcribe
             </button>
             {isPictureInPassage && (
@@ -185,6 +220,17 @@ export function PapelizAssistantInlineEditCard({ inlineEditHostElement, vaultNot
               Ask Assistant
             </button>
           </div>
+          <PapelizOnePressMicAudioFileInput
+            onePressMicStore={inlineEditOnePressMicStore}
+            audioFileInputRef={inlineEditAudioFileInputRef}
+            audioFileInputLabel="Speak the instruction from an audio file"
+          />
+          <PapelizOnePressMicProblemLine
+            onePressMicStore={inlineEditOnePressMicStore}
+            onBringAudioFile={() => inlineEditAudioFileInputRef.current?.click()}
+            onChooseProvider={() => requestAssistantProviderSettingsPage()}
+            className="px-3.5 pb-3"
+          />
           {inlineEditStage !== 'composing' && (
             <div className="border-t border-papeliz-line px-4 py-3 text-[15px] leading-relaxed" aria-live="polite">
               {inlineEditStage === 'failed' ? (

@@ -20,8 +20,62 @@ export const papelizMicrophoneFirstAskSentence = isPapelizDesktopApp ? 'Papeliz 
 export interface PapelizAssistantAudioRecording {
   // When the microphone started, for the timer beside Stop.
   audioRecordingStartedAtMilliseconds: number
+  // How loud the microphone is now, from 0 (silence) to 1, for the level line beside the timer.
+  readAudioRecordingSoundLevel: () => number
   stopAudioRecording: () => Promise<Blob>
   cancelAudioRecording: () => void
+}
+
+// Reads the microphone's loudness while it records. The audio context is made at the press itself,
+// before the microphone is asked for, so the browser lets it run without a second click; where it
+// can't be made, the level stays at 0 and the line lies flat.
+function createPapelizMicrophoneLevelReader(): {
+  listenToMicrophoneStream: (microphoneStream: MediaStream) => void
+  readMicrophoneSoundLevel: () => number
+  closeMicrophoneLevelReader: () => void
+} {
+  let levelAudioContext: AudioContext | null = null
+  let levelStreamSource: MediaStreamAudioSourceNode | null = null
+  let levelAnalyser: AnalyserNode | null = null
+  let levelSamples: Float32Array<ArrayBuffer> | null = null
+  try {
+    levelAudioContext = new AudioContext()
+  } catch {
+    levelAudioContext = null
+  }
+  return {
+    listenToMicrophoneStream: (microphoneStream) => {
+      if (levelAudioContext === null) return
+      try {
+        levelAnalyser = levelAudioContext.createAnalyser()
+        levelAnalyser.fftSize = 512
+        levelStreamSource = levelAudioContext.createMediaStreamSource(microphoneStream)
+        levelStreamSource.connect(levelAnalyser)
+        levelSamples = new Float32Array(levelAnalyser.fftSize)
+      } catch {
+        levelAnalyser = null
+      }
+    },
+    readMicrophoneSoundLevel: () => {
+      if (levelAnalyser === null || levelSamples === null) return 0
+      levelAnalyser.getFloatTimeDomainData(levelSamples)
+      let squaredSampleSum = 0
+      for (const levelSample of levelSamples) squaredSampleSum += levelSample * levelSample
+      // Speech sits far below full scale, so the loudness is lifted before it is drawn.
+      return Math.min(1, Math.sqrt(Math.sqrt(squaredSampleSum / levelSamples.length) * 6))
+    },
+    // Called when the recording stops, is cancelled or never starts: the nodes are let go and the
+    // context closed, so nothing keeps listening once the microphone's own tracks have stopped.
+    closeMicrophoneLevelReader: () => {
+      levelStreamSource?.disconnect()
+      levelAnalyser?.disconnect()
+      void levelAudioContext?.close().catch(() => undefined)
+      levelAudioContext = null
+      levelStreamSource = null
+      levelAnalyser = null
+      levelSamples = null
+    },
+  }
 }
 
 export class PapelizAssistantAudioRecordingError extends Error {
@@ -48,12 +102,15 @@ function describeMicrophoneRefusal(microphoneError: unknown): string {
 // Asks for the microphone (the browser's own prompt, the first time) and starts recording.
 export async function startPapelizAssistantAudioRecording(): Promise<PapelizAssistantAudioRecording> {
   if (!isPapelizAudioRecordingAvailable()) throw new PapelizAssistantAudioRecordingError(papelizAudioRecordingUnavailableSentence)
+  const microphoneLevelReader = createPapelizMicrophoneLevelReader()
   let microphoneStream: MediaStream
   try {
     microphoneStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } })
   } catch (microphoneError) {
+    microphoneLevelReader.closeMicrophoneLevelReader()
     throw new PapelizAssistantAudioRecordingError(describeMicrophoneRefusal(microphoneError))
   }
+  microphoneLevelReader.listenToMicrophoneStream(microphoneStream)
   const recordingMimeType = papelizPreferredRecordingMimeTypes.find((candidateMimeType) => MediaRecorder.isTypeSupported(candidateMimeType))
   const audioRecorder = new MediaRecorder(microphoneStream, recordingMimeType === undefined ? undefined : { mimeType: recordingMimeType })
   const recordedAudioChunks: Blob[] = []
@@ -62,10 +119,12 @@ export async function startPapelizAssistantAudioRecording(): Promise<PapelizAssi
   })
   const releaseMicrophone = () => {
     for (const microphoneTrack of microphoneStream.getTracks()) microphoneTrack.stop()
+    microphoneLevelReader.closeMicrophoneLevelReader()
   }
   audioRecorder.start(1000)
   return {
     audioRecordingStartedAtMilliseconds: performance.now(),
+    readAudioRecordingSoundLevel: microphoneLevelReader.readMicrophoneSoundLevel,
     stopAudioRecording: () =>
       new Promise<Blob>((resolveRecording) => {
         audioRecorder.addEventListener(

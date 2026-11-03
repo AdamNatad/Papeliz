@@ -196,10 +196,13 @@ test('Imagine from the chat box: the picture shows in the chat, and Put in Note 
   await openSampleVaultWithMetaProvider(page)
   const noteEditorContent = page.locator('.cm-content').first()
   const assistantPanel = page.getByRole('complementary', { name: 'AI Assistant' })
-  const imagineButton = assistantPanel.getByRole('button', { name: 'Imagine a Picture' })
-  await expect(imagineButton).toBeDisabled()
+  // Imagine a Picture is under +, and waits until there is something to picture.
+  await assistantPanel.getByRole('button', { name: 'Add', exact: true }).click()
+  await expect(page.getByRole('menu', { name: 'Add' }).getByRole('menuitem', { name: 'Imagine a Picture' })).toHaveAttribute('aria-disabled', 'true')
+  await page.keyboard.press('Escape')
   await assistantPanel.getByRole('textbox', { name: 'Message the assistant' }).fill('A blue square on white paper')
-  await imagineButton.click()
+  await assistantPanel.getByRole('button', { name: 'Add', exact: true }).click()
+  await page.getByRole('menu', { name: 'Add' }).getByRole('menuitem', { name: 'Imagine a Picture' }).click()
 
   const chatPictures = assistantPanel.getByRole('region', { name: 'Imagine: A blue square on white paper' })
   const chatPicture = chatPictures.getByRole('img', { name: 'A blue square on white paper' })
@@ -248,13 +251,13 @@ test('a picture brought into Imagine with Remove C2PA off is saved as it came', 
   expect(savedPictureBytes.includes(Buffer.from(testC2paManifestText, 'latin1'))).toBe(true)
 })
 
-test('Speak in the chat box: an audio file goes to Meta’s transcription as WAV, and the words land in the chat box', async ({ page }) => {
+test('+ in the chat box: an audio file goes to Meta’s transcription as WAV, and the words land in the chat box', async ({ page }) => {
   const { testProviderRequests, refusedOutsideRequestUrls } = await playTestMetaProvider(page)
   await openSampleVaultWithMetaProvider(page)
   const assistantPanel = page.getByRole('complementary', { name: 'AI Assistant' })
-  await assistantPanel.getByRole('button', { name: 'Speak' }).click()
+  await assistantPanel.getByRole('button', { name: 'Add', exact: true }).click()
   const audioFileChooser = page.waitForEvent('filechooser')
-  await page.getByRole('menu', { name: 'Speak' }).getByRole('menuitem', { name: 'Transcribe an Audio File' }).click()
+  await page.getByRole('menu', { name: 'Add' }).getByRole('menuitem', { name: 'Transcribe an Audio File' }).click()
   await (await audioFileChooser).setFiles({ name: 'standup.wav', mimeType: 'audio/wav', buffer: buildTestSpeechWav() })
   await expect(assistantPanel.getByRole('textbox', { name: 'Message the assistant' })).toHaveValue(testSpokenTranscriptText)
 
@@ -268,14 +271,15 @@ test('Speak in the chat box: an audio file goes to Meta’s transcription as WAV
 })
 
 // A stand-in microphone: getUserMedia is counted, and answers with a tone from the page's own audio
-// instead of a real device, so Record runs unattended in every browser.
-test('Record in the chat box asks for the microphone only when pressed, and its words land in the chat box', async ({ page }) => {
-  const { testProviderRequests } = await playTestMetaProvider(page)
-  await page.addInitScript(() => {
+// instead of a real device (or refuses, as a browser does when the microphone isn't allowed), so the
+// mic runs unattended in every browser.
+async function installStandInMicrophone(page: Page, standInMicrophoneAnswer: 'tone' | 'refused'): Promise<() => Promise<number>> {
+  await page.addInitScript((microphoneAnswer) => {
     const papelizTestWindow = window as unknown as { papelizTestMicrophoneRequestCount: number }
     papelizTestWindow.papelizTestMicrophoneRequestCount = 0
     navigator.mediaDevices.getUserMedia = async () => {
       papelizTestWindow.papelizTestMicrophoneRequestCount += 1
+      if (microphoneAnswer === 'refused') throw new DOMException('Permission denied', 'NotAllowedError')
       const toneAudioContext = new AudioContext()
       const toneOscillator = toneAudioContext.createOscillator()
       const toneDestination = toneAudioContext.createMediaStreamDestination()
@@ -283,20 +287,147 @@ test('Record in the chat box asks for the microphone only when pressed, and its 
       toneOscillator.start()
       return toneDestination.stream
     }
-  })
+  }, standInMicrophoneAnswer)
+  return () => page.evaluate(() => (window as unknown as { papelizTestMicrophoneRequestCount: number }).papelizTestMicrophoneRequestCount)
+}
+
+function countProviderRequests(testProviderRequests: TestProviderRequestRecord[], providerRequestPath: string): number {
+  return testProviderRequests.filter((providerRequest) => providerRequest.providerRequestPath === providerRequestPath).length
+}
+
+test('one press on the chat box’s mic records, ✓ in the mic’s place finishes, and the words land after what is typed; Esc throws a recording away', async ({ page }) => {
+  const { testProviderRequests } = await playTestMetaProvider(page)
+  const readMicrophoneRequestCount = await installStandInMicrophone(page, 'tone')
   await openSampleVaultWithMetaProvider(page)
-  const readMicrophoneRequestCount = () => page.evaluate(() => (window as unknown as { papelizTestMicrophoneRequestCount: number }).papelizTestMicrophoneRequestCount)
   const assistantPanel = page.getByRole('complementary', { name: 'AI Assistant' })
+  const messageBox = assistantPanel.getByRole('textbox', { name: 'Message the assistant' })
+  const micButton = assistantPanel.getByRole('button', { name: 'Speak' })
+  const doneButton = assistantPanel.getByRole('button', { name: 'Done Speaking' })
+  const composerCard = messageBox.locator('xpath=..')
   expect(await readMicrophoneRequestCount()).toBe(0)
-  await assistantPanel.getByRole('button', { name: 'Speak' }).click()
-  await page.getByRole('menu', { name: 'Speak' }).getByRole('menuitem', { name: 'Record' }).click()
-  const stopRecordingButton = assistantPanel.getByRole('button', { name: 'Stop Recording' })
-  await expect(stopRecordingButton).toBeVisible()
+
+  // One press, no menu: the row becomes the recorder, with ✓ exactly where the mic was.
+  await messageBox.fill('Summarize this note')
+  const micButtonBox = await micButton.boundingBox()
+  const restingCardBox = await composerCard.boundingBox()
+  await micButton.click()
+  await expect(doneButton).toBeFocused()
   expect(await readMicrophoneRequestCount()).toBe(1)
+  const doneButtonBox = await doneButton.boundingBox()
+  expect(Math.abs((doneButtonBox?.x ?? 0) - (micButtonBox?.x ?? -10))).toBeLessThan(1)
+  expect(Math.abs((doneButtonBox?.y ?? 0) - (micButtonBox?.y ?? -10))).toBeLessThan(1)
+  expect(Math.abs(((await composerCard.boundingBox())?.height ?? 0) - (restingCardBox?.height ?? -10))).toBeLessThan(1)
+  await expect(assistantPanel.getByRole('img', { name: 'Sound level' })).toBeVisible()
+  await expect(assistantPanel.getByRole('button', { name: 'Throw the Recording Away' })).toBeVisible()
+  await expect(messageBox).toHaveValue('Summarize this note')
+  await expect(assistantPanel.getByRole('button', { name: 'Send' })).toBeDisabled()
   await page.waitForTimeout(1500)
-  await stopRecordingButton.click()
+  await doneButton.click()
+  await expect(messageBox).toHaveValue(`Summarize this note ${testSpokenTranscriptText}`)
+  await expect(messageBox).toBeFocused()
+  // Nothing was sent: the only chat call is Test Connection's.
+  expect(countProviderRequests(testProviderRequests, 'chat/completions')).toBe(1)
+  expect(countProviderRequests(testProviderRequests, 'asr/transcribe')).toBe(1)
+
+  // Enter finishes too.
+  await messageBox.fill('')
+  await micButton.click()
+  await expect(doneButton).toBeFocused()
+  await page.waitForTimeout(1200)
+  await page.keyboard.press('Enter')
+  await expect(messageBox).toHaveValue(testSpokenTranscriptText)
+  expect(countProviderRequests(testProviderRequests, 'chat/completions')).toBe(1)
+
+  // Esc throws the recording away: nothing is transcribed and the text stays as it was.
+  await micButton.click()
+  await expect(doneButton).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(doneButton).toBeHidden()
+  await expect(micButton).toBeVisible()
+  await expect(messageBox).toHaveValue(testSpokenTranscriptText)
+  expect(countProviderRequests(testProviderRequests, 'asr/transcribe')).toBe(2)
+  // The chat panel stayed open (the workspace's own Esc left it alone).
+  await expect(assistantPanel).toBeVisible()
+})
+
+test('a refused microphone shows a red line under the chat box, and its step brings in an audio file instead', async ({ page }) => {
+  await playTestMetaProvider(page)
+  await installStandInMicrophone(page, 'refused')
+  await openSampleVaultWithMetaProvider(page)
+  const assistantPanel = page.getByRole('complementary', { name: 'AI Assistant' })
+  await assistantPanel.getByRole('button', { name: 'Speak' }).click()
+  const problemLine = assistantPanel.getByRole('alert').filter({ hasText: 'The microphone isn’t allowed for Papeliz.' })
+  await expect(problemLine).toBeVisible()
+  const audioFileChooser = page.waitForEvent('filechooser')
+  await problemLine.getByRole('button', { name: 'Transcribe an Audio File' }).click()
+  await (await audioFileChooser).setFiles({ name: 'standup.wav', mimeType: 'audio/wav', buffer: buildTestSpeechWav() })
   await expect(assistantPanel.getByRole('textbox', { name: 'Message the assistant' })).toHaveValue(testSpokenTranscriptText)
-  expect(testProviderRequests.filter((providerRequest) => providerRequest.providerRequestPath === 'asr/transcribe')).toHaveLength(1)
+  await expect(problemLine).toBeHidden()
+})
+
+test('before a provider is set, the chat box shows with its mic and a line to choose one', async ({ page }) => {
+  await playTestMetaProvider(page)
+  const readMicrophoneRequestCount = await installStandInMicrophone(page, 'tone')
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Try Sample' }).first().click()
+  const assistantPanel = page.getByRole('complementary', { name: 'AI Assistant' })
+  await expect(assistantPanel.getByText('Choose a provider to type or speak')).toBeVisible()
+  await expect(assistantPanel.getByRole('textbox', { name: 'Message the assistant' })).toBeVisible()
+  await expect(assistantPanel.getByRole('button', { name: 'Send' })).toBeDisabled()
+  // With nothing to send the words to, the mic opens the provider settings, and the microphone isn't asked for.
+  await assistantPanel.getByRole('button', { name: 'Speak' }).click()
+  await expect(page.getByRole('dialog', { name: 'Settings' })).toBeVisible()
+  expect(await readMicrophoneRequestCount()).toBe(0)
+})
+
+test('the Ctrl K card’s mic speaks the instruction, and nothing runs until Run; Esc stops the recording, not the card', async ({ page }) => {
+  const { testProviderRequests } = await playTestMetaProvider(page)
+  await installStandInMicrophone(page, 'tone')
+  await openSampleVaultWithMetaProvider(page)
+  await page.getByRole('button', { name: 'MD Code', exact: true }).click()
+  const inlineCard = await openInlineCardOnLine(page, '# Start here')
+  const doneButton = inlineCard.getByRole('button', { name: 'Done Speaking' })
+  await inlineCard.getByRole('button', { name: 'Speak' }).click()
+  await expect(doneButton).toBeFocused()
+  await page.waitForTimeout(1200)
+  await doneButton.click()
+  await expect(inlineCard.getByRole('textbox', { name: 'Instruction for the selection' })).toHaveValue(testSpokenTranscriptText)
+  await expect(inlineCard.getByRole('button', { name: 'Run' })).toBeEnabled()
+  expect(countProviderRequests(testProviderRequests, 'chat/completions')).toBe(1)
+  // The Transcribe chip, which writes speech into the note, is still there beside the quick actions.
+  await expect(inlineCard.getByRole('button', { name: 'Transcribe', exact: true })).toBeVisible()
+
+  await inlineCard.getByRole('button', { name: 'Speak' }).click()
+  await expect(doneButton).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(doneButton).toBeHidden()
+  await expect(inlineCard).toBeVisible()
+  await expect(inlineCard.getByRole('textbox', { name: 'Instruction for the selection' })).toHaveValue(testSpokenTranscriptText)
+})
+
+test('Imagine’s prompt has its own mic and +, and the spoken words fill the prompt without making a picture', async ({ page }) => {
+  const { testProviderRequests } = await playTestMetaProvider(page)
+  await installStandInMicrophone(page, 'tone')
+  await openSampleVaultWithMetaProvider(page)
+  const assistantPanel = page.getByRole('complementary', { name: 'AI Assistant' })
+  await assistantPanel.getByRole('button', { name: 'Imagine', exact: true }).click()
+  const promptBox = assistantPanel.getByRole('textbox', { name: 'Prompt' })
+  await promptBox.fill('A red fox')
+  await assistantPanel.getByRole('button', { name: 'Speak' }).click()
+  const doneButton = assistantPanel.getByRole('button', { name: 'Done Speaking' })
+  await expect(doneButton).toBeFocused()
+  await page.waitForTimeout(1200)
+  await page.keyboard.press('Enter')
+  await expect(promptBox).toHaveValue(`A red fox ${testSpokenTranscriptText}`)
+  expect(countProviderRequests(testProviderRequests, 'images/generations')).toBe(0)
+
+  await assistantPanel.getByRole('button', { name: 'Add', exact: true }).click()
+  const addMenu = page.getByRole('menu', { name: 'Add' })
+  await expect(addMenu.getByRole('menuitem', { name: 'Bring In a Picture' })).toBeVisible()
+  const audioFileChooser = page.waitForEvent('filechooser')
+  await addMenu.getByRole('menuitem', { name: 'Transcribe an Audio File' }).click()
+  await (await audioFileChooser).setFiles({ name: 'idea.wav', mimeType: 'audio/wav', buffer: buildTestSpeechWav() })
+  await expect(promptBox).toHaveValue(`A red fox ${testSpokenTranscriptText} ${testSpokenTranscriptText}`)
 })
 
 test('beside Rewrite: Imagine from a selection and Transcribe arrive in the note as inline changes to accept', async ({ page }) => {

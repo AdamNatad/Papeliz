@@ -1,172 +1,79 @@
-import { FileAudio, ImagePlus, Mic, Square } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { FileAudio, ImagePlus, Paperclip, Plus } from 'lucide-react'
+import { useState } from 'react'
 import { PapelizPopoverMenu, type PapelizPopoverMenuPosition } from '../ui/papeliz-popover-menu'
-import { joinPapelizClassNames } from '../ui/papeliz-class-names'
-import { usePapelizWorkspaceStore } from '../workspace/papeliz-workspace-store'
-import { formatPapelizAudioDuration, getPapelizAudioFileExtension, isPapelizAudioRecordingAvailable, startPapelizAssistantAudioRecording, type PapelizAssistantAudioRecording } from './papeliz-assistant-audio-recording'
-import { transcribePapelizAudioWithChosenModel } from './papeliz-assistant-audio-transcription'
 import { usePapelizChatImagineStore } from './papeliz-assistant-chat-imagine-store'
 import { usePapelizAssistantConversationStore } from './papeliz-assistant-conversation-store'
-import { resolvePapelizAssistantMediaModelNow } from './papeliz-assistant-media-model-choices-store'
-import { describePapelizAssistantMediaProblem } from './papeliz-assistant-media-problem-words'
-import { usePapelizAssistantPanelUiStore } from './papeliz-assistant-panel-ui-store'
+import { joinPapelizTranscribedWordsToText, type PapelizOnePressMicStore } from './papeliz-assistant-one-press-mic-controller'
+import { usePapelizOnePressMic } from './papeliz-assistant-one-press-mic'
 
-// The chat box's own Meta-model buttons, beside Add Files:
-// - the microphone records (the browser asks for it only then) or takes an audio file, and the
-//   transcript goes into the chat box, to send as it is or after a change; in Write the assistant
-//   turns it into a note as a change to accept;
-// - Imagine makes a picture of what is typed, shown in the chat with Remove C2PA, Save to Vault and
-//   Put in Note.
+// The chat box's own media parts, in the panel and in Focus mode alike:
+// - + opens a menu: add files or pictures, transcribe an audio file into the box, or make a picture of
+//   what is typed (shown in the chat with Remove C2PA, Save to Vault and Put in Note);
+// - the one-press mic (papeliz-assistant-one-press-mic.tsx) puts the words it hears after what is
+//   typed, to send as it is or after a change.
 
-const papelizComposerMediaButtonClassName =
-  'grid size-7 flex-none place-items-center rounded-full text-papeliz-ink-muted transition-colors hover:bg-papeliz-hover hover:text-papeliz-ink disabled:opacity-40 pointer-coarse:size-10'
+// The menu's three rows (h-9) and its padding, so it can open above + before it is drawn.
+const papelizComposerAddMenuHeight = 3 * 36 + 10
 
-function PapelizComposerRecordingTimer({ recordingStartedAtMilliseconds }: { recordingStartedAtMilliseconds: number }) {
-  const [recordedSeconds, setRecordedSeconds] = useState(0)
-  useEffect(() => {
-    const timerInterval = window.setInterval(() => setRecordedSeconds((performance.now() - recordingStartedAtMilliseconds) / 1000), 250)
-    return () => window.clearInterval(timerInterval)
-  }, [recordingStartedAtMilliseconds])
-  return <span className="tabular-nums">{formatPapelizAudioDuration(recordedSeconds)}</span>
+// The chat box's mic: the words join the draft, and the box takes focus to send them.
+export function usePapelizComposerOnePressMic(focusComposerTextAtEnd: () => void): PapelizOnePressMicStore {
+  return usePapelizOnePressMic((transcribedWords) => {
+    const { composerDraftText, setComposerDraftText } = usePapelizAssistantConversationStore.getState()
+    setComposerDraftText(joinPapelizTranscribedWordsToText(composerDraftText, transcribedWords))
+    focusComposerTextAtEnd()
+  })
 }
 
-let activeComposerAudioRecording: PapelizAssistantAudioRecording | null = null
+interface PapelizAssistantComposerAddMenuProps {
+  onAddFilesOrPictures: () => void
+  onTranscribeAudioFile: () => void
+  isAddMenuDisabled?: boolean
+}
 
-export function PapelizAssistantComposerMediaButtons() {
+export function PapelizAssistantComposerAddMenu({ onAddFilesOrPictures, onTranscribeAudioFile, isAddMenuDisabled = false }: PapelizAssistantComposerAddMenuProps) {
   const composerDraftText = usePapelizAssistantConversationStore((conversationState) => conversationState.composerDraftText)
   const setComposerDraftText = usePapelizAssistantConversationStore((conversationState) => conversationState.setComposerDraftText)
   const imagineInChat = usePapelizChatImagineStore((chatImagineState) => chatImagineState.imagineInChat)
-  const requestComposerFocus = usePapelizAssistantPanelUiStore((panelUiState) => panelUiState.requestComposerFocus)
-  const [voiceMenuPosition, setVoiceMenuPosition] = useState<PapelizPopoverMenuPosition | null>(null)
-  const [recordingStartedAtMilliseconds, setRecordingStartedAtMilliseconds] = useState<number | null>(null)
-  const [transcribingProgressText, setTranscribingProgressText] = useState<string | null>(null)
-  const audioFileInputRef = useRef<HTMLInputElement>(null)
-
-  const showComposerMediaProblem = (composerMediaError: unknown) =>
-    usePapelizWorkspaceStore.getState().showWorkspaceNotice('error', describePapelizAssistantMediaProblem(composerMediaError))
-
-  // The transcript joins whatever is already typed, and the box takes focus to send it.
-  const transcribeIntoComposer = async (audioBlob: Blob, audioFileName: string) => {
-    const transcriptionModelChoice = resolvePapelizAssistantMediaModelNow('transcription')
-    if (transcriptionModelChoice === null) {
-      usePapelizWorkspaceStore.getState().showWorkspaceNotice('error', 'Add a provider that transcribes (the Meta Model API does) in Settings › AI Provider.')
-      return
-    }
-    setTranscribingProgressText('Transcribing…')
-    try {
-      const transcriptText = await transcribePapelizAudioWithChosenModel({
-        transcriptionAudioBlob: audioBlob,
-        transcriptionAudioFileName: audioFileName,
-        transcriptionModelChoice,
-        onTranscriptionProgressText: setTranscribingProgressText,
-      })
-      const typedDraftText = usePapelizAssistantConversationStore.getState().composerDraftText.trimEnd()
-      setComposerDraftText(typedDraftText.length > 0 ? `${typedDraftText}\n\n${transcriptText}` : transcriptText)
-      requestComposerFocus()
-    } catch (transcriptionError) {
-      showComposerMediaProblem(transcriptionError)
-    } finally {
-      setTranscribingProgressText(null)
-    }
-  }
-
-  const startComposerRecording = async () => {
-    try {
-      activeComposerAudioRecording = await startPapelizAssistantAudioRecording()
-      setRecordingStartedAtMilliseconds(activeComposerAudioRecording.audioRecordingStartedAtMilliseconds)
-    } catch (recordingStartError) {
-      showComposerMediaProblem(recordingStartError)
-    }
-  }
-
-  const stopComposerRecording = async () => {
-    const composerAudioRecording = activeComposerAudioRecording
-    if (composerAudioRecording === null) return
-    activeComposerAudioRecording = null
-    setRecordingStartedAtMilliseconds(null)
-    const recordedAudioBlob = await composerAudioRecording.stopAudioRecording()
-    if (recordedAudioBlob.size > 0) await transcribeIntoComposer(recordedAudioBlob, `recording${getPapelizAudioFileExtension(recordedAudioBlob.type)}`)
-  }
-
-  useEffect(
-    () => () => {
-      activeComposerAudioRecording?.cancelAudioRecording()
-      activeComposerAudioRecording = null
-    },
-    [],
-  )
-
-  if (recordingStartedAtMilliseconds !== null) {
-    return (
-      <button
-        type="button"
-        aria-label="Stop Recording"
-        title="Stop, and put the words in the chat box"
-        onClick={() => void stopComposerRecording()}
-        className="mr-0.5 flex h-7 flex-none items-center gap-1.5 rounded-full bg-papeliz-diff-removed-ink px-2.5 text-[12.5px] font-medium text-white pointer-coarse:h-10"
-      >
-        <Square className="size-3 fill-current" aria-hidden="true" />
-        <PapelizComposerRecordingTimer recordingStartedAtMilliseconds={recordingStartedAtMilliseconds} />
-      </button>
-    )
-  }
+  const [addMenuPosition, setAddMenuPosition] = useState<PapelizPopoverMenuPosition | null>(null)
 
   return (
     <>
-      {transcribingProgressText !== null ? (
-        <span className="mr-1 flex-none text-[12px] text-papeliz-ink-muted" aria-live="polite">
-          {transcribingProgressText}
-        </span>
-      ) : (
-        <button
-          type="button"
-          aria-label="Speak"
-          aria-haspopup="menu"
-          aria-expanded={voiceMenuPosition !== null}
-          title="Speak to the assistant: record or bring in audio, and the words go in the chat box"
-          onClick={(clickEvent) => {
-            const voiceButtonRect = clickEvent.currentTarget.getBoundingClientRect()
-            setVoiceMenuPosition({ menuAnchorLeft: voiceButtonRect.left, menuAnchorTop: voiceButtonRect.bottom + 4 })
-          }}
-          className={papelizComposerMediaButtonClassName}
-        >
-          <Mic className="size-4" aria-hidden="true" />
-        </button>
-      )}
       <button
         type="button"
-        aria-label="Imagine a Picture"
-        title={composerDraftText.trim().length === 0 ? 'Imagine: type what to picture, then press here' : 'Imagine: make a picture of what you typed'}
-        disabled={composerDraftText.trim().length === 0}
-        onClick={() => {
-          const imaginePromptText = composerDraftText
-          setComposerDraftText('')
-          void imagineInChat(imaginePromptText)
+        aria-label="Add"
+        aria-haspopup="menu"
+        aria-expanded={addMenuPosition !== null}
+        title="Add files or pictures (or paste or drop them here), transcribe an audio file, or imagine a picture"
+        disabled={isAddMenuDisabled}
+        onClick={(clickEvent) => {
+          const addButtonRect = clickEvent.currentTarget.getBoundingClientRect()
+          // Above +, as the box sits at the bottom; the menu keeps itself inside the window.
+          setAddMenuPosition({ menuAnchorLeft: addButtonRect.left, menuAnchorTop: addButtonRect.top - papelizComposerAddMenuHeight - 6 })
         }}
-        className={joinPapelizClassNames(papelizComposerMediaButtonClassName, 'mr-0.5')}
+        className="mr-0.5 grid size-7 flex-none place-items-center rounded-full border border-papeliz-line text-papeliz-ink-muted transition-colors hover:bg-papeliz-hover hover:text-papeliz-ink disabled:opacity-40 aria-expanded:bg-papeliz-hover pointer-coarse:size-10"
       >
-        <ImagePlus className="size-4" aria-hidden="true" />
+        <Plus className="size-4" aria-hidden="true" />
       </button>
-      <input
-        ref={audioFileInputRef}
-        type="file"
-        accept="audio/*,.mp3,.wav,.m4a,.mp4,.webm,.ogg,.opus,.flac,.aac"
-        hidden
-        aria-label="Transcribe an audio file into the chat box"
-        onChange={(fileInputEvent) => {
-          const audioFile = fileInputEvent.target.files?.[0]
-          if (audioFile !== undefined) void transcribeIntoComposer(audioFile, audioFile.name || 'audio')
-          fileInputEvent.target.value = ''
-        }}
-      />
-      {voiceMenuPosition !== null && (
+      {addMenuPosition !== null && (
         <PapelizPopoverMenu
-          menuLabel="Speak"
-          menuPosition={voiceMenuPosition}
-          onMenuClose={() => setVoiceMenuPosition(null)}
+          menuLabel="Add"
+          menuPosition={addMenuPosition}
+          onMenuClose={() => setAddMenuPosition(null)}
           menuItems={[
-            ...(isPapelizAudioRecordingAvailable() ? [{ menuItemKey: 'record', menuItemLabel: 'Record', MenuItemIcon: Mic, onMenuItemSelect: () => void startComposerRecording() }] : []),
-            { menuItemKey: 'audio-file', menuItemLabel: 'Transcribe an Audio File', MenuItemIcon: FileAudio, onMenuItemSelect: () => audioFileInputRef.current?.click() },
+            { menuItemKey: 'files-or-pictures', menuItemLabel: 'Add Files or Pictures', MenuItemIcon: Paperclip, onMenuItemSelect: onAddFilesOrPictures },
+            { menuItemKey: 'audio-file', menuItemLabel: 'Transcribe an Audio File', MenuItemIcon: FileAudio, onMenuItemSelect: onTranscribeAudioFile },
+            {
+              menuItemKey: 'imagine',
+              menuItemLabel: 'Imagine a Picture',
+              MenuItemIcon: ImagePlus,
+              // A picture of what is typed: nothing to picture until something is.
+              isMenuItemDisabled: composerDraftText.trim().length === 0,
+              onMenuItemSelect: () => {
+                const imaginePromptText = composerDraftText
+                setComposerDraftText('')
+                void imagineInChat(imaginePromptText)
+              },
+            },
           ]}
         />
       )}

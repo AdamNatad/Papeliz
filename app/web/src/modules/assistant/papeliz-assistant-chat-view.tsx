@@ -226,7 +226,6 @@ export function PapelizAssistantChatView() {
   const isAssistantRunning = usePapelizAssistantConversationStore((conversationState) => conversationState.isAssistantRunning)
   const sendAssistantMessage = usePapelizAssistantConversationStore((conversationState) => conversationState.sendAssistantMessage)
   const acceptAllPendingAssistantProposals = usePapelizAssistantConversationStore((conversationState) => conversationState.acceptAllPendingAssistantProposals)
-  const requestAssistantProviderSettingsPage = usePapelizAssistantPanelUiStore((panelUiState) => panelUiState.requestAssistantProviderSettingsPage)
   usePapelizAssistantProviderSettingsStore((settingsState) => settingsState.providerSettingsByProviderId)
   usePapelizAssistantProviderSettingsStore((settingsState) => settingsState.activeAssistantProviderId)
   const activeVaultMarkdownNoteRelativePath = usePapelizWorkspaceStore(selectActiveVaultMarkdownNoteRelativePath)
@@ -257,9 +256,6 @@ export function PapelizAssistantChatView() {
           {activeProviderConnection.providerSetupProblem !== papelizAssistantProviderNotChosenProblem && (
             <p className="text-[13px] font-medium text-papeliz-ink">{activeProviderConnection.providerSetupProblem}</p>
           )}
-          <PapelizPillButton pillButtonVariant="primary" onClick={() => requestAssistantProviderSettingsPage()}>
-            Choose a Provider
-          </PapelizPillButton>
         </div>
       )}
       {chatEntries.length === 0 && activeProviderConnection.providerConnectionOutcome === 'ready' && (
