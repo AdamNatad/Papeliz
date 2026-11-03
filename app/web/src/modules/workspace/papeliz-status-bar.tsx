@@ -1,16 +1,23 @@
-import { AppWindow, FolderOpen, Minus, Plus } from 'lucide-react'
+import { AppWindow, FolderOpen, Lock, Minus, Plus } from 'lucide-react'
 import { isPapelizDesktopApp } from 'virtual:papeliz-desktop-platform-availability'
 import { useDeferredValue, useMemo, useState } from 'react'
 import { PapelizDesktopAppUpdateStatusBarLine } from '../desktop/papeliz-desktop-app-update-parts'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { PapelizPopoverMenu, type PapelizPopoverMenuPosition } from '../ui/papeliz-popover-menu'
 import type { PapelizVaultKind } from '../vault/papeliz-vault-adapter'
+import { isPapelizEndToEndVaultAdapter } from '../vault/papeliz-vault-encryption'
 import { getVaultEntryName } from '../vault/papeliz-vault-relative-paths'
 import { PapelizSyncStatusBarIndicator, PapelizSyncWorkspaceConnection } from '../sync/papeliz-sync-status-bar-indicator'
 import { PapelizBrowserVaultBackupStatus } from './papeliz-browser-vault-backup-status'
 import { PapelizNoteSaveConflictDialog } from './papeliz-note-save-conflict-dialog'
 import { describePapelizNoteSaveFailure } from './papeliz-note-save-failure-words'
 import { papelizNoteZoomPercentChoices, papelizNoteZoomPercentLimits, usePapelizNoteTypographyStore } from './papeliz-note-typography-store'
+import {
+  papelizEndToEndVaultLockPillTooltipText,
+  papelizEndToEndVaultLockPillWords,
+  papelizLockEndToEndVaultNowLabel,
+  papelizLockEndToEndVaultNowTooltipText,
+} from './papeliz-vault-encryption-screen-words'
 import type { PapelizVaultNoteEditingLock } from './papeliz-vault-entry-locks'
 import {
   selectIsVaultTextFileTabInFront,
@@ -116,9 +123,10 @@ function PapelizNoteZoomControl() {
   )
 }
 
-// The blue bar across the bottom of the workspace: the vault and the open note's path on the left;
-// a browser vault's backup state, whether the note is saved, the vault's Sync state, how many words
-// it has, which view is showing, and the zoom on the right.
+// The blue bar across the bottom of the workspace: the vault (with a lock pill when it's End-to-end)
+// and the open note's path on the left; an End-to-end vault's Lock Now, a browser vault's backup
+// state, whether the note is saved, the vault's Sync state, how many words it has, which view is
+// showing, and the zoom on the right.
 export function PapelizStatusBar() {
   const openVault = usePapelizWorkspaceStore((workspaceState) => workspaceState.openVault)
   const activeVaultNoteRelativePath = usePapelizWorkspaceStore((workspaceState) => workspaceState.activeVaultNoteRelativePath)
@@ -131,6 +139,7 @@ export function PapelizStatusBar() {
   const isVaultTextFileTabInFront = usePapelizWorkspaceStore(selectIsVaultTextFileTabInFront)
   const activeVaultNoteEditingLock = usePapelizActiveVaultNoteEditingLock()
   const saveVaultNoteNow = usePapelizWorkspaceStore((workspaceState) => workspaceState.saveVaultNoteNow)
+  const lockOpenEndToEndVault = usePapelizWorkspaceStore((workspaceState) => workspaceState.lockOpenEndToEndVault)
   const activeVaultNoteSaveConflict = usePapelizWorkspaceStore((workspaceState) =>
     activeLoadedVaultNote === undefined ? undefined : workspaceState.vaultNoteSaveConflictsByLoadedNoteSessionId[activeLoadedVaultNote.loadedNoteSessionId],
   )
@@ -143,6 +152,7 @@ export function PapelizStatusBar() {
   if (openVault === null) return null
   const openVaultKind = openVault.papelizVaultAdapter.papelizVaultKind
   const isSampleVaultInMemory = openVaultKind === 'sample-vault-in-memory'
+  const isOpenVaultEndToEnd = isPapelizEndToEndVaultAdapter(openVault.papelizVaultAdapter)
   const isNoteReady = activeLoadedVaultNote !== undefined && activeLoadedVaultNote.noteLoadState === 'loaded'
 
   return (
@@ -167,6 +177,16 @@ export function PapelizStatusBar() {
           <FolderOpen className="size-[13px] flex-none opacity-80" aria-hidden="true" />
         )}
         <span className="truncate font-medium text-white">{openVault.papelizVaultDisplayName}</span>
+        {/* An End-to-end vault, unlocked: the lock, and its kind (the lock alone on a phone). */}
+        {isOpenVaultEndToEnd && (
+          <span
+            className="flex flex-none items-center gap-1 rounded-full bg-white/20 pr-[7px] pl-1.5 text-[11px] leading-[17px] font-semibold text-white max-sm:pr-1.5"
+            title={papelizEndToEndVaultLockPillTooltipText}
+          >
+            <Lock className="size-3" aria-hidden="true" />
+            <span className="max-sm:sr-only">{papelizEndToEndVaultLockPillWords}</span>
+          </span>
+        )}
         {/* Always shown for the sample vault, so nobody mistakes it for storage that lasts. */}
         {isSampleVaultInMemory && (
           <span
@@ -190,6 +210,16 @@ export function PapelizStatusBar() {
         )}
       </span>
       <span className="ml-auto flex flex-none items-center gap-4">
+        {isOpenVaultEndToEnd && (
+          <button
+            type="button"
+            title={papelizLockEndToEndVaultNowTooltipText}
+            className="font-semibold text-white underline-offset-2 hover:underline focus-visible:outline-white"
+            onClick={() => void lockOpenEndToEndVault()}
+          >
+            {papelizLockEndToEndVaultNowLabel}
+          </button>
+        )}
         {/* Papeliz for Windows: a newer version ready, pressed to restart into it. */}
         <PapelizDesktopAppUpdateStatusBarLine />
         {openVaultKind === 'browser-vault-in-opfs' && <PapelizBrowserVaultBackupStatus papelizVaultId={openVault.papelizVaultId} />}

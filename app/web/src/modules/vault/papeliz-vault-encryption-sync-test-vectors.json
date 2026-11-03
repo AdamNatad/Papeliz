@@ -1,0 +1,74 @@
+{
+  "vaultSubkeyVector": {
+    "testVectorName": "vault subkeys",
+    "syncVaultKeyHex": "202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+    "contentAddressKeyHex": "15671f16de122c12bde231c439f9616af553f15a7e2234564e79bb75bfbe9dc4",
+    "filePathKeyHex": "53a576f09f377d4b304e4a8428870c7695b1195a4f3e08d00567089cfc5a73ed"
+  },
+  "fileContentVectors": [
+    {
+      "testVectorName": "an empty file",
+      "papelizSyncVaultId": "pzvault_testvectorvault22222222222",
+      "syncVaultKeyHex": "202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+      "plainBytes": {
+        "plainUtf8Text": ""
+      },
+      "syncFilePayloadForm": "as-is",
+      "filePayloadHex": null,
+      "fileKeySaltHex": "a0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebf",
+      "syncFileContentAddress": "c268789b3f5847dbd7fc90071f30fd1c03f2f9e06dcda295fa25e59058e61c4b",
+      "syncFileStoredByteLength": 1073,
+      "storedBytesHex": "01a0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc31a25474e55943dc525211c72780af75c43ffe06e9088e0ae1cad41e4f6594038741817169993dda53a39e60de6b3a495ab479d84a11a8670c96295a20c8ceb1914967538748c531c5fd3d1fb3a185627e8da49ca10026e17b538a5a95ebcee0694a03f869663282829b0858bedd801176219747bb3c0067cc238ebeac4a8549dea13ca6dbc739f60c20478b6236668d51dac33f96d403ec7cc0a19f7be2070816cbba26bfd82a2789023e4049c07e259915b06ab89e6f391f6941bb3558cffb94e67070be99a5db46e23adf7f315809b189e6409dc60a7b7cfb0823b9f218a37767190ca9e230132cdcb2e8e24441262c48eb4b6594063c632ada64e7ac204ca99b2d67caf541a64d255997857c578c0912b3e01007850ee3ee197b750d422aff14c5b01a846a0eaab73f7dbbd949b0977dfc372fd7769050cc9f9c2e26349a9f466fb4e7f970932dea2618493f76885288d2a846311d198ad7bd0f652efb267c49611b6da3d833188458a2f4bbf1902596363f70b2f462aeb2ca1b053022992394fb3d471ee04e10f0868d4a367cc86d3113fbae4395e7dc7bb91c4d4fedc1659f78d74f07823b35c1b1fd5a4b928c57bcc0ea508cff6999b35deb2363ae12218dee5aa2f4ed3878c2a25b0466303f9bb78693912c7faea06bec26cc73f9c615ab91570421dafe1e79d815de038c6893206b8ec4363fb629cce21d56d470072ccc1cf81878a43154a65deb7e11c2601c1478930b8b0ee21dd01f92d54c364e19971581c18de7bd12450bfabad6f712c1dc9da70ec353991759376f1e1f482294d6639d4363f3e9caea70fc8e3797e65efdf386b85fba18692b4ddd6114a46fd16a2eb645ab5f76cb2cc7f8d201336b03902142c7c9c9ebdc0333128ef89c994063814fb84dc26720c6e71648ddeaeb96624fb9b2d3b3666f2ab7a77f937d76f3dc3b952216645a99f9408b6cc5f4eb27e3cc8ddfa15e79e9b90e109c103d2bccc4377f3d4a3baf6afbb3e633bdedddd668e29eb4f57f5c20a3d40a079e6d67b16f99a126c2025b7986a8d5914762f5cc5d9a47795868b6d9acf8a6a07db49fb262f0948a9949acd23f411223669a2dd1e924cdf1eccadb328aa86abe6651e10dc7e2c48ebfa17b9bbd5157c3d794dd189099e2c61e0d6b1d09f29ccb4aa8cc8187fb3689037d9f4336df93b28518525dd15f820e57455a5abe9a183e64ebca46e0d9dfc32ceeaaab7707471e76f39e2746f42fa034edd48f19087a2da8f42e24ea2cceb3ad764f37a28a7b4e04fca7cc6849e42c40904adabd022b61c8211ec4eea6bd6258b6616ec15676a80c116d5f54e52e2379e0224895ddeb0a79459638554352d7ad2479ec585fcdeed273d9efcdc2074fc7aeb6029ffea03a1b342d41047fa754e28432ebfdfb42dcadc9cb98dd61ca5cbcd09265129c4481969068463664a068688ae13e40ef8119f49df"
+    },
+    {
+      "testVectorName": "a short note",
+      "papelizSyncVaultId": "pzvault_testvectorvault22222222222",
+      "syncVaultKeyHex": "202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+      "plainBytes": {
+        "plainUtf8Text": "# Hello\n\nA note for the Papeliz Sync test vectors. Ünïcödé ✓\n"
+      },
+      "syncFilePayloadForm": "as-is",
+      "filePayloadHex": null,
+      "fileKeySaltHex": "b0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecf",
+      "syncFileContentAddress": "6d5873117fc75749f7367b1ec90b41f3ee319943ec31664dbd66abbb8fefd477",
+      "syncFileStoredByteLength": 1073,
+      "storedBytesHex": "01b0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfa0b34c0b29171d9b363e1ea29a0366f4c9877c91d5db61b3740ac7488ed4e045642899f282f6430b1d04e36ef46ff8fb80c6154e6b822a43ce895461ee30435e7f055f9068cbb9c610fc36feeae08867e3268a3b5031aa67043732a16925981a1f9807e876d544a1f077f47ea4a78ef63f03790e8d94ec5f787d1f342656943ae40c10850a5c5ee8fd56631cb0cc47c4de875281ff5aa808f4447d97b0da6ecf3719fd077b988c80d33fcf4727d454fa8eb63c2d49c90c9ec75596788393c85b30357d778bfe0b9bd4752ef33acb48ad67109d52d0e461f42f8d7a588cf39aa6b619aafc0fdde6ee3edca8d6fcb943419ac1db5d33b4dd8a082f81ef04d0fb6005647e5c5260c218e2af91cb664e96df368165ac2d06e4fa32320fb798fde8e3237d88d55b4760c07e37ace6af1fd252dd5ff0870b578fcbc8296d2b43871a1a752d2f23b1b19d0ebe6ca62d7a5aa8eae8dd39e2103d9b501e8bd36fdcd9d91b80d9590633840d1ad1e24fa14cece32473aa3d4ce80ed0f463e5a63e53db784b6e18031a453fe7f983aff268b2e6dfd740390c05e62a9ae30ed7352d57083fc1f82a33f47f364262ad6182d7c7e6fcbcdd9a4cdb5ec91b2a0f0274b6398df504f5f01a8fb1fed9d7eb39620de94cf69eadb0618c9154ec48e643929fbae2ae1be4bcce42b2c489315f605f347b70f4c21ea4c8610aa39abf67149336e4b2e8931013d496e50d06048bc142b9430b5f407bac7c9e96c2ceb085182635e98a8e80f59ad75ff7650b74b346b54a40d596f26bbbf235cf84e4a1b003de2ee40f6c99c069644a3f2edd4383b6e354f6a121e20a11af7ebca0ebf8ad0e1554633da797be46cd4b71b08d50195b1e9ebab2324d4ba43e83643911f4eb5b1aa7b373003d24920b4d642d2f70860bf45eb827eaedd24d762264c4aa558e9fa8fb9de58032053a2f89d7bfcb81bc8a4ad6113509d9da308eecf0a35705e30111b198cf74b385e517dafc2fecbd37ad3685d321ac0d51de03fcbb221004f16f3d730052492a3930a522ae0ba5e8c621108c6bf94f459b544cf4a3c47b2c2abf0870320f0326450f0b9a73be94091fc1c9158c5a14ded85147a8e73bc1e3bc78fcf8fdf495d3c5c93a6432331b65351690a7e8ab90c79bed0d1456e5edd6c8d177be84f7ef8569da9898eb26523d578375a5e680f5ea65453db0d658bdf8385df2798f8e713121a24499c9af05a57cd2cc6d4abd5be21c3386864548c74c8e0525467742c6ee80ca3443721427205744c2e031d0bef8c189a3e850878bfe466baee77a2ae7c8c21502f32eaafb3f245865488554e66171ab2ec43081fcdf260f4b7e6c89b517b7ee15f3cd486d129ddc1f5ececc8dba67359299f9f5a146afb422491c3bfb1504dace27e5a6cb394567caf318a9cceec92937da4f22b2f2f10f4993b2c4b3375e866f62569a3bcca7983a5f5b2d588c"
+    },
+    {
+      "testVectorName": "a note stored compressed",
+      "papelizSyncVaultId": "pzvault_testvectorvault22222222222",
+      "syncVaultKeyHex": "202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+      "plainBytes": {
+        "plainUtf8Text": "# Reading list\n\n## Rivers and Roads\n\n- [ ] Borrow it from the library (shelf 3)\n- [ ] Read the first three chapters before the next club meeting\n- Notes: [[Rivers and Roads notes]], started on 1 March\n\n## Small Gardens\n\n- [ ] Borrow it from the library (shelf 4)\n- [ ] Read the first three chapters before the next club meeting\n- Notes: [[Small Gardens notes]], started on 2 March\n\n## The Long Winter Kitchen\n\n- [ ] Borrow it from the library (shelf 5)\n- [ ] Read the first three chapters before the next club meeting\n- Notes: [[The Long Winter Kitchen notes]], started on 3 March\n\n## Maps of the Coast\n\n- [ ] Borrow it from the library (shelf 6)\n- [ ] Read the first three chapters before the next club meeting\n- Notes: [[Maps of the Coast notes]], started on 4 March\n\n## Night Trains\n\n- [ ] Borrow it from the library (shelf 7)\n- [ ] Read the first three chapters before the next club meeting\n- Notes: [[Night Trains notes]], started on 5 March\n\n## A Year of Birds\n\n- [ ] Borrow it from the library (shelf 8)\n- [ ] Read the first three chapters before the next club meeting\n- Notes: [[A Year of Birds notes]], started on 6 March\n\n## Stone and Moss\n\n- [ ] Borrow it from the library (shelf 9)\n- [ ] Read the first three chapters before the next club meeting\n- Notes: [[Stone and Moss notes]], started on 7 March\n\n## The Quiet Workshop\n\n- [ ] Borrow it from the library (shelf 10)\n- [ ] Read the first three chapters before the next club meeting\n- Notes: [[The Quiet Workshop notes]], started on 8 March\n"
+      },
+      "syncFilePayloadForm": "deflate-raw",
+      "filePayloadHex": "00000000000005e0add34d4b03311006e0fbfe8a177a51b060ed87d59bf5e0415bb0168a941ed2ddd94d709b94c9d48f7f2fbbf4b0ad11ba90f30cc9f3c2bc1dcc4965c616288d9724e97430379fc41eca66983b95f924e9628535268ed97dc10872765b88269466c38a7f70e1359539fa9787d5eacd7a2137ec05a29908a9563ba95ede50ee98eab9a56f415aee37d81289b145d2c5cc09f97bac56a710d86ab25e5fc18b62a10ccea287a9e254d7f2b7ad2a4b3c29cec8b6600fe2b28f1441f34dc3bcd08417670b2c8d15623c1b4935d9f3f5c3b8fa7f3cc11cfd468ea9da79b8bcfee0d1a9ea96ce4d308a9be08f24681f34ec335368c18295697336b771d94d44503c6c881ff04e8aab9413c36d2a3a8e8b3e7104dda36643c559aa1b3d75be05fb2e72458f1841f5ed49475ff786044bc71f5ebbddf9f2de75fc7e1e5b82fcf181ff0b",
+      "fileKeySaltHex": "606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f",
+      "syncFileContentAddress": "7d3a7a7918cca640fe1888783cdf22ce898f5ff0fcbffde470b05b8088c7d417",
+      "syncFileStoredByteLength": 1073,
+      "storedBytesHex": "01606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7fdbe86f45cabc62aae4e31c6d191bed1a26e2d4c58f922acddab4953ef5a6f527c897839a2ffb4ff9cbef4a18f7477a65b8a80c82c863e18a67e661b275f20dd21972fce4a1c5645fc938fc18814beb8ffe9a19e0de365bc9f6e8571661399ec019545a8cd0b27201c7eeeb213e6109939324ed5c89d4ba127e257f66079e2708f26201839b6c59ff8e4451f3e0af1ce26dfef187083e1395e379fc66f1bee91a95cf125c276fa98b2b83dd5d4a84c501c915e288286042c5d4d2cb1ee9f52926597b7805fc92be2b245e549f323411fe4db22406b5cdbd8282526523d746b3fcf9bfb7243d0d8306ab1ee72b9bdbf773074ef35dc3d6bd15ffba0ba5444c6ff9b367b1d2f8ed517f82f0b9a805a37e57a312347bb712f26aa76c031a49dc831f1d9801f2c85ff34097d1624373f42eba95a549992b764915e397c71f8d6fcbecf6a322743725903a365db238882bcbfec6a9e78f67d71604d43c6990b7814b7f5568d38ade3817a3d08edbf8a9f0ca67e762aef2cfe65a519703404f9c15b7ef22a73e74b87f29c4c42c2703c9a7877d775ada6095d46648fc27d3c50fe7b01e5ec4887342dcc165a935524f027aafc24fe3a6fb100d755f6361cae6d7c79a8ad523e71c581e0737b016bdd3d4b0d23d53167203b7d8323486956a5b6a740871ec42363dbdd9e83d0f7300a0d20cde69df0093d8f2eb6d0e0f68944cf6011381302011fe6faa84ed63d02fd91744be95c724d5a971fa2f559be404af3a25e441c0c338974780bcad67e74d63dd66debc29f2a2687d305d2abf970344b847cce01765c5db1a845e46ede02a460d77d5f5063ce20bc68b34d0ea4f34dd85c26062a36bfe842a8fefedd17ee9bd3e1826ba71b5975321e043b2aa889d2694613f0cd2cdd6830b87bfdc4e228ebdc15499c473db5f06fd1c9b5befe189e3d029460bf430fa6e8485526758d1cb628817ceb736ff96422f45a49488208c9fbc79a43f610094e125c34abeaadc364c8ce796c0932acb99210eac081046d1b28b6ae28b02311d05175f5c68527c9a4ef88e5a62ab99e6adf23ea4b5ca4e5c2965a67664c61d00898ac225b66d14cf2c878de2782e156a8de09312e83d2f8f4c4855463fe108427b73d233135d30774eac5ddcda923da5ccd4b5ff7e65f0c47b6b144739163d2c06c51297d19c9b550d1e12f2cc88a84a29519352c8480e6a7a59526c5db15f985bbddf65eaebc78c5aa5245a3c91ab561333eec50658eac1b5d633ae1c78931a9fce09b9237fe445ac5a2d9dec6bb5b974ead31798718443f5266cdd2c5cc51b74521712bb0d6a80b1eba4814814d5aa7a8b7bce1d65d8c2e8ded09c803420b6e0cb63287b1f22be3c781d0c712e1517cfcde2407982af34dced3a7334c8c6d77204119f875e3d81be8232efda77a132550cff4327cef8c5206b9d2eddfecc381eb7aa0d35d99e99fa274d5e55"
+    }
+  ],
+  "filePathVectors": [
+    {
+      "testVectorName": "a note in a folder",
+      "papelizSyncVaultId": "pzvault_testvectorvault22222222222",
+      "syncVaultKeyHex": "202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+      "papelizSyncFileEntryId": "pzentry_testvectorentry22222222222",
+      "vaultFileRelativePath": "Notes/Hello.md",
+      "syncFileContentAddress": "6d5873117fc75749f7367b1ec90b41f3ee319943ec31664dbd66abbb8fefd477",
+      "syncSealNonceHex": "e0e1e2e3e4e5e6e7e8e9eaeb",
+      "encryptedSyncFileRelativePath": "AeDh4uPk5ebn6Onq60DzIMYWo1o56D9WrQDfHUYlzbqBZFd5uxCkWqVBeTPXxn0d5HFA_0kRtTddVez9n7Czs_lBi4XnGmGI20chBRX62d-eUtK719u-IGq3uL0VJSCqxaLoOtjYipr6vHRYal3X-ALMj9q19wmgl09jFYY"
+    },
+    {
+      "testVectorName": "a path with accents and an emoji",
+      "papelizSyncVaultId": "pzvault_testvectorvault22222222222",
+      "syncVaultKeyHex": "202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+      "papelizSyncFileEntryId": "pzentry_testvectorentry22222222222",
+      "vaultFileRelativePath": "Ideen/Größe 📝/Plan.md",
+      "syncFileContentAddress": "6d5873117fc75749f7367b1ec90b41f3ee319943ec31664dbd66abbb8fefd477",
+      "syncSealNonceHex": "f0f1f2f3f4f5f6f7f8f9fafb",
+      "encryptedSyncFileRelativePath": "AfDx8vP09fb3-Pn6-zlnoKiWJ8RESkp7hulCXmILJVKQ9WMl5d6uSUCeU7Ke5wz1gBxigxb9_uQYIp1UdQ1z154DXE9YbYDt-xsfx9h8go9KQm6kjtdzI4U4sbLJ-Jjm7nYmkCgYjnIH544kmRVwm0yh_ZGiNeF3fF4PDNQ"
+    }
+  ]
+}

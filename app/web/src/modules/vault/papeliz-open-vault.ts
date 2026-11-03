@@ -16,6 +16,7 @@ import {
   type PapelizRememberedVaultFolder,
 } from './papeliz-remembered-vault-folders'
 import { papelizSampleVaultDisplayName, papelizSampleVaultNotes } from './papeliz-sample-vault-notes'
+import { findPapelizLockedEndToEndVault, type PapelizLockedEndToEndVault } from './papeliz-vault-encryption'
 import { describeVaultEntryNameProblem } from './papeliz-vault-relative-paths'
 
 export const papelizSampleVaultId = 'papeliz-sample-vault'
@@ -47,6 +48,17 @@ export type PapelizOpenVaultResult =
   // page until tried again.
   | { openVaultOutcome: 'chooser-unavailable' }
 
+// Why no vault was opened: a folder picked that wasn't, or couldn't be.
+export type PapelizOpenVaultRefusal = Exclude<PapelizOpenVaultResult, { openVaultOutcome: 'opened' }>
+
+// Opening a vault that may already be End-to-end (Open Vault, a Recent Vaults row): the same, or the
+// vault found and waiting for its passphrase or its remembered key (papeliz-vault-encryption.ts), with
+// nothing in it open yet. A vault New Vault or a template has just made is never End-to-end before it
+// opens, so those give `PapelizOpenVaultResult`.
+export type PapelizExistingVaultOpenResult =
+  | PapelizOpenVaultResult
+  | { openVaultOutcome: 'needs-unlock'; papelizLockedEndToEndVault: PapelizLockedEndToEndVault }
+
 export function openPapelizSampleVault(): PapelizOpenVault {
   return {
     papelizVaultId: papelizSampleVaultId,
@@ -59,7 +71,7 @@ export function openPapelizSampleVault(): PapelizOpenVault {
 // why there is none, as `PapelizOpenVaultResult` says.
 export type PapelizVaultFolderPickResult =
   | { vaultFolderPickOutcome: 'picked'; papelizVaultFolderHandle: FileSystemDirectoryHandle }
-  | Exclude<PapelizOpenVaultResult, { openVaultOutcome: 'opened' }>
+  | PapelizOpenVaultRefusal
 
 // Shows the browser's folder picker. Must run from a click.
 export async function pickPapelizVaultFolderHandle(): Promise<PapelizVaultFolderPickResult> {
@@ -85,12 +97,12 @@ export async function pickPapelizVaultFolderHandle(): Promise<PapelizVaultFolder
 // Shows the browser's folder picker and opens the folder picked, remembering it for Recent vaults.
 // Must run from a click. In Papeliz for Windows it is Windows' own folder picker, and the folder is
 // opened and remembered by its path.
-export async function pickAndOpenPapelizVaultFolder(): Promise<PapelizOpenVaultResult> {
+export async function pickAndOpenPapelizVaultFolder(): Promise<PapelizExistingVaultOpenResult> {
   const papelizDesktopPlatform = await waitForPapelizDesktopPlatform()
-  if (papelizDesktopPlatform !== null) return pickAndOpenPapelizDesktopVaultFolder(papelizDesktopPlatform)
+  if (papelizDesktopPlatform !== null) return findPapelizLockedEndToEndVault(await pickAndOpenPapelizDesktopVaultFolder(papelizDesktopPlatform))
   const vaultFolderPickResult = await pickPapelizVaultFolderHandle()
   if (!('vaultFolderPickOutcome' in vaultFolderPickResult)) return vaultFolderPickResult
-  return openPapelizVaultFolderHandle(vaultFolderPickResult.papelizVaultFolderHandle)
+  return findPapelizLockedEndToEndVault(await openPapelizVaultFolderHandle(vaultFolderPickResult.papelizVaultFolderHandle))
 }
 
 // Why a name typed for a new folder vault can't be the folder's name, as a code ("Name Empty",
@@ -139,7 +151,7 @@ export type PapelizNewVaultParentFolder =
 
 export type PapelizNewVaultParentFolderPickResult =
   | { newVaultParentFolderPickOutcome: 'picked'; pickedNewVaultParentFolder: PapelizNewVaultParentFolder }
-  | Exclude<PapelizOpenVaultResult, { openVaultOutcome: 'opened' }>
+  | PapelizOpenVaultRefusal
 
 // The folder window, for where New Vault makes the vault (with permission to change it in a browser).
 // Must run from a click.
@@ -242,8 +254,8 @@ export async function pickPlaceAndOpenNewPapelizFolderVault(newVaultName: string
 // Reopens a folder from the welcome screen's recent list, asking for permission again if the
 // browser no longer has it. Must run from a click. A folder remembered by path opens by its path in
 // Papeliz for Windows, where there is no permission to ask for.
-export async function reopenRememberedPapelizVaultFolder(rememberedVaultFolder: PapelizRememberedVaultFolder): Promise<PapelizOpenVaultResult> {
-  if (!isRememberedDesktopPathVaultFolder(rememberedVaultFolder)) return openPapelizVaultFolderHandle(rememberedVaultFolder.papelizVaultFolderHandle)
+export async function reopenRememberedPapelizVaultFolder(rememberedVaultFolder: PapelizRememberedVaultFolder): Promise<PapelizExistingVaultOpenResult> {
+  if (!isRememberedDesktopPathVaultFolder(rememberedVaultFolder)) return findPapelizLockedEndToEndVault(await openPapelizVaultFolderHandle(rememberedVaultFolder.papelizVaultFolderHandle))
   const papelizDesktopPlatform = await waitForPapelizDesktopPlatform()
   if (papelizDesktopPlatform === null) {
     return {
@@ -251,7 +263,9 @@ export async function reopenRememberedPapelizVaultFolder(rememberedVaultFolder: 
       openVaultFailureMessage: describePapelizFailureCodeMessage(`Couldn’t open “${rememberedVaultFolder.papelizVaultDisplayName}”`, 'Not Supported Yet'),
     }
   }
-  return openPapelizDesktopVaultFolderPath(rememberedVaultFolder.desktopVaultFolderPath, papelizDesktopPlatform, { isDesktopVaultFolderJustPicked: false })
+  return findPapelizLockedEndToEndVault(
+    await openPapelizDesktopVaultFolderPath(rememberedVaultFolder.desktopVaultFolderPath, papelizDesktopPlatform, { isDesktopVaultFolderJustPicked: false }),
+  )
 }
 
 // Opens a folder as a vault and remembers it for Recent vaults (refreshing it when it's there already).
@@ -281,7 +295,7 @@ export async function openPapelizVaultFolderHandle(papelizVaultFolderHandle: Fil
 async function pickPapelizDesktopFolderPath(
   papelizDesktopPlatform: PapelizDesktopPlatform,
   desktopFolderPickerTitle: string,
-): Promise<{ desktopFolderPickOutcome: 'picked'; pickedDesktopFolderPath: string } | Exclude<PapelizOpenVaultResult, { openVaultOutcome: 'opened' }>> {
+): Promise<{ desktopFolderPickOutcome: 'picked'; pickedDesktopFolderPath: string } | PapelizOpenVaultRefusal> {
   try {
     const pickedDesktopFolderPath = await papelizDesktopPlatform.pickDesktopFolderPath(desktopFolderPickerTitle)
     return pickedDesktopFolderPath === null ? { openVaultOutcome: 'cancelled' } : { desktopFolderPickOutcome: 'picked', pickedDesktopFolderPath }

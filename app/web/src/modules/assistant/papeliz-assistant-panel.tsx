@@ -11,6 +11,7 @@ import { usePapelizAssistantPanelUiStore, type PapelizAssistantPanelTab } from '
 import { usePapelizAssistantRunOptionsStore, type PapelizAssistantMode } from './papeliz-assistant-run-options-store'
 import { PapelizAssistantSessionsView } from './papeliz-assistant-sessions-view'
 import { PapelizAssistantUsageView } from './papeliz-assistant-usage-view'
+import { PapelizEndToEndVaultAssistantLine } from '../workspace/papeliz-vault-encryption-parts'
 
 interface PapelizAssistantPanelProps {
   onAssistantPanelClose: () => void
@@ -304,6 +305,8 @@ export function PapelizAssistantPanel({ onAssistantPanelClose }: PapelizAssistan
           {assistantPanelTab === 'chat' ? (
             <>
               <PapelizAssistantChatView />
+              {/* In an End-to-end vault: the notes it reads go decrypted to the provider. */}
+              <PapelizEndToEndVaultAssistantLine />
               {/* Before a provider is set up the box carries the way to set one up (and an earlier conversation can still be read). */}
               <div className="flex-none px-3.5 pb-2">
                 <PapelizAssistantComposer composerPlacement="panel" />

@@ -135,6 +135,14 @@ export interface PapelizDesktopPlatform {
   // Null when this version is the newest, when the check can't reach the update address, or in the
   // Microsoft Store package, which the Store updates.
   checkForDesktopAppUpdate(): Promise<PapelizDesktopAppUpdate | null>
+  // Remember on This Device for an End-to-end vault (papeliz-vault-encryption.ts): its 32-byte key,
+  // kept in Windows Credential Manager for this Windows account, under the vault's own encrypted-vault
+  // ID (`pzvault_…`, from its `.papeliz/vault-encryption.json`). Remembering again replaces the key.
+  rememberDesktopVaultEncryptionKey(papelizVaultId: string, vaultEncryptionKeyBytes: Uint8Array): Promise<void>
+  // The key kept for that vault, or null when none is.
+  readRememberedDesktopVaultEncryptionKey(papelizVaultId: string): Promise<Uint8Array | null>
+  // Removes the key kept for that vault; nothing when none is.
+  forgetRememberedDesktopVaultEncryptionKey(papelizVaultId: string): Promise<void>
 }
 
 // What `loadPapelizDesktopPlatform()` gives back: the platform in the desktop app, nothing in a browser.

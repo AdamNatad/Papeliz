@@ -25,6 +25,7 @@ import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { PapelizSlidingChoiceGroup } from '../ui/papeliz-sliding-choice-group'
 import { PapelizVaultOperationError } from '../vault/papeliz-vault-adapter'
 import { getVaultEntryParentFolderRelativePath } from '../vault/papeliz-vault-relative-paths'
+import { isPapelizEndToEndVaultAdapter } from '../vault/papeliz-vault-encryption'
 import { buildThenSavePapelizExportFile, describePapelizExportErrorSentence, type PapelizExportFileKind, type PapelizExportFileSaveOutcome } from './papeliz-export-file-save'
 import { PapelizSettingsGearExportFormatSettingsDialog } from './papeliz-settings-gear-export-format-settings-dialog'
 import {
@@ -556,7 +557,9 @@ export function PapelizSettingsGearExportPage() {
   const isExportPaperChosen = (chosenExportFormat !== 'word' && chosenExportFormat !== 'pdf') || exportPaperSize !== null
 
   // Template: its settings for this vault, and whether their page is open over this one.
-  const openVaultId = openVault?.papelizVaultId ?? null
+  // Template's settings name the vault's notes, so an End-to-end vault keeps them in memory only, never
+  // in this browser's settings.
+  const openVaultId = openVault === null || isPapelizEndToEndVaultAdapter(openVault.papelizVaultAdapter) ? null : openVault.papelizVaultId
   const openVaultDisplayName = openVault?.papelizVaultDisplayName ?? ''
   const [templateExportSettings, setTemplateExportSettings] = useState<PapelizSettingsGearTemplateExportSettings>(() =>
     createPapelizSettingsGearTemplateExportSettings(openVaultDisplayName),

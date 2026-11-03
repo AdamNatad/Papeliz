@@ -25,6 +25,13 @@ import {
   papelizVaultTrashFolderName,
   splitVaultRelativePath,
 } from './papeliz-vault-relative-paths'
+import {
+  assertVaultEntryRelativePathCarriedByVaultEncryption,
+  assertVaultFileRelativePathCarriedByVaultEncryption,
+  assertVaultFolderRelativePathCarriedByVaultEncryption,
+  isVaultFileRelativePathCarriedByVaultEncryption,
+  isVaultFolderSearchedForVaultEncryption,
+} from './papeliz-vault-encryption-stored-files'
 import { assertVaultTextFileOpenableAtByteLength, classifyVaultFileByName, papelizVaultFileByteCheckLength } from './papeliz-vault-text-files'
 
 type PapelizVaultEntryHandle = FileSystemFileHandle | FileSystemDirectoryHandle
@@ -140,22 +147,30 @@ export abstract class PapelizDirectoryHandleVaultAdapter implements PapelizVault
   // Papeliz Sync's own access (papeliz-sync-local-vault-files.ts): every file it carries, whole, with
   // sizes and times (papeliz-vault-relative-paths.ts says which). Hidden folders and files stay out,
   // except `.papeliz/` and `.csessions/` at the top.
-  async listSyncableVaultFileStats(): Promise<PapelizVaultSyncableFileStat[]> {
-    const syncableVaultFileStats: PapelizVaultSyncableFileStat[] = []
-    const collectVaultFolderSyncableFiles = async (vaultFolderHandle: FileSystemDirectoryHandle, vaultFolderRelativePath: string) => {
+  listSyncableVaultFileStats(): Promise<PapelizVaultSyncableFileStat[]> {
+    return this.collectVaultFileStats(isVaultFolderSearchedForSyncableFiles, isVaultFileRelativePathSyncable)
+  }
+
+  // Every file, with its size and last change, in the folders and of the paths the two rules let in.
+  private async collectVaultFileStats(
+    isVaultFolderSearched: (vaultParentFolderRelativePath: string, vaultFolderName: string) => boolean,
+    isVaultFileListed: (vaultFileRelativePath: string) => boolean,
+  ): Promise<PapelizVaultSyncableFileStat[]> {
+    const collectedVaultFileStats: PapelizVaultSyncableFileStat[] = []
+    const collectVaultFolderFileStats = async (vaultFolderHandle: FileSystemDirectoryHandle, vaultFolderRelativePath: string) => {
       for await (const [vaultEntryName, listedVaultEntryHandle] of vaultFolderHandle.entries()) {
         const vaultEntryRelativePath = joinVaultRelativePath(vaultFolderRelativePath, vaultEntryName)
         const vaultEntryHandle = asPapelizVaultEntryHandle(listedVaultEntryHandle)
         if (vaultEntryHandle.kind === 'directory') {
-          if (isVaultFolderSearchedForSyncableFiles(vaultFolderRelativePath, vaultEntryName)) await collectVaultFolderSyncableFiles(vaultEntryHandle, vaultEntryRelativePath)
-        } else if (isVaultFileRelativePathSyncable(vaultEntryRelativePath)) {
+          if (isVaultFolderSearched(vaultFolderRelativePath, vaultEntryName)) await collectVaultFolderFileStats(vaultEntryHandle, vaultEntryRelativePath)
+        } else if (isVaultFileListed(vaultEntryRelativePath)) {
           const vaultFile = await vaultEntryHandle.getFile()
-          syncableVaultFileStats.push({ vaultFileRelativePath: vaultEntryRelativePath, vaultFileByteLength: vaultFile.size, vaultFileModifiedAt: vaultFile.lastModified })
+          collectedVaultFileStats.push({ vaultFileRelativePath: vaultEntryRelativePath, vaultFileByteLength: vaultFile.size, vaultFileModifiedAt: vaultFile.lastModified })
         }
       }
     }
-    await collectVaultFolderSyncableFiles(this.vaultRootFolderHandle, papelizVaultRootFolderRelativePath)
-    return syncableVaultFileStats
+    await collectVaultFolderFileStats(this.vaultRootFolderHandle, papelizVaultRootFolderRelativePath)
+    return collectedVaultFileStats
   }
 
   async readVaultFileBytes(vaultFileRelativePath: string): Promise<Uint8Array> {
@@ -167,6 +182,38 @@ export abstract class PapelizDirectoryHandleVaultAdapter implements PapelizVault
   // Writes the whole file, making its folders. Only a file Sync carries.
   async writeVaultFileBytes(vaultFileRelativePath: string, vaultFileBytes: Uint8Array): Promise<void> {
     if (!isVaultFileRelativePathSyncable(vaultFileRelativePath)) throw new PapelizVaultOperationError('Not Synced')
+    await this.writeWholeVaultFileBytes(vaultFileRelativePath, vaultFileBytes)
+  }
+
+  // Vault encryption's own access (papeliz-vault-encryption-stored-files.ts): every file a change of
+  // kind carries, whole, by its path as stored.
+  listStoredVaultFileStats(): Promise<PapelizVaultSyncableFileStat[]> {
+    return this.collectVaultFileStats(isVaultFolderSearchedForVaultEncryption, isVaultFileRelativePathCarriedByVaultEncryption)
+  }
+
+  async writeStoredVaultFileBytes(storedVaultFileRelativePath: string, storedVaultFileBytes: Uint8Array): Promise<void> {
+    assertVaultFileRelativePathCarriedByVaultEncryption(storedVaultFileRelativePath)
+    await this.writeWholeVaultFileBytes(storedVaultFileRelativePath, storedVaultFileBytes)
+  }
+
+  // A folder is removed without what is in it, so one that isn't empty fails and stays.
+  async removeStoredVaultEntry(storedVaultEntryRelativePath: string): Promise<void> {
+    assertVaultEntryRelativePathCarriedByVaultEncryption(storedVaultEntryRelativePath)
+    const vaultParentFolderHandle = await this.getVaultFolderHandle(getVaultEntryParentFolderRelativePath(storedVaultEntryRelativePath))
+    await vaultParentFolderHandle.removeEntry(getVaultEntryName(storedVaultEntryRelativePath))
+    this.noteVaultChanged()
+  }
+
+  async makeStoredVaultFolder(storedVaultFolderRelativePath: string): Promise<void> {
+    assertVaultFolderRelativePathCarriedByVaultEncryption(storedVaultFolderRelativePath)
+    let vaultFolderHandle = this.vaultRootFolderHandle
+    for (const vaultPathSegment of splitVaultRelativePath(storedVaultFolderRelativePath)) {
+      vaultFolderHandle = await vaultFolderHandle.getDirectoryHandle(vaultPathSegment, { create: true })
+    }
+  }
+
+  // Writes the whole file, making its folders.
+  private async writeWholeVaultFileBytes(vaultFileRelativePath: string, vaultFileBytes: Uint8Array): Promise<void> {
     let vaultParentFolderHandle = this.vaultRootFolderHandle
     for (const vaultPathSegment of splitVaultRelativePath(getVaultEntryParentFolderRelativePath(vaultFileRelativePath))) {
       vaultParentFolderHandle = await vaultParentFolderHandle.getDirectoryHandle(vaultPathSegment, { create: true })

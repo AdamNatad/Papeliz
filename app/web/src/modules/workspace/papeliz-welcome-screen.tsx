@@ -1,9 +1,8 @@
-import { AppWindow, BookOpen, CloudCheck, CloudDownload, Code, Download, Ellipsis, Eye, EyeOff, FolderOpen, FolderPlus, HardDrive, History, LayoutTemplate, Lock, Pencil, RefreshCw, RotateCcw, Search, Trash2, type LucideIcon } from 'lucide-react'
+import { AppWindow, BookOpen, CloudCheck, CloudDownload, Code, Download, Ellipsis, Eye, EyeOff, FolderOpen, FolderPlus, HardDrive, History, KeyRound, LayoutTemplate, Lock, Pencil, RefreshCw, RotateCcw, Search, Trash2, type LucideIcon } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type Ref } from 'react'
 import { isPapelizDesktopApp } from 'virtual:papeliz-desktop-platform-availability'
 import { PapelizDesktopWindowControls, usePapelizDesktopWindowBarDragHandlers } from '../desktop/papeliz-desktop-window-controls'
 import { isPapelizSyncEngineInThisBuild } from 'virtual:papeliz-sync-engine-availability'
-import type { PapelizSyncVaultEncryptionKind } from '../sync/papeliz-sync-engine-contract'
 import { isPapelizSyncUsedOnThisDevice, readPapelizSyncDevFakeEngineScenarioText, usePapelizSyncEngineSnapshot, usePapelizSyncEngineStore } from '../sync/papeliz-sync-engine-store'
 import { PapelizSyncStartScreenDownloadProgressLines, readPapelizSyncStartScreenDownloadPercent } from '../sync/papeliz-sync-start-screen-download-progress'
 import { returnPapelizSyncSyncedVaultsPageToLive, usePapelizSyncSyncedVaultsPagePreviewStore } from '../sync/papeliz-sync-synced-vaults-page-preview-store'
@@ -46,10 +45,12 @@ import {
   openPapelizSampleVault,
   pickAndOpenPapelizVaultFolder,
   pickPapelizNewVaultParentFolder,
+  type PapelizExistingVaultOpenResult,
   type PapelizNewVaultParentFolder,
   type PapelizOpenVault,
   type PapelizOpenVaultResult,
 } from '../vault/papeliz-open-vault'
+import { makePapelizEndToEndVault, unlockPapelizEndToEndVaultWithRememberedKey, type PapelizLockedEndToEndVault } from '../vault/papeliz-vault-encryption'
 import {
   deletePapelizRecentVault,
   isPapelizRecentDesktopFolderVault,
@@ -67,7 +68,15 @@ import { usePapelizBrowserStorageStore } from './papeliz-browser-storage-store'
 import { downloadPapelizBrowserVaultBackupFromClick } from './papeliz-browser-vault-backup-reminder-store'
 import { PapelizBrowserVaultNameDialog } from './papeliz-browser-vault-name-dialog'
 import { PapelizNewVaultForm, type PapelizNewVaultConfirmDetails, type PapelizNewVaultPlace } from './papeliz-new-vault-form'
-import { readPapelizRecentVaultSyncEncryptionKinds } from './papeliz-recent-vault-sync-badges'
+import { PapelizEndToEndVaultUnlockPanel, type PapelizEndToEndVaultUnlockReason } from './papeliz-end-to-end-vault-unlock-panel'
+import { readPapelizRecentVaultSyncedVaultIds } from './papeliz-recent-vault-sync-badges'
+import {
+  describePapelizVaultEncryptionFailureMessage,
+  papelizEndToEndVaultBadgeColorClassName,
+  papelizVaultRowBadgeClassName,
+  PapelizVaultLetterTile,
+} from './papeliz-vault-encryption-parts'
+import { papelizEndToEndVaultBadgeWords, papelizRememberedEndToEndVaultChipTooltipText, papelizRememberedEndToEndVaultChipWords } from './papeliz-vault-encryption-screen-words'
 import { PapelizSettingsGearButton } from './papeliz-settings-gear-button'
 import { usePapelizStartScreenEyePreviewStore, type PapelizStartScreenEyePreview } from './papeliz-start-screen-eye-preview-store'
 import { PapelizWorkspaceNotice } from './papeliz-workspace-notice'
@@ -118,32 +127,48 @@ const papelizVaultRowEndTimeClassName =
 const papelizVaultRowEndButtonsClassName =
   'flex items-center transition-opacity duration-150 md:pointer-fine:col-start-1 md:pointer-fine:row-start-1 md:pointer-fine:opacity-0 md:pointer-fine:group-focus-within:opacity-100 md:pointer-fine:group-hover:opacity-100'
 
-// The words under a vault's name: where it's kept, then whether it syncs and how it's encrypted. Each
-// has a tooltip; a vault row's button says them all to screen readers and shows them on keyboard focus.
-type PapelizVaultRowWordKind = 'browser-storage' | 'folder-storage' | 'sync' | 'standard-encryption' | 'end-to-end-encryption' | 'local'
+// The words under a vault's name: where it's kept, whether it syncs (where Sync is in the build), and
+// for an End-to-end vault its badge and whether this device remembers its key. Each has a tooltip; a
+// vault row's button says them all to screen readers and shows them on keyboard focus. A Standard
+// vault has no encryption badge: its files aren't encrypted.
+type PapelizVaultRowWordKind = 'browser-storage' | 'folder-storage' | 'sync' | 'end-to-end-encryption' | 'remembered' | 'local'
 
 const papelizVaultRowWordTooltips: Record<PapelizVaultRowWordKind, { vaultRowWordTitle: string; vaultRowWordTooltipText: string }> = {
   'browser-storage': { vaultRowWordTitle: 'Browser Storage', vaultRowWordTooltipText: 'Kept inside this browser. Download backups, since a browser can clear it.' },
   'folder-storage': { vaultRowWordTitle: 'Folder Storage', vaultRowWordTooltipText: 'Kept in a folder on this device.' },
   sync: { vaultRowWordTitle: 'Sync', vaultRowWordTooltipText: 'Kept in sync with your other devices through Papeliz Sync.' },
-  'standard-encryption': {
-    vaultRowWordTitle: 'Standard Encryption',
-    vaultRowWordTooltipText: 'Encrypted on Papeliz Sync with a key Papeliz keeps, so there’s no passphrase to lose. Papeliz could read it.',
-  },
   'end-to-end-encryption': {
-    vaultRowWordTitle: 'End-to-End Encryption',
+    vaultRowWordTitle: papelizEndToEndVaultBadgeWords,
     vaultRowWordTooltipText: 'Encrypted on this device with your passphrase. Only you can read it, and Papeliz can’t recover the passphrase.',
   },
+  remembered: { vaultRowWordTitle: papelizRememberedEndToEndVaultChipWords, vaultRowWordTooltipText: papelizRememberedEndToEndVaultChipTooltipText },
   local: { vaultRowWordTitle: 'Local', vaultRowWordTooltipText: 'Only on this device. It doesn’t sync.' },
 }
 
-// A vault row's words, in order: where it's kept, then (where Sync is in the build) its sync badges.
-// `recentVaultSyncEncryptionKind` is undefined where there are no sync badges.
-function listVaultRowWordKinds(recentVault: PapelizStartScreenRecentVault, recentVaultSyncEncryptionKind: PapelizSyncVaultEncryptionKind | null | undefined): PapelizVaultRowWordKind[] {
-  const vaultRowStorageWordKind: PapelizVaultRowWordKind = recentVault.papelizRecentVaultKind === 'browser-vault-in-opfs' ? 'browser-storage' : 'folder-storage'
-  if (recentVaultSyncEncryptionKind === undefined) return [vaultRowStorageWordKind]
-  if (recentVaultSyncEncryptionKind === null) return [vaultRowStorageWordKind, 'local']
-  return [vaultRowStorageWordKind, 'sync', recentVaultSyncEncryptionKind === 'end-to-end' ? 'end-to-end-encryption' : 'standard-encryption']
+// A vault row's words, in order: where it's kept, then (where Sync is in the build) Sync or Local, then
+// an End-to-end vault's badge and Remembered. `isRecentVaultSynced` is undefined where there are no
+// sync badges.
+function listVaultRowWordKinds(recentVault: PapelizStartScreenRecentVault, isRecentVaultSynced: boolean | undefined): PapelizVaultRowWordKind[] {
+  const vaultRowWordKinds: PapelizVaultRowWordKind[] = [recentVault.papelizRecentVaultKind === 'browser-vault-in-opfs' ? 'browser-storage' : 'folder-storage']
+  if (isRecentVaultSynced !== undefined) vaultRowWordKinds.push(isRecentVaultSynced ? 'sync' : 'local')
+  if (isPapelizRecentVaultEndToEnd(recentVault)) {
+    vaultRowWordKinds.push('end-to-end-encryption')
+    if (recentVault.papelizRecentVaultEncryption?.isVaultEncryptionKeyRememberedOnThisDevice === true) vaultRowWordKinds.push('remembered')
+  }
+  return vaultRowWordKinds
+}
+
+// The vault's own kind, as this device last saw it.
+function isPapelizRecentVaultEndToEnd(recentVault: PapelizStartScreenRecentVault): boolean {
+  return recentVault.papelizRecentVaultEncryption?.papelizVaultEncryptionKind === 'end-to-end'
+}
+
+// Where an End-to-end vault is, on Unlock: its whole path in Papeliz for Windows, its storage on the web.
+function describeEndToEndVaultPlace(recentVault: PapelizStartScreenRecentVault | undefined, papelizLockedEndToEndVault: PapelizLockedEndToEndVault): string {
+  if (recentVault !== undefined && isPapelizRecentDesktopFolderVault(recentVault)) return recentVault.desktopVaultFolderPath
+  const isBrowserVault =
+    recentVault === undefined ? papelizLockedEndToEndVault.lockedStoredVaultAdapter.papelizVaultKind === 'browser-vault-in-opfs' : recentVault.papelizRecentVaultKind === 'browser-vault-in-opfs'
+  return isBrowserVault ? 'Browser Storage' : 'Folder Storage'
 }
 
 // The row's words as one description, for screen readers.
@@ -266,42 +291,40 @@ function PapelizWelcomeAction({
   )
 }
 
-const papelizRecentVaultSyncBadgeClassName = 'inline-flex h-[18px] flex-none items-center gap-1 rounded-full px-[7px] text-[10.5px] font-semibold whitespace-nowrap'
-
-// The badges' words for a synced vault's encryption, in title case. The Sync pages keep their shorter
-// names.
-const papelizRecentVaultEncryptionBadgeWords: Record<PapelizSyncVaultEncryptionKind, string> = {
-  standard: 'Standard Encryption',
-  'end-to-end': 'End-to-End Encryption',
-}
-
-// A recent vault's badges after where it's kept: "Sync" (green) and its encryption, Standard
-// Encryption (blue) or End-to-End Encryption (purple, with a lock); or "Local" (orange), for a vault
+// A recent vault's sync badge after where it's kept: "Sync" (green), or "Local" (orange) for a vault
 // that doesn't sync (a copy that won't sync among them).
-function PapelizRecentVaultSyncBadges({ recentVaultSyncEncryptionKind }: { recentVaultSyncEncryptionKind: PapelizSyncVaultEncryptionKind | null }) {
-  if (recentVaultSyncEncryptionKind === null) {
+function PapelizRecentVaultSyncBadge({ isRecentVaultSynced }: { isRecentVaultSynced: boolean }) {
+  if (!isRecentVaultSynced) {
     return (
-      <PapelizVaultRowWord vaultRowWordKind="local" className={joinPapelizClassNames(papelizRecentVaultSyncBadgeClassName, 'bg-papeliz-callout-orange-ground text-papeliz-callout-orange-ink')}>
+      <PapelizVaultRowWord vaultRowWordKind="local" className={joinPapelizClassNames(papelizVaultRowBadgeClassName, 'bg-papeliz-callout-orange-ground text-papeliz-callout-orange-ink')}>
         Local
       </PapelizVaultRowWord>
     )
   }
   return (
+    <PapelizVaultRowWord vaultRowWordKind="sync" className={joinPapelizClassNames(papelizVaultRowBadgeClassName, 'bg-papeliz-callout-green-ground text-papeliz-callout-green-ink')}>
+      <CloudCheck className="size-3" aria-hidden="true" />
+      Sync
+    </PapelizVaultRowWord>
+  )
+}
+
+// An End-to-end vault's badges, in every build: End-to-End Encryption (purple, with a lock), and a grey
+// "Remembered" when this device opens it without the passphrase.
+function PapelizRecentVaultEncryptionBadges({ recentVault }: { recentVault: PapelizStartScreenRecentVault }) {
+  if (!isPapelizRecentVaultEndToEnd(recentVault)) return null
+  return (
     <>
-      <PapelizVaultRowWord vaultRowWordKind="sync" className={joinPapelizClassNames(papelizRecentVaultSyncBadgeClassName, 'bg-papeliz-callout-green-ground text-papeliz-callout-green-ink')}>
-        <CloudCheck className="size-3" aria-hidden="true" />
-        Sync
+      <PapelizVaultRowWord vaultRowWordKind="end-to-end-encryption" className={joinPapelizClassNames(papelizVaultRowBadgeClassName, papelizEndToEndVaultBadgeColorClassName)}>
+        <Lock className="size-3" aria-hidden="true" />
+        {papelizEndToEndVaultBadgeWords}
       </PapelizVaultRowWord>
-      <PapelizVaultRowWord
-        vaultRowWordKind={recentVaultSyncEncryptionKind === 'end-to-end' ? 'end-to-end-encryption' : 'standard-encryption'}
-        className={joinPapelizClassNames(
-          papelizRecentVaultSyncBadgeClassName,
-          recentVaultSyncEncryptionKind === 'end-to-end' ? 'bg-papeliz-callout-purple-ground text-papeliz-callout-purple-ink' : 'bg-papeliz-blue-soft text-papeliz-blue',
-        )}
-      >
-        {recentVaultSyncEncryptionKind === 'end-to-end' && <Lock className="size-3" aria-hidden="true" />}
-        {papelizRecentVaultEncryptionBadgeWords[recentVaultSyncEncryptionKind]}
-      </PapelizVaultRowWord>
+      {recentVault.papelizRecentVaultEncryption?.isVaultEncryptionKeyRememberedOnThisDevice === true && (
+        <PapelizVaultRowWord vaultRowWordKind="remembered" className={joinPapelizClassNames(papelizVaultRowBadgeClassName, 'bg-papeliz-surface-gray text-papeliz-ink-muted')}>
+          <KeyRound className="size-3" aria-hidden="true" />
+          {papelizRememberedEndToEndVaultChipWords}
+        </PapelizVaultRowWord>
+      )}
     </>
   )
 }
@@ -376,6 +399,13 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
   const [newVaultFormRequest, setNewVaultFormRequest] = useState<{ suggestedNewVaultName: string; initialNewVaultPlace?: PapelizNewVaultPlace } | null>(null)
   // Why New Vault's last Create Vault (or Browse…) didn't work, shown in the form under Location.
   const [newVaultCreateFailureMessage, setNewVaultCreateFailureMessage] = useState<string | null>(null)
+  // Unlock, shown there instead for an End-to-end vault opened from a row or Open Vault, or locked.
+  const [endToEndVaultUnlockRequest, setEndToEndVaultUnlockRequest] = useState<{
+    papelizLockedEndToEndVault: PapelizLockedEndToEndVault
+    endToEndVaultPlaceLine: string
+    endToEndVaultUnlockReason: PapelizEndToEndVaultUnlockReason
+    endToEndVaultUnlockNoticeLine: string | null
+  } | null>(null)
   // The Synced Vaults page, shown there instead, and why the sign-in its button started didn't happen.
   const [isSyncedVaultsPageShown, setSyncedVaultsPageShown] = useState(false)
   // A pick in the page's previewer (development builds only) shows the page in that state.
@@ -543,7 +573,12 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
 
   // Opens a vault: a picked or remembered folder, or a browser vault. A new vault with no notes yet
   // starts its first note right away, named and ready to write in.
-  const finishOpeningVault = async (openVaultResult: PapelizOpenVaultResult, isNewVault: boolean) => {
+  // An End-to-end vault shows Unlock, saying how it was found.
+  const finishOpeningVault = async (
+    openVaultResult: PapelizExistingVaultOpenResult,
+    isNewVault: boolean,
+    endToEndVaultUnlockReason: PapelizEndToEndVaultUnlockReason = 'opened-from-recent-vaults',
+  ) => {
     // Closing the folder window and a browser refusing to let Papeliz edit the picked folder (the user
     // turned its question down, or it doesn't ask at all) look the same.
     if (openVaultResult.openVaultOutcome === 'cancelled') {
@@ -557,6 +592,10 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
     }
     if (openVaultResult.openVaultOutcome === 'failed') {
       showWorkspaceNotice('error', openVaultResult.openVaultFailureMessage)
+      return
+    }
+    if (openVaultResult.openVaultOutcome === 'needs-unlock') {
+      await startEndToEndVaultUnlock(openVaultResult.papelizLockedEndToEndVault, endToEndVaultUnlockReason)
       return
     }
     await openVaultInWorkspace(openVaultResult.papelizOpenVault, {
@@ -573,6 +612,66 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
     }
   }
 
+  // An End-to-end vault found: a key this device remembers opens it at once (except after Lock Now,
+  // which asks again); otherwise Unlock shows in the start card.
+  const startEndToEndVaultUnlock = async (
+    papelizLockedEndToEndVault: PapelizLockedEndToEndVault,
+    endToEndVaultUnlockReason: PapelizEndToEndVaultUnlockReason,
+    lockedRecentVault = recentVaults.find((recentVault) => recentVault.papelizVaultId === papelizLockedEndToEndVault.papelizVaultId),
+  ) => {
+    let endToEndVaultUnlockNoticeLine: string | null = null
+    if (endToEndVaultUnlockReason !== 'locked-now') {
+      const rememberedKeyUnlockResult = await unlockPapelizEndToEndVaultWithRememberedKey(papelizLockedEndToEndVault)
+      if (rememberedKeyUnlockResult.endToEndVaultUnlockOutcome === 'unlocked') {
+        await openUnlockedEndToEndVault(rememberedKeyUnlockResult.papelizOpenVault)
+        return
+      }
+      if (rememberedKeyUnlockResult.endToEndVaultUnlockOutcome === 'failed') {
+        endToEndVaultUnlockNoticeLine = describePapelizVaultEncryptionFailureMessage(
+          `“${papelizLockedEndToEndVault.papelizVaultDisplayName}” didn’t open without its passphrase`,
+          rememberedKeyUnlockResult.vaultEncryptionFailureCode,
+        )
+        reloadRecentVaults()
+      }
+    }
+    closeSyncedVaultsPage()
+    closeTemplateGalleryPage()
+    setNewVaultFormRequest(null)
+    setEndToEndVaultUnlockRequest({
+      papelizLockedEndToEndVault,
+      endToEndVaultPlaceLine: describeEndToEndVaultPlace(lockedRecentVault, papelizLockedEndToEndVault),
+      endToEndVaultUnlockReason,
+      endToEndVaultUnlockNoticeLine,
+    })
+    scrollStartPagePanelIntoViewOnPhone()
+  }
+
+  // Unlocked: the vault opens, and its row says whether it's remembered now.
+  const openUnlockedEndToEndVault = async (unlockedOpenVault: PapelizOpenVault) => {
+    setEndToEndVaultUnlockRequest(null)
+    reloadRecentVaults()
+    await openVaultInWorkspace(unlockedOpenVault, { firstVaultNoteRelativePathToOpen: null, firstNoteViewMode: 'md-code', expandAllTopLevelFolders: false })
+  }
+
+  const cancelEndToEndVaultUnlock = () => setEndToEndVaultUnlockRequest(null)
+
+  // Lock Now just locked a vault: its Unlock shows, saying so. The vault is found again from its row.
+  useEffect(() => {
+    if (startScreenEyePreview !== null) return
+    const lockedEndToEndVaultForUnlock = usePapelizWorkspaceStore.getState().takeLockedEndToEndVaultForUnlock()
+    if (lockedEndToEndVaultForUnlock === null) return
+    void (async () => {
+      const lockedRecentVault = (await listPapelizRecentVaults(isBrowserVaultOn).catch(() => [])).find(
+        (recentVault) => recentVault.papelizVaultId === lockedEndToEndVaultForUnlock.papelizVaultId,
+      )
+      if (lockedRecentVault === undefined) return
+      const lockedVaultOpenResult = await reopenPapelizRecentVault(lockedRecentVault)
+      if (lockedVaultOpenResult.openVaultOutcome === 'needs-unlock') await startEndToEndVaultUnlock(lockedVaultOpenResult.papelizLockedEndToEndVault, 'locked-now', lockedRecentVault)
+    })()
+    // Once, as the start screen appears after Lock Now.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   // Synced Vaults, at the panel's foot, only in a build with Sync's engine switched on (and in
   // development builds on the fake engine). It needs somewhere to put a vault.
   const isSyncedVaultsActionShown = useMemo(() => isPapelizSyncEngineInThisBuild || readPapelizSyncDevFakeEngineScenarioText() !== null, [])
@@ -587,14 +686,14 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
     if (isPapelizSyncExpectedOnThisDevice) void loadPapelizSyncEngine()
   }, [isSyncedVaultsActionShown, startScreenEyePreview, isPapelizSyncExpectedOnThisDevice, loadPapelizSyncEngine])
 
-  // Once the engine has loaded: which recent vaults sync ("Sync" and its encryption on their row, while
-  // signed in; "Local" otherwise), and the first downloads closing the tab left unfinished,
-  // picked up once the list is read. A build without Sync shows neither badge.
+  // Once the engine has loaded: which recent vaults sync ("Sync" on their row, while signed in; "Local"
+  // otherwise), and the first downloads closing the tab left unfinished, picked up once the list is
+  // read. A build without Sync shows neither badge.
   const syncEngineReading = usePapelizSyncEngineSnapshot()
   const loadedSyncEngine = syncEngineReading?.papelizSyncEngine ?? null
   const syncEngineSnapshot = syncEngineReading?.syncEngineSnapshot ?? null
-  const recentVaultSyncEncryptionKinds = useMemo(
-    () => (isSyncedVaultsActionShown ? readPapelizRecentVaultSyncEncryptionKinds({ isPapelizSyncExpectedOnThisDevice, syncEngineSnapshot }) : null),
+  const recentVaultSyncedVaultIds = useMemo(
+    () => (isSyncedVaultsActionShown ? readPapelizRecentVaultSyncedVaultIds({ isPapelizSyncExpectedOnThisDevice, syncEngineSnapshot }) : null),
     [isSyncedVaultsActionShown, isPapelizSyncExpectedOnThisDevice, syncEngineSnapshot],
   )
   const unfinishedSyncDownloadVaultIdsText =
@@ -630,6 +729,7 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
       return
     }
     setNewVaultFormRequest(null)
+    setEndToEndVaultUnlockRequest(null)
     closeTemplateGalleryPage()
     setSyncedVaultsPageShown(true)
     scrollStartPagePanelIntoViewOnPhone()
@@ -648,6 +748,7 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
     }
     closeSyncedVaultsPage()
     setNewVaultFormRequest(null)
+    setEndToEndVaultUnlockRequest(null)
     setTemplateGalleryPageShown(true)
     scrollStartPagePanelIntoViewOnPhone()
   }
@@ -670,11 +771,12 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
   // Recent Vaults in the start card, from its button or the logo: Synced Vaults, Templates, New Vault's
   // form and the Hidden list give way to it. Its button stays lit in the Hidden list too, which its eye
   // opens.
-  const isRecentVaultsPanelOnScreen = !isSyncedVaultsPageOnScreen && !isTemplateGalleryPageOnScreen && newVaultFormRequest === null
+  const isRecentVaultsPanelOnScreen = !isSyncedVaultsPageOnScreen && !isTemplateGalleryPageOnScreen && newVaultFormRequest === null && endToEndVaultUnlockRequest === null
   const showRecentVaults = () => {
     closeSyncedVaultsPage()
     closeTemplateGalleryPage()
     setNewVaultFormRequest(null)
+    setEndToEndVaultUnlockRequest(null)
     if (isHiddenVaultListShown) {
       setHiddenVaultListShown(false)
       setRecentVaultSearchText('')
@@ -702,6 +804,7 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
       return
     }
     scrollStartPagePanelIntoViewOnPhone()
+    setEndToEndVaultUnlockRequest(null)
     if (newVaultFormRequest !== null) return
     setNewVaultCreateFailureMessage(null)
     setNewVaultFormRequest({ suggestedNewVaultName: pickFreePapelizBrowserVaultName('Notes', browserVaultRecords) })
@@ -743,18 +846,20 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
 
   // New Vault's form confirmed. Runs from its click: the folder window and Firefox's question about
   // keeping storage need one. The form stays while the vault is made, and says under Location why it
-  // couldn't be. With "Sync This Vault" on, Sync is turned on for the vault once it opens.
+  // couldn't be. End-to-end makes the new, empty vault End-to-end, and it opens unlocked for this
+  // session. With "Sync This Vault" on, Sync is turned on for the vault once it opens.
   const finishNewVault = async (
     typedNewVaultName: string,
     chosenNewVaultPlace: PapelizNewVaultPlace,
-    { newVaultParentFolder, newVaultSyncVaultEncryptionChoice }: PapelizNewVaultConfirmDetails,
+    { newVaultParentFolder, newVaultEncryptionChoice, newVaultSyncVaultEncryptionChoice }: PapelizNewVaultConfirmDetails,
   ) => {
     if (startScreenEyePreview !== null) {
       showStartScreenPreviewOnlyNotice()
       return
     }
     setNewVaultCreateFailureMessage(null)
-    const openNewVaultInWorkspace = async (newVaultOpenResult: PapelizOpenVaultResult) => {
+    const openNewVaultInWorkspace = async (madeVaultOpenResult: PapelizOpenVaultResult) => {
+      const newVaultOpenResult = await makeNewVaultEndToEndWhenChosen(madeVaultOpenResult)
       if (newVaultOpenResult.openVaultOutcome === 'failed') {
         setNewVaultCreateFailureMessage(newVaultOpenResult.openVaultFailureMessage)
         return
@@ -764,6 +869,24 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
       }
       if (newVaultOpenResult.openVaultOutcome === 'opened') setNewVaultFormRequest(null)
       await finishOpeningVault(newVaultOpenResult, true)
+    }
+    // The vault is made Standard and empty first, then End-to-end, which gives it back unlocked.
+    const makeNewVaultEndToEndWhenChosen = async (madeVaultOpenResult: PapelizOpenVaultResult): Promise<PapelizOpenVaultResult> => {
+      if (madeVaultOpenResult.openVaultOutcome !== 'opened' || newVaultEncryptionChoice.newVaultEncryptionKind !== 'end-to-end') return madeVaultOpenResult
+      const endToEndVaultMakeResult = await makePapelizEndToEndVault({
+        newVaultOpenVault: madeVaultOpenResult.papelizOpenVault,
+        vaultPassphrase: newVaultEncryptionChoice.newEndToEndVaultPassphrase,
+      })
+      if (endToEndVaultMakeResult.endToEndVaultUnlockOutcome === 'unlocked') return { openVaultOutcome: 'opened', papelizOpenVault: endToEndVaultMakeResult.papelizOpenVault }
+      madeVaultOpenResult.papelizOpenVault.papelizVaultAdapter.closeVaultAdapter?.()
+      reloadRecentVaults()
+      return {
+        openVaultOutcome: 'failed',
+        openVaultFailureMessage:
+          endToEndVaultMakeResult.endToEndVaultUnlockOutcome === 'failed'
+            ? describePapelizVaultEncryptionFailureMessage(`Couldn’t encrypt “${typedNewVaultName}”`, endToEndVaultMakeResult.vaultEncryptionFailureCode)
+            : `Couldn’t encrypt “${typedNewVaultName}”.`,
+      }
     }
     // Papeliz for Windows makes every new vault a folder. No folder picked yet: the folder window asks
     // now, from Create Vault's click.
@@ -824,13 +947,13 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
     setIsOpeningVault(true)
     setVaultFolderWindowOpen(true)
     try {
-      let pickedVaultFolderOpenResult: PapelizOpenVaultResult
+      let pickedVaultFolderOpenResult: PapelizExistingVaultOpenResult
       try {
         pickedVaultFolderOpenResult = await pickAndOpenPapelizVaultFolder()
       } finally {
         setVaultFolderWindowOpen(false)
       }
-      await finishOpeningVault(pickedVaultFolderOpenResult, isNewVault)
+      await finishOpeningVault(pickedVaultFolderOpenResult, isNewVault, 'found-by-open-vault')
     } finally {
       setIsOpeningVault(false)
     }
@@ -1099,13 +1222,15 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                 ? 'papeliz-synced-vaults-page-heading'
                 : isTemplateGalleryPageOnScreen
                   ? 'papeliz-template-gallery-page-heading'
-                  : newVaultFormRequest === null
-                    ? 'papeliz-welcome-recent-heading'
-                    : 'papeliz-new-vault-form-heading'
+                  : endToEndVaultUnlockRequest !== null
+                    ? 'papeliz-end-to-end-vault-unlock-heading'
+                    : newVaultFormRequest === null
+                      ? 'papeliz-welcome-recent-heading'
+                      : 'papeliz-new-vault-form-heading'
             }
             className="flex min-h-[280px] min-w-0 flex-1 flex-col p-2.5"
           >
-            {/* New Vault, Synced Vaults or Templates takes Recent Vaults' place while its page shows. */}
+            {/* New Vault, Unlock, Synced Vaults or Templates takes Recent Vaults' place while its page shows. */}
             {isSyncedVaultsPageOnScreen ? (
               <Suspense fallback={null}>
                 <PapelizSyncSyncedVaultsPage
@@ -1140,6 +1265,17 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                   }}
                 />
               </Suspense>
+            ) : endToEndVaultUnlockRequest !== null ? (
+              <PapelizEndToEndVaultUnlockPanel
+                key={endToEndVaultUnlockRequest.papelizLockedEndToEndVault.papelizVaultId}
+                endToEndVaultUnlockPanelHeadingId="papeliz-end-to-end-vault-unlock-heading"
+                papelizLockedEndToEndVault={endToEndVaultUnlockRequest.papelizLockedEndToEndVault}
+                endToEndVaultPlaceLine={endToEndVaultUnlockRequest.endToEndVaultPlaceLine}
+                endToEndVaultUnlockReason={endToEndVaultUnlockRequest.endToEndVaultUnlockReason}
+                endToEndVaultUnlockNoticeLine={endToEndVaultUnlockRequest.endToEndVaultUnlockNoticeLine}
+                onEndToEndVaultUnlocked={(unlockedOpenVault) => void openUnlockedEndToEndVault(unlockedOpenVault)}
+                onEndToEndVaultUnlockCancel={cancelEndToEndVaultUnlock}
+              />
             ) : newVaultFormRequest !== null ? (
               <PapelizNewVaultForm
                 newVaultFormHeadingId="papeliz-new-vault-form-heading"
@@ -1150,7 +1286,7 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                 existingBrowserVaultRecords={browserVaultRecords}
                 isNewVaultConfirmHeld={isOpeningVault}
                 onNewVaultParentFolderPick={pickNewVaultParentFolderFromForm}
-                isNewVaultSyncPartShown
+                areNewVaultEncryptionAndSyncPartsShown
                 newVaultCreateFailureMessage={newVaultCreateFailureMessage}
                 onNewVaultConfirm={(typedNewVaultName, chosenNewVaultPlace, newVaultConfirmDetails) =>
                   void finishNewVault(typedNewVaultName, chosenNewVaultPlace, newVaultConfirmDetails)
@@ -1396,7 +1532,7 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                             const syncDownloadPercent = syncStartScreenDownload === undefined ? null : readPapelizSyncStartScreenDownloadPercent(syncStartScreenDownload)
                             const vaultRowWordKinds = listVaultRowWordKinds(
                               recentVault,
-                              recentVaultSyncEncryptionKinds === null ? undefined : (recentVaultSyncEncryptionKinds.get(recentVault.papelizVaultId) ?? null),
+                              recentVaultSyncedVaultIds === null ? undefined : recentVaultSyncedVaultIds.has(recentVault.papelizVaultId),
                             )
                             const vaultRowWordsDescriptionId = `papeliz-recent-vault-row-words-${recentVault.papelizVaultId}`
                             return (
@@ -1437,20 +1573,14 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                                   onBlur={() => setKeyboardFocusedVaultRowWords(null)}
                                   className="flex min-w-0 flex-1 items-center gap-3 rounded-xl px-2.5 py-2 text-left disabled:cursor-default"
                                 >
-                                  <span
-                                    aria-hidden="true"
-                                    className="grid size-9 flex-none place-items-center rounded-lg bg-papeliz-blue-soft text-[15px] font-semibold text-papeliz-blue"
-                                  >
-                                    {recentVault.papelizVaultDisplayName.trim().charAt(0).toUpperCase() || '·'}
-                                  </span>
+                                  <PapelizVaultLetterTile papelizVaultDisplayName={recentVault.papelizVaultDisplayName} isEndToEndVault={isPapelizRecentVaultEndToEnd(recentVault)} />
                                   <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                                     <span className="truncate text-[13.5px] font-semibold">{recentVault.papelizVaultDisplayName}</span>
                                     {syncStartScreenDownload === undefined ? (
                                       <span data-papeliz-vault-row-words className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11.5px] text-papeliz-ink-subtle">
                                         <PapelizRecentVaultPlace recentVault={recentVault} />
-                                        {recentVaultSyncEncryptionKinds !== null && (
-                                          <PapelizRecentVaultSyncBadges recentVaultSyncEncryptionKind={recentVaultSyncEncryptionKinds.get(recentVault.papelizVaultId) ?? null} />
-                                        )}
+                                        {recentVaultSyncedVaultIds !== null && <PapelizRecentVaultSyncBadge isRecentVaultSynced={recentVaultSyncedVaultIds.has(recentVault.papelizVaultId)} />}
+                                        <PapelizRecentVaultEncryptionBadges recentVault={recentVault} />
                                         {/* On a phone the time sits on its own line here, so the name keeps the width. */}
                                         <span className="basis-full sm:hidden">{describeTimeSince(recentVault.papelizVaultLastOpenedAt)}</span>
                                       </span>

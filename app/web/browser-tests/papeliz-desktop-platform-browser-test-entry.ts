@@ -29,6 +29,9 @@ export async function loadPapelizDesktopPlatform(): Promise<PapelizDesktopPlatfo
       readDesktopNewVaultDefaultParentFolderPath: async () => null,
       rememberDesktopVaultFolderPath: async () => undefined,
       forgetDesktopVaultFolderPath: async () => undefined,
+      rememberDesktopVaultEncryptionKey: async () => undefined,
+      readRememberedDesktopVaultEncryptionKey: async () => null,
+      forgetRememberedDesktopVaultEncryptionKey: async () => undefined,
       pickDesktopSaveFilePath: async () => null,
       openLinkInSystemBrowser: async () => undefined,
       desktopWindow: {

@@ -1,40 +1,56 @@
-import type { PapelizSyncVaultEncryptionChoice, PapelizSyncVaultEncryptionKind } from '../sync/papeliz-sync-engine-contract'
+import type { PapelizSyncVaultEncryptionChoice } from '../sync/papeliz-sync-engine-contract'
 import { isPapelizSyncNewPassphraseReady } from '../sync/papeliz-sync-passphrase-fields'
 import type { PapelizNewVaultParentFolder } from '../vault/papeliz-open-vault'
+import type { PapelizVaultEncryptionKind } from '../vault/papeliz-vault-encryption'
 
-// New Vault's rules, apart from its screen so tests can read them: which Sync part it shows, what
-// keeps Create Vault off, and the kind of Sync it asks for.
+// New Vault's rules, apart from its screen so tests can read them: which parts it shows, what keeps
+// Create Vault off, and the encryption and Sync it asks for.
 
 // What sits under Location:
-// - `none`: nothing (Use Template's form, which makes its vault its own way);
-// - `sync-coming`: a build without Sync: one quiet line saying Sync, and its two kinds, are coming;
-// - `sync-choice`: a build with Sync: the "Sync This Vault" switch, and Standard or End-to-end under it.
-export type PapelizNewVaultSyncPartKind = 'none' | 'sync-coming' | 'sync-choice'
+// - `none`: nothing (Use Template's form, which always makes a Standard vault);
+// - `encryption`: Standard or End-to-end, in every build;
+// - `encryption-and-sync-switch`: a build with Sync adds "Sync This Vault", which syncs the vault with
+//   the kind picked above it.
+export type PapelizNewVaultPartsKind = 'none' | 'encryption' | 'encryption-and-sync-switch'
 
-export function readPapelizNewVaultSyncPartKind(isNewVaultSyncPartShown: boolean, isPapelizSyncInThisBuild: boolean): PapelizNewVaultSyncPartKind {
-  if (!isNewVaultSyncPartShown) return 'none'
-  return isPapelizSyncInThisBuild ? 'sync-choice' : 'sync-coming'
+export function readPapelizNewVaultPartsKind(areNewVaultEncryptionAndSyncPartsShown: boolean, isPapelizSyncInThisBuild: boolean): PapelizNewVaultPartsKind {
+  if (!areNewVaultEncryptionAndSyncPartsShown) return 'none'
+  return isPapelizSyncInThisBuild ? 'encryption-and-sync-switch' : 'encryption'
 }
 
-// "Sync This Vault" as it stands: off until the person is signed in to Sync, then on unless they
-// switched it off. Standard is the kind picked at first.
-export interface PapelizNewVaultSyncChoice {
-  isSyncThisVaultOn: boolean
-  chosenSyncVaultEncryptionKind: PapelizSyncVaultEncryptionKind
-  typedSyncVaultPassphrase: string
-  repeatedSyncVaultPassphrase: string
+// The Encryption part as it stands. Standard is picked first; End-to-end asks its passphrase in place.
+export interface PapelizNewVaultEncryptionPick {
+  chosenNewVaultEncryptionKind: PapelizVaultEncryptionKind
+  typedNewVaultPassphrase: string
+  repeatedNewVaultPassphrase: string
 }
 
-export function isPapelizNewVaultSyncThisVaultOn(isSignedInToSync: boolean, syncThisVaultSwitchPick: boolean | null): boolean {
-  return isSignedInToSync && (syncThisVaultSwitchPick ?? true)
+// What Create Vault makes: a Standard vault, or an End-to-end one with its passphrase.
+export type PapelizNewVaultEncryptionChoice =
+  | { newVaultEncryptionKind: 'standard' }
+  | { newVaultEncryptionKind: 'end-to-end'; newEndToEndVaultPassphrase: string }
+
+export function readPapelizNewVaultEncryptionChoice(newVaultEncryptionPick: PapelizNewVaultEncryptionPick | null): PapelizNewVaultEncryptionChoice {
+  if (newVaultEncryptionPick === null || newVaultEncryptionPick.chosenNewVaultEncryptionKind === 'standard') return { newVaultEncryptionKind: 'standard' }
+  return { newVaultEncryptionKind: 'end-to-end', newEndToEndVaultPassphrase: newVaultEncryptionPick.typedNewVaultPassphrase }
 }
 
-// What Create Vault turns Sync on with once the vault opens, or null when it doesn't sync. End-to-end
-// needs its passphrase, 12 characters or more and typed the same twice.
-export function readPapelizNewVaultSyncVaultEncryptionChoice(newVaultSyncChoice: PapelizNewVaultSyncChoice): PapelizSyncVaultEncryptionChoice | null {
-  if (!newVaultSyncChoice.isSyncThisVaultOn) return null
-  if (newVaultSyncChoice.chosenSyncVaultEncryptionKind === 'standard') return { syncVaultEncryptionKind: 'standard' }
-  return { syncVaultEncryptionKind: 'end-to-end', syncVaultPassphrase: newVaultSyncChoice.typedSyncVaultPassphrase }
+// "Sync This Vault": off until the person is signed in to Sync, then on unless they switched it off.
+// Sync carries only a Standard vault in this version, so End-to-end keeps it off.
+export function isPapelizNewVaultSyncThisVaultOn(isSignedInToSync: boolean, syncThisVaultSwitchPick: boolean | null, chosenNewVaultEncryptionKind: PapelizVaultEncryptionKind): boolean {
+  return canPapelizSyncCarryNewVault(chosenNewVaultEncryptionKind) && isSignedInToSync && (syncThisVaultSwitchPick ?? true)
+}
+
+export function canPapelizSyncCarryNewVault(chosenNewVaultEncryptionKind: PapelizVaultEncryptionKind): boolean {
+  return chosenNewVaultEncryptionKind === 'standard'
+}
+
+// What Create Vault turns Sync on with once the vault opens, or null when it doesn't sync: the kind
+// picked under Encryption, End-to-end with the vault's own passphrase.
+export function readPapelizNewVaultSyncVaultEncryptionChoice(isSyncThisVaultOn: boolean, newVaultEncryptionChoice: PapelizNewVaultEncryptionChoice): PapelizSyncVaultEncryptionChoice | null {
+  if (!isSyncThisVaultOn) return null
+  if (newVaultEncryptionChoice.newVaultEncryptionKind === 'standard') return { syncVaultEncryptionKind: 'standard' }
+  return { syncVaultEncryptionKind: 'end-to-end', syncVaultPassphrase: newVaultEncryptionChoice.newEndToEndVaultPassphrase }
 }
 
 // Why Create Vault is off, or null when it can be pressed:
@@ -48,19 +64,18 @@ export type PapelizNewVaultCreateBlock = 'name-problem' | 'folder-name-taken' | 
 export interface PapelizNewVaultCreateState {
   newVaultNameProblem: string | null
   newVaultFolderNameTaken: 'folder-not-empty' | 'file-has-the-name' | null
-  newVaultSyncChoice: PapelizNewVaultSyncChoice | null
+  newVaultEncryptionPick: PapelizNewVaultEncryptionPick | null
   isNewVaultConfirmHeld: boolean
 }
 
 export function findPapelizNewVaultCreateBlock(newVaultCreateState: PapelizNewVaultCreateState): PapelizNewVaultCreateBlock | null {
   if (newVaultCreateState.newVaultNameProblem !== null) return 'name-problem'
   if (newVaultCreateState.newVaultFolderNameTaken !== null) return 'folder-name-taken'
-  const { newVaultSyncChoice } = newVaultCreateState
+  const { newVaultEncryptionPick } = newVaultCreateState
   if (
-    newVaultSyncChoice !== null &&
-    newVaultSyncChoice.isSyncThisVaultOn &&
-    newVaultSyncChoice.chosenSyncVaultEncryptionKind === 'end-to-end' &&
-    !isPapelizSyncNewPassphraseReady(newVaultSyncChoice.typedSyncVaultPassphrase, newVaultSyncChoice.repeatedSyncVaultPassphrase)
+    newVaultEncryptionPick !== null &&
+    newVaultEncryptionPick.chosenNewVaultEncryptionKind === 'end-to-end' &&
+    !isPapelizSyncNewPassphraseReady(newVaultEncryptionPick.typedNewVaultPassphrase, newVaultEncryptionPick.repeatedNewVaultPassphrase)
   ) {
     return 'passphrase-not-ready'
   }

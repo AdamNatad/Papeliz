@@ -36,6 +36,7 @@ import {
   splitVaultRelativePath,
 } from '../vault/papeliz-vault-relative-paths'
 import { readPapelizBrowserStorageEstimate } from '../vault/papeliz-browser-vault-storage'
+import { isPapelizEndToEndVaultAdapter } from '../vault/papeliz-vault-encryption'
 import type { PapelizVaultFolderImportOptions, PapelizVaultFolderImportPlan, PapelizVaultFolderImportResult } from '../vault/papeliz-vault-folder-import'
 import { addPapelizImportedTemplateFolder, papelizImportedTemplateFoldersFileName } from '../template-gallery/papeliz-template-gallery-imported-folders'
 import {
@@ -240,6 +241,12 @@ interface PapelizWorkspaceState {
   isFocusModeOn: boolean
   // The "Close vault?" question is open. Every button that leaves the vault asks it first.
   isVaultCloseConfirmationShown: boolean
+  // The End-to-end vault Lock Now just locked: the start screen shows its Unlock, saying it's locked,
+  // and takes this back.
+  lockedEndToEndVaultForUnlock: PapelizLockedEndToEndVaultForUnlock | null
+  // A change of the open vault's encryption is running (Settings › Vault › Encryption): its notes are
+  // saved and closed, and nothing reads or watches the vault until the change gives it back.
+  isOpenVaultEncryptionChanging: boolean
   // The file list's chosen order in the open vault (see papeliz-vault-entry-order.ts).
   vaultEntryOrder: PapelizVaultEntryOrder
   workspaceNotice: PapelizWorkspaceNotice | null
@@ -336,6 +343,15 @@ interface PapelizWorkspaceState {
   fitWorkspaceSidePanelsToWindow: (keptWorkspaceSidePanel?: PapelizWorkspaceSidePanel) => void
   setFocusModeOn: (isFocusModeOn: boolean) => void
   setVaultCloseConfirmationShown: (isVaultCloseConfirmationShown: boolean) => void
+  // Lock Now, for an unlocked End-to-end vault: every note saved, the vault's tabs closed, its notes
+  // and key cleared from memory, then the start screen's Unlock.
+  lockOpenEndToEndVault: () => Promise<void>
+  takeLockedEndToEndVaultForUnlock: () => PapelizLockedEndToEndVaultForUnlock | null
+  // Before a change of encryption: every note saved and closed, and the vault no longer watched.
+  holdOpenVaultForEncryptionChange: () => Promise<void>
+  // After it: the vault opens again on the adapter the change gave back (or the one it had, when the
+  // change didn't happen).
+  finishOpenVaultEncryptionChange: (changedVaultAdapter: PapelizOpenVault['papelizVaultAdapter'] | null) => Promise<void>
   // Puts a note or folder at a place in a folder's order: a drag in the file list. Moves it into
   // that folder first when it is somewhere else.
   placeVaultEntryInFolder: (
@@ -360,6 +376,12 @@ interface PapelizWorkspaceState {
   // Writes the note back as this tab has it, or closes it and lets its changes go.
   resolveVaultNoteDeletedElsewhere: (loadedNoteSessionId: number, deletedElsewhereChoice: PapelizVaultNoteDeletedElsewhereChoice) => Promise<void>
   closeAssistantProposalPreview: () => void
+}
+
+// Which vault Lock Now locked, for the start screen to open its Unlock.
+export interface PapelizLockedEndToEndVaultForUnlock {
+  papelizVaultId: string
+  papelizVaultDisplayName: string
 }
 
 export interface PapelizOpenVaultInWorkspaceOptions {
@@ -400,6 +422,13 @@ function runVaultOperationInOrder<VaultOperationResult>(vaultOperation: () => Pr
 
 function matchesMediaQuery(mediaQueryText: string): boolean {
   return typeof window !== 'undefined' && window.matchMedia(mediaQueryText).matches
+}
+
+// Whether this device keeps the open vault's tabs and recovery copies of unsaved typing in its browser
+// database (papeliz-remembered-note-tabs.ts, papeliz-note-recovery-drafts.ts). Both are note names and
+// text in plain, so an End-to-end vault keeps neither there; the sample vault starts afresh anyway.
+function isOpenVaultRememberedInBrowserDatabase(papelizOpenVault: PapelizOpenVault): boolean {
+  return isPapelizVaultKeptBeyondThisTab(papelizOpenVault.papelizVaultAdapter.papelizVaultKind) && !isPapelizEndToEndVaultAdapter(papelizOpenVault.papelizVaultAdapter)
 }
 
 export function isWideScreenForPapelizWorkspace(): boolean {
@@ -493,7 +522,7 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
     if (pendingRecoveryDraft !== undefined) clearTimeout(pendingRecoveryDraft.recoveryDraftTimer)
     noteRecoveryDraftTimersByLoadedNoteSessionId.delete(loadedNoteSessionId)
     const { openVault, loadedVaultNotesByRelativePath } = getWorkspaceState()
-    if (openVault === null || !isPapelizVaultKeptBeyondThisTab(openVault.papelizVaultAdapter.papelizVaultKind)) return
+    if (openVault === null || !isOpenVaultRememberedInBrowserDatabase(openVault)) return
     const vaultNoteRelativePath = findVaultNoteRelativePathForSession(loadedVaultNotesByRelativePath, loadedNoteSessionId)
     const loadedVaultNote = vaultNoteRelativePath === null ? undefined : loadedVaultNotesByRelativePath[vaultNoteRelativePath]
     if (vaultNoteRelativePath === null || loadedVaultNote?.noteLoadState !== 'loaded') return
@@ -528,7 +557,7 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
   // copy goes in as unsaved changes made on its own base, so saving merges it with anything saved
   // since rather than writing over it.
   const offerNoteRecoveryDraft = async (openVault: PapelizOpenVault, vaultNoteRelativePath: string, loadedNoteSessionId: number, vaultNoteTextOnDisk: string) => {
-    if (!isPapelizVaultKeptBeyondThisTab(openVault.papelizVaultAdapter.papelizVaultKind)) return
+    if (!isOpenVaultRememberedInBrowserDatabase(openVault)) return
     const noteRecoveryDraft = await readPapelizNoteRecoveryDraft(openVault.papelizVaultId, vaultNoteRelativePath)
     if (noteRecoveryDraft === null || getWorkspaceState().openVault !== openVault) return
     if (noteRecoveryDraft.recoveryDraftVaultNoteText === vaultNoteTextOnDisk) {
@@ -1106,7 +1135,7 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
   // (papeliz-remembered-note-tabs.ts), leaving out notes that are gone. Only the note in front is read
   // now; the others load when their tab is picked.
   const restoreRememberedNoteTabs = async (papelizOpenVault: PapelizOpenVault) => {
-    if (!isPapelizVaultKeptBeyondThisTab(papelizOpenVault.papelizVaultAdapter.papelizVaultKind)) return
+    if (!isOpenVaultRememberedInBrowserDatabase(papelizOpenVault)) return
     const rememberedNoteTabs = await readPapelizRememberedNoteTabs(papelizOpenVault.papelizVaultId)
     const workspaceState = getWorkspaceState()
     if (rememberedNoteTabs === null || workspaceState.openVault !== papelizOpenVault || workspaceState.vaultTreeLoadState !== 'loaded') return
@@ -1143,6 +1172,67 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
     }
   }
 
+  // Opens a vault into the workspace once nothing is open there: its file list, its settings from its
+  // own `.papeliz/` folder, and its tabs. A change of encryption reopens the vault on its new adapter
+  // this way too, without closing the old one, which stands on the same storage.
+  const openVaultIntoEmptyWorkspace = async (papelizOpenVault: PapelizOpenVault, openVaultOptions: PapelizOpenVaultInWorkspaceOptions) => {
+    setWorkspaceState({
+      openVault: papelizOpenVault,
+      vaultTreeEntries: [],
+      vaultTreeLoadState: 'loading',
+      openNoteTabRelativePaths: [],
+      activeVaultNoteRelativePath: null,
+      loadedVaultNotesByRelativePath: {},
+      noteViewMode: openVaultOptions.firstNoteViewMode,
+      expandedVaultFolderRelativePaths: {},
+      vaultEntryBeingRenamedRelativePath: null,
+      newVaultNoteBeingNamedRelativePath: null,
+      newVaultFolderParentRelativePath: null,
+      ...createInitialWorkspaceLayout(),
+      workspaceNotice: null,
+      assistantProposalPreview: null,
+      vaultNoteSaveConflictsByLoadedNoteSessionId: {},
+      vaultEntryOrder: {},
+      lockedVaultEntryRelativePaths: [],
+      vaultEntryLooks: {},
+      isWholeVaultEditingLocked: false,
+      copiedVaultEntry: null,
+    })
+    // The file list's order and the editing locks, from the vault's own `.papeliz/` folder, and
+    // whether this browser shows hidden entries.
+    const [savedFileListOrderText, savedLockedEntriesText, savedFileListLooksText, areHiddenVaultEntriesShown] = await Promise.all([
+      papelizOpenVault.papelizVaultAdapter.readPapelizVaultSettingsFile(papelizFileListOrderFileName).catch(() => null),
+      papelizOpenVault.papelizVaultAdapter.readPapelizVaultSettingsFile(papelizLockedEntriesFileName).catch(() => null),
+      papelizOpenVault.papelizVaultAdapter.readPapelizVaultSettingsFile(papelizFileListLooksFileName).catch(() => null),
+      readPapelizUserSetting<unknown>(papelizHiddenVaultEntriesShownSettingName, false).then((savedSettingValue) => savedSettingValue === true),
+    ])
+    if (getWorkspaceState().openVault === papelizOpenVault) {
+      setWorkspaceState({
+        vaultEntryOrder: parsePapelizFileListOrderFile(savedFileListOrderText),
+        lockedVaultEntryRelativePaths: parsePapelizLockedEntriesFile(savedLockedEntriesText),
+        vaultEntryLooks: parsePapelizFileListLooksFile(savedFileListLooksText),
+        isWholeVaultEditingLocked: parsePapelizWholeVaultEditingLock(savedLockedEntriesText),
+        areHiddenVaultEntriesShown,
+      })
+    }
+    await loadVaultTreeEntries()
+    startWatchingVaultChangesElsewhere(papelizOpenVault)
+    if (openVaultOptions.expandAllTopLevelFolders) {
+      const expandedVaultFolderRelativePaths: Record<string, true> = {}
+      for (const vaultTreeEntry of getWorkspaceState().vaultTreeEntries) {
+        if (vaultTreeEntry.vaultEntryKind === 'folder' && !vaultTreeEntry.vaultEntryRelativePath.includes('/')) {
+          expandedVaultFolderRelativePaths[vaultTreeEntry.vaultEntryRelativePath] = true
+        }
+      }
+      setWorkspaceState({ expandedVaultFolderRelativePaths })
+    }
+    if (openVaultOptions.firstVaultNoteRelativePathToOpen !== null) {
+      await getWorkspaceState().openVaultNote(openVaultOptions.firstVaultNoteRelativePathToOpen)
+    } else {
+      await restoreRememberedNoteTabs(papelizOpenVault)
+    }
+  }
+
   return {
     openVault: null,
     vaultTreeEntries: [],
@@ -1164,64 +1254,12 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
     workspaceNotice: null,
     assistantProposalPreview: null,
     vaultNoteSaveConflictsByLoadedNoteSessionId: {},
+    lockedEndToEndVaultForUnlock: null,
+    isOpenVaultEncryptionChanging: false,
 
     openVaultInWorkspace: async (papelizOpenVault, openVaultOptions) => {
       await getWorkspaceState().closeVaultInWorkspace()
-      setWorkspaceState({
-        openVault: papelizOpenVault,
-        vaultTreeEntries: [],
-        vaultTreeLoadState: 'loading',
-        openNoteTabRelativePaths: [],
-        activeVaultNoteRelativePath: null,
-        loadedVaultNotesByRelativePath: {},
-        noteViewMode: openVaultOptions.firstNoteViewMode,
-        expandedVaultFolderRelativePaths: {},
-        vaultEntryBeingRenamedRelativePath: null,
-        newVaultNoteBeingNamedRelativePath: null,
-        newVaultFolderParentRelativePath: null,
-        ...createInitialWorkspaceLayout(),
-        workspaceNotice: null,
-        assistantProposalPreview: null,
-        vaultNoteSaveConflictsByLoadedNoteSessionId: {},
-        vaultEntryOrder: {},
-        lockedVaultEntryRelativePaths: [],
-        vaultEntryLooks: {},
-        isWholeVaultEditingLocked: false,
-        copiedVaultEntry: null,
-      })
-      // The file list's order and the editing locks, from the vault's own `.papeliz/` folder, and
-      // whether this browser shows hidden entries.
-      const [savedFileListOrderText, savedLockedEntriesText, savedFileListLooksText, areHiddenVaultEntriesShown] = await Promise.all([
-        papelizOpenVault.papelizVaultAdapter.readPapelizVaultSettingsFile(papelizFileListOrderFileName).catch(() => null),
-        papelizOpenVault.papelizVaultAdapter.readPapelizVaultSettingsFile(papelizLockedEntriesFileName).catch(() => null),
-        papelizOpenVault.papelizVaultAdapter.readPapelizVaultSettingsFile(papelizFileListLooksFileName).catch(() => null),
-        readPapelizUserSetting<unknown>(papelizHiddenVaultEntriesShownSettingName, false).then((savedSettingValue) => savedSettingValue === true),
-      ])
-      if (getWorkspaceState().openVault === papelizOpenVault) {
-        setWorkspaceState({
-          vaultEntryOrder: parsePapelizFileListOrderFile(savedFileListOrderText),
-          lockedVaultEntryRelativePaths: parsePapelizLockedEntriesFile(savedLockedEntriesText),
-          vaultEntryLooks: parsePapelizFileListLooksFile(savedFileListLooksText),
-          isWholeVaultEditingLocked: parsePapelizWholeVaultEditingLock(savedLockedEntriesText),
-          areHiddenVaultEntriesShown,
-        })
-      }
-      await loadVaultTreeEntries()
-      startWatchingVaultChangesElsewhere(papelizOpenVault)
-      if (openVaultOptions.expandAllTopLevelFolders) {
-        const expandedVaultFolderRelativePaths: Record<string, true> = {}
-        for (const vaultTreeEntry of getWorkspaceState().vaultTreeEntries) {
-          if (vaultTreeEntry.vaultEntryKind === 'folder' && !vaultTreeEntry.vaultEntryRelativePath.includes('/')) {
-            expandedVaultFolderRelativePaths[vaultTreeEntry.vaultEntryRelativePath] = true
-          }
-        }
-        setWorkspaceState({ expandedVaultFolderRelativePaths })
-      }
-      if (openVaultOptions.firstVaultNoteRelativePathToOpen !== null) {
-        await getWorkspaceState().openVaultNote(openVaultOptions.firstVaultNoteRelativePathToOpen)
-      } else {
-        await restoreRememberedNoteTabs(papelizOpenVault)
-      }
+      await openVaultIntoEmptyWorkspace(papelizOpenVault, openVaultOptions)
     },
 
     closeVaultInWorkspace: async () => {
@@ -1254,6 +1292,54 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
         isWholeVaultEditingLocked: false,
         copiedVaultEntry: null,
       })
+    },
+
+    lockOpenEndToEndVault: async () => {
+      const lockingOpenVault = getWorkspaceState().openVault
+      if (lockingOpenVault === null || !isPapelizEndToEndVaultAdapter(lockingOpenVault.papelizVaultAdapter)) return
+      // Kept before closing: the start screen reads it as it appears, the moment the vault closes.
+      setWorkspaceState({
+        lockedEndToEndVaultForUnlock: { papelizVaultId: lockingOpenVault.papelizVaultId, papelizVaultDisplayName: lockingOpenVault.papelizVaultDisplayName },
+      })
+      // Closing saves every note, closes the tabs and closes the adapter, which locks it; locking here
+      // too drops the key even where closing an adapter does nothing more.
+      await getWorkspaceState().closeVaultInWorkspace()
+      lockingOpenVault.papelizVaultAdapter.lockEndToEndVault()
+    },
+
+    takeLockedEndToEndVaultForUnlock: () => {
+      const { lockedEndToEndVaultForUnlock } = getWorkspaceState()
+      if (lockedEndToEndVaultForUnlock !== null) setWorkspaceState({ lockedEndToEndVaultForUnlock: null })
+      return lockedEndToEndVaultForUnlock
+    },
+
+    holdOpenVaultForEncryptionChange: async () => {
+      if (getWorkspaceState().openVault === null) return
+      setWorkspaceState({ isOpenVaultEncryptionChanging: true })
+      stopWatchingVaultChangesElsewhere?.()
+      stopWatchingVaultChangesElsewhere = null
+      await getWorkspaceState().saveAllVaultNotesNow()
+      await getWorkspaceState().closeAllVaultNoteTabs()
+      await runVaultOperationInOrder(async () => undefined).catch(() => undefined)
+    },
+
+    finishOpenVaultEncryptionChange: async (changedVaultAdapter) => {
+      const changedOpenVault = getWorkspaceState().openVault
+      setWorkspaceState({ isOpenVaultEncryptionChanging: false })
+      if (changedOpenVault === null) return
+      if (changedVaultAdapter === null || changedVaultAdapter === changedOpenVault.papelizVaultAdapter) {
+        startWatchingVaultChangesElsewhere(changedOpenVault)
+        await loadVaultTreeEntries()
+        return
+      }
+      // The vault again, on the new adapter. The old one stands on the same storage, so closing it would
+      // close the new one's too: an End-to-end one is only locked, dropping its key.
+      const changedFromVaultAdapter = changedOpenVault.papelizVaultAdapter
+      if (isPapelizEndToEndVaultAdapter(changedFromVaultAdapter)) changedFromVaultAdapter.lockEndToEndVault()
+      await openVaultIntoEmptyWorkspace(
+        { papelizVaultId: changedOpenVault.papelizVaultId, papelizVaultDisplayName: changedOpenVault.papelizVaultDisplayName, papelizVaultAdapter: changedVaultAdapter },
+        { firstVaultNoteRelativePathToOpen: null, firstNoteViewMode: getWorkspaceState().noteViewMode, expandAllTopLevelFolders: false },
+      )
     },
 
     refreshVaultTree: loadVaultTreeEntries,
@@ -2003,12 +2089,12 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
 })
 
 // Remembers the open vault's tabs and the note in front on this device whenever they change
-// (papeliz-remembered-note-tabs.ts). Opening and closing a vault are left out: closing empties the
-// tabs here, not the ones remembered.
+// (papeliz-remembered-note-tabs.ts), except an End-to-end vault's, whose names stay encrypted. Opening
+// and closing a vault are left out: closing empties the tabs here, not the ones remembered.
 usePapelizWorkspaceStore.subscribe((workspaceState, previousWorkspaceState) => {
   const { openVault, openNoteTabRelativePaths, activeVaultNoteRelativePath } = workspaceState
   if (openVault === null || openVault !== previousWorkspaceState.openVault) return
-  if (!isPapelizVaultKeptBeyondThisTab(openVault.papelizVaultAdapter.papelizVaultKind)) return
+  if (!isOpenVaultRememberedInBrowserDatabase(openVault)) return
   if (
     openNoteTabRelativePaths === previousWorkspaceState.openNoteTabRelativePaths &&
     activeVaultNoteRelativePath === previousWorkspaceState.activeVaultNoteRelativePath

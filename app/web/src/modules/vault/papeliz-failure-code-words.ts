@@ -1,6 +1,7 @@
 import { isPapelizDesktopApp } from 'virtual:papeliz-desktop-platform-availability'
 import { PapelizImportZipError } from '../export-zip/papeliz-import-zip-file-reader'
 import { describePapelizVaultError } from './papeliz-vault-adapter'
+import { describePapelizVaultEncryptionFailureCode } from './papeliz-vault-encryption-words'
 
 // What people read when something fails: what happened and what to do, in plain sentences. The code
 // passes failures around as short codes ("Name Taken", "File In Use"; describePapelizVaultError in
@@ -157,7 +158,7 @@ export function describePapelizFailureCode(failureCode: string, failureCodeConte
       return 'Only pictures and text files can be added.'
 
     default:
-      return isPapelizFailureCodeShaped(failureCode) ? papelizUnknownFailureSentence : failureCode
+      return describePapelizVaultEncryptionFailureCode(failureCode) ?? (isPapelizFailureCodeShaped(failureCode) ? papelizUnknownFailureSentence : failureCode)
   }
 }
 

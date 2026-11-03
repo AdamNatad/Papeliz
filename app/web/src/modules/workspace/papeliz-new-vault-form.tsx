@@ -1,19 +1,14 @@
-import { AppWindow, Cloud, Folder, FolderOpen, Lock, ShieldCheck, TriangleAlert, type LucideIcon } from 'lucide-react'
+import { AppWindow, FileText, Folder, FolderOpen, Lock, TriangleAlert, type LucideIcon } from 'lucide-react'
 import { isPapelizDesktopApp } from 'virtual:papeliz-desktop-platform-availability'
 import { isPapelizSyncEngineInThisBuild } from 'virtual:papeliz-sync-engine-availability'
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { PapelizSyncSignInPageLinks } from '../sync/papeliz-sync-blocked-sign-in-links'
-import type { PapelizSyncVaultEncryptionChoice, PapelizSyncVaultEncryptionKind } from '../sync/papeliz-sync-engine-contract'
+import type { PapelizSyncVaultEncryptionChoice } from '../sync/papeliz-sync-engine-contract'
 import { readPapelizSyncDevFakeEngineScenarioText, usePapelizSyncEngineSnapshot, usePapelizSyncEngineStore } from '../sync/papeliz-sync-engine-store'
 import { describePapelizSyncSignInFromClickFailure, startPapelizSyncSignInFromClick, usePapelizSyncFlowStore } from '../sync/papeliz-sync-flow-store'
 import { PapelizSyncNewPassphraseFields } from '../sync/papeliz-sync-passphrase-fields'
 import { PapelizSyncSwitch } from '../sync/papeliz-sync-page-parts'
-import {
-  papelizSyncVaultEncryptionKindDisplayNames,
-  papelizSyncVaultEncryptionKindReaderLines,
-  papelizSyncVaultNameReadableLine,
-  papelizSyncVaultPassphraseNotRecoverableLine,
-} from '../sync/papeliz-sync-screen-words'
+import { papelizSyncVaultNameReadableLine } from '../sync/papeliz-sync-screen-words'
 import { papelizMainActionButtonColorClassName, papelizOutlineButtonColorClassName } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { usePapelizFooterEqualButtonWidthRef } from '../ui/papeliz-footer-equal-button-width'
@@ -26,16 +21,28 @@ import {
   readPapelizNewVaultDefaultParentFolder,
   type PapelizNewVaultParentFolder,
 } from '../vault/papeliz-open-vault'
+import type { PapelizVaultEncryptionKind } from '../vault/papeliz-vault-encryption'
 import { PapelizBrowserVaultNameField } from './papeliz-browser-vault-name-field'
 import {
+  canPapelizSyncCarryNewVault,
   describePapelizNewVaultParentFolderPlace,
   findPapelizNewVaultCreateBlock,
   isPapelizNewVaultSyncThisVaultOn,
+  readPapelizNewVaultEncryptionChoice,
   readPapelizNewVaultParentFolderName,
-  readPapelizNewVaultSyncPartKind,
+  readPapelizNewVaultPartsKind,
   readPapelizNewVaultSyncVaultEncryptionChoice,
-  type PapelizNewVaultSyncChoice,
+  type PapelizNewVaultEncryptionChoice,
+  type PapelizNewVaultEncryptionPick,
 } from './papeliz-new-vault-form-rules'
+import {
+  papelizEndToEndVaultPassphraseNotRecoverableLine,
+  papelizNewEndToEndVaultPassphraseFieldLabel,
+  papelizNewEndToEndVaultNotSyncedYetLine,
+  papelizNewStandardVaultSyncThisVaultLine,
+  papelizVaultEncryptionKindDisplayNames,
+  papelizVaultEncryptionKindLines,
+} from './papeliz-vault-encryption-screen-words'
 
 // Where a new vault is kept: a folder on the disk (Chrome, Edge and Brave) or this browser.
 export type PapelizNewVaultPlace = 'folder-on-disk' | 'browser-vault-in-opfs'
@@ -77,8 +84,9 @@ const papelizNewVaultPlaceDescriptions: readonly PapelizNewVaultPlaceDescription
   },
 ]
 
-const papelizNewVaultEncryptionKindIcons: Record<PapelizSyncVaultEncryptionKind, LucideIcon> = {
-  standard: ShieldCheck,
+// Standard is a page, since its files on disk aren't encrypted; End-to-end is a lock.
+const papelizNewVaultEncryptionKindIcons: Record<PapelizVaultEncryptionKind, LucideIcon> = {
+  standard: FileText,
   'end-to-end': Lock,
 }
 
@@ -191,6 +199,8 @@ export interface PapelizNewVaultConfirmDetails {
   // The folder the vault's folder is made in, when the form picked one (null: none picked yet, so it
   // is asked for now).
   newVaultParentFolder: PapelizNewVaultParentFolder | null
+  // Standard, or End-to-end with its passphrase.
+  newVaultEncryptionChoice: PapelizNewVaultEncryptionChoice
   // The kind to turn Sync on with once the vault opens, or null when it doesn't sync.
   newVaultSyncVaultEncryptionChoice: PapelizSyncVaultEncryptionChoice | null
 }
@@ -212,8 +222,9 @@ interface PapelizNewVaultFormProps {
   // Where the vault's folder goes, picked from the form (Browse…), shown before Create Vault. Without
   // it the form shows no place row, and the place is picked once Create Vault is pressed.
   onNewVaultParentFolderPick?: () => Promise<PapelizNewVaultParentFolder | null>
-  // The Sync part under Location: the start page's New Vault has it, Use Template's doesn't.
-  isNewVaultSyncPartShown?: boolean
+  // Encryption under Location, and "Sync This Vault" where Sync is: the start page's New Vault has
+  // them; Use Template's doesn't, since it makes a Standard vault.
+  areNewVaultEncryptionAndSyncPartsShown?: boolean
   // Why the last Create Vault didn't make the vault, shown under Location.
   newVaultCreateFailureMessage?: string | null
   onNewVaultConfirm: (typedNewVaultName: string, chosenNewVaultPlace: PapelizNewVaultPlace, newVaultConfirmDetails: PapelizNewVaultConfirmDetails) => void
@@ -233,7 +244,10 @@ function PapelizNewVaultFormPartHeading({ newVaultFormPartHeadingId, children, n
 }
 
 // One choice as a tile: an icon tile, the title, a line under it, and the radio at the right edge. The
-// two web places and the two kinds of Sync encryption use it, side by side.
+// two web places and the two kinds of encryption use it, side by side. Choosing one cross-fades its
+// border, ground and icon tile over 180 ms while the one left behind fades back, and the radio's dot
+// grows from its centre; a press sinks the tile slightly, and a hover tints its border and icon tile.
+// With reduced motion it all changes at once (papeliz-webapp.css), and a press doesn't sink it.
 function PapelizNewVaultChoiceTile({
   choiceTileGroupName,
   choiceTileValue,
@@ -259,19 +273,25 @@ function PapelizNewVaultChoiceTile({
   return (
     <label
       className={joinPapelizClassNames(
-        'flex items-start gap-2.5 rounded-xl border px-2.5 py-2 transition-colors',
+        'group/papeliz-new-vault-choice-tile flex items-start gap-2.5 rounded-xl border px-2.5 py-2 transition-[background-color,border-color,transform] duration-[180ms] ease-out',
         isChoiceTileChosen
-          ? 'border-papeliz-blue-line bg-papeliz-blue-soft'
+          ? 'cursor-pointer border-papeliz-blue-line bg-papeliz-blue-soft'
           : isChoiceTileOff
             ? 'cursor-not-allowed border-papeliz-line bg-papeliz-surface-soft'
-            : 'cursor-pointer border-papeliz-line bg-papeliz-surface hover:bg-papeliz-hover',
+            : 'cursor-pointer border-papeliz-line bg-papeliz-surface hover:border-papeliz-blue-line/60 hover:bg-papeliz-hover',
+        !isChoiceTileOff && 'active:scale-[0.98] motion-reduce:active:scale-100',
       )}
     >
       <span
         aria-hidden="true"
         className={joinPapelizClassNames(
-          'grid size-[30px] flex-none place-items-center rounded-lg transition-colors',
-          isChoiceTileChosen ? 'bg-papeliz-chosen-tab-ground text-white' : 'bg-papeliz-surface-gray text-papeliz-ink-muted',
+          'grid size-[30px] flex-none place-items-center rounded-lg transition-[background-color,color] duration-[180ms] ease-out',
+          isChoiceTileChosen
+            ? 'bg-papeliz-chosen-tab-ground text-white'
+            : joinPapelizClassNames(
+                'bg-papeliz-surface-gray text-papeliz-ink-muted',
+                !isChoiceTileOff && 'group-hover/papeliz-new-vault-choice-tile:bg-papeliz-blue-soft group-hover/papeliz-new-vault-choice-tile:text-papeliz-blue',
+              ),
           isChoiceTileOff && 'opacity-55',
         )}
       >
@@ -285,7 +305,11 @@ function PapelizNewVaultChoiceTile({
         disabled={isChoiceTileOff}
         aria-describedby={isChoiceTileOff ? choiceTileOffReasonId : undefined}
         onChange={onChoiceTileChoose}
-        className={joinPapelizClassNames('order-last mt-0.5 size-4 flex-none accent-papeliz-blue', isChoiceTileOff ? 'opacity-55' : 'cursor-pointer')}
+        className={joinPapelizClassNames(
+          // The dot is a circle drawn at the radio's centre, grown from nothing when it is chosen.
+          'order-last mt-0.5 size-4 flex-none appearance-none rounded-full border-[1.5px] border-papeliz-line-strong bg-papeliz-surface bg-[radial-gradient(circle,var(--color-papeliz-blue)_0_45%,transparent_48%)] bg-center bg-no-repeat [background-size:0%_0%] transition-[background-size,border-color] duration-[180ms] ease-[var(--ease-papeliz-out)] checked:border-papeliz-blue checked:[background-size:100%_100%] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-papeliz-blue',
+          isChoiceTileOff ? 'opacity-55' : 'cursor-pointer',
+        )}
       />
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span className={joinPapelizClassNames('text-[13.5px] leading-tight font-semibold text-papeliz-ink', isChoiceTileOff && 'opacity-55')}>{choiceTileTitle}</span>
@@ -320,13 +344,14 @@ function PapelizNewVaultFailureLine({ children, newVaultFailureLineId }: { child
 }
 
 // New Vault, in the start card in place of Recent Vaults, the same on the web and in Papeliz for
-// Windows: the vault's name, then Location, then Sync, each under a small heading, with Cancel at the
-// footer's left edge and Create Vault at its right. Location shows only what this app has: in Papeliz
-// for Windows the folder the vault's folder will be made in, as its whole path, with Browse… to pick
-// another; on the web its storage places as two tiles (or, where only one works, that one as a plain
-// line), then for Folder Storage the folder it goes in, with Browse…. Compare shows how the places
-// differ. Sync is a quiet line in a build without it; in a build with it, the "Sync This Vault"
-// switch, with Standard or End-to-end (and End-to-end's passphrase) under it. Create Vault stays off
+// Windows: the vault's name, then Location, then Encryption, then (in a build with Sync) "Sync This
+// Vault", each under a small heading, with Cancel at the footer's left edge and Create Vault at its
+// right. Location shows only what this app has: in Papeliz for Windows the folder the vault's folder
+// will be made in, as its whole path, with Browse… to pick another; on the web its storage places as
+// two tiles (or, where only one works, that one as a plain line), then for Folder Storage the folder
+// it goes in, with Browse…. Compare shows how the places differ. Encryption is Standard or End-to-end,
+// Standard first; End-to-end asks its passphrase in place, twice, with the warning that it can't be
+// recovered. "Sync This Vault" syncs the vault with the kind picked above it. Create Vault stays off
 // until the vault can be made, and says why. Esc cancels.
 export function PapelizNewVaultForm({
   newVaultFormHeadingId,
@@ -338,7 +363,7 @@ export function PapelizNewVaultForm({
   newVaultFromTemplate,
   isNewVaultConfirmHeld = false,
   onNewVaultParentFolderPick,
-  isNewVaultSyncPartShown = false,
+  areNewVaultEncryptionAndSyncPartsShown = false,
   newVaultCreateFailureMessage = null,
   onNewVaultConfirm,
   onNewVaultCancel,
@@ -432,33 +457,27 @@ export function PapelizNewVaultForm({
       ? newVaultFolderNameTakenReading.newVaultFolderNameTaken
       : null
 
-  // Sync: a quiet line in a build without it, the switch and the kinds in a build with it. The switch
-  // is off until the person is signed in to Sync, then on unless they turn it off.
+  // Encryption, in every build, and "Sync This Vault" in a build with Sync. The switch is off until the
+  // person is signed in to Sync, then on unless they turn it off.
   const isPapelizSyncInThisBuild = useMemo(() => isPapelizSyncEngineInThisBuild || readPapelizSyncDevFakeEngineScenarioText() !== null, [])
-  const newVaultSyncPartKind = readPapelizNewVaultSyncPartKind(isNewVaultSyncPartShown, isPapelizSyncInThisBuild)
+  const newVaultPartsKind = readPapelizNewVaultPartsKind(areNewVaultEncryptionAndSyncPartsShown, isPapelizSyncInThisBuild)
+  const [chosenNewVaultEncryptionKind, setChosenNewVaultEncryptionKind] = useState<PapelizVaultEncryptionKind>('standard')
+  const [typedNewVaultPassphrase, setTypedNewVaultPassphrase] = useState('')
+  const [repeatedNewVaultPassphrase, setRepeatedNewVaultPassphrase] = useState('')
+  const newVaultEncryptionPick: PapelizNewVaultEncryptionPick | null =
+    newVaultPartsKind === 'none' ? null : { chosenNewVaultEncryptionKind, typedNewVaultPassphrase, repeatedNewVaultPassphrase }
   const loadPapelizSyncEngine = usePapelizSyncEngineStore((syncEngineState) => syncEngineState.loadPapelizSyncEngine)
   const syncEngineLoadState = usePapelizSyncEngineStore((syncEngineState) => syncEngineState.syncEngineLoadState)
   const syncEngineReading = usePapelizSyncEngineSnapshot()
   const blockedSyncSignInPageUrl = usePapelizSyncFlowStore((syncFlowState) => syncFlowState.blockedSyncSignInPageUrl)
   useEffect(() => {
-    if (newVaultSyncPartKind === 'sync-choice') void loadPapelizSyncEngine()
-  }, [newVaultSyncPartKind, loadPapelizSyncEngine])
+    if (newVaultPartsKind === 'encryption-and-sync-switch') void loadPapelizSyncEngine()
+  }, [newVaultPartsKind, loadPapelizSyncEngine])
   const isSignedInToSync = syncEngineReading?.syncEngineSnapshot.syncSignIn.syncSignInKind === 'signed-in'
   const [syncThisVaultSwitchPick, setSyncThisVaultSwitchPick] = useState<boolean | null>(null)
-  const [chosenSyncVaultEncryptionKind, setChosenSyncVaultEncryptionKind] = useState<PapelizSyncVaultEncryptionKind>('standard')
-  const [typedSyncVaultPassphrase, setTypedSyncVaultPassphrase] = useState('')
-  const [repeatedSyncVaultPassphrase, setRepeatedSyncVaultPassphrase] = useState('')
   const [isSyncSignInRunning, setIsSyncSignInRunning] = useState(false)
   const [syncSignInFailureWords, setSyncSignInFailureWords] = useState<string | null>(null)
-  const newVaultSyncChoice: PapelizNewVaultSyncChoice | null =
-    newVaultSyncPartKind === 'sync-choice'
-      ? {
-          isSyncThisVaultOn: isPapelizNewVaultSyncThisVaultOn(isSignedInToSync, syncThisVaultSwitchPick),
-          chosenSyncVaultEncryptionKind,
-          typedSyncVaultPassphrase,
-          repeatedSyncVaultPassphrase,
-        }
-      : null
+  const isSyncThisVaultOn = newVaultPartsKind === 'encryption-and-sync-switch' && isPapelizNewVaultSyncThisVaultOn(isSignedInToSync, syncThisVaultSwitchPick, chosenNewVaultEncryptionKind)
   const signInToSyncFromNewVault = () => {
     if (syncEngineReading === null) return
     setSyncSignInFailureWords(null)
@@ -471,7 +490,7 @@ export function PapelizNewVaultForm({
   const newVaultCreateBlock = findPapelizNewVaultCreateBlock({
     newVaultNameProblem,
     newVaultFolderNameTaken,
-    newVaultSyncChoice,
+    newVaultEncryptionPick,
     isNewVaultConfirmHeld: isNewVaultConfirmHeld || isNewVaultParentFolderPicking,
   })
 
@@ -483,9 +502,11 @@ export function PapelizNewVaultForm({
 
   const confirmNewVault = () => {
     if (newVaultCreateBlock !== null) return
+    const newVaultEncryptionChoice = readPapelizNewVaultEncryptionChoice(newVaultEncryptionPick)
     onNewVaultConfirm(trimmedNewVaultName, chosenNewVaultPlace, {
       newVaultParentFolder: isNewVaultParentFolderRowShown ? newVaultParentFolder : null,
-      newVaultSyncVaultEncryptionChoice: newVaultSyncChoice === null ? null : readPapelizNewVaultSyncVaultEncryptionChoice(newVaultSyncChoice),
+      newVaultEncryptionChoice,
+      newVaultSyncVaultEncryptionChoice: readPapelizNewVaultSyncVaultEncryptionChoice(isSyncThisVaultOn, newVaultEncryptionChoice),
     })
   }
 
@@ -663,7 +684,7 @@ export function PapelizNewVaultForm({
                   ) : (
                     <>
                       Papeliz makes the folder <b className="font-semibold text-papeliz-ink-muted">{trimmedNewVaultName}</b> in “{readPapelizNewVaultParentFolderName(newVaultParentFolder)}”, with every note
-                      in it as a Markdown file.
+                      in it {chosenNewVaultEncryptionKind === 'end-to-end' && newVaultEncryptionPick !== null ? 'encrypted' : 'as a Markdown file'}.
                     </>
                   )}
                 </p>
@@ -682,14 +703,17 @@ export function PapelizNewVaultForm({
           )}
         </section>
 
-        {newVaultSyncPartKind === 'sync-coming' && (
-          <p className="flex items-center gap-2 border-t border-dashed border-papeliz-line pt-2.5 text-[12.5px] leading-snug text-papeliz-ink-subtle">
-            <Cloud className="size-[15px] flex-none text-papeliz-blue" aria-hidden="true" />
-            <span>Sync, with Standard or End-to-end encryption, is coming. Until then this vault stays {keptPlaceWords}.</span>
-          </p>
+        {newVaultEncryptionPick !== null && (
+          <PapelizNewVaultEncryptionPart
+            newVaultEncryptionHeadingId={encryptionHeadingId}
+            newVaultEncryptionPick={newVaultEncryptionPick}
+            onNewVaultEncryptionKindChoose={setChosenNewVaultEncryptionKind}
+            onNewVaultPassphraseType={setTypedNewVaultPassphrase}
+            onNewVaultPassphraseRepeat={setRepeatedNewVaultPassphrase}
+          />
         )}
 
-        {newVaultSyncPartKind === 'sync-choice' && newVaultSyncChoice !== null && (
+        {newVaultPartsKind === 'encryption-and-sync-switch' && (
           <section aria-labelledby={syncHeadingId} className="flex flex-col gap-3">
             <div className="flex items-center gap-2.5 rounded-xl border border-papeliz-line px-2.5 py-2">
               <span className="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -708,8 +732,10 @@ export function PapelizNewVaultForm({
                         {isSyncSignInRunning ? 'Waiting for the sign-in…' : 'Sign In'}
                       </button>
                     </>
-                  ) : newVaultSyncChoice.isSyncThisVaultOn ? (
-                    'It uploads encrypted, and your other devices can download it.'
+                  ) : !canPapelizSyncCarryNewVault(chosenNewVaultEncryptionKind) ? (
+                    papelizNewEndToEndVaultNotSyncedYetLine
+                  ) : isSyncThisVaultOn ? (
+                    papelizNewStandardVaultSyncThisVaultLine
                   ) : (
                     `It stays ${keptPlaceWords}. Turn Sync on later in Settings › Sync.`
                   )}
@@ -717,49 +743,14 @@ export function PapelizNewVaultForm({
               </span>
               <PapelizSyncSwitch
                 syncSwitchLabel="Sync This Vault"
-                isSyncSwitchOn={newVaultSyncChoice.isSyncThisVaultOn}
-                isSyncSwitchDisabled={!isSignedInToSync || isNewVaultConfirmHeld}
-                onSyncSwitchToggle={() => setSyncThisVaultSwitchPick(!newVaultSyncChoice.isSyncThisVaultOn)}
+                isSyncSwitchOn={isSyncThisVaultOn}
+                isSyncSwitchDisabled={!isSignedInToSync || !canPapelizSyncCarryNewVault(chosenNewVaultEncryptionKind) || isNewVaultConfirmHeld}
+                onSyncSwitchToggle={() => setSyncThisVaultSwitchPick(!isSyncThisVaultOn)}
               />
             </div>
             {blockedSyncSignInPageUrl !== null && !isSignedInToSync && <PapelizSyncSignInPageLinks syncSignInPageUrl={blockedSyncSignInPageUrl} signInLinksAlignment="from-left-edge" />}
             {syncSignInFailureWords !== null && <PapelizNewVaultFailureLine>{syncSignInFailureWords}</PapelizNewVaultFailureLine>}
-
-            {newVaultSyncChoice.isSyncThisVaultOn && (
-              <section aria-labelledby={encryptionHeadingId}>
-                <PapelizNewVaultFormPartHeading newVaultFormPartHeadingId={encryptionHeadingId}>Encryption</PapelizNewVaultFormPartHeading>
-                <div role="radiogroup" aria-labelledby={encryptionHeadingId} className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  {(['standard', 'end-to-end'] as const).map((syncVaultEncryptionKind) => (
-                    <PapelizNewVaultChoiceTile
-                      key={syncVaultEncryptionKind}
-                      choiceTileGroupName={`${newVaultFormIdPrefix}-sync-vault-encryption-kind`}
-                      choiceTileValue={syncVaultEncryptionKind}
-                      ChoiceTileIcon={papelizNewVaultEncryptionKindIcons[syncVaultEncryptionKind]}
-                      choiceTileTitle={papelizSyncVaultEncryptionKindDisplayNames[syncVaultEncryptionKind]}
-                      choiceTileLine={papelizSyncVaultEncryptionKindReaderLines[syncVaultEncryptionKind]}
-                      isChoiceTileChosen={syncVaultEncryptionKind === chosenSyncVaultEncryptionKind}
-                      onChoiceTileChoose={() => setChosenSyncVaultEncryptionKind(syncVaultEncryptionKind)}
-                    />
-                  ))}
-                </div>
-                {chosenSyncVaultEncryptionKind === 'end-to-end' && (
-                  <>
-                    <PapelizSyncNewPassphraseFields
-                      newSyncPassphrase={typedSyncVaultPassphrase}
-                      onNewSyncPassphraseChange={setTypedSyncVaultPassphrase}
-                      repeatedSyncPassphrase={repeatedSyncVaultPassphrase}
-                      onRepeatedSyncPassphraseChange={setRepeatedSyncVaultPassphrase}
-                      newSyncPassphraseFieldLabel="Passphrase"
-                    />
-                    <p className="mt-3 flex items-start gap-2 rounded-xl bg-papeliz-warning px-3 py-2.5 text-[12.5px] leading-[1.45] text-papeliz-warning-ink">
-                      <TriangleAlert className="mt-0.5 size-[15px] flex-none" aria-hidden="true" />
-                      <span>{papelizSyncVaultPassphraseNotRecoverableLine}</span>
-                    </p>
-                  </>
-                )}
-                <p className="mt-1.5 text-[11.5px] leading-snug text-papeliz-ink-subtle">{papelizSyncVaultNameReadableLine}</p>
-              </section>
-            )}
+            {isSyncThisVaultOn && <p className="-mt-1.5 text-[11.5px] leading-snug text-papeliz-ink-subtle">{papelizSyncVaultNameReadableLine}</p>}
           </section>
         )}
       </div>
@@ -779,6 +770,79 @@ export function PapelizNewVaultForm({
         </button>
       </div>
     </div>
+  )
+}
+
+// Encryption, under Location: Standard or End-to-end as two tiles, Standard first, each with its one
+// line. End-to-end asks its passphrase in place, twice, with the strength bars and the warning that
+// it can't be recovered.
+export function PapelizNewVaultEncryptionPart({
+  newVaultEncryptionHeadingId,
+  newVaultEncryptionPick,
+  onNewVaultEncryptionKindChoose,
+  onNewVaultPassphraseType,
+  onNewVaultPassphraseRepeat,
+}: {
+  newVaultEncryptionHeadingId: string
+  newVaultEncryptionPick: PapelizNewVaultEncryptionPick
+  onNewVaultEncryptionKindChoose: (chosenNewVaultEncryptionKind: PapelizVaultEncryptionKind) => void
+  onNewVaultPassphraseType: (typedNewVaultPassphrase: string) => void
+  onNewVaultPassphraseRepeat: (repeatedNewVaultPassphrase: string) => void
+}) {
+  const isNewVaultPassphrasePartOpen = newVaultEncryptionPick.chosenNewVaultEncryptionKind === 'end-to-end'
+  const newVaultPassphrasePartRef = useRef<HTMLDivElement>(null)
+  // Choosing End-to-end puts the focus in the passphrase, once it is no longer inert.
+  const wasNewVaultPassphrasePartOpen = useRef(isNewVaultPassphrasePartOpen)
+  useEffect(() => {
+    if (isNewVaultPassphrasePartOpen && !wasNewVaultPassphrasePartOpen.current) newVaultPassphrasePartRef.current?.querySelector('input')?.focus()
+    wasNewVaultPassphrasePartOpen.current = isNewVaultPassphrasePartOpen
+  }, [isNewVaultPassphrasePartOpen])
+  return (
+    <section aria-labelledby={newVaultEncryptionHeadingId}>
+      <PapelizNewVaultFormPartHeading newVaultFormPartHeadingId={newVaultEncryptionHeadingId}>Encryption</PapelizNewVaultFormPartHeading>
+      <div role="radiogroup" aria-labelledby={newVaultEncryptionHeadingId} className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        {(['standard', 'end-to-end'] as const).map((newVaultEncryptionKind) => (
+          <PapelizNewVaultChoiceTile
+            key={newVaultEncryptionKind}
+            choiceTileGroupName={`${newVaultEncryptionHeadingId}-kind`}
+            choiceTileValue={newVaultEncryptionKind}
+            ChoiceTileIcon={papelizNewVaultEncryptionKindIcons[newVaultEncryptionKind]}
+            choiceTileTitle={papelizVaultEncryptionKindDisplayNames[newVaultEncryptionKind]}
+            choiceTileLine={papelizVaultEncryptionKindLines[newVaultEncryptionKind]}
+            isChoiceTileChosen={newVaultEncryptionKind === newVaultEncryptionPick.chosenNewVaultEncryptionKind}
+            onChoiceTileChoose={() => onNewVaultEncryptionKindChoose(newVaultEncryptionKind)}
+          />
+        ))}
+      </div>
+      {/* End-to-end's passphrase opens under the tiles: it grows from no height and fades in over about
+          220 ms, and shuts the same way when Standard is chosen again, while the form below moves with it.
+          Shut, it is inert, so nothing in it takes focus. The strength bars fill with a short fade as the
+          passphrase is typed. */}
+      <div
+        ref={newVaultPassphrasePartRef}
+        inert={!isNewVaultPassphrasePartOpen}
+        data-papeliz-new-vault-passphrase-part-open={isNewVaultPassphrasePartOpen}
+        className={joinPapelizClassNames(
+          'grid transition-[grid-template-rows,opacity] duration-[220ms] ease-[var(--ease-papeliz-out)]',
+          isNewVaultPassphrasePartOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0',
+        )}
+      >
+        <div className="-mx-1 min-h-0 overflow-hidden px-1 [&_[aria-hidden=true]>span]:transition-[background-color] [&_[aria-hidden=true]>span]:duration-200">
+          <PapelizSyncNewPassphraseFields
+            newSyncPassphrase={newVaultEncryptionPick.typedNewVaultPassphrase}
+            onNewSyncPassphraseChange={onNewVaultPassphraseType}
+            repeatedSyncPassphrase={newVaultEncryptionPick.repeatedNewVaultPassphrase}
+            onRepeatedSyncPassphraseChange={onNewVaultPassphraseRepeat}
+            newSyncPassphraseFieldLabel={papelizNewEndToEndVaultPassphraseFieldLabel}
+            isNewSyncPassphraseFieldFocusedFirst={false}
+          />
+          <p className="mt-3 flex items-start gap-2 rounded-xl bg-papeliz-warning px-3 py-2.5 text-[12.5px] leading-[1.45] text-papeliz-warning-ink">
+            <TriangleAlert className="mt-0.5 size-[15px] flex-none" aria-hidden="true" />
+            <span>{papelizEndToEndVaultPassphraseNotRecoverableLine}</span>
+          </p>
+        </div>
+      </div>
+    </section>
   )
 }
 

@@ -32,6 +32,14 @@ import {
   papelizVaultSettingsFolderName,
   papelizVaultTrashFolderName,
 } from './papeliz-vault-relative-paths'
+import {
+  assertVaultEntryRelativePathCarriedByVaultEncryption,
+  assertVaultFileRelativePathCarriedByVaultEncryption,
+  assertVaultFolderRelativePathCarriedByVaultEncryption,
+  isVaultFileRelativePathCarriedByVaultEncryption,
+  isVaultFolderSearchedForVaultEncryption,
+  type PapelizVaultStoredFileAccess,
+} from './papeliz-vault-encryption-stored-files'
 import { assertVaultTextFileOpenableAtByteLength, classifyVaultFileByName, papelizVaultFileByteCheckLength } from './papeliz-vault-text-files'
 
 // Papeliz Sync's whole-file access, as a folder opened in the browser has it
@@ -165,7 +173,42 @@ export function createPapelizDesktopFolderVaultAdapter(desktopVaultFolderPath: s
     },
   }
 
-  const desktopFolderVaultAdapter: PapelizVaultAdapter & PapelizDesktopFolderVaultWholeFileAccess = {
+  // Every file, with its size and last change, in the folders and of the paths the two rules let in.
+  const collectDesktopVaultFileStats = async (
+    isVaultFolderSearched: (vaultParentFolderRelativePath: string, vaultFolderName: string) => boolean,
+    isVaultFileListed: (vaultFileRelativePath: string) => boolean,
+  ): Promise<PapelizVaultSyncableFileStat[]> => {
+    const collectedVaultFileStats: PapelizVaultSyncableFileStat[] = []
+    const collectVaultFolderFileStats = async (vaultFolderRelativePath: string) => {
+      for (const desktopFolderEntry of await listDesktopVaultFolderEntries(vaultFolderRelativePath)) {
+        const vaultEntryName = desktopFolderEntry.desktopEntryName
+        const vaultEntryRelativePath = joinVaultRelativePath(vaultFolderRelativePath, vaultEntryName)
+        if (desktopFolderEntry.isDesktopEntryFolder) {
+          if (isVaultFolderSearched(vaultFolderRelativePath, vaultEntryName)) await collectVaultFolderFileStats(vaultEntryRelativePath)
+        } else if (isVaultFileListed(vaultEntryRelativePath)) {
+          // A size the listing doesn't give is measured by reading the file. A time it doesn't give
+          // is the time of this listing, so Sync reads the file and compares what is in it rather
+          // than taking it as unchanged.
+          collectedVaultFileStats.push({
+            vaultFileRelativePath: vaultEntryRelativePath,
+            vaultFileByteLength: desktopFolderEntry.desktopFileByteCount ?? (await desktopFileSystem.readDesktopFileBytes(resolveDesktopVaultPath(vaultEntryRelativePath))).length,
+            vaultFileModifiedAt: desktopFolderEntry.desktopEntryModifiedAt ?? Date.now(),
+          })
+        }
+      }
+    }
+    await collectVaultFolderFileStats(papelizVaultRootFolderRelativePath)
+    return collectedVaultFileStats
+  }
+
+  // Writes the whole file, making its folders.
+  const writeWholeDesktopVaultFileBytes = async (vaultFileRelativePath: string, vaultFileBytes: Uint8Array): Promise<void> => {
+    const { desktopEntryPath, vaultParentFolderRelativePath } = locateDesktopVaultEntry(vaultFileRelativePath)
+    if (vaultParentFolderRelativePath !== papelizVaultRootFolderRelativePath) await desktopFileSystem.makeDesktopFolder(resolveDesktopVaultPath(vaultParentFolderRelativePath))
+    await desktopFileSystem.writeDesktopFileBytes(desktopEntryPath, vaultFileBytes)
+  }
+
+  const desktopFolderVaultAdapter: PapelizVaultAdapter & PapelizDesktopFolderVaultWholeFileAccess & PapelizVaultStoredFileAccess = {
     papelizVaultKind: 'folder-on-disk',
 
     async listVaultTreeEntries(vaultTreeListingOptions?: PapelizVaultTreeListingOptions): Promise<PapelizVaultTreeEntry[]> {
@@ -348,28 +391,8 @@ export function createPapelizDesktopFolderVaultAdapter(desktopVaultFolderPath: s
     // Papeliz Sync's own access (papeliz-sync-local-vault-files.ts): every file it carries, whole, with
     // sizes and times (papeliz-vault-relative-paths.ts says which). Hidden folders and files stay out,
     // except `.papeliz/` and `.csessions/` at the top.
-    async listSyncableVaultFileStats(): Promise<PapelizVaultSyncableFileStat[]> {
-      const syncableVaultFileStats: PapelizVaultSyncableFileStat[] = []
-      const collectVaultFolderSyncableFiles = async (vaultFolderRelativePath: string) => {
-        for (const desktopFolderEntry of await listDesktopVaultFolderEntries(vaultFolderRelativePath)) {
-          const vaultEntryName = desktopFolderEntry.desktopEntryName
-          const vaultEntryRelativePath = joinVaultRelativePath(vaultFolderRelativePath, vaultEntryName)
-          if (desktopFolderEntry.isDesktopEntryFolder) {
-            if (isVaultFolderSearchedForSyncableFiles(vaultFolderRelativePath, vaultEntryName)) await collectVaultFolderSyncableFiles(vaultEntryRelativePath)
-          } else if (isVaultFileRelativePathSyncable(vaultEntryRelativePath)) {
-            // A size the listing doesn't give is measured by reading the file. A time it doesn't give
-            // is the time of this listing, so Sync reads the file and compares what is in it rather
-            // than taking it as unchanged.
-            syncableVaultFileStats.push({
-              vaultFileRelativePath: vaultEntryRelativePath,
-              vaultFileByteLength: desktopFolderEntry.desktopFileByteCount ?? (await desktopFileSystem.readDesktopFileBytes(resolveDesktopVaultPath(vaultEntryRelativePath))).length,
-              vaultFileModifiedAt: desktopFolderEntry.desktopEntryModifiedAt ?? Date.now(),
-            })
-          }
-        }
-      }
-      await collectVaultFolderSyncableFiles(papelizVaultRootFolderRelativePath)
-      return syncableVaultFileStats
+    listSyncableVaultFileStats(): Promise<PapelizVaultSyncableFileStat[]> {
+      return collectDesktopVaultFileStats(isVaultFolderSearchedForSyncableFiles, isVaultFileRelativePathSyncable)
     },
 
     async readVaultFileBytes(vaultFileRelativePath: string): Promise<Uint8Array> {
@@ -379,10 +402,41 @@ export function createPapelizDesktopFolderVaultAdapter(desktopVaultFolderPath: s
 
     // Writes the whole file, making its folders. Only a file Sync carries.
     async writeVaultFileBytes(vaultFileRelativePath: string, vaultFileBytes: Uint8Array): Promise<void> {
-      const { desktopEntryPath, vaultParentFolderRelativePath } = locateDesktopVaultEntry(vaultFileRelativePath)
+      locateDesktopVaultEntry(vaultFileRelativePath)
       if (!isVaultFileRelativePathSyncable(vaultFileRelativePath)) throw new PapelizVaultOperationError('Not Synced')
-      if (vaultParentFolderRelativePath !== papelizVaultRootFolderRelativePath) await desktopFileSystem.makeDesktopFolder(resolveDesktopVaultPath(vaultParentFolderRelativePath))
-      await desktopFileSystem.writeDesktopFileBytes(desktopEntryPath, vaultFileBytes)
+      await writeWholeDesktopVaultFileBytes(vaultFileRelativePath, vaultFileBytes)
+    },
+
+    // Vault encryption's own access (papeliz-vault-encryption-stored-files.ts): every file a change of
+    // kind carries, whole, by its path as stored.
+    listStoredVaultFileStats(): Promise<PapelizVaultSyncableFileStat[]> {
+      return collectDesktopVaultFileStats(isVaultFolderSearchedForVaultEncryption, isVaultFileRelativePathCarriedByVaultEncryption)
+    },
+
+    async writeStoredVaultFileBytes(storedVaultFileRelativePath: string, storedVaultFileBytes: Uint8Array): Promise<void> {
+      locateDesktopVaultEntry(storedVaultFileRelativePath)
+      assertVaultFileRelativePathCarriedByVaultEncryption(storedVaultFileRelativePath)
+      await writeWholeDesktopVaultFileBytes(storedVaultFileRelativePath, storedVaultFileBytes)
+    },
+
+    // The native remove takes a folder with everything in it, so a folder is removed only once it lists
+    // nothing.
+    async removeStoredVaultEntry(storedVaultEntryRelativePath: string): Promise<void> {
+      const { desktopEntryPath } = locateDesktopVaultEntry(storedVaultEntryRelativePath)
+      assertVaultEntryRelativePathCarriedByVaultEncryption(storedVaultEntryRelativePath)
+      const storedDesktopEntry = await desktopFileSystem.readDesktopEntry(desktopEntryPath)
+      if (storedDesktopEntry === null) throw new PapelizVaultOperationError('Not In Vault')
+      // As a browser's own folder remove refuses one that isn't empty.
+      if (storedDesktopEntry.isDesktopEntryFolder && (await desktopFileSystem.listDesktopFolderEntries(desktopEntryPath)).length > 0) {
+        throw new DOMException('The folder is not empty.', 'InvalidModificationError')
+      }
+      await desktopFileSystem.removeDesktopEntry(desktopEntryPath)
+    },
+
+    async makeStoredVaultFolder(storedVaultFolderRelativePath: string): Promise<void> {
+      const { desktopEntryPath } = locateDesktopVaultEntry(storedVaultFolderRelativePath)
+      assertVaultFolderRelativePathCarriedByVaultEncryption(storedVaultFolderRelativePath)
+      await desktopFileSystem.makeDesktopFolder(desktopEntryPath)
     },
   }
   return desktopFolderVaultAdapter

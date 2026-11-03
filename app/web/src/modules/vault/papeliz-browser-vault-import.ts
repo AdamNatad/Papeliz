@@ -6,10 +6,22 @@ import {
   deletePapelizBrowserVault,
   getPapelizBrowserVaultEnvironment,
   getPapelizBrowserVaultFolderHandle,
+  openPapelizBrowserVault,
   type PapelizBrowserVaultEnvironment,
   type PapelizBrowserVaultRecord,
 } from './papeliz-browser-vaults'
+import { PapelizBrowserVaultAdapter } from './papeliz-browser-vault-adapter'
+import type { PapelizOpenVault } from './papeliz-open-vault'
 import { PapelizVaultOperationError } from './papeliz-vault-adapter'
+import {
+  makePapelizEndToEndVault,
+  readPapelizUnlockedVaultEncryptionKey,
+  wrapPapelizVaultAdapterWithEndToEndEncryption,
+  writePapelizVaultImportFilesIntoEndToEndVault,
+  type PapelizEndToEndVaultAdapter,
+  type PapelizUnlockedVaultEncryptionKey,
+  type PapelizVaultPassphraseKeyProgressListener,
+} from './papeliz-vault-encryption'
 import { isPapelizImportLeftover, writePapelizVaultImportFiles, type PapelizVaultImportFile, type PapelizVaultImportOptions } from './papeliz-vault-folder-import'
 import { papelizBrowserVaultSettingsFileName, papelizVaultSettingsFolderName } from './papeliz-vault-relative-paths'
 
@@ -152,4 +164,59 @@ export async function importPapelizBrowserVault(
     await deletePapelizBrowserVault(importedBrowserVaultRecord, browserVaultEnvironment)
     throw browserVaultImportError
   }
+}
+
+// The same, when End-to-end is picked for the new vault (papeliz-vault-encryption.ts): the vault is made
+// End-to-end before anything comes in, and every file is encrypted as it is written, so nothing plain
+// ever lands in it. Like the import above, it is filled before any tab opens it; then it is opened and
+// handed back unlocked, as New Vault's End-to-end vault is. A vault that can't be finished (stopped,
+// full, a damaged zip, a passphrase too short) is taken back whole; the failure is thrown as a code.
+export async function importPapelizEndToEndBrowserVault(
+  typedBrowserVaultName: string,
+  browserVaultImportPlan: PapelizBrowserVaultImportPlan,
+  endToEndVaultImportRequest: { vaultPassphrase: string; onVaultPassphraseKeyProgress?: PapelizVaultPassphraseKeyProgressListener },
+  browserVaultImportOptions: PapelizBrowserVaultImportOptions = {},
+  browserVaultEnvironment: PapelizBrowserVaultEnvironment = getPapelizBrowserVaultEnvironment(),
+): Promise<PapelizOpenVault & { papelizVaultAdapter: PapelizEndToEndVaultAdapter }> {
+  const browserStorageEstimate = await readPapelizBrowserStorageEstimate()
+  if (
+    browserStorageEstimate !== null &&
+    browserStorageEstimate.browserStorageQuotaByteCount - browserStorageEstimate.browserStorageUsedByteCount < browserVaultImportPlan.importTotalByteCount
+  ) {
+    throw new PapelizVaultOperationError('Not Enough Browser Storage')
+  }
+  const importedBrowserVaultRecord = await createPapelizBrowserVault(typedBrowserVaultName, browserVaultEnvironment)
+  const { papelizVaultId } = importedBrowserVaultRecord
+  let unlockedVaultEncryptionKey: PapelizUnlockedVaultEncryptionKey
+  try {
+    const browserVaultFolderHandle = await getPapelizBrowserVaultFolderHandle(papelizVaultId, browserVaultEnvironment)
+    if (browserVaultFolderHandle === null) throw new PapelizVaultOperationError('Vault Not Found')
+    // The vault's own adapter for the import alone, holding no open lock.
+    const importingBrowserVaultAdapter = new PapelizBrowserVaultAdapter(browserVaultFolderHandle, {
+      papelizVaultId,
+      browserVaultLockManager: browserVaultEnvironment.browserVaultLockManager,
+      onBrowserVaultChanged: () => undefined,
+      releaseBrowserVaultOpenLock: () => undefined,
+      vaultFileContentsWriter: browserVaultEnvironment.vaultFileContentsWriter,
+    })
+    const endToEndVaultMakeResult = await makePapelizEndToEndVault({
+      newVaultOpenVault: { papelizVaultId, papelizVaultDisplayName: importedBrowserVaultRecord.papelizVaultDisplayName, papelizVaultAdapter: importingBrowserVaultAdapter },
+      ...endToEndVaultImportRequest,
+    })
+    if (endToEndVaultMakeResult.endToEndVaultUnlockOutcome !== 'unlocked') {
+      throw new PapelizVaultOperationError(endToEndVaultMakeResult.endToEndVaultUnlockOutcome === 'failed' ? endToEndVaultMakeResult.vaultEncryptionFailureCode : 'Unknown Error')
+    }
+    const importingEndToEndVaultAdapter = endToEndVaultMakeResult.papelizOpenVault.papelizVaultAdapter
+    await runPapelizBrowserVaultChangeExclusively(browserVaultEnvironment.browserVaultLockManager, papelizVaultId, () =>
+      writePapelizVaultImportFilesIntoEndToEndVault(importingEndToEndVaultAdapter, browserVaultImportPlan.browserVaultImportFiles, browserVaultImportOptions),
+    )
+    unlockedVaultEncryptionKey = readPapelizUnlockedVaultEncryptionKey(importingEndToEndVaultAdapter)
+  } catch (browserVaultImportError) {
+    await deletePapelizBrowserVault(importedBrowserVaultRecord, browserVaultEnvironment)
+    throw browserVaultImportError
+  }
+  const browserVaultOpenResult = await openPapelizBrowserVault(importedBrowserVaultRecord, browserVaultEnvironment)
+  if (browserVaultOpenResult.openVaultOutcome !== 'opened') throw new PapelizVaultOperationError('Vault Not Found')
+  const { papelizOpenVault } = browserVaultOpenResult
+  return { ...papelizOpenVault, papelizVaultAdapter: await wrapPapelizVaultAdapterWithEndToEndEncryption(papelizOpenVault.papelizVaultAdapter, unlockedVaultEncryptionKey) }
 }

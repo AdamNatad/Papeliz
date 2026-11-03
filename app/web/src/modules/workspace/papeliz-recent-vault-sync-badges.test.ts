@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { PapelizSyncEngineSnapshot, PapelizSyncSignInReading } from '../sync/papeliz-sync-engine-contract'
-import { readPapelizRecentVaultSyncEncryptionKinds } from './papeliz-recent-vault-sync-badges'
+import { readPapelizRecentVaultSyncedVaultIds } from './papeliz-recent-vault-sync-badges'
 
 function createTestSyncEngineSnapshot(syncSignIn: PapelizSyncSignInReading): PapelizSyncEngineSnapshot {
   return {
@@ -27,25 +27,22 @@ const testSignedInReading: PapelizSyncSignInReading = {
 
 describe('the Recent Vaults sync badges', () => {
   it('calls every vault Local on a device that has never used Sync, without the engine', () => {
-    expect(readPapelizRecentVaultSyncEncryptionKinds({ isPapelizSyncExpectedOnThisDevice: false, syncEngineSnapshot: null })).toEqual(new Map())
+    expect(readPapelizRecentVaultSyncedVaultIds({ isPapelizSyncExpectedOnThisDevice: false, syncEngineSnapshot: null })).toEqual(new Set())
   })
 
   it('shows no badge while the engine loads on a device that uses Sync', () => {
-    expect(readPapelizRecentVaultSyncEncryptionKinds({ isPapelizSyncExpectedOnThisDevice: true, syncEngineSnapshot: null })).toBeNull()
+    expect(readPapelizRecentVaultSyncedVaultIds({ isPapelizSyncExpectedOnThisDevice: true, syncEngineSnapshot: null })).toBeNull()
   })
 
-  it('reads the linked vaults and their kinds while signed in', () => {
-    expect(readPapelizRecentVaultSyncEncryptionKinds({ isPapelizSyncExpectedOnThisDevice: true, syncEngineSnapshot: createTestSyncEngineSnapshot(testSignedInReading) })).toEqual(
-      new Map([
-        ['work-vault', 'standard'],
-        ['journal-vault', 'end-to-end'],
-      ]),
+  it('reads the linked vaults while signed in', () => {
+    expect(readPapelizRecentVaultSyncedVaultIds({ isPapelizSyncExpectedOnThisDevice: true, syncEngineSnapshot: createTestSyncEngineSnapshot(testSignedInReading) })).toEqual(
+      new Set(['work-vault', 'journal-vault']),
     )
   })
 
   it('calls every vault Local while this device is signed out of Sync', () => {
-    expect(readPapelizRecentVaultSyncEncryptionKinds({ isPapelizSyncExpectedOnThisDevice: true, syncEngineSnapshot: createTestSyncEngineSnapshot({ syncSignInKind: 'device-removed' }) })).toEqual(
-      new Map(),
+    expect(readPapelizRecentVaultSyncedVaultIds({ isPapelizSyncExpectedOnThisDevice: true, syncEngineSnapshot: createTestSyncEngineSnapshot({ syncSignInKind: 'device-removed' }) })).toEqual(
+      new Set(),
     )
   })
 })

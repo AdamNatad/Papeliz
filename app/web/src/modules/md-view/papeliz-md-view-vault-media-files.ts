@@ -1,5 +1,6 @@
 import { createPapelizHtmlExportVaultFileResolver, type PapelizHtmlExportVaultFileResolver } from '../html-export/papeliz-html-export-vault-files'
 import type { PapelizVaultAdapter } from '../vault/papeliz-vault-adapter'
+import { isPapelizEndToEndVaultAdapter } from '../vault/papeliz-vault-encryption'
 import { usePapelizWorkspaceStore } from '../workspace/papeliz-workspace-store'
 import { getPapelizMdViewVaultMediaType } from './papeliz-md-view-media-sources'
 
@@ -8,6 +9,9 @@ import { getPapelizMdViewVaultMediaType } from './papeliz-md-view-media-sources'
 // open vault's adapter, which works the same for a folder, a browser vault and Papeliz for Windows,
 // and shown from a blob: URL. Each URL is held while a picture shows it and freed shortly after the
 // last one is gone, so scrolling past a picture and back doesn't read it again.
+//
+// An End-to-end vault's files are decrypted into those blobs in memory, never onto the disk, and every
+// URL made from them is revoked the moment the vault locks, not when its picture is released.
 //
 // An SVG picture is shown from a data: URL instead. A blob: URL belongs to the app's own origin, so
 // an SVG opened from one in a new tab would be a page of the app; a data: URL has no origin, and the
@@ -96,6 +100,23 @@ function freeVaultMediaUrl(vaultMediaUrlPromise: Promise<string | null>): void {
   })
 }
 
+// When an End-to-end vault locks (Lock Now, Close Vault, a change of kind): every URL made from its
+// decrypted files is revoked, and its file list is forgotten.
+const vaultAdaptersFollowedForLock = new WeakSet<PapelizVaultAdapter>()
+function forgetVaultMediaUrlsWhenVaultLocks(vaultAdapter: PapelizVaultAdapter): void {
+  if (vaultAdaptersFollowedForLock.has(vaultAdapter) || !isPapelizEndToEndVaultAdapter(vaultAdapter)) return
+  vaultAdaptersFollowedForLock.add(vaultAdapter)
+  vaultAdapter.listenForEndToEndVaultLock(() => {
+    const lockedVaultMediaUrlEntries = vaultMediaUrlEntriesByVaultAdapter.get(vaultAdapter)
+    vaultMediaUrlEntriesByVaultAdapter.delete(vaultAdapter)
+    vaultFileListingsByVaultAdapter.delete(vaultAdapter)
+    for (const lockedVaultMediaUrlEntry of lockedVaultMediaUrlEntries?.values() ?? []) {
+      if (lockedVaultMediaUrlEntry.vaultMediaUrlReleaseTimer !== null) clearTimeout(lockedVaultMediaUrlEntry.vaultMediaUrlReleaseTimer)
+      freeVaultMediaUrl(lockedVaultMediaUrlEntry.vaultMediaUrlPromise)
+    }
+  })
+}
+
 export interface PapelizMdViewVaultMediaUrlHold {
   // The URL to show, or null when the file isn't in the vault or can't be read.
   vaultMediaUrlPromise: Promise<string | null>
@@ -113,6 +134,7 @@ export function holdPapelizMdViewVaultMediaUrl(
 
   const vaultMediaUrlPromise = findPapelizMdViewVaultMediaFile(vaultAdapter, vaultMediaReference, fromVaultNoteRelativePath).then((vaultMediaFileRelativePath) => {
     if (vaultMediaFileRelativePath === null || isVaultMediaUrlReleased) return null
+    forgetVaultMediaUrlsWhenVaultLocks(vaultAdapter)
     const vaultMediaUrlEntries = vaultMediaUrlEntriesByVaultAdapter.get(vaultAdapter) ?? new Map<string, PapelizMdViewVaultMediaUrlEntry>()
     vaultMediaUrlEntriesByVaultAdapter.set(vaultAdapter, vaultMediaUrlEntries)
     let vaultMediaUrlEntry = vaultMediaUrlEntries.get(vaultMediaFileRelativePath)

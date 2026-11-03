@@ -1,15 +1,47 @@
+import { FileText, Lock } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
+import { PapelizSyncSwitch } from '../sync/papeliz-sync-page-parts'
 import { PapelizPillButton } from '../ui/papeliz-buttons'
+import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { findPapelizBrowserVaultNameProblem, listPapelizBrowserVaults, renameOpenPapelizBrowserVault, type PapelizBrowserVaultRecord } from '../vault/papeliz-browser-vaults'
 import { describePapelizFailureMessage } from '../vault/papeliz-failure-code-words'
+import {
+  canPapelizVaultAdapterBeEndToEnd,
+  forgetPapelizVaultEncryptionKeyOnThisDevice,
+  isPapelizEndToEndVaultAdapter,
+  isPapelizVaultEncryptionKeyRememberedOnThisDevice,
+  rememberPapelizVaultEncryptionKeyOnThisDevice,
+  type PapelizEndToEndVaultAdapter,
+} from '../vault/papeliz-vault-encryption'
 import { usePapelizBrowserVaultBackupReminderStore } from './papeliz-browser-vault-backup-reminder-store'
 import { PapelizBrowserVaultNameField } from './papeliz-browser-vault-name-field'
+import { PapelizVaultEncryptionChangeDialog, type PapelizVaultEncryptionChange } from './papeliz-vault-encryption-change-dialog'
+import { describePapelizVaultEncryptionFailureMessage, papelizEndToEndVaultBadgeColorClassName, readPapelizRememberEndToEndVaultLine } from './papeliz-vault-encryption-parts'
+import {
+  describePapelizEndToEndVaultCardLine,
+  papelizRememberEndToEndVaultSwitchLabel,
+  papelizVaultEncryptionKindDisplayNames,
+  papelizVaultEncryptionKindLines,
+} from './papeliz-vault-encryption-screen-words'
 import { usePapelizWorkspaceStore } from './papeliz-workspace-store'
 
-// Settings › Vault: the open vault's name. A browser vault renames here, unless another tab has it open
-// too. A folder vault takes its folder's name, so it says how to change that; the sample vault's name
-// is fixed.
+// Settings › Vault: the open vault's name, then its Encryption. A browser vault renames here, unless
+// another tab has it open too. A folder vault takes its folder's name, so it says how to change that;
+// the sample vault's name is fixed, and it is never encrypted.
 export function PapelizSettingsGearVaultTab() {
+  const openVault = usePapelizWorkspaceStore((workspaceState) => workspaceState.openVault)
+  if (openVault === null) return null
+  return (
+    <div className="flex flex-col gap-4">
+      <PapelizSettingsGearVaultName />
+      {(isPapelizEndToEndVaultAdapter(openVault.papelizVaultAdapter) || canPapelizVaultAdapterBeEndToEnd(openVault.papelizVaultAdapter)) && (
+        <PapelizSettingsGearVaultEncryptionCard key={openVault.papelizVaultId} />
+      )}
+    </div>
+  )
+}
+
+function PapelizSettingsGearVaultName() {
   const openVault = usePapelizWorkspaceStore((workspaceState) => workspaceState.openVault)
   if (openVault === null) return null
   const openVaultKind = openVault.papelizVaultAdapter.papelizVaultKind
@@ -104,6 +136,139 @@ function PapelizSettingsGearBrowserVaultRename({ papelizVaultId, openVaultDispla
         </p>
       )}
       <p className="mt-1.5 text-[12px] leading-snug text-papeliz-ink-subtle">Browser Storage. Kept inside this browser.</p>
+    </div>
+  )
+}
+
+// Encryption, under the name: the vault's kind with its one line, and its changes. A Standard vault
+// offers Change to End-to-end; an End-to-end one Change Passphrase, Change to Standard and Remember
+// on This Device. Each change opens its own dialog.
+function PapelizSettingsGearVaultEncryptionCard() {
+  const openVault = usePapelizWorkspaceStore((workspaceState) => workspaceState.openVault)
+  const listedVaultFileCount = usePapelizWorkspaceStore(
+    (workspaceState) => workspaceState.vaultTreeEntries.filter((vaultTreeEntry) => vaultTreeEntry.vaultEntryKind !== 'folder').length,
+  )
+  const [openVaultEncryptionChange, setOpenVaultEncryptionChange] = useState<PapelizVaultEncryptionChange | null>(null)
+  const vaultEncryptionHeadingId = useId()
+  if (openVault === null) return null
+  const openVaultAdapter = openVault.papelizVaultAdapter
+  const isOpenVaultEndToEnd = isPapelizEndToEndVaultAdapter(openVaultAdapter)
+  const openVaultEncryptionKind = isOpenVaultEndToEnd ? 'end-to-end' : 'standard'
+
+  return (
+    <section aria-labelledby={vaultEncryptionHeadingId} className="flex flex-col gap-2.5">
+      <h3 id={vaultEncryptionHeadingId} className="text-[12px] leading-snug font-semibold text-papeliz-ink">
+        Encryption
+      </h3>
+      <div className="-mt-1 flex flex-col gap-2.5 rounded-xl border border-papeliz-line p-2.5">
+        <div className="flex items-start gap-2.5">
+          <span
+            aria-hidden="true"
+            className={joinPapelizClassNames(
+              'grid size-[30px] flex-none place-items-center rounded-lg',
+              isOpenVaultEndToEnd ? papelizEndToEndVaultBadgeColorClassName : 'bg-papeliz-surface-gray text-papeliz-ink-muted',
+            )}
+          >
+            {isOpenVaultEndToEnd ? <Lock className="size-4" /> : <FileText className="size-4" />}
+          </span>
+          <span className="flex min-w-0 flex-col gap-0.5">
+            <span className="text-[13.5px] leading-tight font-semibold text-papeliz-ink">{papelizVaultEncryptionKindDisplayNames[openVaultEncryptionKind]}</span>
+            <span className="text-[12px] leading-snug text-papeliz-ink-subtle">
+              {isOpenVaultEndToEnd ? describePapelizEndToEndVaultCardLine(listedVaultFileCount) : papelizVaultEncryptionKindLines.standard}
+            </span>
+          </span>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {isOpenVaultEndToEnd ? (
+            <>
+              <PapelizPillButton pillButtonVariant="outline" pillButtonSize="small" onClick={() => setOpenVaultEncryptionChange('change-passphrase')}>
+                Change Passphrase
+              </PapelizPillButton>
+              <PapelizPillButton pillButtonVariant="outline" pillButtonSize="small" onClick={() => setOpenVaultEncryptionChange('to-standard')}>
+                Change to Standard
+              </PapelizPillButton>
+            </>
+          ) : (
+            <PapelizPillButton pillButtonVariant="outline" pillButtonSize="small" className="gap-1.5" onClick={() => setOpenVaultEncryptionChange('to-end-to-end')}>
+              <Lock className="size-3.5" aria-hidden="true" />
+              Change to End-to-end
+            </PapelizPillButton>
+          )}
+        </div>
+      </div>
+      {isOpenVaultEndToEnd && <PapelizSettingsGearRememberEndToEndVaultSwitch key={openVaultAdapter.papelizEncryptedVaultId} endToEndVaultAdapter={openVaultAdapter} />}
+      {openVaultEncryptionChange !== null && (
+        <PapelizVaultEncryptionChangeDialog
+          changedOpenVault={openVault}
+          vaultEncryptionChange={openVaultEncryptionChange}
+          listedVaultFileCount={listedVaultFileCount}
+          onVaultEncryptionChangeDialogClose={() => setOpenVaultEncryptionChange(null)}
+        />
+      )}
+    </section>
+  )
+}
+
+// Remember on This Device, for the open End-to-end vault: on, this device opens it without the
+// passphrase; off, the key it kept is forgotten.
+function PapelizSettingsGearRememberEndToEndVaultSwitch({ endToEndVaultAdapter }: { endToEndVaultAdapter: PapelizEndToEndVaultAdapter }) {
+  const [isVaultKeyRemembered, setIsVaultKeyRemembered] = useState<boolean | null>(null)
+  const [isRememberChangeRunning, setIsRememberChangeRunning] = useState(false)
+  const [rememberChangeFailureMessage, setRememberChangeFailureMessage] = useState<string | null>(null)
+  const rememberLineId = useId()
+
+  useEffect(() => {
+    let isSwitchShown = true
+    void isPapelizVaultEncryptionKeyRememberedOnThisDevice(endToEndVaultAdapter.papelizEncryptedVaultId)
+      .catch(() => false)
+      .then((isRemembered) => {
+        if (isSwitchShown) setIsVaultKeyRemembered(isRemembered)
+      })
+    return () => {
+      isSwitchShown = false
+    }
+  }, [endToEndVaultAdapter])
+
+  const toggleVaultKeyRemembered = async () => {
+    if (isVaultKeyRemembered === null || isRememberChangeRunning) return
+    const isRememberWanted = !isVaultKeyRemembered
+    setIsRememberChangeRunning(true)
+    setRememberChangeFailureMessage(null)
+    try {
+      const rememberChangeResult = isRememberWanted
+        ? await rememberPapelizVaultEncryptionKeyOnThisDevice(endToEndVaultAdapter)
+        : await forgetPapelizVaultEncryptionKeyOnThisDevice(endToEndVaultAdapter.papelizEncryptedVaultId)
+      if (rememberChangeResult.vaultEncryptionActionOutcome === 'done') setIsVaultKeyRemembered(isRememberWanted)
+      else
+        setRememberChangeFailureMessage(
+          describePapelizVaultEncryptionFailureMessage(isRememberWanted ? 'Couldn’t remember it on this device' : 'Couldn’t forget it on this device', rememberChangeResult.vaultEncryptionFailureCode),
+        )
+    } finally {
+      setIsRememberChangeRunning(false)
+    }
+  }
+
+  return (
+    <div>
+      <div className="flex items-start gap-2.5">
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span className="text-[13px] leading-tight font-semibold text-papeliz-ink">{papelizRememberEndToEndVaultSwitchLabel}</span>
+          <span id={rememberLineId} className="text-[12px] leading-snug text-papeliz-ink-subtle">
+            {readPapelizRememberEndToEndVaultLine()}
+          </span>
+        </span>
+        <PapelizSyncSwitch
+          syncSwitchLabel={papelizRememberEndToEndVaultSwitchLabel}
+          isSyncSwitchOn={isVaultKeyRemembered === true}
+          isSyncSwitchDisabled={isVaultKeyRemembered === null || isRememberChangeRunning}
+          onSyncSwitchToggle={() => void toggleVaultKeyRemembered()}
+        />
+      </div>
+      {rememberChangeFailureMessage !== null && (
+        <p role="alert" className="mt-1.5 text-[12px] leading-snug font-medium text-papeliz-diff-removed-ink">
+          {rememberChangeFailureMessage}
+        </p>
+      )}
     </div>
   )
 }

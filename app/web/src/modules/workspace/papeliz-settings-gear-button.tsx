@@ -1,4 +1,4 @@
-import { Accessibility, ChevronLeft, ChevronRight, CircleArrowDown, FolderX, RefreshCw, Settings, User, WandSparkles, type LucideIcon } from 'lucide-react'
+import { Accessibility, ChevronLeft, ChevronRight, CircleArrowDown, FolderX, Lock, RefreshCw, Settings, User, WandSparkles, type LucideIcon } from 'lucide-react'
 import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import {
@@ -20,7 +20,9 @@ import {
   PapelizSettingsGearTeaserPage,
 } from './papeliz-settings-gear-pages'
 import { PapelizTopbarFrostedSquareButton } from './papeliz-topbar-frosted-square-button'
+import { isPapelizEndToEndVaultAdapter } from '../vault/papeliz-vault-encryption'
 import { findPapelizTopbarPanelAnchorElement } from './papeliz-topbar-panel-anchor'
+import { papelizLockEndToEndVaultNowLabel, papelizLockEndToEndVaultNowTooltipText } from './papeliz-vault-encryption-screen-words'
 import { usePapelizWorkspaceStore } from './papeliz-workspace-store'
 
 type PapelizSettingsGearPage = 'account' | 'sync' | 'settings' | 'accessibility' | 'ai-assistant' | 'desktop-updates'
@@ -41,8 +43,8 @@ const papelizSettingsGearPageChoices: Record<PapelizSettingsGearPage, { settings
   'desktop-updates': { settingsGearPageLabel: 'Updates', SettingsGearPageIcon: CircleArrowDown },
 }
 
-// The list's groups, split by lines: Account | Sync, Settings | Accessibility, AI Provider (then Close
-// Vault in the workspace). Export has its own button on the top bar. The start page has no vault, so no
+// The list's groups, split by lines: Account | Sync, Settings | Accessibility, AI Provider (then, in
+// the workspace, Lock Now for an End-to-end vault and Close Vault). Export has its own button on the top bar. The start page has no vault, so no
 // Settings or AI Provider, and its Accessibility has only the theme.
 const papelizSettingsGearWorkspacePageGroups: ReadonlyArray<ReadonlyArray<PapelizSettingsGearPage>> = [
   ['account'],
@@ -90,6 +92,8 @@ export function PapelizSettingsGearButton({ settingsGearPlace }: PapelizSettings
   const isWorkspaceSettingsGear = settingsGearPlace === 'workspace'
   const isSettingsGearSideBySide = usePapelizMediaQuery('(min-width: 768px)')
   const setVaultCloseConfirmationShown = usePapelizWorkspaceStore((workspaceState) => workspaceState.setVaultCloseConfirmationShown)
+  const lockOpenEndToEndVault = usePapelizWorkspaceStore((workspaceState) => workspaceState.lockOpenEndToEndVault)
+  const isOpenVaultEndToEnd = usePapelizWorkspaceStore((workspaceState) => workspaceState.openVault !== null && isPapelizEndToEndVaultAdapter(workspaceState.openVault.papelizVaultAdapter))
   const [settingsGearPanelAnchor, setSettingsGearPanelAnchor] = useState<{ anchorRight: number; anchorTop: number } | null>(null)
   const [chosenSettingsGearPage, setChosenSettingsGearPage] = useState<PapelizSettingsGearPage>('accessibility')
   // Phones only: a page is open over the list.
@@ -237,7 +241,21 @@ export function PapelizSettingsGearButton({ settingsGearPlace }: PapelizSettings
       ))}
       {isWorkspaceSettingsGear && (
         <>
-          <div className="mt-auto flex-none border-t border-papeliz-line pt-1.5">
+          <div className="mt-auto flex flex-none flex-col gap-0.5 border-t border-papeliz-line pt-1.5">
+            {isOpenVaultEndToEnd && (
+              <button
+                type="button"
+                title={papelizLockEndToEndVaultNowTooltipText}
+                onClick={() => {
+                  closeSettingsGearPanel()
+                  void lockOpenEndToEndVault()
+                }}
+                className={papelizSettingsGearRowClassName}
+              >
+                <Lock className="size-4 flex-none text-papeliz-ink-muted" aria-hidden="true" />
+                <span className="min-w-0 flex-1 truncate">{papelizLockEndToEndVaultNowLabel}</span>
+              </button>
+            )}
             <button
               type="button"
               title="Close this vault and go back to the start page"
