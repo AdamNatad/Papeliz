@@ -6,7 +6,7 @@ import { describePapelizAssistantMediaProblem } from './papeliz-assistant-media-
 import { findPapelizAssistantProviderPreset } from './papeliz-assistant-provider-presets'
 
 // Pictures made from the chat box's Imagine button: what is typed is the prompt, and the pictures
-// appear in the chat as an entry of their own, each with Remove C2PA, Save to Vault and Put in Note.
+// appear in the chat as an entry of their own, each with Remove Metadata, Save to Vault and Put in Note.
 // They are Imagine's pictures too, so the Imagine tab shows them all. Nothing goes to the chat's model.
 
 export interface PapelizChatImagineRun {

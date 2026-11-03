@@ -26,7 +26,7 @@ import { describePapelizAssistantMediaProblem } from './papeliz-assistant-media-
 import { findPapelizAssistantProviderPreset } from './papeliz-assistant-provider-presets'
 
 // Imagine: pictures made with the person's own provider and key, and pictures the person brings in,
-// each with Remove C2PA (on by default), which strips content credentials and other metadata before a
+// each with Remove Metadata (on by default), which strips content credentials and other metadata before a
 // picture is saved. Nothing is sent until Send. A picture goes into the vault's `Attachments/` folder
 // on Save to Vault, or into the open note on Put in Note, which first shows the change as a diff and
 // saves nothing until it is accepted. Pictures live in this page's memory until then, and the Imagine
@@ -39,9 +39,9 @@ export interface PapelizImaginePicture {
   imaginePictureBlob: Blob
   imaginePicturePreviewUrl: string
   imaginePictureFormat: PapelizAssistantImageFileFormat
-  // What Remove C2PA takes out of it, or null when it can't be read (a damaged file).
+  // What Remove Metadata takes out of it, or null when it can't be read (a damaged file).
   imaginePictureMetadataNames: string[] | null
-  isRemoveC2paOn: boolean
+  isRemoveMetadataOn: boolean
   // The prompt, or the file's name: the picture link's alt text and the saved file's name.
   imaginePictureDescriptionText: string
   // "muse-image-1 · Meta Model API", for a generated picture.
@@ -108,7 +108,7 @@ interface PapelizImagineState {
   sendImaginePrompt: (imageModelChoice: PapelizAssistantMediaModelChoice) => Promise<void>
   stopImagineGeneration: () => void
   bringInImaginePictureFiles: (pictureFiles: readonly File[]) => Promise<void>
-  setImaginePictureRemoveC2pa: (imaginePictureId: string, isRemoveC2paOn: boolean) => void
+  setImaginePictureRemoveMetadata: (imaginePictureId: string, isRemoveMetadataOn: boolean) => void
   removeImaginePicture: (imaginePictureId: string) => void
   saveImaginePictureToVault: (imaginePictureId: string) => Promise<void>
   proposeImaginePictureInNote: (imaginePictureId: string) => Promise<void>
@@ -174,7 +174,7 @@ async function createImaginePicture(
     imaginePicturePreviewUrl: URL.createObjectURL(imaginePictureBlob),
     imaginePictureFormat,
     imaginePictureMetadataNames: readImaginePictureMetadataNames(imagePictureBytes),
-    isRemoveC2paOn: true,
+    isRemoveMetadataOn: true,
     imaginePictureDescriptionText,
     imaginePictureModelLabel,
     savedVaultFileRelativePath: null,
@@ -183,9 +183,9 @@ async function createImaginePicture(
   }
 }
 
-// The bytes a picture is saved with: cleaned while Remove C2PA is on, as it arrived while it is off.
+// The bytes a picture is saved with: cleaned while Remove Metadata is on, as it arrived while it is off.
 async function readImaginePictureBytesToSave(imaginePicture: PapelizImaginePicture): Promise<{ savedPictureBlob: Blob; removedMetadataNames: string[] }> {
-  if (!imaginePicture.isRemoveC2paOn) return { savedPictureBlob: imaginePicture.imaginePictureBlob, removedMetadataNames: [] }
+  if (!imaginePicture.isRemoveMetadataOn) return { savedPictureBlob: imaginePicture.imaginePictureBlob, removedMetadataNames: [] }
   const metadataStripResult = stripPapelizAssistantImageMetadata(new Uint8Array(await imaginePicture.imaginePictureBlob.arrayBuffer()))
   return {
     savedPictureBlob: new Blob([metadataStripResult.strippedImageFileBytes], { type: imaginePicture.imaginePictureBlob.type || 'application/octet-stream' }),
@@ -319,7 +319,7 @@ export const usePapelizImagineStore = create<PapelizImagineState>()((setImagineS
       }))
     },
 
-    setImaginePictureRemoveC2pa: (imaginePictureId, isRemoveC2paOn) => updateImaginePicture(imaginePictureId, { isRemoveC2paOn }),
+    setImaginePictureRemoveMetadata: (imaginePictureId, isRemoveMetadataOn) => updateImaginePicture(imaginePictureId, { isRemoveMetadataOn }),
 
     removeImaginePicture: (imaginePictureId) => {
       const imaginePicture = findImaginePicture(imaginePictureId)
@@ -510,7 +510,7 @@ export function buildPapelizImaginePictureLinkMarkdown(imaginePicture: PapelizIm
   )
 }
 
-// Saves a picture at a path (cleaned while Remove C2PA is on, as it came while it is off). Once saved,
+// Saves a picture at a path (cleaned while Remove Metadata is on, as it came while it is off). Once saved,
 // the picture shown is the file in the vault.
 export async function savePapelizImaginePictureAt(imaginePictureId: string, pictureVaultFileRelativePath: string): Promise<void> {
   const imaginePicture = findImaginePictureById(imaginePictureId)

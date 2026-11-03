@@ -1,4 +1,4 @@
-// Remove C2PA in the Imagine tab: strips C2PA content credentials, EXIF, XMP, IPTC, text chunks and
+// Remove Metadata in the Imagine tab: strips C2PA content credentials, EXIF, XMP, IPTC, text chunks and
 // comments from a PNG, JPEG or WebP picture, in the browser, before it is saved into the vault. It
 // removes what the repository's own image tool removes
 // (build_tools/shared/image-metadata/papeliz-strip-image-metadata.mjs): the pixels and the color
@@ -255,7 +255,7 @@ function readImageDataBytesByFormat(imageFileFormat: PapelizAssistantImageFileFo
   return readWebpImageDataBytes(imageFileBytes)
 }
 
-// The metadata a picture carries, without changing it: what Remove C2PA would take out.
+// The metadata a picture carries, without changing it: what Remove Metadata would take out.
 export function listPapelizAssistantImageMetadataNames(imageFileBytes: Uint8Array): string[] {
   return stripPapelizAssistantImageMetadata(imageFileBytes).removedImageMetadataNames
 }

@@ -144,7 +144,7 @@ describe('sending a prompt from the Imagine box', () => {
     expect(madeEntry).toMatchObject({ imaginePromptStage: 'made', imaginePromptProblem: null })
     expect(madeEntry?.imaginePictureIds).toHaveLength(2)
     expect(usePapelizImagineStore.getState().imaginePictures.map((imaginePicture) => imaginePicture.imaginePictureId).sort()).toEqual([...(madeEntry?.imaginePictureIds ?? [])].sort())
-    expect(usePapelizImagineStore.getState().imaginePictures[0]).toMatchObject({ imaginePictureDescriptionText: 'A red fox in snow', isRemoveC2paOn: true })
+    expect(usePapelizImagineStore.getState().imaginePictures[0]).toMatchObject({ imaginePictureDescriptionText: 'A red fox in snow', isRemoveMetadataOn: true })
     expect(vi.mocked(generatePapelizAssistantImages).mock.calls[0]?.[0]).toMatchObject({ imagePromptText: 'A red fox in snow', generatedImageCount: 2 })
   })
 

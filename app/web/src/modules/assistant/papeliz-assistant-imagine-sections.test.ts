@@ -14,7 +14,7 @@ function buildTestPicture(imaginePictureId: string, imaginePictureOrigin: Papeli
     imaginePicturePreviewUrl: 'blob:papeliz-test-picture',
     imaginePictureFormat: 'png',
     imaginePictureMetadataNames: [],
-    isRemoveC2paOn: true,
+    isRemoveMetadataOn: true,
     imaginePictureDescriptionText,
     imaginePictureModelLabel: imaginePictureOrigin === 'generated' ? 'muse-image-1.0 · Meta Model API' : null,
     savedVaultFileRelativePath: null,

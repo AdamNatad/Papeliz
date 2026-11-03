@@ -1,7 +1,8 @@
 import { Check, CircleAlert, FilePlus, FileText, X } from 'lucide-react'
-import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { PapelizIconButton, PapelizPillButton } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
+import { PapelizTooltipBubble } from '../ui/papeliz-hover-tooltip'
 import { PapelizListboxSelect } from '../ui/papeliz-listbox-select'
 import { getVaultNoteTitle } from '../vault/papeliz-vault-relative-paths'
 import {
@@ -25,35 +26,120 @@ import { diffPapelizTextByWords } from './papeliz-assistant-text-diff'
 // line, the models offered for a task and the one in use, the form to type another, and the diff card
 // for a change to a note.
 
+// A switch's tooltip: the bubble's words, and the same words as one sentence for screen readers.
+interface PapelizAssistantMediaSwitchTooltip {
+  mediaSwitchTooltipContent: ReactNode
+  mediaSwitchTooltipDescriptionText: string
+}
+
 interface PapelizAssistantMediaSwitchProps {
   mediaSwitchLabel: string
   // Shown on hover: what the switch does, when the label alone doesn't say.
   mediaSwitchTitle?: string
+  // The app's tooltip bubble instead of the browser's title, on hover and on keyboard focus.
+  mediaSwitchTooltip?: PapelizAssistantMediaSwitchTooltip
   isMediaSwitchOn: boolean
   isMediaSwitchDisabled?: boolean
   onMediaSwitchToggle: (isMediaSwitchOn: boolean) => void
 }
 
-export function PapelizAssistantMediaSwitch({ mediaSwitchLabel, mediaSwitchTitle, isMediaSwitchOn, isMediaSwitchDisabled = false, onMediaSwitchToggle }: PapelizAssistantMediaSwitchProps) {
+export function PapelizAssistantMediaSwitch({
+  mediaSwitchLabel,
+  mediaSwitchTitle,
+  mediaSwitchTooltip,
+  isMediaSwitchOn,
+  isMediaSwitchDisabled = false,
+  onMediaSwitchToggle,
+}: PapelizAssistantMediaSwitchProps) {
+  const mediaSwitchTooltipDescriptionId = useId()
+  // The wrapper the bubble sits under, while the pointer is over it or the switch has keyboard focus.
+  const [pointerOverTooltipAnchorElement, setPointerOverTooltipAnchorElement] = useState<HTMLElement | null>(null)
+  const [keyboardFocusedTooltipAnchorElement, setKeyboardFocusedTooltipAnchorElement] = useState<HTMLElement | null>(null)
+  const shownTooltipAnchorElement = pointerOverTooltipAnchorElement ?? keyboardFocusedTooltipAnchorElement
+  const hideMediaSwitchTooltip = useCallback(() => {
+    setPointerOverTooltipAnchorElement(null)
+    setKeyboardFocusedTooltipAnchorElement(null)
+  }, [])
+
   return (
-    <button
-      type="button"
-      role="switch"
-      title={mediaSwitchTitle}
-      aria-checked={isMediaSwitchOn}
-      disabled={isMediaSwitchDisabled}
-      onClick={() => onMediaSwitchToggle(!isMediaSwitchOn)}
-      className="inline-flex min-h-6 items-center gap-2 rounded-full pr-1 text-[12.5px] font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-papeliz-blue disabled:opacity-50"
+    // The hover sits on a wrapper, so the tooltip still shows once the switch is disabled.
+    <span
+      className="inline-flex"
+      onMouseEnter={mediaSwitchTooltip === undefined ? undefined : (mouseEnterEvent) => setPointerOverTooltipAnchorElement(mouseEnterEvent.currentTarget)}
+      onMouseLeave={mediaSwitchTooltip === undefined ? undefined : () => setPointerOverTooltipAnchorElement(null)}
     >
-      <span
-        aria-hidden="true"
-        className={joinPapelizClassNames(
-          'relative h-4 w-7 flex-none rounded-full transition-colors after:absolute after:top-0.5 after:size-3 after:rounded-full after:bg-white after:shadow-[0_1px_2px_rgb(17_17_18/0.25)] after:transition-[left] after:duration-150',
-          isMediaSwitchOn ? 'bg-papeliz-blue after:left-3.5' : 'bg-papeliz-line-strong after:left-0.5',
-        )}
-      />
-      {mediaSwitchLabel}
-    </button>
+      <button
+        type="button"
+        role="switch"
+        title={mediaSwitchTitle}
+        aria-checked={isMediaSwitchOn}
+        aria-describedby={mediaSwitchTooltip === undefined ? undefined : mediaSwitchTooltipDescriptionId}
+        disabled={isMediaSwitchDisabled}
+        onClick={() => onMediaSwitchToggle(!isMediaSwitchOn)}
+        onFocus={(focusEvent) => {
+          if (mediaSwitchTooltip !== undefined && focusEvent.currentTarget.matches(':focus-visible')) setKeyboardFocusedTooltipAnchorElement(focusEvent.currentTarget.parentElement)
+        }}
+        onBlur={() => setKeyboardFocusedTooltipAnchorElement(null)}
+        className="inline-flex min-h-6 items-center gap-2 rounded-full pr-1 text-[12.5px] font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-papeliz-blue disabled:opacity-50"
+      >
+        <span
+          aria-hidden="true"
+          className={joinPapelizClassNames(
+            'relative h-4 w-7 flex-none rounded-full transition-colors after:absolute after:top-0.5 after:size-3 after:rounded-full after:bg-white after:shadow-[0_1px_2px_rgb(17_17_18/0.25)] after:transition-[left] after:duration-150',
+            isMediaSwitchOn ? 'bg-papeliz-blue after:left-3.5' : 'bg-papeliz-line-strong after:left-0.5',
+          )}
+        />
+        {mediaSwitchLabel}
+      </button>
+      {mediaSwitchTooltip !== undefined && (
+        <span id={mediaSwitchTooltipDescriptionId} className="sr-only">
+          {mediaSwitchTooltip.mediaSwitchTooltipDescriptionText}
+        </span>
+      )}
+      {mediaSwitchTooltip !== undefined && shownTooltipAnchorElement !== null && (
+        <PapelizTooltipBubble
+          tooltipAnchorElement={shownTooltipAnchorElement}
+          tooltipBubbleContent={mediaSwitchTooltip.mediaSwitchTooltipContent}
+          onTooltipBubbleLeftBehind={hideMediaSwitchTooltip}
+        />
+      )}
+    </span>
+  )
+}
+
+// What Remove Metadata takes out of a picture when it is saved; the picture itself stays as it is.
+const papelizRemoveMetadataTooltip: PapelizAssistantMediaSwitchTooltip = {
+  mediaSwitchTooltipContent: (
+    <span className="block">
+      <b className="block font-semibold">Removed when saved</b>
+      <span className="block">C2PA content credentials</span>
+      <span className="block">EXIF: camera, date and location</span>
+      <span className="block">XMP and IPTC</span>
+      <span className="block">Text chunks and comments</span>
+      <span className="mt-1 block text-papeliz-surface/75">The picture itself is untouched.</span>
+    </span>
+  ),
+  mediaSwitchTooltipDescriptionText:
+    'Removed when saved: C2PA content credentials, EXIF (camera, date and location), XMP and IPTC, text chunks and comments. The picture itself is untouched.',
+}
+
+interface PapelizAssistantRemoveMetadataSwitchProps {
+  isRemoveMetadataOn: boolean
+  isRemoveMetadataSwitchDisabled?: boolean
+  onRemoveMetadataToggle: (isRemoveMetadataOn: boolean) => void
+}
+
+// Remove Metadata on a picture in Draw, Gallery, the chat and a note's Imagine and Edit Picture cards,
+// with a tooltip that says what it removes.
+export function PapelizAssistantRemoveMetadataSwitch({ isRemoveMetadataOn, isRemoveMetadataSwitchDisabled = false, onRemoveMetadataToggle }: PapelizAssistantRemoveMetadataSwitchProps) {
+  return (
+    <PapelizAssistantMediaSwitch
+      mediaSwitchLabel="Remove Metadata"
+      mediaSwitchTooltip={papelizRemoveMetadataTooltip}
+      isMediaSwitchOn={isRemoveMetadataOn}
+      isMediaSwitchDisabled={isRemoveMetadataSwitchDisabled}
+      onMediaSwitchToggle={onRemoveMetadataToggle}
+    />
   )
 }
 

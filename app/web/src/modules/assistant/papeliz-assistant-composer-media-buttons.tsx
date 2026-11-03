@@ -8,7 +8,7 @@ import { usePapelizOnePressMic } from './papeliz-assistant-one-press-mic'
 
 // The chat box's own media parts, in the panel and in Focus mode alike:
 // - + opens a menu: add files or pictures, transcribe an audio file into the box, or make a picture of
-//   what is typed (shown in the chat with Remove C2PA, Save to Vault and Put in Note);
+//   what is typed (shown in the chat with Remove Metadata, Save to Vault and Put in Note);
 // - the one-press mic (papeliz-assistant-one-press-mic.tsx) puts the words it hears after what is
 //   typed, to send as it is or after a change.
 

@@ -40,7 +40,7 @@ import { PapelizAssistantProviderError, streamPapelizChatCompletion, type Papeli
 // - Edit Picture: Draw's model changes the picture as asked, where its provider edits pictures (the
 //   Meta Model API's image edits), and the link points at the new one; the old file stays.
 // Each ends as a change shown in place, accepted or rejected like any inline edit: Accept saves a new
-// picture into the vault (cleaned of C2PA while Remove C2PA is on) and makes the change in the note, as
+// picture into the vault (cleaned of metadata while Remove Metadata is on) and makes the change in the note, as
 // one change Undo takes back. Reject saves nothing.
 
 export type PapelizInlineMediaStage = 'ready' | 'recording' | 'working' | 'review' | 'failed'
@@ -73,7 +73,7 @@ interface PapelizInlineMediaState {
   startInlineMediaAction: (inlineMediaAction: PapelizInlineMediaAction) => void
   setInlineImaginePromptText: (inlineImaginePromptText: string) => void
   generateInlinePicture: () => Promise<void>
-  setInlinePictureRemoveC2pa: (isRemoveC2paOn: boolean) => void
+  setInlinePictureRemoveMetadata: (isRemoveMetadataOn: boolean) => void
   startInlineRecording: () => Promise<void>
   stopInlineRecording: () => Promise<void>
   transcribeInlineAudioFile: (audioFile: File) => Promise<void>
@@ -384,9 +384,9 @@ export const usePapelizInlineMediaStore = create<PapelizInlineMediaState>()((set
       }
     },
 
-    setInlinePictureRemoveC2pa: (isRemoveC2paOn) => {
+    setInlinePictureRemoveMetadata: (isRemoveMetadataOn) => {
       const { inlineImaginePictureId } = getInlineMediaState()
-      if (inlineImaginePictureId !== null) usePapelizImagineStore.getState().setImaginePictureRemoveC2pa(inlineImaginePictureId, isRemoveC2paOn)
+      if (inlineImaginePictureId !== null) usePapelizImagineStore.getState().setImaginePictureRemoveMetadata(inlineImaginePictureId, isRemoveMetadataOn)
     },
 
     startInlineRecording: async () => {

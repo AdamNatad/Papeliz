@@ -140,7 +140,7 @@ function buildTestWebpWithMetadata(): Uint8Array {
   )
 }
 
-describe('Remove C2PA', () => {
+describe('Remove Metadata', () => {
   it('finds the picture format from its first bytes', () => {
     expect(detectPapelizAssistantImageFileFormat(buildTestPngWithMetadata())).toBe('png')
     expect(detectPapelizAssistantImageFileFormat(buildTestJpegWithMetadata())).toBe('jpeg')

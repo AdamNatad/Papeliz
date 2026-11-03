@@ -432,7 +432,7 @@ test('Imagine’s Ask talks a picture through with the chat model, and Draw This
   expect(refusedOutsideRequestUrls).toEqual([])
 })
 
-test('Imagine’s Gallery lists every picture newest first, with its actions, a larger view and Show in Draw', async ({ page }) => {
+test('Imagine’s Gallery lists every picture newest first, with its actions, a lightbox and Show in Draw', async ({ page }) => {
   const { refusedOutsideRequestUrls } = await playTestMetaProvider(page)
   await openSampleVaultWithMetaProvider(page)
   const assistantPanel = page.getByRole('complementary', { name: 'AI Assistant' })
@@ -464,13 +464,13 @@ test('Imagine’s Gallery lists every picture newest first, with its actions, a 
   await expect(foxTile.getByText('A red fox', { exact: true })).toBeVisible()
   await expect(foxTile.getByText('muse-image-1.0 · Meta Model API')).toBeVisible()
   await expect(galleryList.getByRole('listitem', { name: 'diagram.png' }).getByText('Brought in: diagram.png')).toBeVisible()
-  await expect(foxTile.getByRole('switch', { name: 'Remove C2PA' })).toHaveAttribute('aria-checked', 'true')
+  await expect(foxTile.getByRole('switch', { name: 'Remove Metadata' })).toHaveAttribute('aria-checked', 'true')
   await expect(foxTile.getByRole('button', { name: 'Put in Note' })).toBeEnabled()
   await foxTile.getByRole('button', { name: 'Save to Vault' }).click()
   await expect(foxTile.getByText(/^In the vault: imagine-\d{4}-\d{2}-\d{2}-\d{4}-a-red-fox\.png$/)).toBeVisible()
   expectPictureCleaned(await readBlobPictureBytes(page, (await foxTile.getByRole('img').getAttribute('src')) ?? ''))
 
-  // Pressed, a picture opens larger with its whole prompt; Show in Draw goes to its place in the thread.
+  // Pressed, a picture opens in the lightbox with its whole prompt; Show in Draw goes to its place in the thread.
   await foxTile.getByRole('button', { name: 'A red fox' }).click()
   const largerView = page.getByRole('dialog', { name: 'A red fox' })
   await expect(largerView.getByRole('img', { name: 'A red fox' })).toBeVisible()
@@ -481,7 +481,165 @@ test('Imagine’s Gallery lists every picture newest first, with its actions, a 
   expect(refusedOutsideRequestUrls).toEqual([])
 })
 
-test('a picture brought into Imagine with Remove C2PA off is saved as it came', async ({ page }) => {
+// How far Draw's thread is scrolled, by its own scrolling box: the first one around the entry that has room.
+async function readDrawThreadScroll(drawThreadEntry: Locator): Promise<{ drawThreadScrollTop: number; isDrawThreadScrollable: boolean }> {
+  return drawThreadEntry.evaluate((drawThreadEntryElement) => {
+    let drawThreadScrollingElement = drawThreadEntryElement.parentElement
+    while (drawThreadScrollingElement !== null && drawThreadScrollingElement.scrollHeight <= drawThreadScrollingElement.clientHeight) drawThreadScrollingElement = drawThreadScrollingElement.parentElement
+    return { drawThreadScrollTop: drawThreadScrollingElement?.scrollTop ?? 0, isDrawThreadScrollable: drawThreadScrollingElement !== null && drawThreadScrollingElement !== document.documentElement }
+  })
+}
+
+// The tooltip bubble, drawn over the whole page; screen readers get its words from the switch instead.
+function readTooltipBubble(page: Page, tooltipBubbleText: string): Locator {
+  return page.locator('body > div[aria-hidden="true"]', { hasText: tooltipBubbleText })
+}
+
+async function sendDrawPrompts(assistantPanel: Locator, drawPromptTexts: readonly string[]): Promise<void> {
+  await assistantPanel.getByRole('tab', { name: 'Imagine', exact: true }).click()
+  const promptBox = assistantPanel.getByRole('textbox', { name: 'Describe a picture' })
+  for (const drawPromptText of drawPromptTexts) {
+    await promptBox.fill(drawPromptText)
+    await promptBox.press('Enter')
+    await expect(assistantPanel.getByRole('region', { name: `Imagine: ${drawPromptText}` }).getByRole('img')).toBeVisible()
+  }
+}
+
+test('a picture in Draw opens in a lightbox by mouse and by keyboard, and its card has Remove Metadata’s tooltip and full-width buttons', async ({ page }) => {
+  const { refusedOutsideRequestUrls } = await playTestMetaProvider(page)
+  await openSampleVaultWithMetaProvider(page)
+  const assistantPanel = page.getByRole('complementary', { name: 'AI Assistant' })
+  await sendDrawPrompts(assistantPanel, ['A red fox', 'A blue square on white paper'])
+  const foxEntry = assistantPanel.getByRole('region', { name: 'Imagine: A red fox' })
+  const foxCard = foxEntry.getByRole('listitem', { name: 'Picture of A red fox' })
+  const foxPictureButton = foxCard.getByRole('button', { name: 'A red fox' })
+  await foxCard.scrollIntoViewIfNeeded()
+
+  // Put in Note and Save to Vault fill the card's width, one under the other.
+  const foxCardBox = await foxCard.boundingBox()
+  const putInNoteBox = await foxCard.getByRole('button', { name: 'Put in Note' }).boundingBox()
+  const saveToVaultBox = await foxCard.getByRole('button', { name: 'Save to Vault' }).boundingBox()
+  expect(foxCardBox !== null && putInNoteBox !== null && saveToVaultBox !== null).toBe(true)
+  expect(putInNoteBox!.width).toBeGreaterThan(foxCardBox!.width - 20)
+  expect(Math.abs(saveToVaultBox!.width - putInNoteBox!.width)).toBeLessThan(1)
+  expect(saveToVaultBox!.y).toBeGreaterThanOrEqual(putInNoteBox!.y + putInNoteBox!.height)
+
+  // Remove Metadata says what it removes: on hover, on keyboard focus, and to screen readers.
+  const removeMetadataSwitch = foxCard.getByRole('switch', { name: 'Remove Metadata' })
+  await expect(removeMetadataSwitch).toHaveAccessibleDescription(
+    'Removed when saved: C2PA content credentials, EXIF (camera, date and location), XMP and IPTC, text chunks and comments. The picture itself is untouched.',
+  )
+  const removeMetadataTooltip = readTooltipBubble(page, 'The picture itself is untouched.')
+  await removeMetadataSwitch.hover()
+  await expect(removeMetadataTooltip).toBeVisible()
+  for (const removedMetadataLine of ['C2PA content credentials', 'EXIF: camera, date and location', 'XMP and IPTC', 'Text chunks and comments']) {
+    await expect(removeMetadataTooltip).toContainText(removedMetadataLine)
+  }
+  await page.mouse.move(1, 1)
+  await expect(removeMetadataTooltip).toBeHidden()
+  await foxCard.getByRole('button', { name: 'Remove from Imagine' }).focus()
+  await page.keyboard.press('Tab')
+  await expect(removeMetadataSwitch).toBeFocused()
+  await expect(removeMetadataTooltip).toBeVisible()
+  await page.keyboard.press('Shift+Tab')
+  await expect(removeMetadataTooltip).toBeHidden()
+
+  // Pressed, the picture opens over the page, larger than on the card and inside the window, with the
+  // card's actions under it; the page behind doesn't scroll.
+  const foxCardPictureBox = await foxCard.getByRole('img').boundingBox()
+  const drawThreadScrollBefore = await readDrawThreadScroll(foxEntry)
+  expect(drawThreadScrollBefore.isDrawThreadScrollable).toBe(true)
+  await foxPictureButton.click()
+  const pictureLightbox = page.getByRole('dialog', { name: 'A red fox' })
+  const lightboxPicture = pictureLightbox.getByRole('img', { name: 'A red fox' })
+  await expect(lightboxPicture).toBeVisible()
+  const lightboxPictureBox = await lightboxPicture.boundingBox()
+  const windowSize = page.viewportSize()
+  expect(lightboxPictureBox !== null && foxCardPictureBox !== null && windowSize !== null).toBe(true)
+  expect(lightboxPictureBox!.width).toBeGreaterThan(foxCardPictureBox!.width)
+  expect(lightboxPictureBox!.x).toBeGreaterThanOrEqual(0)
+  expect(lightboxPictureBox!.y + lightboxPictureBox!.height).toBeLessThanOrEqual(windowSize!.height)
+  await expect(pictureLightbox.getByRole('button', { name: 'Put in Note' })).toBeInViewport()
+  await expect(pictureLightbox.getByRole('button', { name: 'Save to Vault' })).toBeInViewport()
+  await page.mouse.move(windowSize!.width / 2, windowSize!.height / 2)
+  await page.mouse.wheel(0, -600)
+  await page.mouse.wheel(0, 600)
+  expect((await readDrawThreadScroll(foxEntry)).drawThreadScrollTop).toBe(drawThreadScrollBefore.drawThreadScrollTop)
+  // A press on the picture keeps it open; Esc closes it and gives focus back to the picture.
+  await lightboxPicture.click()
+  await expect(pictureLightbox).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(pictureLightbox).toBeHidden()
+  await expect(foxPictureButton).toBeFocused()
+
+  // By keyboard: Enter opens it with focus inside, Tab stays inside, and Close gives focus back.
+  await page.keyboard.press('Enter')
+  await expect(pictureLightbox.getByRole('button', { name: 'Close' })).toBeFocused()
+  // Tab goes round the lightbox's buttons (and out to the browser's own bar), never to the page behind.
+  for (let tabPressCount = 0; tabPressCount < 6; tabPressCount += 1) {
+    await page.keyboard.press('Tab')
+    expect(
+      await page.evaluate(() => {
+        const focusedElement = document.activeElement
+        if (focusedElement === null || focusedElement === document.body) return 'the browser’s bar'
+        return focusedElement.closest('dialog')?.getAttribute('aria-label') ?? 'the page behind'
+      }),
+    ).not.toBe('the page behind')
+  }
+  await pictureLightbox.getByRole('button', { name: 'Close' }).focus()
+  await page.keyboard.press('Enter')
+  await expect(pictureLightbox).toBeHidden()
+  await expect(foxPictureButton).toBeFocused()
+
+  // A press beside the picture closes it; Put in Note from it closes it and shows the change under the picture.
+  await foxPictureButton.click()
+  await expect(lightboxPicture).toBeVisible()
+  await page.mouse.click(6, windowSize!.height / 2)
+  await expect(pictureLightbox).toBeHidden()
+  await foxPictureButton.click()
+  await pictureLightbox.getByRole('button', { name: 'Put in Note' }).click()
+  await expect(pictureLightbox).toBeHidden()
+  await expect(foxEntry.getByRole('region', { name: 'Change to Start here' })).toBeVisible()
+  expect(refusedOutsideRequestUrls).toEqual([])
+})
+
+test('on a 375 px phone a Draw picture’s buttons fill its card, and its lightbox fits the window with its actions', async ({ browser, browserName }) => {
+  const phoneContext = await browser.newContext({ viewport: { width: 375, height: 812 }, hasTouch: true, ...(browserName === 'chromium' ? { isMobile: true } : {}) })
+  const page = await phoneContext.newPage()
+  const { refusedOutsideRequestUrls } = await playTestMetaProvider(page)
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Try Sample' }).first().tap()
+  await expect(page.locator('.cm-content').first()).toContainText('Welcome to the sample vault.')
+  // On a phone the assistant opens from the top bar.
+  await page.getByRole('button', { name: 'AI Assistant', exact: true }).tap()
+  await setUpTestMetaProvider(page)
+  const assistantPanel = page.getByRole('complementary', { name: 'AI Assistant' })
+  await sendDrawPrompts(assistantPanel, ['A red fox'])
+  const foxCard = assistantPanel.getByRole('region', { name: 'Imagine: A red fox' }).getByRole('listitem', { name: 'Picture of A red fox' })
+  await foxCard.scrollIntoViewIfNeeded()
+  const foxCardBox = await foxCard.boundingBox()
+  const putInNoteBox = await foxCard.getByRole('button', { name: 'Put in Note' }).boundingBox()
+  expect(foxCardBox !== null && putInNoteBox !== null).toBe(true)
+  expect(foxCardBox!.x + foxCardBox!.width).toBeLessThanOrEqual(375)
+  expect(putInNoteBox!.width).toBeGreaterThan(foxCardBox!.width - 20)
+
+  await foxCard.getByRole('button', { name: 'A red fox' }).tap()
+  const pictureLightbox = page.getByRole('dialog', { name: 'A red fox' })
+  const lightboxPictureBox = await pictureLightbox.getByRole('img', { name: 'A red fox' }).boundingBox()
+  expect(lightboxPictureBox).not.toBeNull()
+  expect(lightboxPictureBox!.x).toBeGreaterThanOrEqual(0)
+  expect(lightboxPictureBox!.x + lightboxPictureBox!.width).toBeLessThanOrEqual(375)
+  for (const lightboxButtonName of ['Close', 'Put in Note', 'Save to Vault']) {
+    await expect(pictureLightbox.getByRole('button', { name: lightboxButtonName })).toBeInViewport({ ratio: 1 })
+  }
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375)
+  await pictureLightbox.getByRole('button', { name: 'Close' }).tap()
+  await expect(pictureLightbox).toBeHidden()
+  expect(refusedOutsideRequestUrls).toEqual([])
+  await phoneContext.close()
+})
+
+test('a picture brought into Imagine with Remove Metadata off is saved as it came', async ({ page }) => {
   await playTestMetaProvider(page)
   await page.goto('/')
   await page.getByRole('button', { name: 'Try Sample' }).first().click()
@@ -499,7 +657,7 @@ test('a picture brought into Imagine with Remove C2PA off is saved as it came', 
   const broughtInEntry = assistantPanel.getByRole('region', { name: 'Brought in: diagram.png' })
   await expect(broughtInEntry.getByText('Brought in: diagram.png')).toBeVisible()
   await expect(broughtInEntry.getByRole('img', { name: 'diagram.png' })).toBeVisible()
-  await assistantPanel.getByRole('switch', { name: 'Remove C2PA' }).click()
+  await assistantPanel.getByRole('switch', { name: 'Remove Metadata' }).click()
   await expect(assistantPanel.getByText('Carries C2PA content credentials and a text chunk. Kept when saved.')).toBeVisible()
   await assistantPanel.getByRole('button', { name: 'Save to Vault' }).click()
   await expect(assistantPanel.getByText('Saved as it came, metadata and all.')).toBeVisible()
@@ -716,7 +874,7 @@ test('beside Rewrite: Imagine from a selection and Transcribe arrive in the note
   await expect(inlineCard.getByRole('textbox', { name: 'Picture to make' })).toHaveValue('## Try these')
   await inlineCard.getByRole('textbox', { name: 'Picture to make' }).fill(testPictureAltText)
   await inlineCard.getByRole('button', { name: 'Imagine', exact: true }).click()
-  await expect(inlineCard.getByRole('switch', { name: 'Remove C2PA' })).toHaveAttribute('aria-checked', 'true')
+  await expect(inlineCard.getByRole('switch', { name: 'Remove Metadata' })).toHaveAttribute('aria-checked', 'true')
   await expect(inlineCard.locator('.papeliz-text-diff-added')).toContainText(`![${testPictureAltText}](Attachments/imagine-`)
   // The card is drawn inside the editor, so the note's own lines are checked: nothing changed yet.
   await expect(page.locator('.cm-line', { hasText: '](Attachments/imagine-' })).toHaveCount(0)
@@ -828,7 +986,7 @@ test('Describe Picture writes a picture’s alt text with Meta’s vision, and E
   await inlineCard.getByRole('button', { name: 'Edit Picture' }).click()
   await inlineCard.getByRole('textbox', { name: 'Change to make in the picture' }).fill('Make it red')
   await inlineCard.getByRole('button', { name: 'Edit Picture' }).click()
-  await expect(inlineCard.getByRole('switch', { name: 'Remove C2PA' })).toHaveAttribute('aria-checked', 'true')
+  await expect(inlineCard.getByRole('switch', { name: 'Remove Metadata' })).toHaveAttribute('aria-checked', 'true')
   const editRequest = testProviderRequests.find((providerRequest) => providerRequest.providerRequestPath === 'images/edits')
   expect(JSON.parse(editRequest?.providerRequestBodyText ?? '{}')).toMatchObject({ model: 'muse-image-1.0', prompt: 'Make it red', n: 1 })
   expect(editRequest?.providerRequestBodyText).toContain('"images":[{"image_url":"data:image/png;base64,')

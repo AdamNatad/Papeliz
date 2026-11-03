@@ -9,7 +9,7 @@ interface PapelizAssistantChatImaginePicturesProps {
   imaginePromptText: string
 }
 
-// A chat entry for the chat box's Imagine: the prompt, then the pictures with Remove C2PA, Save to
+// A chat entry for the chat box's Imagine: the prompt, then the pictures with Remove Metadata, Save to
 // Vault and Put in Note, whose change to the note shows here as a diff to accept.
 export function PapelizAssistantChatImaginePictures({ chatImagineRunId, imaginePromptText }: PapelizAssistantChatImaginePicturesProps) {
   const chatImagineRun = usePapelizChatImagineStore((chatImagineState) => chatImagineState.chatImagineRunsById[chatImagineRunId])

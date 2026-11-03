@@ -6,7 +6,7 @@ import { describePapelizRemovedImageMetadata } from './papeliz-assistant-image-m
 import { usePapelizImagineStore } from './papeliz-assistant-imagine-store'
 import { usePapelizInlineEditStore } from './papeliz-assistant-inline-edit-store'
 import { usePapelizInlineMediaStore } from './papeliz-assistant-inline-media-store'
-import { PapelizAssistantMediaSwitch, usePapelizAssistantMediaModelInUse } from './papeliz-assistant-media-parts'
+import { PapelizAssistantMediaSwitch, PapelizAssistantRemoveMetadataSwitch, usePapelizAssistantMediaModelInUse } from './papeliz-assistant-media-parts'
 import { findPapelizAssistantImageGenerationPreset } from './papeliz-assistant-media-provider-presets'
 import { usePapelizAssistantPanelUiStore } from './papeliz-assistant-panel-ui-store'
 import { selectActivePapelizAssistantProviderModelName, usePapelizAssistantProviderSettingsStore } from './papeliz-assistant-provider-settings-store'
@@ -38,7 +38,7 @@ export function PapelizAssistantInlineMediaCardBody() {
   const inlineInsertedBlockText = usePapelizInlineMediaStore((inlineMediaState) => inlineMediaState.inlineInsertedBlockText)
   const setInlineImaginePromptText = usePapelizInlineMediaStore((inlineMediaState) => inlineMediaState.setInlineImaginePromptText)
   const generateInlinePicture = usePapelizInlineMediaStore((inlineMediaState) => inlineMediaState.generateInlinePicture)
-  const setInlinePictureRemoveC2pa = usePapelizInlineMediaStore((inlineMediaState) => inlineMediaState.setInlinePictureRemoveC2pa)
+  const setInlinePictureRemoveMetadata = usePapelizInlineMediaStore((inlineMediaState) => inlineMediaState.setInlinePictureRemoveMetadata)
   const startInlineRecording = usePapelizInlineMediaStore((inlineMediaState) => inlineMediaState.startInlineRecording)
   const stopInlineRecording = usePapelizInlineMediaStore((inlineMediaState) => inlineMediaState.stopInlineRecording)
   const transcribeInlineAudioFile = usePapelizInlineMediaStore((inlineMediaState) => inlineMediaState.transcribeInlineAudioFile)
@@ -91,7 +91,7 @@ export function PapelizAssistantInlineMediaCardBody() {
       ? null
       : inlineImaginePicture.imaginePictureMetadataNames.length === 0
         ? 'No metadata found.'
-        : `Carries ${describePapelizRemovedImageMetadata(inlineImaginePicture.imaginePictureMetadataNames)}. ${inlineImaginePicture.isRemoveC2paOn ? 'Removed when saved.' : 'Kept when saved.'}`
+        : `Carries ${describePapelizRemovedImageMetadata(inlineImaginePicture.imaginePictureMetadataNames)}. ${inlineImaginePicture.isRemoveMetadataOn ? 'Removed when saved.' : 'Kept when saved.'}`
 
   const isPictureAction = inlineMediaAction === 'describe-picture' || inlineMediaAction === 'edit-picture'
 
@@ -239,7 +239,7 @@ export function PapelizAssistantInlineMediaCardBody() {
                 className="max-h-56 max-w-[min(100%,18rem)] rounded-xl border border-papeliz-line object-contain"
               />
               <div className="flex min-w-[12rem] flex-1 flex-col gap-1">
-                <PapelizAssistantMediaSwitch mediaSwitchLabel="Remove C2PA" isMediaSwitchOn={inlineImaginePicture.isRemoveC2paOn} onMediaSwitchToggle={setInlinePictureRemoveC2pa} />
+                <PapelizAssistantRemoveMetadataSwitch isRemoveMetadataOn={inlineImaginePicture.isRemoveMetadataOn} onRemoveMetadataToggle={setInlinePictureRemoveMetadata} />
                 {metadataLine !== null && <p className="text-[12px] leading-snug text-papeliz-ink-subtle">{metadataLine}</p>}
               </div>
             </div>
