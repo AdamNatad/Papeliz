@@ -7,6 +7,7 @@ mod papeliz_desktop_save_files;
 mod papeliz_desktop_snap_layouts;
 mod papeliz_desktop_vault_folders;
 mod papeliz_desktop_webview_permission_requests;
+mod papeliz_desktop_window_minimum_size;
 
 use papeliz_desktop_app_distribution::{detect_papeliz_desktop_app_distribution, PapelizDesktopAppDistribution};
 use tauri::webview::NewWindowResponse;
@@ -20,6 +21,13 @@ const PAPELIZ_DESKTOP_MAIN_WINDOW_LABEL: &str = "main";
 // start the app with empty settings, keys and recent vaults.
 const PAPELIZ_DESKTOP_APP_HOST: &str = "tauri.localhost";
 const PAPELIZ_DESKTOP_APP_START_PATH: &str = "app/";
+
+// The window opens at 1280 × 820 and shrinks to 400 × 300 at the least, the narrowest width the title
+// bar is laid out for (app/web). Logical pixels, so the page gets the same CSS width at every display scale.
+const PAPELIZ_DESKTOP_MAIN_WINDOW_STARTING_INNER_WIDTH: f64 = 1280.0;
+const PAPELIZ_DESKTOP_MAIN_WINDOW_STARTING_INNER_HEIGHT: f64 = 820.0;
+const PAPELIZ_DESKTOP_MAIN_WINDOW_MINIMUM_INNER_WIDTH: f64 = 400.0;
+const PAPELIZ_DESKTOP_MAIN_WINDOW_MINIMUM_INNER_HEIGHT: f64 = 300.0;
 
 pub fn run_papeliz_desktop_app() {
     let mut papeliz_desktop_app_builder = tauri::Builder::default()
@@ -61,14 +69,14 @@ fn create_papeliz_desktop_main_window(app_handle: &AppHandle) -> tauri::Result<(
     let navigation_app_handle = app_handle.clone();
     let new_window_app_handle = app_handle.clone();
 
-    WebviewWindowBuilder::new(
+    let main_window = WebviewWindowBuilder::new(
         app_handle,
         PAPELIZ_DESKTOP_MAIN_WINDOW_LABEL,
         WebviewUrl::App(PAPELIZ_DESKTOP_APP_START_PATH.into()),
     )
     .title("Papeliz")
-    .inner_size(1280.0, 820.0)
-    .min_inner_size(720.0, 480.0)
+    .inner_size(PAPELIZ_DESKTOP_MAIN_WINDOW_STARTING_INNER_WIDTH, PAPELIZ_DESKTOP_MAIN_WINDOW_STARTING_INNER_HEIGHT)
+    .min_inner_size(PAPELIZ_DESKTOP_MAIN_WINDOW_MINIMUM_INNER_WIDTH, PAPELIZ_DESKTOP_MAIN_WINDOW_MINIMUM_INNER_HEIGHT)
     .center()
     // No Windows title bar: Papeliz's own blue bar is the title bar, with the window buttons at its
     // right end (app/web), so the note starts right below it. The shadow keeps Windows 11's outline
@@ -93,6 +101,8 @@ fn create_papeliz_desktop_main_window(app_handle: &AppHandle) -> tauri::Result<(
         NewWindowResponse::Deny
     })
     .build()?;
+    // On Windows, the minimum holds for the page, not the frameless window's invisible borders around it.
+    papeliz_desktop_window_minimum_size::hold_papeliz_desktop_window_minimum_size_to_its_page(&main_window)?;
 
     Ok(())
 }
@@ -138,5 +148,20 @@ fn is_papeliz_desktop_app_origin<R: Runtime>(app_handle: &AppHandle<R>, candidat
 fn open_url_in_system_browser(app_handle: &AppHandle, external_url: &Url) {
     if matches!(external_url.scheme(), "https" | "http" | "mailto") {
         let _ = app_handle.opener().open_url(external_url.as_str(), None::<&str>);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_main_window_opens_at_1280_by_820_and_shrinks_to_400_by_300() {
+        let main_window_minimum_inner_size =
+            (PAPELIZ_DESKTOP_MAIN_WINDOW_MINIMUM_INNER_WIDTH, PAPELIZ_DESKTOP_MAIN_WINDOW_MINIMUM_INNER_HEIGHT);
+        let main_window_starting_inner_size =
+            (PAPELIZ_DESKTOP_MAIN_WINDOW_STARTING_INNER_WIDTH, PAPELIZ_DESKTOP_MAIN_WINDOW_STARTING_INNER_HEIGHT);
+        assert_eq!(main_window_minimum_inner_size, (400.0, 300.0));
+        assert_eq!(main_window_starting_inner_size, (1280.0, 820.0));
     }
 }
