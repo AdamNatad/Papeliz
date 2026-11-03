@@ -227,7 +227,7 @@ test('Imagine from the chat box: the picture shows in the chat, and Put in Note 
   expectPictureCleaned(await readBlobPictureBytes(page, (await chatPicture.getAttribute('src')) ?? ''))
 
   // The Imagine tab keeps every picture made, wherever it was made.
-  await assistantPanel.getByRole('radio', { name: 'Imagine', exact: true }).click()
+  await assistantPanel.getByRole('tab', { name: 'Imagine', exact: true }).click()
   await expect(assistantPanel.getByRole('img', { name: 'A blue square on white paper' })).toBeVisible()
   expect(refusedOutsideRequestUrls).toEqual([])
 })
@@ -237,7 +237,7 @@ test('a picture brought into Imagine with Remove C2PA off is saved as it came', 
   await page.goto('/')
   await page.getByRole('button', { name: 'Try Sample' }).first().click()
   const assistantPanel = page.getByRole('complementary', { name: 'AI Assistant' })
-  await assistantPanel.getByRole('radio', { name: 'Imagine', exact: true }).click()
+  await assistantPanel.getByRole('tab', { name: 'Imagine', exact: true }).click()
   // No provider yet: the tab says what to add, and bringing in a picture still works.
   await expect(assistantPanel.getByText('Add a provider that makes pictures')).toBeVisible()
   await assistantPanel.getByLabel('Bring in a picture').setInputFiles({ name: 'diagram.png', mimeType: 'image/png', buffer: buildTestPictureWithContentCredentials() })
@@ -410,7 +410,7 @@ test('Imagine’s prompt has its own mic and +, and the spoken words fill the pr
   await installStandInMicrophone(page, 'tone')
   await openSampleVaultWithMetaProvider(page)
   const assistantPanel = page.getByRole('complementary', { name: 'AI Assistant' })
-  await assistantPanel.getByRole('radio', { name: 'Imagine', exact: true }).click()
+  await assistantPanel.getByRole('tab', { name: 'Imagine', exact: true }).click()
   const promptBox = assistantPanel.getByRole('textbox', { name: 'Prompt' })
   await promptBox.fill('A red fox')
   await assistantPanel.getByRole('button', { name: 'Speak' }).click()
