@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { isPapelizDesktopApp } from 'virtual:papeliz-desktop-platform-availability'
+import { PapelizMobileWorkspaceLayout } from 'virtual:papeliz-mobile-platform'
 import { movePapelizEarlierChatSessionsIntoChatSessionsFolder } from '../assistant/papeliz-assistant-chat-session-folder-move'
 import { usePapelizAssistantConversationStore } from '../assistant/papeliz-assistant-conversation-store'
 import { PapelizAssistantPanel } from '../assistant/papeliz-assistant-panel'
@@ -167,6 +168,45 @@ export function PapelizWorkspace() {
   const isExplorerShown = !isFocusModeOn && isExplorerPanelOpen
   const isAssistantShown = !isFocusModeOn && isAssistantPanelOpen
 
+  // What every layout shows over itself: the workspace's notices and the Close Vault dialog.
+  const workspaceOverlays = (
+    <>
+      <PapelizWorkspaceNotice dockedAssistantPanelWidth={isAssistantShown && isWideScreen ? assistantPanelWidth : null} />
+      {isVaultCloseConfirmationShown && openVault !== null && (
+        <PapelizConfirmDialog
+          confirmDialogTitle={`Close “${openVault.papelizVaultDisplayName}”?`}
+          confirmDialogBody={
+            openVault.papelizVaultAdapter.papelizVaultKind === 'folder-on-disk' ? (
+              <p>Your notes are saved and stay in the folder. You go back to the {papelizCloseVaultStartPlaceName}, where you can open it again.</p>
+            ) : openVault.papelizVaultAdapter.papelizVaultKind === 'browser-vault-in-opfs' ? (
+              <>
+                <p>Your notes are saved and stay in this browser. You go back to the {papelizCloseVaultStartPlaceName}, where you can open it again.</p>
+                <PapelizBrowserVaultChangesSinceBackupLine />
+              </>
+            ) : (
+              <p>
+                This vault lives only {papelizCloseVaultSampleVaultPlaceWords}, so changes to its notes are lost when it closes. You go back to the{' '}
+                {papelizCloseVaultStartPlaceName}.
+              </p>
+            )
+          }
+          confirmButtonLabel="Close Vault"
+          onCancel={() => setVaultCloseConfirmationShown(false)}
+          onConfirm={() => {
+            setVaultCloseConfirmationShown(false)
+            void closeVaultInWorkspace()
+          }}
+        />
+      )}
+    </>
+  )
+
+  // The Android and iOS app draws its own phone layout (app/mobile/); the web build has none, so
+  // papeliz.com keeps this one everywhere, its phone view included.
+  if (PapelizMobileWorkspaceLayout !== null) {
+    return <PapelizMobileWorkspaceLayout noteEditorSessionCache={noteEditorSessionCache}>{workspaceOverlays}</PapelizMobileWorkspaceLayout>
+  }
+
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-papeliz-surface">
       <PapelizWorkspaceTopbar />
@@ -222,33 +262,7 @@ export function PapelizWorkspace() {
       </div>
 
       <PapelizStatusBar />
-      <PapelizWorkspaceNotice dockedAssistantPanelWidth={isAssistantShown && isWideScreen ? assistantPanelWidth : null} />
-      {isVaultCloseConfirmationShown && openVault !== null && (
-        <PapelizConfirmDialog
-          confirmDialogTitle={`Close “${openVault.papelizVaultDisplayName}”?`}
-          confirmDialogBody={
-            openVault.papelizVaultAdapter.papelizVaultKind === 'folder-on-disk' ? (
-              <p>Your notes are saved and stay in the folder. You go back to the {papelizCloseVaultStartPlaceName}, where you can open it again.</p>
-            ) : openVault.papelizVaultAdapter.papelizVaultKind === 'browser-vault-in-opfs' ? (
-              <>
-                <p>Your notes are saved and stay in this browser. You go back to the {papelizCloseVaultStartPlaceName}, where you can open it again.</p>
-                <PapelizBrowserVaultChangesSinceBackupLine />
-              </>
-            ) : (
-              <p>
-                This vault lives only {papelizCloseVaultSampleVaultPlaceWords}, so changes to its notes are lost when it closes. You go back to the{' '}
-                {papelizCloseVaultStartPlaceName}.
-              </p>
-            )
-          }
-          confirmButtonLabel="Close Vault"
-          onCancel={() => setVaultCloseConfirmationShown(false)}
-          onConfirm={() => {
-            setVaultCloseConfirmationShown(false)
-            void closeVaultInWorkspace()
-          }}
-        />
-      )}
+      {workspaceOverlays}
     </div>
   )
 }

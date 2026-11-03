@@ -1,0 +1,396 @@
+/* The Android and iOS app's phone layout (papeliz-mobile-workspace-layout.tsx), in the web app's own
+   colors and type (app/web/src/papeliz-webapp.css), light and dark. Plain CSS rather than the web app's
+   utility classes, so the layout needs nothing from the web build's class scanning. */
+
+.papeliz-mobile-workspace {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  overflow: hidden;
+  background: var(--color-papeliz-surface);
+  color: var(--color-papeliz-ink);
+}
+
+/* The blue top bar on every place: the mark, Papeliz, and where you are under it. */
+.papeliz-mobile-top-bar {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 54px;
+  padding: 0 6px 0 12px;
+  background: var(--color-papeliz-topbar);
+  color: #fff;
+}
+
+.papeliz-mobile-top-bar-title {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin-left: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  line-height: 1.2;
+  text-align: left;
+}
+
+.papeliz-mobile-top-bar-title b {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.papeliz-mobile-top-bar-title small {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 12px;
+  color: rgb(255 255 255 / 0.75);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.papeliz-mobile-note-view-switch {
+  flex: none;
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 12px;
+  background: rgb(255 255 255 / 0.16);
+}
+
+.papeliz-mobile-note-view-switch button,
+.papeliz-mobile-top-bar-button {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 34px;
+  border: 0;
+  border-radius: 9px;
+  background: none;
+  color: rgb(255 255 255 / 0.88);
+}
+
+.papeliz-mobile-note-view-switch button[aria-pressed='true'] {
+  background: #fff;
+  color: var(--color-papeliz-topbar);
+}
+
+.papeliz-mobile-top-bar-button {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+}
+
+.papeliz-mobile-note-view-switch svg,
+.papeliz-mobile-top-bar-button svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* One place at a time between the two bars. */
+.papeliz-mobile-place {
+  position: relative;
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.papeliz-mobile-note-place,
+.papeliz-mobile-files-place,
+.papeliz-mobile-assistant-place {
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.papeliz-mobile-files-place > *,
+.papeliz-mobile-assistant-place > * {
+  min-height: 0;
+  flex: 1;
+}
+
+.papeliz-mobile-note-area {
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.papeliz-mobile-note-place.is-hidden,
+.papeliz-mobile-place .is-hidden {
+  display: none;
+}
+
+/* The bottom bar: Files, Note, Assistant and Settings, in reach of a thumb. */
+.papeliz-mobile-bottom-bar {
+  flex: none;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  padding: 6px 4px 8px;
+  border-top: 1px solid var(--color-papeliz-line);
+  background: var(--color-papeliz-surface);
+}
+
+.papeliz-mobile-bottom-bar-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-papeliz-ink-muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.papeliz-mobile-bottom-bar-icon {
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 30px;
+  border-radius: 15px;
+}
+
+.papeliz-mobile-bottom-bar-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.papeliz-mobile-bottom-bar-item[aria-current='page'] {
+  color: var(--color-papeliz-blue);
+  font-weight: 600;
+}
+
+.papeliz-mobile-bottom-bar-item[aria-current='page'] .papeliz-mobile-bottom-bar-icon {
+  background: var(--color-papeliz-blue-soft);
+}
+
+/* What opens from the top bar (More's menu, the Export sheet, Move to Trash's question) sits inside the
+   bar's markup, so it takes the page's ink and weight back from the bar. */
+.papeliz-mobile-top-bar-overlays {
+  display: contents;
+  color: var(--color-papeliz-ink);
+  font-weight: 400;
+}
+
+/* More (⋯): the open note's menu, hanging under the top bar's end. */
+.papeliz-mobile-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+}
+
+.papeliz-mobile-more-menu {
+  position: absolute;
+  top: 50px;
+  right: 8px;
+  z-index: 41;
+  min-width: 210px;
+  padding: 5px;
+  border: 1px solid var(--color-papeliz-line);
+  border-radius: 14px;
+  background: var(--color-papeliz-surface);
+  box-shadow: var(--shadow-papeliz-pop);
+  color: var(--color-papeliz-ink);
+}
+
+.papeliz-mobile-more-menu-title {
+  margin: 0;
+  padding: 6px 12px 4px;
+  overflow: hidden;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--color-papeliz-ink-subtle);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.papeliz-mobile-more-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  height: 44px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 9px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 15px;
+  text-align: left;
+}
+
+.papeliz-mobile-more-menu-item svg {
+  width: 18px;
+  height: 18px;
+  color: var(--color-papeliz-ink-muted);
+}
+
+.papeliz-mobile-more-menu-item.is-export svg {
+  color: var(--color-papeliz-blue);
+}
+
+.papeliz-mobile-more-menu-item.is-danger,
+.papeliz-mobile-more-menu-item.is-danger svg {
+  color: var(--color-papeliz-error-notice-icon);
+}
+
+.papeliz-mobile-more-menu-divider {
+  height: 1px;
+  margin: 5px 4px;
+  border: 0;
+  background: var(--color-papeliz-line);
+}
+
+/* Export, the web app's own Export page, in a sheet from the bottom. */
+.papeliz-mobile-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: var(--color-papeliz-backdrop);
+}
+
+.papeliz-mobile-sheet {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 41;
+  display: flex;
+  flex-direction: column;
+  max-height: 88dvh;
+  border-radius: 24px 24px 0 0;
+  background: var(--color-papeliz-surface);
+  box-shadow: var(--shadow-papeliz-pop);
+}
+
+.papeliz-mobile-sheet-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 10px 8px 20px;
+  border-bottom: 1px solid var(--color-papeliz-line);
+  font-size: 16.5px;
+}
+
+.papeliz-mobile-sheet-close,
+.papeliz-mobile-settings-back {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border: 0;
+  border-radius: 12px;
+  background: none;
+  color: var(--color-papeliz-ink-muted);
+}
+
+.papeliz-mobile-sheet-close svg,
+.papeliz-mobile-settings-back svg {
+  width: 20px;
+  height: 20px;
+}
+
+.papeliz-mobile-sheet-body {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px 16px 16px;
+}
+
+/* Settings: the gear's list as a page. */
+.papeliz-mobile-settings-place {
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow-y: auto;
+  padding: 6px 14px 16px;
+  background: var(--color-papeliz-surface-soft);
+}
+
+.papeliz-mobile-settings-title {
+  margin: 8px 4px 0;
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.papeliz-mobile-settings-group {
+  overflow: hidden;
+  border: 1px solid var(--color-papeliz-line);
+  border-radius: 16px;
+  background: var(--color-papeliz-surface);
+}
+
+.papeliz-mobile-settings-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 52px;
+  padding: 0 14px;
+  border: 0;
+  background: none;
+  color: var(--color-papeliz-ink);
+  font: inherit;
+  font-size: 15.5px;
+  text-align: left;
+}
+
+.papeliz-mobile-settings-row + .papeliz-mobile-settings-row {
+  border-top: 1px solid var(--color-papeliz-line);
+}
+
+.papeliz-mobile-settings-row-icon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: var(--color-papeliz-blue-soft);
+  color: var(--color-papeliz-blue);
+}
+
+.papeliz-mobile-settings-row-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.papeliz-mobile-settings-row-label {
+  flex: 1;
+}
+
+.papeliz-mobile-settings-row-chevron {
+  width: 17px;
+  height: 17px;
+  color: var(--color-papeliz-ink-subtle);
+}
+
+.papeliz-mobile-settings-page-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px -4px 0;
+}
+
+.papeliz-mobile-settings-page-head h2 {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 600;
+}
+
+.papeliz-mobile-settings-page-body {
+  padding: 4px 2px;
+}

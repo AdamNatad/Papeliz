@@ -1,0 +1,29 @@
+[package]
+name = "papeliz-mobile"
+version = "0.1.0"
+description = "Papeliz for Android and iOS: the Papeliz web app in a Tauri shell"
+authors = ["Natad Corporation"]
+license = "MIT"
+repository = "https://github.com/AdamNatad/Papeliz"
+edition = "2021"
+rust-version = "1.90"
+
+# Android loads the app as a shared library (cdylib) and iOS links it as a static one (staticlib);
+# the rlib lets the desktop-only main.rs run it on this computer too.
+[lib]
+name = "papeliz_mobile_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "=2.7.4", features = [] }
+
+# The desktop app's versions (app/desktop/Cargo.toml), so both apps move together.
+[dependencies]
+tauri = { version = "=2.12.5", features = [] }
+tauri-plugin-fs = "=2.7.1"
+tauri-plugin-opener = "=2.7.2"
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = "=1.0.154"
+
+[profile.release]
+strip = true

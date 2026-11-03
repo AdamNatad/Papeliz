@@ -1,0 +1,26 @@
+{
+  "$schema": "../gen/schemas/mobile-schema.json",
+  "identifier": "papeliz-mobile-main-window",
+  "description": "What the Papeliz page may ask of the mobile app: files and folders inside App Storage's own folder, <app data>/Vaults, and links in the phone's browser. On Android the app data folder also holds the web view's own data, so the page's file calls reach only Vaults.",
+  "windows": ["main"],
+  "platforms": ["android", "iOS"],
+  "permissions": [
+    "core:default",
+    {
+      "identifier": "fs:scope",
+      "allow": [{ "path": "$APPDATA/Vaults" }, { "path": "$APPDATA/Vaults/**" }]
+    },
+    "fs:allow-read-dir",
+    "fs:allow-read-file",
+    "fs:allow-read-text-file",
+    "fs:allow-write-file",
+    "fs:allow-write-text-file",
+    "fs:allow-mkdir",
+    "fs:allow-rename",
+    "fs:allow-copy-file",
+    "fs:allow-remove",
+    "fs:allow-exists",
+    "fs:allow-stat",
+    "opener:default"
+  ]
+}

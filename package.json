@@ -27,6 +27,10 @@
     "desktop:build": "node build_tools/desktop/papeliz-desktop-tauri-command.mjs build",
     "desktop:typecheck": "pnpm --filter @papeliz/desktop typecheck",
     "desktop:msix": "node build_tools/desktop/papeliz-desktop-msix-pack.mjs",
+    "mobile:android:dev": "node build_tools/mobile/papeliz-mobile-tauri-command.mjs android dev",
+    "mobile:android:build": "node build_tools/mobile/papeliz-mobile-tauri-command.mjs android build --apk",
+    "mobile:typecheck": "pnpm --filter @papeliz/mobile typecheck",
+    "mobile:check-web-dist": "node build_tools/mobile/papeliz-mobile-check-web-dist.mjs",
     "deploy:assemble": "pnpm run site:build && pnpm run webapp:build && pnpm run help:build && node build_tools/shared/deploy-folder/papeliz-deploy-folder-assemble.mjs"
   }
 }

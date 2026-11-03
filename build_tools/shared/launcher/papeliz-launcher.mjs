@@ -104,6 +104,16 @@ const papelizLauncherSurfaces = {
       { name: 'desktop', label: 'Build the Desktop Installer (unsigned)', rootScript: 'desktop:build', isRustToolchainRequired: true },
     ],
   },
+  // The mobile app (app/mobile, Tauri) runs on an Android phone or emulator, so its targets have no
+  // port here. The Vite dev server it starts listens on 14208 (app/mobile/tauri.conf.json).
+  mobile: {
+    title: 'Papeliz Mobile',
+    missingScriptHint: 'Check the root package.json "mobile:*" scripts.',
+    start: [{ name: 'android', label: 'Run on Android (phone or emulator)', rootScript: 'mobile:android:dev', isRustToolchainRequired: true }],
+    build: [
+      { name: 'android', label: 'Build the Android APK (debug-signed for testing)', rootScript: 'mobile:android:build', isRustToolchainRequired: true },
+    ],
+  },
 }
 
 class PapelizLauncherError extends Error {
@@ -114,7 +124,7 @@ class PapelizLauncherError extends Error {
 }
 
 function papelizLauncherUsage() {
-  return 'Usage: papeliz-launcher.mjs <webapp|site|help|desktop> <start|build> <windows|macos|linux|auto> [target] [--help] [--dry-run] [--no-open]'
+  return 'Usage: papeliz-launcher.mjs <webapp|site|help|desktop|mobile> <start|build> <windows|macos|linux|auto> [target] [--help] [--dry-run] [--no-open]'
 }
 
 function detectPapelizPlatform() {

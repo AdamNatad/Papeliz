@@ -1,0 +1,8 @@
+# Cargo's build output
+/target/
+# Written by tauri-build on every build
+/gen/schemas/
+# The webapp built for the mobile app, and the Tauri settings written beside it
+# (build_tools/mobile/papeliz-mobile-tauri-command.mjs)
+/papeliz-mobile-webapp-build/
+/papeliz-mobile-tauri-generated.conf.json

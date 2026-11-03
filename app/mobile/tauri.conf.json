@@ -1,0 +1,34 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Papeliz",
+  "version": "0.1.0",
+  "identifier": "com.papeliz.mobile",
+  "build": {
+    "frontendDist": "papeliz-mobile-webapp-build",
+    "devUrl": "http://127.0.0.1:14208/",
+    "beforeDevCommand": "pnpm --filter @papeliz/webapp exec vite --host 127.0.0.1 --port 14208 --strictPort"
+  },
+  "app": {
+    "windows": [],
+    "security": {
+      "csp": null,
+      "dangerousDisableAssetCspModification": ["style-src"],
+      "headers": {
+        "Permissions-Policy": "camera=(), microphone=(self), geolocation=()"
+      }
+    }
+  },
+  "bundle": {
+    "active": true,
+    "publisher": "Natad Corporation",
+    "copyright": "Copyright (c) 2026 Natad Corporation",
+    "homepage": "https://papeliz.com",
+    "license": "MIT",
+    "category": "Productivity",
+    "shortDescription": "A Markdown editor and viewer with a built-in AI assistant",
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
+    "android": {
+      "minSdkVersion": 24
+    }
+  }
+}
