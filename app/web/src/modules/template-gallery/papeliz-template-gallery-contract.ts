@@ -1,4 +1,4 @@
-import type { PapelizOpenVaultResult } from '../vault/papeliz-open-vault'
+import type { PapelizNewVaultParentFolder, PapelizOpenVaultResult } from '../vault/papeliz-open-vault'
 import type { PapelizVaultFolderImportOptions, PapelizVaultFolderImportPlan, PapelizVaultFolderImportResult } from '../vault/papeliz-vault-folder-import'
 
 // The interface between Papeliz Templates' screens and its data layer: the manifest, a gallery row,
@@ -335,7 +335,8 @@ export type PapelizTemplateRecheckState =
 //   the commands of the chosen files, Recommended, All or the optional files ticked one by one
 //   (`chooseTemplateFilesChoice`, `chooseTemplateOptionalFiles`); the check report keeps every
 //   included file's.
-// - `picking-folder`: a folder vault waits for the browser's folder window, which is open.
+// - `picking-folder`: a folder vault waits for the folder window, which is open: the browser's, or
+//   Windows' in Papeliz for Windows when the form's Location has no folder.
 // - `making-vault`: the vault's files are being written.
 // - `made`: the vault is made; `makePapelizTemplateVault`'s result opens it.
 // - `failed`: a file couldn't be read or a check failed, so no vault can be made from it.
@@ -439,9 +440,14 @@ export interface PapelizTemplateGalleryActions {
   // The optional files ticked one by one, while ready: only included optional files count, in path
   // order; none is Recommended and every one is All. The same tick rule as above.
   chooseTemplateOptionalFiles?: (chosenTemplateOptionalFileRelativePaths: readonly string[]) => void
-  // New Vault's form confirmed, with the name and place it already checked. Must run from the click,
-  // since a folder vault shows the browser's folder window first.
-  makePapelizTemplateVault: (typedNewVaultName: string, chosenNewVaultPlace: PapelizTemplateNewVaultPlace) => Promise<PapelizTemplateVaultMakeResult>
+  // New Vault's form confirmed, with the name and place it already checked, and the folder its Location
+  // row shows in Papeliz for Windows (null or left out: none, so a folder window asks). Must run from
+  // the click, since a folder vault in a browser shows the browser's folder window first.
+  makePapelizTemplateVault: (
+    typedNewVaultName: string,
+    chosenNewVaultPlace: PapelizTemplateNewVaultPlace,
+    templateVaultParentFolder?: PapelizNewVaultParentFolder | null,
+  ) => Promise<PapelizTemplateVaultMakeResult>
   // Import into This Vault, in an open vault, once ready (and the commands ticked): the checked files go
   // into a new folder named after the template (the next free name when taken), through the
   // workspace's importer, and the vault records where the folder came from. The template's own

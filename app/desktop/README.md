@@ -24,6 +24,13 @@ so the installer stays small.
 - Both run through `build_tools/desktop/papeliz-desktop-tauri-command.mjs`. It gives Tauri the
   webapp's own Content-Security-Policy (`build_tools/webapp/papeliz-webapp-content-security-policy.mjs`)
   plus Tauri's IPC address, so the web app and the desktop app keep one policy.
+- `pnpm desktop:build:recording-devtools` builds a copy with DevTools, for recording the app's network
+  calls: the Cargo feature `papeliz-recording-devtools`, built in
+  `app/desktop/target/papeliz-recording-devtools/`, with no update files. Its installer is
+  `Papeliz_<version>_x64-recording-devtools-setup.exe`. DevTools opens in its own window at start, and F12
+  or Ctrl+Shift+I opens it again. It installs over the regular copy, keeping its vaults and settings;
+  installing the regular installer again goes back. Never publish it: `desktop:build` always leaves
+  DevTools out.
 
 ## Updates
 

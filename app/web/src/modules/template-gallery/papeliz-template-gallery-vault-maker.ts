@@ -1,15 +1,30 @@
+import { isPapelizDesktopApp } from 'virtual:papeliz-desktop-platform-availability'
+import type { PapelizDesktopFileSystem } from '../desktop/papeliz-desktop-platform-contract'
 import { importPapelizBrowserVault } from '../vault/papeliz-browser-vault-import'
 import { getPapelizBrowserVaultEnvironment, openPapelizBrowserVault, type PapelizBrowserVaultEnvironment } from '../vault/papeliz-browser-vaults'
 import { writeVaultFileContentsThroughWritableStream, type PapelizVaultFileContentsWriter } from '../vault/papeliz-directory-handle-vault-adapter'
-import { describePapelizErrorSentence, describePapelizFailureMessage } from '../vault/papeliz-failure-code-words'
+import { describePapelizErrorSentence, describePapelizFailureCodeMessage, describePapelizFailureMessage } from '../vault/papeliz-failure-code-words'
 import {
+  describeNewFolderVaultNameTakenMessage,
+  makePapelizNewDesktopFolderVaultFolder,
   makePapelizNewFolderVaultFolder,
+  openPapelizDesktopVaultFolderPath,
   openPapelizVaultFolderHandle,
+  pickPapelizNewVaultParentFolder,
   pickPapelizVaultFolderHandle,
+  readPapelizNewVaultDefaultParentFolder,
+  type PapelizNewDesktopFolderVaultFolderResult,
+  type PapelizNewVaultParentFolder,
   type PapelizOpenVaultResult,
   type PapelizVaultFolderPickResult,
 } from '../vault/papeliz-open-vault'
-import { writePapelizVaultImportFiles, type PapelizVaultImportFile } from '../vault/papeliz-vault-folder-import'
+import { waitForPapelizDesktopPlatform } from '../vault/papeliz-remembered-vault-folders'
+import {
+  writePapelizVaultImportFiles,
+  writePapelizVaultImportFilesThroughFolderWriter,
+  type PapelizVaultImportFile,
+  type PapelizVaultImportFolderWriter,
+} from '../vault/papeliz-vault-folder-import'
 import { isVaultFileRelativePathSyncable, papelizVaultSettingsFolderName } from '../vault/papeliz-vault-relative-paths'
 import { findPapelizTemplateDefaultFilesChoice, selectPapelizTemplateChosenFileRelativePaths } from './papeliz-template-gallery-checks'
 import {
@@ -22,7 +37,8 @@ import { findPapelizTemplatePictureFormatByName, stripPapelizTemplatePictureMeta
 
 // Makes a new vault from a template's checked files, through New Vault's own steps: a browser vault
 // is made and filled as an import is (taken back whole if it can't be finished), and a folder vault
-// is a new folder, named after the vault, inside the folder picked. Only the files of the person's
+// is a new folder, named after the vault, inside the folder picked (in Papeliz for Windows, by its path
+// inside the form's Location, which starts at `<Documents>\Papeliz`). Only the files of the person's
 // choice go in, Recommended or All. Every picture is stripped of its metadata on the way; a picture
 // that can't be is left out. The vault also gets `.papeliz/template-source.json`, which says which
 // template, commit and choice it came from.
@@ -59,6 +75,10 @@ export interface PapelizTemplateVaultMakeOptions {
   // The browser's folder window, or the tests' stand-in.
   pickTemplateVaultPlaceFolder?: () => Promise<PapelizVaultFolderPickResult>
   folderVaultFileContentsWriter?: PapelizVaultFileContentsWriter
+  // Where a folder vault's folder is made, when New Vault's form already shows one: in Papeliz for
+  // Windows, its Location row. Null or left out: in a browser the folder window asks; in Papeliz for
+  // Windows it's New Vault's starting place, or Windows' folder picker when that can't be found.
+  templateVaultParentFolder?: PapelizNewVaultParentFolder | null
 }
 
 // The template's included files of one choice as they go into a vault, in path order: pictures
@@ -164,7 +184,19 @@ export async function makePapelizTemplateFolderVault(
   templateVaultFiles: readonly PapelizTemplateVaultFile[],
   templateVaultMakeOptions: PapelizTemplateVaultMakeOptions = {},
 ): Promise<PapelizOpenVaultResult> {
-  const placeFolderPickResult = await (templateVaultMakeOptions.pickTemplateVaultPlaceFolder ?? pickPapelizVaultFolderHandle)()
+  const templateVaultParentFolder = templateVaultMakeOptions.templateVaultParentFolder ?? null
+  if (templateVaultParentFolder?.newVaultParentFolderKind === 'desktop-folder-path' || (templateVaultParentFolder === null && isPapelizDesktopApp)) {
+    return makePapelizTemplateDesktopFolderVault(
+      typedNewVaultName,
+      templateVaultFiles,
+      templateVaultMakeOptions,
+      templateVaultParentFolder?.newVaultParentFolderKind === 'desktop-folder-path' ? templateVaultParentFolder.desktopParentFolderPath : null,
+    )
+  }
+  const placeFolderPickResult: PapelizVaultFolderPickResult =
+    templateVaultParentFolder?.newVaultParentFolderKind === 'browser-folder-handle'
+      ? { vaultFolderPickOutcome: 'picked', papelizVaultFolderHandle: templateVaultParentFolder.browserParentFolderHandle }
+      : await (templateVaultMakeOptions.pickTemplateVaultPlaceFolder ?? pickPapelizVaultFolderHandle)()
   if (!('vaultFolderPickOutcome' in placeFolderPickResult)) return placeFolderPickResult
   templateVaultMakeOptions.onTemplateVaultPlaceFolderPicked?.()
   let newVaultFolderHandle: FileSystemDirectoryHandle
@@ -195,14 +227,88 @@ export async function makePapelizTemplateFolderVault(
       templateVaultMakeOptions.folderVaultFileContentsWriter ?? writeVaultFileContentsThroughWritableStream,
     )
   } catch (folderVaultWriteError) {
-    const writtenFilesSentence =
-      templateWrittenFileCount === 0
-        ? 'Its folder is there, still empty.'
-        : `The ${templateWrittenFileCount === 1 ? 'file' : `${templateWrittenFileCount} files`} written so far stay in its folder.`
-    return {
-      openVaultOutcome: 'failed',
-      openVaultFailureMessage: `Couldn’t finish “${typedNewVaultName}”. ${describePapelizErrorSentence(folderVaultWriteError)} ${writtenFilesSentence}`,
-    }
+    return { openVaultOutcome: 'failed', openVaultFailureMessage: describeTemplateFolderVaultWriteFailure(typedNewVaultName, folderVaultWriteError, templateWrittenFileCount) }
   }
   return openPapelizVaultFolderHandle(newVaultFolderHandle)
+}
+
+// Why a folder vault's writing stopped, and how far it got: its folder keeps the files written so far.
+function describeTemplateFolderVaultWriteFailure(typedNewVaultName: string, folderVaultWriteError: unknown, templateWrittenFileCount: number): string {
+  const writtenFilesSentence =
+    templateWrittenFileCount === 0
+      ? 'Its folder is there, still empty.'
+      : `The ${templateWrittenFileCount === 1 ? 'file' : `${templateWrittenFileCount} files`} written so far stay in its folder.`
+  return `Couldn’t finish “${typedNewVaultName}”. ${describePapelizErrorSentence(folderVaultWriteError)} ${writtenFilesSentence}`
+}
+
+// The template's folders and files written by absolute path, through Papeliz for Windows' native side.
+function createTemplateDesktopVaultFolderWriter(desktopFileSystem: PapelizDesktopFileSystem): PapelizVaultImportFolderWriter<string> {
+  return {
+    makeVaultImportSubfolder: async (vaultImportParentDesktopFolderPath, vaultImportSubfolderName) => {
+      const vaultImportSubfolderDesktopPath = desktopFileSystem.joinDesktopPath(vaultImportParentDesktopFolderPath, vaultImportSubfolderName)
+      await desktopFileSystem.makeDesktopFolder(vaultImportSubfolderDesktopPath)
+      return vaultImportSubfolderDesktopPath
+    },
+    writeVaultImportFile: async (vaultImportDesktopFolderPath, vaultImportFileName, readImportFileBytes) =>
+      desktopFileSystem.writeDesktopFileBytes(desktopFileSystem.joinDesktopPath(vaultImportDesktopFolderPath, vaultImportFileName), await readImportFileBytes()),
+  }
+}
+
+// The folder vault in Papeliz for Windows: made by its path inside the Location folder, as New Vault
+// makes one there, written through the native side, then opened and remembered by its path. With no
+// Location given, New Vault's starting place, and Windows' folder picker only when that can't be found.
+async function makePapelizTemplateDesktopFolderVault(
+  typedNewVaultName: string,
+  templateVaultFiles: readonly PapelizTemplateVaultFile[],
+  templateVaultMakeOptions: PapelizTemplateVaultMakeOptions,
+  givenDesktopParentFolderPath: string | null,
+): Promise<PapelizOpenVaultResult> {
+  const papelizDesktopPlatform = await waitForPapelizDesktopPlatform()
+  if (papelizDesktopPlatform === null) {
+    return { openVaultOutcome: 'failed', openVaultFailureMessage: describePapelizFailureCodeMessage(`Couldn’t make “${typedNewVaultName}”`, 'Not Supported Yet') }
+  }
+  let desktopParentFolderPath = givenDesktopParentFolderPath
+  if (desktopParentFolderPath === null) {
+    const newVaultDefaultParentFolder = await readPapelizNewVaultDefaultParentFolder()
+    if (newVaultDefaultParentFolder?.newVaultParentFolderKind === 'desktop-folder-path') desktopParentFolderPath = newVaultDefaultParentFolder.desktopParentFolderPath
+  }
+  if (desktopParentFolderPath === null) {
+    const newVaultParentFolderPickResult = await pickPapelizNewVaultParentFolder()
+    if (!('newVaultParentFolderPickOutcome' in newVaultParentFolderPickResult)) return newVaultParentFolderPickResult
+    const { pickedNewVaultParentFolder } = newVaultParentFolderPickResult
+    if (pickedNewVaultParentFolder.newVaultParentFolderKind !== 'desktop-folder-path') return { openVaultOutcome: 'cancelled' }
+    desktopParentFolderPath = pickedNewVaultParentFolder.desktopParentFolderPath
+  }
+  templateVaultMakeOptions.onTemplateVaultPlaceFolderPicked?.()
+  const { desktopFileSystem } = papelizDesktopPlatform
+  let newDesktopFolderVaultFolderResult: PapelizNewDesktopFolderVaultFolderResult
+  try {
+    newDesktopFolderVaultFolderResult = await makePapelizNewDesktopFolderVaultFolder(desktopParentFolderPath, typedNewVaultName, desktopFileSystem)
+  } catch (newVaultFolderError) {
+    return {
+      openVaultOutcome: 'failed',
+      openVaultFailureMessage: describePapelizFailureMessage(`Couldn’t make “${typedNewVaultName}”`, newVaultFolderError, { failedEntryName: typedNewVaultName, failedEntryKind: 'folder' }),
+    }
+  }
+  if (newDesktopFolderVaultFolderResult.newFolderVaultFolderOutcome !== 'ready') {
+    return { openVaultOutcome: 'failed', openVaultFailureMessage: describeNewFolderVaultNameTakenMessage(newDesktopFolderVaultFolderResult.newFolderVaultFolderOutcome, typedNewVaultName) }
+  }
+  const { desktopVaultFolderPath } = newDesktopFolderVaultFolderResult
+  let templateWrittenFileCount = 0
+  try {
+    await writePapelizVaultImportFilesThroughFolderWriter(
+      desktopVaultFolderPath,
+      listPapelizTemplateVaultImportFiles(templateVaultFiles),
+      {
+        onBrowserVaultImportProgress: (importedFileCount, importFileCount) => {
+          templateWrittenFileCount = importedFileCount
+          templateVaultMakeOptions.onTemplateVaultWriteProgress?.(importedFileCount, importFileCount)
+        },
+      },
+      createTemplateDesktopVaultFolderWriter(desktopFileSystem),
+    )
+  } catch (folderVaultWriteError) {
+    return { openVaultOutcome: 'failed', openVaultFailureMessage: describeTemplateFolderVaultWriteFailure(typedNewVaultName, folderVaultWriteError, templateWrittenFileCount) }
+  }
+  return openPapelizDesktopVaultFolderPath(desktopVaultFolderPath, papelizDesktopPlatform, { isDesktopVaultFolderJustPicked: true })
 }

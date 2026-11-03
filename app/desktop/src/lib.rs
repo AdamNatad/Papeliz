@@ -107,6 +107,10 @@ fn create_papeliz_desktop_main_window(app_handle: &AppHandle) -> tauri::Result<(
     .build()?;
     // On Windows, the minimum holds for the page, not the frameless window's invisible borders around it.
     papeliz_desktop_window_minimum_size::hold_papeliz_desktop_window_minimum_size_to_its_page(&main_window)?;
+    // The recording build opens DevTools in its own window at start. Once closed, WebView2's own F12 and
+    // Ctrl+Shift+I open it again; the app's right-click menu has no Inspect.
+    #[cfg(feature = "papeliz-recording-devtools")]
+    main_window.open_devtools();
 
     Ok(())
 }

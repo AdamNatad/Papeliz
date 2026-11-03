@@ -25,6 +25,7 @@
     "webapp:browser-test": "pnpm --filter @papeliz/webapp browser-test",
     "desktop:dev": "node build_tools/desktop/papeliz-desktop-tauri-command.mjs dev",
     "desktop:build": "node build_tools/desktop/papeliz-desktop-tauri-command.mjs build",
+    "desktop:build:recording-devtools": "node build_tools/desktop/papeliz-desktop-tauri-command.mjs build-recording-devtools",
     "desktop:typecheck": "pnpm --filter @papeliz/desktop typecheck",
     "desktop:msix": "node build_tools/desktop/papeliz-desktop-msix-pack.mjs",
     "mobile:android:dev": "node build_tools/mobile/papeliz-mobile-tauri-command.mjs android dev",

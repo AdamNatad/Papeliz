@@ -625,7 +625,7 @@ export const usePapelizTemplateGalleryStore = create<PapelizTemplateGalleryState
 
     chooseTemplateOptionalFiles: (requestedTemplateOptionalFileRelativePaths) => changeTemplateUseOptionalFiles(requestedTemplateOptionalFileRelativePaths),
 
-    makePapelizTemplateVault: async (typedNewVaultName, chosenNewVaultPlace) => {
+    makePapelizTemplateVault: async (typedNewVaultName, chosenNewVaultPlace, templateVaultParentFolder = null) => {
       const readyTemplateUseState = get().templateUseState
       const templateUseToMake = preparedTemplateUse
       if (readyTemplateUseState.templateUseStage !== 'ready' || templateUseToMake === null) {
@@ -655,17 +655,18 @@ export const usePapelizTemplateGalleryStore = create<PapelizTemplateGalleryState
         browserVaultEnvironment: papelizTemplateGalleryStoreDependencies.browserVaultEnvironment,
         pickTemplateVaultPlaceFolder: papelizTemplateGalleryStoreDependencies.pickTemplateVaultPlaceFolder,
         folderVaultFileContentsWriter: papelizTemplateGalleryStoreDependencies.folderVaultFileContentsWriter,
+        templateVaultParentFolder,
         onTemplateVaultWriteProgress: showTemplateVaultWriteProgress,
         onTemplateVaultPlaceFolderPicked: () => showTemplateVaultWriteProgress(0, templateVaultFiles.length),
       }
       // A folder vault's folder window opens first, while the click still counts; `picking-folder`
-      // lasts until it closes.
+      // lasts until it closes. A folder the form's Location already shows needs no window.
       const isFolderVaultMade = chosenNewVaultPlace === 'folder-on-disk'
       const templateVaultMaking = isFolderVaultMade
         ? makePapelizTemplateFolderVault(typedNewVaultName, templateVaultFiles, templateVaultMakeOptions)
         : makePapelizTemplateBrowserVault(typedNewVaultName, templateVaultFiles, templateVaultMakeOptions)
       set({
-        templateUseState: isFolderVaultMade
+        templateUseState: isFolderVaultMade && templateVaultParentFolder === null
           ? { templateUseStage: 'picking-folder', templateGalleryRow }
           : { templateUseStage: 'making-vault', templateGalleryRow, templateWrittenFileCount: 0, templateFileCount: templateVaultFiles.length },
       })

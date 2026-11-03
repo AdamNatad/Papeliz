@@ -1,5 +1,8 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
+import type { PapelizDesktopPlatform } from '../desktop/papeliz-desktop-platform-contract'
+import { usePapelizDesktopPlatformStore } from '../desktop/papeliz-desktop-platform-store'
 import { createPapelizFakeBrowserVaultEnvironment, getPapelizFakeBrowserVaultFolder } from '../vault/papeliz-fake-browser-vault-environment.test-support'
+import { PapelizFakeDesktopFileSystem } from '../vault/papeliz-fake-desktop-file-system.test-support'
 import { PapelizFakeDirectoryHandle, addPapelizFakeVaultFiles } from '../vault/papeliz-fake-file-system-access.test-support'
 import { createPapelizBrowserVault } from '../vault/papeliz-browser-vaults'
 import { parsePapelizTemplateManifest } from './papeliz-template-gallery-checks'
@@ -151,6 +154,84 @@ describe('template vault maker', () => {
       openVaultOutcome: 'failed',
       openVaultFailureMessage: 'Couldn’t finish “My Garden”. The disk is full. Free some space, then try again. The 2 files written so far stay in its folder.',
     })
+  })
+})
+
+describe('template vault maker in Papeliz for Windows', () => {
+  const desktopTestNewVaultDefaultParentFolderPath = 'C:\\Users\\Ada\\Documents\\Papeliz'
+
+  // The native side as far as the vault maker reaches it: the files under New Vault's starting place
+  // (reachable for the session), and the calls that remember a vault folder and pick one.
+  function createTemplateTestDesktopPlatform() {
+    const fakeDesktopFileSystem = new PapelizFakeDesktopFileSystem([desktopTestNewVaultDefaultParentFolderPath])
+    fakeDesktopFileSystem.addFakeDesktopFiles(desktopTestNewVaultDefaultParentFolderPath, {})
+    const templateTestDesktopPlatform = { fakeDesktopFileSystem, nativelyRememberedDesktopVaultFolderPaths: [] as string[], shownDesktopFolderPickerTitles: [] as string[] }
+    const papelizDesktopPlatform: Pick<PapelizDesktopPlatform, 'desktopFileSystem' | 'pickDesktopFolderPath' | 'readDesktopNewVaultDefaultParentFolderPath' | 'rememberDesktopVaultFolderPath'> = {
+      desktopFileSystem: fakeDesktopFileSystem,
+      readDesktopNewVaultDefaultParentFolderPath: async () => desktopTestNewVaultDefaultParentFolderPath,
+      pickDesktopFolderPath: async (desktopFolderPickerTitle) => {
+        templateTestDesktopPlatform.shownDesktopFolderPickerTitles.push(desktopFolderPickerTitle)
+        return null
+      },
+      rememberDesktopVaultFolderPath: async (desktopVaultFolderPath) => {
+        templateTestDesktopPlatform.nativelyRememberedDesktopVaultFolderPaths.push(desktopVaultFolderPath)
+      },
+    }
+    usePapelizDesktopPlatformStore.setState({ papelizDesktopPlatform: papelizDesktopPlatform as PapelizDesktopPlatform })
+    return templateTestDesktopPlatform
+  }
+
+  afterEach(() => {
+    usePapelizDesktopPlatformStore.setState({ papelizDesktopPlatform: null })
+  })
+
+  it('makes the vault’s folder by its path inside the Location folder, with no folder window, and opens and remembers it', async () => {
+    const templateTestDesktopPlatform = createTemplateTestDesktopPlatform()
+    const writeProgressSteps: string[] = []
+    let isPlaceFolderPickedCalled = false
+    const openVaultResult = await makePapelizTemplateFolderVault('My Garden', prepareGardenJournalVaultFiles().templateVaultFiles, {
+      templateVaultParentFolder: { newVaultParentFolderKind: 'desktop-folder-path', desktopParentFolderPath: desktopTestNewVaultDefaultParentFolderPath },
+      pickTemplateVaultPlaceFolder: async () => {
+        throw new Error('The browser’s folder window must not open in Papeliz for Windows.')
+      },
+      onTemplateVaultPlaceFolderPicked: () => {
+        isPlaceFolderPickedCalled = true
+      },
+      onTemplateVaultWriteProgress: (templateWrittenFileCount, templateFileCount) => writeProgressSteps.push(`${templateWrittenFileCount}/${templateFileCount}`),
+    })
+    if (openVaultResult.openVaultOutcome !== 'opened') throw new Error(`The vault wasn’t opened: ${JSON.stringify(openVaultResult)}`)
+    const madeDesktopVaultFolderPath = `${desktopTestNewVaultDefaultParentFolderPath}\\My Garden`
+    expect(openVaultResult.papelizOpenVault.papelizVaultDisplayName).toBe('My Garden')
+    expect(openVaultResult.papelizOpenVault.papelizVaultAdapter.papelizVaultKind).toBe('folder-on-disk')
+    expect(await openVaultResult.papelizOpenVault.papelizVaultAdapter.readVaultNoteText('Crops/Tomatoes.md')).toBe('# Tomatoes\n')
+    expect(templateTestDesktopPlatform.nativelyRememberedDesktopVaultFolderPaths).toEqual([madeDesktopVaultFolderPath])
+    expect(templateTestDesktopPlatform.shownDesktopFolderPickerTitles).toEqual([])
+    expect(isPlaceFolderPickedCalled).toBe(true)
+    const madeDesktopVaultFiles = templateTestDesktopPlatform.fakeDesktopFileSystem.readFakeDesktopFolder(madeDesktopVaultFolderPath)
+    const madeDesktopVaultFileRelativePaths = Object.keys(madeDesktopVaultFiles).filter((madeDesktopVaultEntryRelativePath) => !madeDesktopVaultEntryRelativePath.endsWith('/'))
+    expect(madeDesktopVaultFileRelativePaths.sort()).toEqual([
+      '.claude/settings.json',
+      '.gitignore',
+      '.papeliz/file-list-order.json',
+      '.papeliz/template-source.json',
+      'Crops/Tomatoes.md',
+      'Photos/harvest.jpg',
+      'Start here.md',
+      'beds.png',
+    ])
+    expect(JSON.parse(madeDesktopVaultFiles['.papeliz/template-source.json'] ?? '{}')).toMatchObject({ papelizTemplateGalleryId: 'garden-notes/Garden-Journal' })
+    expect(writeProgressSteps.at(-1)).toBe('8/8')
+  })
+
+  it('turns down a Location that already has a folder of that name with files in it, and leaves it as it was', async () => {
+    const templateTestDesktopPlatform = createTemplateTestDesktopPlatform()
+    templateTestDesktopPlatform.fakeDesktopFileSystem.addFakeDesktopFiles(desktopTestNewVaultDefaultParentFolderPath, { 'My Garden/Old.md': '# old' })
+    const takenResult = await makePapelizTemplateFolderVault('My Garden', prepareGardenJournalVaultFiles().templateVaultFiles, {
+      templateVaultParentFolder: { newVaultParentFolderKind: 'desktop-folder-path', desktopParentFolderPath: desktopTestNewVaultDefaultParentFolderPath },
+    })
+    expect(takenResult).toEqual({ openVaultOutcome: 'failed', openVaultFailureMessage: 'A folder named “My Garden” is already there. Pick another name or another place.' })
+    expect(templateTestDesktopPlatform.fakeDesktopFileSystem.readFakeDesktopFolder(`${desktopTestNewVaultDefaultParentFolderPath}\\My Garden`)).toEqual({ 'Old.md': '# old' })
+    expect(templateTestDesktopPlatform.nativelyRememberedDesktopVaultFolderPaths).toEqual([])
   })
 })
 

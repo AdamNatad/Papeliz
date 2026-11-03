@@ -12,6 +12,11 @@ rust-version = "1.90"
 name = "papeliz_desktop_lib"
 crate-type = ["rlib"]
 
+[features]
+# A recording build only (`pnpm desktop:build:recording-devtools`): the app with DevTools, for filming
+# its network calls. Off by default, so the installer, the MSIX and every update leave DevTools out.
+papeliz-recording-devtools = ["tauri/devtools"]
+
 [build-dependencies]
 tauri-build = { version = "=2.7.4", features = [] }
 

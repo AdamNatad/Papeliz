@@ -1,10 +1,11 @@
 import { Eye, Hourglass, LayoutTemplate, RefreshCw, RotateCcw, Search, Upload, WifiOff, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
+import { isPapelizDesktopApp } from 'virtual:papeliz-desktop-platform-availability'
 import { PapelizIconButton, PapelizPillButton } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { PapelizSlidingChoiceGroup } from '../ui/papeliz-sliding-choice-group'
 import { pickFreePapelizBrowserVaultName, type PapelizBrowserVaultRecord } from '../vault/papeliz-browser-vaults'
-import type { PapelizOpenVault } from '../vault/papeliz-open-vault'
+import { pickPapelizNewVaultParentFolder, type PapelizNewVaultParentFolder, type PapelizOpenVault } from '../vault/papeliz-open-vault'
 import { usePapelizBrowserStorageStore } from '../workspace/papeliz-browser-storage-store'
 import { PapelizNewVaultForm, type PapelizNewVaultPlace } from '../workspace/papeliz-new-vault-form'
 import { usePapelizWorkspaceStore } from '../workspace/papeliz-workspace-store'
@@ -218,9 +219,29 @@ export function PapelizTemplateGalleryPage({
     closeShownTemplateGalleryScreen()
   }
 
-  // New Vault's form confirmed, from its click (Folder Storage opens the folder window first). The vault
-  // is made with its progress showing, then opens; if it isn't, the form comes back with the name typed.
-  const makeTemplateVault = async (templateGalleryRow: PapelizTemplateGalleryRow, typedNewVaultName: string, chosenNewVaultPlace: PapelizNewVaultPlace) => {
+  // New Vault's Location row in Papeliz for Windows, as on the start page: it starts at New Vault's
+  // starting place, and Browse… opens Windows' folder picker. A browser's form has no Location row, so
+  // the folder window asks once Create Vault is pressed.
+  const pickTemplateVaultParentFolder = async (): Promise<PapelizNewVaultParentFolder | null> => {
+    if (heldTemplateGalleryPagePreview !== null) {
+      showWorkspaceNotice('info', 'Nothing changed: this is only a preview.')
+      return null
+    }
+    const newVaultParentFolderPickResult = await pickPapelizNewVaultParentFolder()
+    if ('newVaultParentFolderPickOutcome' in newVaultParentFolderPickResult) return newVaultParentFolderPickResult.pickedNewVaultParentFolder
+    if (newVaultParentFolderPickResult.openVaultOutcome === 'failed') showWorkspaceNotice('error', newVaultParentFolderPickResult.openVaultFailureMessage)
+    return null
+  }
+
+  // New Vault's form confirmed, from its click (Folder Storage opens the folder window first, unless the
+  // Location row already shows a folder). The vault is made with its progress showing, then opens; if
+  // it isn't, the form comes back with the name typed.
+  const makeTemplateVault = async (
+    templateGalleryRow: PapelizTemplateGalleryRow,
+    typedNewVaultName: string,
+    chosenNewVaultPlace: PapelizNewVaultPlace,
+    templateVaultParentFolder: PapelizNewVaultParentFolder | null,
+  ) => {
     if (chosenNewVaultPlace === 'browser-vault-in-opfs') askBrowserToKeepStorage()
     replaceTemplateGalleryScreen({
       templateGalleryScreenKind: 'making-vault',
@@ -228,7 +249,7 @@ export function PapelizTemplateGalleryPage({
       newVaultName: typedNewVaultName,
       newVaultPlace: chosenNewVaultPlace,
     })
-    const templateVaultMakeResult = await templateGalleryScreenModel.makePapelizTemplateVault(typedNewVaultName, chosenNewVaultPlace)
+    const templateVaultMakeResult = await templateGalleryScreenModel.makePapelizTemplateVault(typedNewVaultName, chosenNewVaultPlace, templateVaultParentFolder)
     if (templateVaultMakeResult.openVaultOutcome === 'opened') {
       await onTemplateVaultOpen(templateVaultMakeResult.papelizOpenVault, templateVaultMakeResult.templateFirstNotePath ?? templateGalleryRow.templateFirstNotePath)
       return
@@ -361,7 +382,10 @@ export function PapelizTemplateGalleryPage({
                 ),
               }}
               isNewVaultConfirmHeld={!isThisTemplateInUse || templateUseState.templateUseStage !== 'ready'}
-              onNewVaultConfirm={(typedNewVaultName, chosenNewVaultPlace) => void makeTemplateVault(shownTemplateGalleryRow, typedNewVaultName, chosenNewVaultPlace)}
+              onNewVaultParentFolderPick={isPapelizDesktopApp ? pickTemplateVaultParentFolder : undefined}
+              onNewVaultConfirm={(typedNewVaultName, chosenNewVaultPlace, newVaultConfirmDetails) =>
+                void makeTemplateVault(shownTemplateGalleryRow, typedNewVaultName, chosenNewVaultPlace, newVaultConfirmDetails.newVaultParentFolder)
+              }
               onNewVaultCancel={cancelUsingTemplate}
             />
           )
