@@ -1133,9 +1133,10 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                 <span className="mt-1 self-end text-[10.5px] leading-none text-white/70">by Adam Natad</span>
               </div>
             </div>
-            {/* The first sentence of the website's description, which follows "Papeliz is". */}
-            <p className="mt-3 text-[11.5px] leading-[1.45] text-white/80">
-              A free, open-source, cross-platform Markdown Editor and AI-powered note-taking app for building your personal knowledge base.
+            {/* Papeliz's long description. */}
+            <p className="mt-3 text-[11.5px] leading-[1.45] text-pretty text-white/80">
+              Papeliz is a Free, Open-Source Markdown Editor for building your Personal Knowledge Base, with a built-in AI Assistant that works with your
+              Preferred AI Provider, as well as the ability to create and import Workflow Templates for Coding and AI Agents.
             </p>
 
             <div className="mt-4 grid grid-cols-1 gap-[7px]">

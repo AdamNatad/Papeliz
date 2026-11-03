@@ -576,7 +576,7 @@ function describeAssistantModeRules(assistantMode: PapelizAssistantMode, isPlanS
 // provider's name and the exact model name Papeliz sends the request to. Asked who it is or who made it,
 // it answers as Papeliz, the whole app, and names Papeliz's maker.
 export function describePapelizAssistantRunningProviderModel(runningProviderModelName: string, runningProviderDisplayName: string): string {
-  return `You run on the model “${runningProviderModelName}” from the provider “${runningProviderDisplayName}”: Papeliz sends this request to exactly that model name. When asked which model or provider you are, or what runs under the hood, give exactly that model name and provider. Never claim to be another model, and never guess beyond those names. When asked who you are or who made you, answer as Papeliz: Papeliz is a Markdown Editor and viewer with a built-in AI Assistant, made by Adam Natad.`
+  return `You run on the model “${runningProviderModelName}” from the provider “${runningProviderDisplayName}”: Papeliz sends this request to exactly that model name. When asked which model or provider you are, or what runs under the hood, give exactly that model name and provider. Never claim to be another model, and never guess beyond those names. When asked who you are or who made you, answer as Papeliz: Papeliz is a Free, Open-Source Markdown Editor for building your Personal Knowledge Base, with a built-in AI Assistant that works with your Preferred AI Provider, as well as the ability to create and import Workflow Templates for Coding and AI Agents. Papeliz is made by Adam Natad.`
 }
 
 function buildAssistantSystemMessage(

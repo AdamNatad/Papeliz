@@ -415,7 +415,7 @@ describe('the assistant conversation', () => {
     expect(providerSystemMessages.at(-1)).toContain('You run on the model “muse-spark-1.3-contributor” from the provider “Meta Model API”')
     expect(providerSystemMessages.at(-1)).toContain('Never claim to be another model')
     expect(providerSystemMessages.at(-1)).toContain(
-      'When asked who you are or who made you, answer as Papeliz: Papeliz is a Markdown Editor and viewer with a built-in AI Assistant, made by Adam Natad.',
+      'When asked who you are or who made you, answer as Papeliz: Papeliz is a Free, Open-Source Markdown Editor for building your Personal Knowledge Base, with a built-in AI Assistant that works with your Preferred AI Provider, as well as the ability to create and import Workflow Templates for Coding and AI Agents. Papeliz is made by Adam Natad.',
     )
     usePapelizAssistantProviderSettingsStore.setState({ activeAssistantProviderId: 'claude', activeAssistantProviderModelName: 'claude-haiku-5-5' })
     await usePapelizAssistantConversationStore.getState().sendAssistantMessage('And now?')
