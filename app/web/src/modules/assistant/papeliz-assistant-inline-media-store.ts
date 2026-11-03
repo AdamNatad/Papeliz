@@ -15,12 +15,10 @@ import { readPapelizInlineEditRange, setPapelizInlineEditRangeEffect } from './p
 import { usePapelizInlineEditStore } from './papeliz-assistant-inline-edit-store'
 import {
   buildPapelizAssistantMediaProviderConnection,
-  listPapelizOfferedAssistantMediaModels,
-  resolvePapelizAssistantMediaModelNow,
+  resolvePapelizAssistantImageEditingModelNow,
+  resolvePapelizAssistantMediaModelWhenLoaded,
   usePapelizAssistantMediaModelChoicesStore,
-  type PapelizAssistantMediaModelChoice,
 } from './papeliz-assistant-media-model-choices-store'
-import { findPapelizAssistantImageGenerationPreset } from './papeliz-assistant-media-provider-presets'
 import { buildPapelizVaultFileLinkPathFromNote } from './papeliz-assistant-media-vault-files'
 import {
   findPapelizNotePictureLinkAround,
@@ -31,16 +29,16 @@ import {
 import { describePapelizAssistantMediaProblem } from './papeliz-assistant-media-problem-words'
 import { insertPapelizBlockAfterCursorLine } from './papeliz-assistant-media-vault-files'
 import { takePapelizPendingInlineMediaAction, type PapelizInlineMediaAction } from './papeliz-assistant-inline-media-request'
-import { getActivePapelizAssistantProviderConnection, usePapelizAssistantProviderSettingsStore } from './papeliz-assistant-provider-settings-store'
-import { PapelizAssistantProviderError, streamPapelizChatCompletion } from './papeliz-openai-compatible-client'
+import { getActivePapelizAssistantProviderConnection } from './papeliz-assistant-provider-settings-store'
+import { PapelizAssistantProviderError, streamPapelizChatCompletion, type PapelizAssistantProviderConnection } from './papeliz-openai-compatible-client'
 
 // The assistant's media actions in a note, beside Rewrite in the inline card, each with the person's
 // own provider:
 // - Imagine: a picture of the selected text, or of a prompt, put after it or at the cursor;
 // - Transcribe: speech, written up by the chat's model, put at the cursor;
-// - Describe Picture: the chat's model looks at the picture and writes its alt text;
-// - Edit Picture: the provider changes the picture as asked (the Meta Model API's image edits), and
-//   the link points at the new one; the old file stays.
+// - Describe Picture: a model that sees pictures (Models for Each Task, or the chat's) writes its alt text;
+// - Edit Picture: Draw's model changes the picture as asked, where its provider edits pictures (the
+//   Meta Model API's image edits), and the link points at the new one; the old file stays.
 // Each ends as a change shown in place, accepted or rejected like any inline edit: Accept saves a new
 // picture into the vault (cleaned of C2PA while Remove C2PA is on) and makes the change in the note, as
 // one change Undo takes back. Reject saves nothing.
@@ -135,24 +133,16 @@ function widenInlinePassageToPictureLink(): PapelizNotePictureLink | null {
   return { ...notePictureLink, pictureLinkFrom: 0, pictureLinkTo: notePictureLink.pictureLinkMarkdown.length }
 }
 
-// The image model Edit Picture uses: the chosen one when its provider edits pictures, else the first
-// offered whose provider does.
-function resolveImageEditingModel(): PapelizAssistantMediaModelChoice | null {
-  const choicesState = usePapelizAssistantMediaModelChoicesStore.getState()
-  const editingImageModels = listPapelizOfferedAssistantMediaModels(
-    'image-generation',
-    usePapelizAssistantProviderSettingsStore.getState().providerSettingsByProviderId,
-    choicesState.typedImageGenerationModels,
-  ).filter((offeredImageModel) => findPapelizAssistantImageGenerationPreset(offeredImageModel.papelizAssistantProviderId)?.isImageEditingOffered === true)
-  const chosenImageModel = choicesState.chosenImageGenerationModel
-  return (
-    editingImageModels.find(
-      (editingImageModel) =>
-        editingImageModel.papelizAssistantProviderId === chosenImageModel?.papelizAssistantProviderId && editingImageModel.providerModelName === chosenImageModel.providerModelName,
-    ) ??
-    editingImageModels[0] ??
-    null
-  )
+// Describe Picture's model: the one chosen in Models for Each Task, or the chat's on Same as Chat.
+async function buildPictureDescriptionConnection(): Promise<
+  { providerConnectionOutcome: 'ready'; providerConnection: PapelizAssistantProviderConnection } | { providerConnectionOutcome: 'not-set-up'; providerSetupProblem: string }
+> {
+  const pictureDescriptionModel = await resolvePapelizAssistantMediaModelWhenLoaded('picture-description')
+  if (pictureDescriptionModel === null) return getActivePapelizAssistantProviderConnection()
+  const mediaConnection = buildPapelizAssistantMediaProviderConnection('picture-description', pictureDescriptionModel)
+  return mediaConnection.mediaConnectionOutcome === 'ready'
+    ? { providerConnectionOutcome: 'ready', providerConnection: mediaConnection.providerConnection }
+    : { providerConnectionOutcome: 'not-set-up', providerSetupProblem: mediaConnection.mediaSetupProblem }
 }
 
 export const usePapelizInlineMediaStore = create<PapelizInlineMediaState>()((setInlineMediaState, getInlineMediaState) => {
@@ -204,7 +194,7 @@ export const usePapelizInlineMediaStore = create<PapelizInlineMediaState>()((set
   }
 
   const transcribeInlineAudio = async (audioBlob: Blob, audioFileName: string) => {
-    const transcriptionModelChoice = resolvePapelizAssistantMediaModelNow('transcription')
+    const transcriptionModelChoice = await resolvePapelizAssistantMediaModelWhenLoaded('transcription')
     if (transcriptionModelChoice === null) {
       failInlineMedia(new PapelizAssistantProviderError('Add a provider that transcribes (the Meta Model API does) in Settings › AI Provider.', null))
       return
@@ -266,22 +256,23 @@ export const usePapelizInlineMediaStore = create<PapelizInlineMediaState>()((set
     describeInlinePicture: async () => {
       const { inlinePictureLink } = getInlineMediaState()
       if (inlinePictureLink === null) return
-      const chatProviderConnection = getActivePapelizAssistantProviderConnection()
-      if (chatProviderConnection.providerConnectionOutcome !== 'ready') {
-        failInlineMedia(new PapelizAssistantProviderError(chatProviderConnection.providerSetupProblem, null))
+      const pictureDescriptionConnection = await buildPictureDescriptionConnection()
+      if (getInlineMediaState().inlinePictureLink !== inlinePictureLink) return
+      if (pictureDescriptionConnection.providerConnectionOutcome !== 'ready') {
+        failInlineMedia(new PapelizAssistantProviderError(pictureDescriptionConnection.providerSetupProblem, null))
         return
       }
       const inlineMediaAbortController = startInlineMediaAbortController()
       setInlineMediaState({
         inlineMediaStage: 'working',
         inlineMediaProblem: null,
-        inlineMediaProgressText: `${chatProviderConnection.providerConnection.providerModelName} is looking at the picture…`,
+        inlineMediaProgressText: `${pictureDescriptionConnection.providerConnection.providerModelName} is looking at the picture…`,
       })
       try {
         const vaultNoteRelativePath = selectActiveVaultMarkdownNoteRelativePath(usePapelizWorkspaceStore.getState()) ?? ''
         const pictureUrl = await readPapelizNotePictureForProvider(inlinePictureLink, vaultNoteRelativePath)
         const describedResult = await streamPapelizChatCompletion({
-          providerConnection: chatProviderConnection.providerConnection,
+          providerConnection: pictureDescriptionConnection.providerConnection,
           chatMessages: [
             { role: 'system', content: papelizPictureAltTextInstructionText },
             {
@@ -317,9 +308,10 @@ export const usePapelizInlineMediaStore = create<PapelizInlineMediaState>()((set
     editInlinePicture: async () => {
       const { inlinePictureLink, inlineEditPicturePromptText } = getInlineMediaState()
       if (inlinePictureLink === null || inlineEditPicturePromptText.trim().length === 0) return
-      const imageEditingModel = resolveImageEditingModel()
+      await usePapelizAssistantMediaModelChoicesStore.getState().loadAssistantMediaModelChoices()
+      const imageEditingModel = resolvePapelizAssistantImageEditingModelNow()
       if (imageEditingModel === null) {
-        failInlineMedia(new PapelizAssistantProviderError('Add the Meta Model API in Settings › AI Provider: its muse-image-1.0 edits pictures.', null))
+        failInlineMedia(new PapelizAssistantProviderError('Edit Picture uses Draw’s model, and it doesn’t edit pictures. Choose muse-image-1.0, on the Meta Model API, for Draw.', null))
         return
       }
       const mediaConnection = buildPapelizAssistantMediaProviderConnection('image-generation', imageEditingModel)
@@ -368,7 +360,7 @@ export const usePapelizInlineMediaStore = create<PapelizInlineMediaState>()((set
     generateInlinePicture: async () => {
       const { inlineImaginePromptText } = getInlineMediaState()
       if (inlineImaginePromptText.trim().length === 0) return
-      const imageModelChoice = resolvePapelizAssistantMediaModelNow('image-generation')
+      const imageModelChoice = await resolvePapelizAssistantMediaModelWhenLoaded('image-generation')
       if (imageModelChoice === null) {
         failInlineMedia(new PapelizAssistantProviderError('Add a provider that makes pictures (the Meta Model API does) in Settings › AI Provider.', null))
         return

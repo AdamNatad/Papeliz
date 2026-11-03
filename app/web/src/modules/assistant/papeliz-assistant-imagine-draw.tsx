@@ -1,4 +1,4 @@
-import { ChevronDown, ImagePlus, ImageUp, Paintbrush, Settings, TextCursorInput } from 'lucide-react'
+import { ChevronDown, ImagePlus, ImageUp, Paintbrush, SlidersHorizontal, TextCursorInput } from 'lucide-react'
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import { isPapelizDesktopApp } from 'virtual:papeliz-desktop-platform-availability'
 import { PapelizPillButton } from '../ui/papeliz-buttons'
@@ -121,8 +121,9 @@ function PapelizImagineDrawBox({
   isPictureDraggedOverDraw: boolean
   onBringInPictureFiles: (pictureFiles: readonly File[]) => void
 }) {
-  const { offeredMediaModels, chosenMediaModel, mediaCapableSavedProviderIds } = usePapelizChosenAssistantMediaModel('image-generation')
+  const { offeredMediaModels, chosenMediaModel, isMediaModelChosenAutomatically, mediaCapableSavedProviderIds } = usePapelizChosenAssistantMediaModel('image-generation')
   const chooseAssistantMediaModel = usePapelizAssistantMediaModelChoicesStore((choicesState) => choicesState.chooseAssistantMediaModel)
+  const chooseAssistantMediaModelAutomatically = usePapelizAssistantMediaModelChoicesStore((choicesState) => choicesState.chooseAssistantMediaModelAutomatically)
   const imaginePromptText = usePapelizImagineStore((imagineState) => imagineState.imaginePromptText)
   const imagineImageAspectRatio = usePapelizImagineStore((imagineState) => imagineState.imagineImageAspectRatio)
   const imagineGeneratedPictureCount = usePapelizImagineStore((imagineState) => imagineState.imagineGeneratedPictureCount)
@@ -155,11 +156,21 @@ function PapelizImagineDrawBox({
     if (canSendPrompt) void sendImaginePrompt(chosenMediaModel)
   }
 
+  // Automatic first (the first model offered, the Meta Model API's when it is added), then each
+  // provider's models under its name, then Other Model and Models for Each Task. The chip and Draw's row
+  // in Models for Each Task are one setting.
   const pictureModelMenuItems: PapelizPopoverMenuItem[] = [
+    {
+      menuItemKey: 'automatic',
+      menuItemLabel: offeredMediaModels[0] === undefined ? 'Automatic' : `Automatic · ${offeredMediaModels[0].providerModelName}`,
+      isMenuItemChecked: isMediaModelChosenAutomatically,
+      onMenuItemSelect: () => void chooseAssistantMediaModelAutomatically('image-generation'),
+    },
     ...offeredMediaModels.map((offeredMediaModel, offeredMediaModelIndex) => ({
       menuItemKey: `${offeredMediaModel.papelizAssistantProviderId}/${offeredMediaModel.providerModelName}`,
       menuItemLabel: offeredMediaModel.providerModelName,
       isMenuItemChecked:
+        !isMediaModelChosenAutomatically &&
         chosenMediaModel !== null &&
         offeredMediaModel.papelizAssistantProviderId === chosenMediaModel.papelizAssistantProviderId &&
         offeredMediaModel.providerModelName === chosenMediaModel.providerModelName,
@@ -168,10 +179,12 @@ function PapelizImagineDrawBox({
         ? {}
         : { menuItemGroupHeading: offeredMediaModel.providerDisplayName }),
       onMenuItemSelect: () =>
-        chooseAssistantMediaModel('image-generation', { papelizAssistantProviderId: offeredMediaModel.papelizAssistantProviderId, providerModelName: offeredMediaModel.providerModelName }),
+        void chooseAssistantMediaModel('image-generation', { papelizAssistantProviderId: offeredMediaModel.papelizAssistantProviderId, providerModelName: offeredMediaModel.providerModelName }),
     })),
     { menuItemKey: 'other-model', menuItemLabel: 'Other Model', MenuItemIcon: TextCursorInput, menuItemGroupHeading: 'Settings', onMenuItemSelect: () => setIsOtherImageModelFormOpen(true) },
-    { menuItemKey: 'ai-provider-settings', menuItemLabel: 'AI Provider', MenuItemIcon: Settings, onMenuItemSelect: () => requestAssistantProviderSettingsPage() },
+    // Opens Settings › AI Provider, where Models for Each Task sits under the saved providers. It opens
+    // at the top of the page: scrolling to the section needs the panel's own request for it.
+    { menuItemKey: 'models-for-each-task', menuItemLabel: 'Models for Each Task', MenuItemIcon: SlidersHorizontal, onMenuItemSelect: () => requestAssistantProviderSettingsPage() },
   ]
   // Each shape as its ratio beside an outline drawn in it, then how many pictures, under a line.
   const aspectRatioAndCountMenuItems: PapelizPopoverMenuItem[] = [

@@ -307,11 +307,11 @@ test('the Imagine tab is a thread: an example fills the box, Enter sends, and th
   expect(refusedOutsideRequestUrls).toEqual([])
 })
 
-// OpenAI, added from Draw's picture model menu (Settings › AI Provider) as a second provider, its base
-// URL changed to the provider the test plays.
+// OpenAI, added from Draw's picture model menu (Models for Each Task opens Settings › AI Provider) as
+// a second provider, its base URL changed to the provider the test plays.
 async function addTestOpenAiProviderFromDraw(page: Page, assistantPanel: Locator): Promise<void> {
   await assistantPanel.getByRole('button', { name: /^Picture model: / }).click()
-  await page.getByRole('menu', { name: 'Picture Model' }).getByRole('menuitem', { name: 'AI Provider' }).click()
+  await page.getByRole('menu', { name: 'Picture Model' }).getByRole('menuitem', { name: 'Models for Each Task' }).click()
   const settingsPanel = page.getByRole('dialog', { name: 'Settings' })
   await settingsPanel.getByRole('button', { name: 'Add Provider', exact: true }).click()
   const addProviderDialog = page.getByRole('dialog', { name: 'Add Provider' })
@@ -789,6 +789,9 @@ test('Describe Picture writes a picture’s alt text with Meta’s vision, and E
   )
   expect(describeRequest?.providerRequestBodyText).toContain('"type":"image_url"')
   expect(describeRequest?.providerRequestBodyText).toContain('data:image/')
+  // On Same as Chat the chat's model looks, and the footer names it.
+  expect(JSON.parse(describeRequest?.providerRequestBodyText ?? '{}')).toMatchObject({ model: metaChatModelName })
+  await expect(inlineCard.getByText(`${metaChatModelName}, straight to Meta Model API`)).toBeVisible()
   await inlineCard.getByRole('button', { name: /^Accept/ }).click()
   await expect(inlineCard).toBeHidden()
   await expect(noteEditorContent).toContainText(`![${testPictureAltText}](Attachments/imagine-`)
@@ -809,5 +812,32 @@ test('Describe Picture writes a picture’s alt text with Meta’s vision, and E
   const editedLinkText = (await page.locator('.cm-line', { hasText: `![${testPictureAltText}](` }).first().textContent()) ?? ''
   expect(editedLinkText).toMatch(/^!\[A blue square on white paper\]\(Attachments\/imagine-.+\)$/)
   expect(editedLinkText).not.toBe(describedLinkText)
+
+  // Draw's chip starts on Automatic, and its menu ends with Models for Each Task.
+  const assistantPanel = page.getByRole('complementary', { name: 'AI Assistant' })
+  await assistantPanel.getByRole('tab', { name: 'Imagine', exact: true }).click()
+  await assistantPanel.getByRole('button', { name: /^Picture model: / }).click()
+  const pictureModelMenu = page.getByRole('menu', { name: 'Picture Model' })
+  await expect(pictureModelMenu.getByRole('menuitemradio')).toHaveText(['Automatic · muse-image-1.0', 'muse-image-1.0'])
+  await expect(pictureModelMenu.getByRole('menuitemradio', { name: 'Automatic · muse-image-1.0' })).toHaveAttribute('aria-checked', 'true')
+  await expect(pictureModelMenu.getByRole('menuitem', { name: 'Models for Each Task' })).toBeVisible()
+  await expect(pictureModelMenu.getByRole('menuitem', { name: 'AI Provider' })).toHaveCount(0)
+  await page.keyboard.press('Escape')
+
+  // Edit Picture follows Draw: on OpenAI's gpt-image-2, which can't edit pictures, it isn't offered.
+  await addTestOpenAiProviderFromDraw(page, assistantPanel)
+  await assistantPanel.getByRole('button', { name: /^Picture model: / }).click()
+  await pictureModelMenu.getByRole('menuitemradio', { name: 'gpt-image-2' }).click()
+  inlineCard = await openInlineCardOnLine(page, `![${testPictureAltText}](`)
+  await expect(inlineCard.getByRole('button', { name: 'Describe Picture' })).toBeVisible()
+  await expect(inlineCard.getByRole('button', { name: 'Edit Picture' })).toHaveCount(0)
+  await page.keyboard.press('Escape')
+  await expect(inlineCard).toBeHidden()
+  // Back to Automatic: the Meta Model API's muse-image-1.0, which edits pictures.
+  await assistantPanel.getByRole('button', { name: /^Picture model: / }).click()
+  await pictureModelMenu.getByRole('menuitemradio', { name: /^Automatic/ }).click()
+  await expect(assistantPanel.getByRole('button', { name: 'Picture model: muse-image-1.0' })).toBeVisible()
+  inlineCard = await openInlineCardOnLine(page, `![${testPictureAltText}](`)
+  await expect(inlineCard.getByRole('button', { name: 'Edit Picture' })).toBeVisible()
   expect(refusedOutsideRequestUrls).toEqual([])
 })

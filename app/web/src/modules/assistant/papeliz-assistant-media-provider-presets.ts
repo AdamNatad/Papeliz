@@ -1,11 +1,12 @@
 import type { PapelizTranscriptionApiShape } from './papeliz-assistant-image-and-audio-client'
 
-// Which providers make pictures (Imagine) and turn speech into text (Transcribe), through which API and
-// with which models, beside the chat presets (papeliz-assistant-provider-presets.ts). Read from each
-// vendor's API docs on 2026-11-03. "Browser access confirmed" means the endpoint was asked without a
-// key, as Chrome asks, whether `https://papeliz.com` may send Authorization and Content-Type to it,
-// and said yes, the same day. A provider missing here offers neither: Claude, DeepSeek and Groq make
-// no pictures; Claude and DeepSeek hear no audio; Fireworks retired both on 2026-06-10.
+// Which providers make pictures (Imagine), turn speech into text (Transcribe) and see pictures
+// (Describe Picture, at the end), through which API and with which models, beside the chat presets
+// (papeliz-assistant-provider-presets.ts). Read from each vendor's API docs on 2026-11-03. "Browser
+// access confirmed" means the endpoint was asked without a key, as Chrome asks, whether
+// `https://papeliz.com` may send Authorization and Content-Type to it, and said yes, the same day. A
+// provider missing from the pictures or speech lists offers neither: Claude, DeepSeek and Groq make no
+// pictures; Claude and DeepSeek hear no audio; Fireworks retired both on 2026-06-10.
 //
 // The Meta Model API comes first and offers both: `muse-image-1.0` on the OpenAI-shaped
 // `/images/generations` (WebP by default), and `muse-voice-transcribe-1.0` on its own
@@ -233,5 +234,34 @@ export function findPapelizAssistantImageGenerationPreset(papelizAssistantProvid
 export function findPapelizAssistantTranscriptionPreset(papelizAssistantProviderId: string): PapelizAssistantTranscriptionPreset | null {
   return Object.hasOwn(papelizAssistantTranscriptionPresetsByProviderId, papelizAssistantProviderId)
     ? (papelizAssistantTranscriptionPresetsByProviderId[papelizAssistantProviderId] ?? null)
+    : null
+}
+
+export interface PapelizAssistantPictureDescriptionPreset {
+  // Chat models the provider's docs list as taking a picture (`image_url`, a `data:` URL included) on
+  // its OpenAI-compatible chat endpoint, the most recommended first.
+  suggestedVisionModelNames: readonly string[]
+}
+
+// The models Describe Picture offers: only chat models known to see pictures, read from each
+// provider's docs on 2026-11-03. Any other added provider can still describe pictures with a vision
+// model the person types (Other Model), as Ollama Local and LM Studio do with the model they run.
+// Left out until their docs say more: Fireworks' vision model (its guide may be out of date), Groq's
+// limited preview, and Ollama Cloud and OpenCode, whose docs name no vision model.
+export const papelizAssistantPictureDescriptionPresetsByProviderId: Readonly<Record<string, PapelizAssistantPictureDescriptionPreset>> = {
+  'meta-model-api': { suggestedVisionModelNames: ['muse-spark-1.3', 'muse-spark-1.2', 'muse-spark-1.1', 'muse-wonder-1.0'] },
+  claude: { suggestedVisionModelNames: ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5'] },
+  openai: { suggestedVisionModelNames: ['gpt-6-astra', 'gpt-6.1-sol', 'gpt-6.1-terra', 'gpt-6-luna'] },
+  'google-gemini': { suggestedVisionModelNames: ['gemini-3.8-flash', 'gemini-3.5-flash-lite', 'gemini-4-argon'] },
+  openrouter: { suggestedVisionModelNames: ['openai/gpt-6-astra', 'google/gemini-3.8-flash', 'anthropic/claude-sonnet-5.5', 'meta/muse-spark-1.3'] },
+  groq: { suggestedVisionModelNames: ['qwen/qwen3.8-27b'] },
+  together: { suggestedVisionModelNames: ['moonshotai/Kimi-K3', 'nvidia/NVIDIA-Nemotron-3.5-Super-VL', 'Qwen/Qwen3.5-9B'] },
+  // deepseek-v4-pro sees no pictures.
+  deepseek: { suggestedVisionModelNames: ['deepseek-flash'] },
+}
+
+export function findPapelizAssistantPictureDescriptionPreset(papelizAssistantProviderId: string): PapelizAssistantPictureDescriptionPreset | null {
+  return Object.hasOwn(papelizAssistantPictureDescriptionPresetsByProviderId, papelizAssistantProviderId)
+    ? (papelizAssistantPictureDescriptionPresetsByProviderId[papelizAssistantProviderId] ?? null)
     : null
 }

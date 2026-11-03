@@ -6,10 +6,10 @@ import { describePapelizRemovedImageMetadata } from './papeliz-assistant-image-m
 import { usePapelizImagineStore } from './papeliz-assistant-imagine-store'
 import { usePapelizInlineEditStore } from './papeliz-assistant-inline-edit-store'
 import { usePapelizInlineMediaStore } from './papeliz-assistant-inline-media-store'
-import { resolvePapelizAssistantMediaModelNow } from './papeliz-assistant-media-model-choices-store'
-import { PapelizAssistantMediaSwitch } from './papeliz-assistant-media-parts'
-import { findPapelizAssistantProviderPreset } from './papeliz-assistant-provider-presets'
+import { PapelizAssistantMediaSwitch, usePapelizAssistantMediaModelInUse } from './papeliz-assistant-media-parts'
+import { findPapelizAssistantImageGenerationPreset } from './papeliz-assistant-media-provider-presets'
 import { usePapelizAssistantPanelUiStore } from './papeliz-assistant-panel-ui-store'
+import { selectActivePapelizAssistantProviderModelName, usePapelizAssistantProviderSettingsStore } from './papeliz-assistant-provider-settings-store'
 import { PapelizTextDiffView } from './papeliz-assistant-proposal-card'
 import { diffPapelizTextByWords } from './papeliz-assistant-text-diff'
 
@@ -53,11 +53,19 @@ export function PapelizAssistantInlineMediaCardBody() {
   const imaginePromptInputRef = useRef<HTMLInputElement>(null)
   const audioFileInputRef = useRef<HTMLInputElement>(null)
 
+  // The model the action uses: Transcribe's, Describe Picture's (the chat's on Same as Chat), or
+  // Draw's for Imagine and for Edit Picture, which needs a provider that edits pictures.
+  const inlineMediaModelInUse = usePapelizAssistantMediaModelInUse(
+    inlineMediaAction === 'transcribe' ? 'transcription' : inlineMediaAction === 'describe-picture' ? 'picture-description' : 'image-generation',
+  )
   const inlineMediaModel =
-    inlineMediaAction === 'describe-picture'
+    inlineMediaAction === 'edit-picture' &&
+    inlineMediaModelInUse !== null &&
+    findPapelizAssistantImageGenerationPreset(inlineMediaModelInUse.papelizAssistantProviderId)?.isImageEditingOffered !== true
       ? null
-      : resolvePapelizAssistantMediaModelNow(inlineMediaAction === 'transcribe' ? 'transcription' : 'image-generation')
-  const inlineMediaProviderName = inlineMediaModel === null ? null : findPapelizAssistantProviderPreset(inlineMediaModel.papelizAssistantProviderId).providerPresetDisplayName
+      : inlineMediaModelInUse
+  // Written Up is the chat's model's work.
+  const chatProviderModelName = usePapelizAssistantProviderSettingsStore(selectActivePapelizAssistantProviderModelName)
   const inlinePictureLink = usePapelizInlineMediaStore((inlineMediaState) => inlineMediaState.inlinePictureLink)
   const inlineSourcePictureUrl = usePapelizInlineMediaStore((inlineMediaState) => inlineMediaState.inlineSourcePictureUrl)
   const inlineEditPicturePromptText = usePapelizInlineMediaStore((inlineMediaState) => inlineMediaState.inlineEditPicturePromptText)
@@ -94,7 +102,7 @@ export function PapelizAssistantInlineMediaCardBody() {
           <span className="grid size-[22px] flex-none place-items-center rounded-full bg-linear-to-r from-papeliz-gradient-start to-papeliz-gradient-end text-white">
             <ScanEye className="size-3" aria-hidden="true" />
           </span>
-          <span className="min-w-0 flex-1 text-[15px] text-papeliz-ink-subtle">The chat’s model looks at the picture and writes its alt text.</span>
+          <span className="min-w-0 flex-1 text-[15px] text-papeliz-ink-subtle">The model looks at the picture and writes its alt text.</span>
         </div>
       ) : inlineMediaAction === 'edit-picture' ? (
         <form
@@ -238,7 +246,12 @@ export function PapelizAssistantInlineMediaCardBody() {
           )}
           {inlineMediaStage === 'review' && !isImagine && inlineWrittenUpText.length > 0 && inlineTranscriptText.length > 0 && (
             <div className="flex">
-              <PapelizAssistantMediaSwitch mediaSwitchLabel="Written Up" isMediaSwitchOn={isInlineTranscriptWrittenUp} onMediaSwitchToggle={setIsInlineTranscriptWrittenUp} />
+              <PapelizAssistantMediaSwitch
+                mediaSwitchLabel="Written Up"
+                mediaSwitchTitle={`Tidied by ${chatProviderModelName.length > 0 ? `${chatProviderModelName}, the chat’s model` : 'the chat’s model'}. Off: the words as spoken.`}
+                isMediaSwitchOn={isInlineTranscriptWrittenUp}
+                onMediaSwitchToggle={setIsInlineTranscriptWrittenUp}
+              />
             </div>
           )}
           {inlineMediaStage === 'review' && <PapelizTextDiffView textDiffParts={insertedTextDiffParts} />}
@@ -272,11 +285,7 @@ export function PapelizAssistantInlineMediaCardBody() {
         <span className="ml-auto flex min-w-0 items-center gap-1.5 text-xs text-papeliz-ink-subtle">
           <Lock className="size-3 flex-none" aria-hidden="true" />
           <span className="truncate">
-            {inlineMediaAction === 'describe-picture'
-              ? 'The picture goes only to the chat’s provider'
-              : inlineMediaModel === null || inlineMediaProviderName === null
-                ? 'Sent only to your own provider'
-                : `${inlineMediaModel.providerModelName}, straight to ${inlineMediaProviderName}`}
+            {inlineMediaModel === null ? 'Sent only to your own provider' : `${inlineMediaModel.providerModelName}, straight to ${inlineMediaModel.providerDisplayName}`}
           </span>
         </span>
       </div>

@@ -9,6 +9,7 @@ import { readPapelizInlineEditRange } from './papeliz-assistant-inline-edit-exte
 import { usePapelizInlineEditStore } from './papeliz-assistant-inline-edit-store'
 import { PapelizAssistantInlineMediaCardBody } from './papeliz-assistant-inline-media-card-body'
 import { usePapelizInlineMediaStore } from './papeliz-assistant-inline-media-store'
+import { resolvePapelizAssistantImageEditingModelNow } from './papeliz-assistant-media-model-choices-store'
 import { findPapelizNotePictureLinkAround } from './papeliz-assistant-note-picture-links'
 import {
   PapelizOnePressMicAudioFileInput,
@@ -209,10 +210,13 @@ export function PapelizAssistantInlineEditCard({ inlineEditHostElement, vaultNot
                   <ScanEye className="size-3.5" aria-hidden="true" />
                   Describe Picture
                 </button>
-                <button type="button" className="papeliz-assistant-suggestion-chip" disabled={inlineEditStage === 'running'} onClick={() => startInlineMediaAction('edit-picture')}>
-                  <Paintbrush className="size-3.5" aria-hidden="true" />
-                  Edit Picture
-                </button>
+                {/* Edit Picture follows Draw's model, so it shows only while that model's provider edits pictures. */}
+                {resolvePapelizAssistantImageEditingModelNow() !== null && (
+                  <button type="button" className="papeliz-assistant-suggestion-chip" disabled={inlineEditStage === 'running'} onClick={() => startInlineMediaAction('edit-picture')}>
+                    <Paintbrush className="size-3.5" aria-hidden="true" />
+                    Edit Picture
+                  </button>
+                )}
               </>
             )}
             <button type="button" className="papeliz-assistant-suggestion-chip" onClick={askAboutPassageInPanel}>

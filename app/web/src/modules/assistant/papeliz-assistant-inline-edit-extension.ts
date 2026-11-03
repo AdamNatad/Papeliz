@@ -2,6 +2,7 @@ import { Facet, Prec, StateEffect, StateField, type EditorState, type Extension 
 import { Decoration, EditorView, keymap, WidgetType } from '@codemirror/view'
 import { ImagePlus, Mic, Paintbrush, ScanEye, type LucideIcon } from 'lucide-react'
 import { requestPapelizInlineMediaActionForNextCard } from './papeliz-assistant-inline-media-request'
+import { resolvePapelizAssistantImageEditingModelNow } from './papeliz-assistant-media-model-choices-store'
 import { findPapelizNotePictureLinkAround } from './papeliz-assistant-note-picture-links'
 import { isPapelizKeyBindingPressed } from '../workspace/papeliz-key-bindings-store'
 import { usePapelizAssistantPanelUiStore } from './papeliz-assistant-panel-ui-store'
@@ -108,7 +109,7 @@ export interface PapelizInlineAssistantHereMenuEntry {
 }
 
 // The entries for the editor as it is: none in a note that can't be changed; Describe Picture and
-// Edit Picture only on a picture.
+// Edit Picture only on a picture, and Edit Picture only while Draw's model can edit it.
 export function listPapelizInlineAssistantHereMenuEntries(editorState: EditorState): PapelizInlineAssistantHereMenuEntry[] {
   if (editorState.readOnly) return []
   const mainSelection = editorState.selection.main
@@ -118,10 +119,12 @@ export function listPapelizInlineAssistantHereMenuEntries(editorState: EditorSta
     { assistantHereAction: 'transcribe-here', hereMenuEntryLabel: 'Transcribe Here', HereMenuEntryIcon: Mic },
     { assistantHereAction: 'imagine-here', hereMenuEntryLabel: hasSelectedText ? 'Imagine from Selection' : 'Imagine Here', HereMenuEntryIcon: ImagePlus },
     ...(isOnPicture
-      ? [
+      ? ([
           { assistantHereAction: 'describe-picture', hereMenuEntryLabel: 'Describe Picture', HereMenuEntryIcon: ScanEye },
-          { assistantHereAction: 'edit-picture', hereMenuEntryLabel: 'Edit Picture', HereMenuEntryIcon: Paintbrush },
-        ] satisfies PapelizInlineAssistantHereMenuEntry[]
+          ...(resolvePapelizAssistantImageEditingModelNow() === null
+            ? []
+            : [{ assistantHereAction: 'edit-picture', hereMenuEntryLabel: 'Edit Picture', HereMenuEntryIcon: Paintbrush } satisfies PapelizInlineAssistantHereMenuEntry]),
+        ] satisfies PapelizInlineAssistantHereMenuEntry[])
       : []),
   ]
 }
