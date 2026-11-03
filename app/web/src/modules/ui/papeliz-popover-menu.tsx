@@ -9,6 +9,8 @@ export interface PapelizPopoverMenuItem {
   menuItemLabel: string
   MenuItemIcon?: LucideIcon
   isDangerousMenuItem?: boolean
+  // Shown greyed out; the arrow keys pass over it and a click does nothing.
+  isMenuItemDisabled?: boolean
   // Set for a choice among several (a radio item); true marks the current one.
   isMenuItemChecked?: boolean
   // Starts a new group under this heading, with a line above it unless it opens the menu.
@@ -58,6 +60,71 @@ function findPapelizPopoverMenuReturnFocusElement(): HTMLElement | null {
   return rightClickedFocusableElement instanceof HTMLElement ? rightClickedFocusableElement : null
 }
 
+// The items focus moves between, in order: every item but a turned-off one.
+export function listPapelizPopoverMenuFocusableItemIndexes(menuItems: readonly PapelizPopoverMenuItem[]): number[] {
+  return menuItems.flatMap((menuItem, menuItemIndex) => (menuItem.isMenuItemDisabled === true ? [] : [menuItemIndex]))
+}
+
+const papelizPopoverMenuFocusKeys = ['ArrowDown', 'ArrowUp', 'Home', 'End']
+
+// The item ArrowDown, ArrowUp, Home or End moves focus to from the focused one (-1 when focus is on
+// none of them), or null for any other key. The arrows wrap around.
+export function findPapelizPopoverMenuItemIndexAfterKey(
+  menuItems: readonly PapelizPopoverMenuItem[],
+  focusedMenuItemIndex: number,
+  pressedKey: string,
+): number | null {
+  if (!papelizPopoverMenuFocusKeys.includes(pressedKey)) return null
+  const focusableMenuItemIndexes = listPapelizPopoverMenuFocusableItemIndexes(menuItems)
+  const focusableMenuItemCount = focusableMenuItemIndexes.length
+  const focusedFocusablePosition = focusableMenuItemIndexes.indexOf(focusedMenuItemIndex)
+  const nextFocusablePosition =
+    pressedKey === 'ArrowDown'
+      ? (focusedFocusablePosition + 1) % focusableMenuItemCount
+      : pressedKey === 'ArrowUp'
+        ? (focusedFocusablePosition - 1 + focusableMenuItemCount) % focusableMenuItemCount
+        : pressedKey === 'Home'
+          ? 0
+          : focusableMenuItemCount - 1
+  return focusableMenuItemIndexes[nextFocusablePosition] ?? null
+}
+
+// A press on an item: a turned-off one does nothing; any other closes the menu, then runs the item.
+export function pressPapelizPopoverMenuItem(menuItem: PapelizPopoverMenuItem, closePopoverMenu: () => void) {
+  if (menuItem.isMenuItemDisabled === true) return
+  closePopoverMenu()
+  menuItem.onMenuItemSelect()
+}
+
+interface PapelizPopoverMenuItemButtonProps {
+  menuItem: PapelizPopoverMenuItem
+  setMenuItemButtonElement: (menuItemButton: HTMLButtonElement | null) => void
+  onMenuItemButtonClick: () => void
+}
+
+export function PapelizPopoverMenuItemButton({ menuItem, setMenuItemButtonElement, onMenuItemButtonClick }: PapelizPopoverMenuItemButtonProps) {
+  return (
+    <button
+      ref={setMenuItemButtonElement}
+      type="button"
+      role={menuItem.isMenuItemChecked === undefined ? 'menuitem' : 'menuitemradio'}
+      aria-checked={menuItem.isMenuItemChecked}
+      aria-disabled={menuItem.isMenuItemDisabled === true ? true : undefined}
+      tabIndex={-1}
+      onClick={onMenuItemButtonClick}
+      className={joinPapelizClassNames(
+        'flex h-9 w-full items-center gap-2.5 rounded-full px-3 text-left text-sm font-medium text-papeliz-ink hover:bg-papeliz-hover focus-visible:bg-papeliz-hover focus-visible:outline-none',
+        menuItem.isDangerousMenuItem && 'text-papeliz-diff-removed-ink',
+        menuItem.isMenuItemDisabled === true && 'cursor-default text-papeliz-ink-subtle opacity-60 hover:bg-transparent',
+      )}
+    >
+      {menuItem.MenuItemIcon !== undefined && <menuItem.MenuItemIcon className="size-4 flex-none opacity-80" aria-hidden="true" />}
+      {menuItem.menuItemLabel}
+      {menuItem.isMenuItemChecked === true && <Check className="ml-auto size-4 flex-none text-papeliz-blue" aria-hidden="true" />}
+    </button>
+  )
+}
+
 // A small menu that opens at a point (a button's corner or the mouse), with arrow keys, Home, End,
 // Enter and Esc. Focus returns to whatever had it when the menu opened, or to the item right-clicked.
 export function PapelizPopoverMenu({ menuLabel, menuPosition, menuItems, onMenuClose }: PapelizPopoverMenuProps) {
@@ -68,9 +135,11 @@ export function PapelizPopoverMenu({ menuLabel, menuPosition, menuItems, onMenuC
   // run each twice) would find the menu's own first item instead.
   const [focusedBeforeMenu] = useState(findPapelizPopoverMenuReturnFocusElement)
   const onMenuCloseRef = useRef(onMenuClose)
+  const menuItemsRef = useRef(menuItems)
 
   useEffect(() => {
     onMenuCloseRef.current = onMenuClose
+    menuItemsRef.current = menuItems
   })
 
   useLayoutEffect(() => {
@@ -90,7 +159,8 @@ export function PapelizPopoverMenu({ menuLabel, menuPosition, menuItems, onMenuC
   }, [menuPosition])
 
   useEffect(() => {
-    menuItemButtonRefs.current[0]?.focus()
+    const firstFocusableMenuItemIndex = listPapelizPopoverMenuFocusableItemIndexes(menuItemsRef.current)[0]
+    if (firstFocusableMenuItemIndex !== undefined) menuItemButtonRefs.current[firstFocusableMenuItemIndex]?.focus()
     const closeOnOutsidePointer = (pointerEvent: PointerEvent) => {
       if (!popoverMenuRef.current?.contains(pointerEvent.target as Node)) onMenuCloseRef.current()
     }
@@ -110,16 +180,11 @@ export function PapelizPopoverMenu({ menuLabel, menuPosition, menuItems, onMenuC
   }, [focusedBeforeMenu])
 
   const moveMenuFocus = (keyboardEvent: KeyboardEvent<HTMLDivElement>) => {
-    const menuItemButtons = menuItemButtonRefs.current.filter((menuItemButton): menuItemButton is HTMLButtonElement => menuItemButton !== null)
-    const focusedMenuItemIndex = menuItemButtons.findIndex((menuItemButton) => menuItemButton === document.activeElement)
-    let nextMenuItemIndex: number | null = null
-    if (keyboardEvent.key === 'ArrowDown') nextMenuItemIndex = (focusedMenuItemIndex + 1) % menuItemButtons.length
-    if (keyboardEvent.key === 'ArrowUp') nextMenuItemIndex = (focusedMenuItemIndex - 1 + menuItemButtons.length) % menuItemButtons.length
-    if (keyboardEvent.key === 'Home') nextMenuItemIndex = 0
-    if (keyboardEvent.key === 'End') nextMenuItemIndex = menuItemButtons.length - 1
-    if (nextMenuItemIndex !== null) {
+    if (papelizPopoverMenuFocusKeys.includes(keyboardEvent.key)) {
       keyboardEvent.preventDefault()
-      menuItemButtons[nextMenuItemIndex]?.focus()
+      const focusedMenuItemIndex = menuItemButtonRefs.current.findIndex((menuItemButton) => menuItemButton !== null && menuItemButton === document.activeElement)
+      const nextMenuItemIndex = findPapelizPopoverMenuItemIndexAfterKey(menuItems, focusedMenuItemIndex, keyboardEvent.key)
+      if (nextMenuItemIndex !== null) menuItemButtonRefs.current[nextMenuItemIndex]?.focus()
       return
     }
     if (keyboardEvent.key === 'Escape' || keyboardEvent.key === 'Tab') {
@@ -135,6 +200,8 @@ export function PapelizPopoverMenu({ menuLabel, menuPosition, menuItems, onMenuC
       role="menu"
       aria-label={menuLabel}
       onKeyDown={moveMenuFocus}
+      // The browser's own menu never opens over this one.
+      onContextMenu={(contextMenuEvent) => contextMenuEvent.preventDefault()}
       className="papeliz-pop-enter fixed z-50 max-h-[calc(100dvh-16px)] min-w-48 overflow-y-auto rounded-2xl border border-papeliz-line bg-papeliz-surface p-1 shadow-papeliz-pop"
       style={{ left: clampedMenuPosition.menuAnchorLeft, top: clampedMenuPosition.menuAnchorTop }}
     >
@@ -145,29 +212,19 @@ export function PapelizPopoverMenu({ menuLabel, menuPosition, menuItems, onMenuC
             {menuItem.menuItemGroupHeading}
           </div>
         )}
-        <button
-          ref={(menuItemButton) => {
+        <PapelizPopoverMenuItemButton
+          menuItem={menuItem}
+          setMenuItemButtonElement={(menuItemButton) => {
             menuItemButtonRefs.current[menuItemIndex] = menuItemButton
           }}
-          type="button"
-          role={menuItem.isMenuItemChecked === undefined ? 'menuitem' : 'menuitemradio'}
-          aria-checked={menuItem.isMenuItemChecked}
-          tabIndex={-1}
-          onClick={() => {
-            // Focus goes back first, so a dialog the item opens returns it there when it closes.
-            if (focusedBeforeMenu?.isConnected) focusedBeforeMenu.focus({ preventScroll: true })
-            onMenuClose()
-            menuItem.onMenuItemSelect()
-          }}
-          className={joinPapelizClassNames(
-            'flex h-9 w-full items-center gap-2.5 rounded-full px-3 text-left text-sm font-medium text-papeliz-ink hover:bg-papeliz-hover focus-visible:bg-papeliz-hover focus-visible:outline-none',
-            menuItem.isDangerousMenuItem && 'text-papeliz-diff-removed-ink',
-          )}
-        >
-          {menuItem.MenuItemIcon !== undefined && <menuItem.MenuItemIcon className="size-4 flex-none opacity-80" aria-hidden="true" />}
-          {menuItem.menuItemLabel}
-          {menuItem.isMenuItemChecked === true && <Check className="ml-auto size-4 flex-none text-papeliz-blue" aria-hidden="true" />}
-        </button>
+          onMenuItemButtonClick={() =>
+            pressPapelizPopoverMenuItem(menuItem, () => {
+              // Focus goes back first, so a dialog the item opens returns it there when it closes.
+              if (focusedBeforeMenu?.isConnected) focusedBeforeMenu.focus({ preventScroll: true })
+              onMenuClose()
+            })
+          }
+        />
         </Fragment>
       ))}
     </div>,

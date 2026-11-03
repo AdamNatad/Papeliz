@@ -253,6 +253,10 @@ interface PapelizWorkspaceState {
   openVaultNote: (vaultNoteRelativePath: string) => Promise<void>
   openOrCreateVaultNoteForWikilinkTarget: (wikilinkTargetVaultNoteRelativePath: string | null, wikilinkTargetNoteName: string) => Promise<void>
   closeVaultNoteTab: (vaultNoteRelativePath: string) => Promise<void>
+  // A tab's menu: every other tab, or every tab, closes as its × would (saved first; one that can't
+  // be saved stays open). Close Others brings the kept tab to the front.
+  closeOtherVaultNoteTabs: (keptVaultNoteRelativePath: string) => Promise<void>
+  closeAllVaultNoteTabs: () => Promise<void>
   // Puts an open note's tab at `targetNoteTabIndex` among the open tabs (a drag in the tab strip).
   moveVaultNoteTab: (vaultNoteRelativePath: string, targetNoteTabIndex: number) => void
   updateVaultNoteDraftText: (loadedNoteSessionId: number, draftVaultNoteText: string) => void
@@ -1348,6 +1352,21 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
         return
       }
       closeTabsInside(currentVaultNoteRelativePath)
+    },
+
+    closeOtherVaultNoteTabs: async (keptVaultNoteRelativePath) => {
+      if (!getWorkspaceState().openNoteTabRelativePaths.includes(keptVaultNoteRelativePath)) return
+      await getWorkspaceState().openVaultNote(keptVaultNoteRelativePath)
+      const otherVaultNoteTabRelativePaths = getWorkspaceState().openNoteTabRelativePaths.filter(
+        (openNoteTabRelativePath) => openNoteTabRelativePath !== keptVaultNoteRelativePath,
+      )
+      await Promise.all(otherVaultNoteTabRelativePaths.map((otherVaultNoteTabRelativePath) => getWorkspaceState().closeVaultNoteTab(otherVaultNoteTabRelativePath)))
+    },
+
+    closeAllVaultNoteTabs: async () => {
+      if (getWorkspaceState().assistantProposalPreview !== null) setWorkspaceState({ assistantProposalPreview: null })
+      const openVaultNoteTabRelativePaths = getWorkspaceState().openNoteTabRelativePaths
+      await Promise.all(openVaultNoteTabRelativePaths.map((openVaultNoteTabRelativePath) => getWorkspaceState().closeVaultNoteTab(openVaultNoteTabRelativePath)))
     },
 
     updateVaultNoteDraftText: (loadedNoteSessionId, draftVaultNoteText) => {

@@ -132,6 +132,88 @@ describe('autosave', () => {
   })
 })
 
+describe('closing tabs from a tab’s menu', () => {
+  // Every save of Stuck.md fails, as on a full disk.
+  class StuckNoteVaultAdapter extends PapelizInMemoryVaultAdapter {
+    override async writeVaultNoteText(vaultNoteRelativePath: string, vaultNoteText: string) {
+      if (vaultNoteRelativePath === 'Stuck.md') throw new DOMException('The disk is full.', 'QuotaExceededError')
+      await super.writeVaultNoteText(vaultNoteRelativePath, vaultNoteText)
+    }
+  }
+
+  it('Close Others keeps the picked tab, brings it to the front, and saves the others first', async () => {
+    const vaultAdapter = await openTestVault([
+      { vaultNoteRelativePath: 'Inbox.md', vaultNoteText: '' },
+      { vaultNoteRelativePath: 'Reading.md', vaultNoteText: '' },
+      { vaultNoteRelativePath: 'Ideas.md', vaultNoteText: '' },
+    ])
+    for (const vaultNoteRelativePath of ['Inbox.md', 'Reading.md', 'Ideas.md']) await usePapelizWorkspaceStore.getState().openVaultNote(vaultNoteRelativePath)
+    typeIntoVaultNote('Inbox.md', 'inbox words')
+    await usePapelizWorkspaceStore.getState().closeOtherVaultNoteTabs('Reading.md')
+    const workspaceState = usePapelizWorkspaceStore.getState()
+    expect(workspaceState.openNoteTabRelativePaths).toEqual(['Reading.md'])
+    expect(workspaceState.activeVaultNoteRelativePath).toBe('Reading.md')
+    expect(Object.keys(workspaceState.loadedVaultNotesByRelativePath)).toEqual(['Reading.md'])
+    expect(await vaultAdapter.readVaultNoteText('Inbox.md')).toBe('inbox words')
+  })
+
+  it('Close Others leaves a note that could not be saved open beside the picked tab', async () => {
+    await openTestVault(
+      [],
+      new StuckNoteVaultAdapter([
+        { vaultNoteRelativePath: 'Inbox.md', vaultNoteText: '' },
+        { vaultNoteRelativePath: 'Stuck.md', vaultNoteText: '' },
+      ]),
+    )
+    await usePapelizWorkspaceStore.getState().openVaultNote('Stuck.md')
+    await usePapelizWorkspaceStore.getState().openVaultNote('Inbox.md')
+    typeIntoVaultNote('Stuck.md', 'precious words')
+    await usePapelizWorkspaceStore.getState().closeOtherVaultNoteTabs('Inbox.md')
+    const workspaceState = usePapelizWorkspaceStore.getState()
+    expect(workspaceState.openNoteTabRelativePaths).toEqual(['Stuck.md', 'Inbox.md'])
+    expect(workspaceState.activeVaultNoteRelativePath).toBe('Inbox.md')
+    expect(workspaceState.loadedVaultNotesByRelativePath['Stuck.md']?.draftVaultNoteText).toBe('precious words')
+    expect(workspaceState.workspaceNotice?.workspaceNoticeKind).toBe('error')
+  })
+
+  it('Close All saves and closes every tab, leaving no note open', async () => {
+    const vaultAdapter = await openTestVault([
+      { vaultNoteRelativePath: 'Inbox.md', vaultNoteText: '' },
+      { vaultNoteRelativePath: 'Reading.md', vaultNoteText: '' },
+    ])
+    await usePapelizWorkspaceStore.getState().openVaultNote('Inbox.md')
+    await usePapelizWorkspaceStore.getState().openVaultNote('Reading.md')
+    typeIntoVaultNote('Inbox.md', 'inbox words')
+    typeIntoVaultNote('Reading.md', 'reading words')
+    await usePapelizWorkspaceStore.getState().closeAllVaultNoteTabs()
+    const workspaceState = usePapelizWorkspaceStore.getState()
+    expect(workspaceState.openNoteTabRelativePaths).toEqual([])
+    expect(workspaceState.activeVaultNoteRelativePath).toBeNull()
+    expect(workspaceState.loadedVaultNotesByRelativePath).toEqual({})
+    expect(await vaultAdapter.readVaultNoteText('Inbox.md')).toBe('inbox words')
+    expect(await vaultAdapter.readVaultNoteText('Reading.md')).toBe('reading words')
+  })
+
+  it('Close All keeps a note that could not be saved open, with its changes', async () => {
+    await openTestVault(
+      [],
+      new StuckNoteVaultAdapter([
+        { vaultNoteRelativePath: 'Inbox.md', vaultNoteText: '' },
+        { vaultNoteRelativePath: 'Stuck.md', vaultNoteText: '' },
+      ]),
+    )
+    await usePapelizWorkspaceStore.getState().openVaultNote('Inbox.md')
+    await usePapelizWorkspaceStore.getState().openVaultNote('Stuck.md')
+    typeIntoVaultNote('Stuck.md', 'precious words')
+    await usePapelizWorkspaceStore.getState().closeAllVaultNoteTabs()
+    const workspaceState = usePapelizWorkspaceStore.getState()
+    expect(workspaceState.openNoteTabRelativePaths).toEqual(['Stuck.md'])
+    expect(workspaceState.activeVaultNoteRelativePath).toBe('Stuck.md')
+    expect(workspaceState.loadedVaultNotesByRelativePath['Stuck.md']?.draftVaultNoteText).toBe('precious words')
+    expect(workspaceState.workspaceNotice?.workspaceNoticeMessage).toBe('Couldn’t close “Stuck”. Its changes aren’t saved yet. Press Try Again to save them first.')
+  })
+})
+
 describe('renaming', () => {
   it('saves pending changes first, then keeps saving under the new name', async () => {
     const vaultAdapter = await openTestVault([{ vaultNoteRelativePath: 'Inbox.md', vaultNoteText: '' }])

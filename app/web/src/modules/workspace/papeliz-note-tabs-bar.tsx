@@ -1,6 +1,7 @@
-import { Eye, Lock, LockOpen, Plus, X } from 'lucide-react'
+import { CopyX, Eye, ListX, Lock, LockOpen, Plus, X } from 'lucide-react'
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
+import { PapelizPopoverMenu, type PapelizPopoverMenuItem, type PapelizPopoverMenuPosition } from '../ui/papeliz-popover-menu'
 import { getVaultEntryName, getVaultEntryParentFolderRelativePath, getVaultNoteTitle } from '../vault/papeliz-vault-relative-paths'
 import { usePapelizNoteTabsLayoutStore } from './papeliz-note-tabs-layout-store'
 import { describePapelizNoteSaveFailure } from './papeliz-note-save-failure-words'
@@ -29,6 +30,11 @@ interface PapelizNoteTabDrag {
   stackedDraggedNoteTabTravelY?: number
   stackedDropNoteTabIndex?: number
   stackedDropIndicator?: { indicatedVaultNoteRelativePath: string; indicatedSide: 'before' | 'after' } | null
+}
+
+interface PapelizNoteTabMenuState {
+  menuVaultNoteRelativePath: string
+  menuPosition: PapelizPopoverMenuPosition
 }
 
 interface PapelizNoteTabPress {
@@ -85,7 +91,8 @@ function getNoteTabDragShiftX(noteTabIndex: number, noteTabDrag: PapelizNoteTabD
 // background (with a blue line on top) and joins the page below. The close button shows on hover; a note with changes on their
 // way to disk shows a blue dot in its place, and one whose save failed a red dot. A tab is dragged
 // sideways to reorder (it lifts after a few pixels, the others make room, Esc puts it back), or moved
-// with Alt+Shift+Left/Right.
+// with Alt+Shift+Left/Right. A right-click, Shift+F10 or the menu key opens a tab's menu: Close, Close
+// Others and Close All.
 export function PapelizNoteTabsBar() {
   const openNoteTabRelativePaths = usePapelizWorkspaceStore((workspaceState) => workspaceState.openNoteTabRelativePaths)
   const activeVaultNoteRelativePath = usePapelizWorkspaceStore((workspaceState) => workspaceState.activeVaultNoteRelativePath)
@@ -125,6 +132,8 @@ export function PapelizNoteTabsBar() {
   }
   const openVaultNote = usePapelizWorkspaceStore((workspaceState) => workspaceState.openVaultNote)
   const closeVaultNoteTab = usePapelizWorkspaceStore((workspaceState) => workspaceState.closeVaultNoteTab)
+  const closeOtherVaultNoteTabs = usePapelizWorkspaceStore((workspaceState) => workspaceState.closeOtherVaultNoteTabs)
+  const closeAllVaultNoteTabs = usePapelizWorkspaceStore((workspaceState) => workspaceState.closeAllVaultNoteTabs)
   const moveVaultNoteTab = usePapelizWorkspaceStore((workspaceState) => workspaceState.moveVaultNoteTab)
   const createVaultNoteInFolder = usePapelizWorkspaceStore((workspaceState) => workspaceState.createVaultNoteInFolder)
 
@@ -138,11 +147,45 @@ export function PapelizNoteTabsBar() {
   const focusNoteTabTitleButton = (noteTabIndex: number) => {
     noteTabsNavRef.current?.querySelectorAll<HTMLButtonElement>('[data-papeliz-note-tab-title]')[noteTabIndex]?.focus()
   }
+  // The strip is found through its keys description, not its ref, so the tab menu's items (made
+  // during render, where a ref may not be read) can use this too.
   const focusRovingNoteTabAfterClose = () =>
     requestAnimationFrame(() => {
       if (document.activeElement !== null && document.activeElement !== document.body) return
-      noteTabsNavRef.current?.querySelector<HTMLButtonElement>('[data-papeliz-note-tab-title][tabindex="0"]')?.focus()
+      document
+        .getElementById(papelizNoteTabKeysDescriptionId)
+        ?.closest('nav')
+        ?.querySelector<HTMLButtonElement>('[data-papeliz-note-tab-title][tabindex="0"]')
+        ?.focus()
     })
+  const [noteTabMenuState, setNoteTabMenuState] = useState<PapelizNoteTabMenuState | null>(null)
+  // A tab closed some other way takes its menu with it.
+  if (noteTabMenuState !== null && !openNoteTabRelativePaths.includes(noteTabMenuState.menuVaultNoteRelativePath)) setNoteTabMenuState(null)
+  const getNoteTabMenuItems = (menuVaultNoteRelativePath: string): PapelizPopoverMenuItem[] => [
+    {
+      menuItemKey: 'close-note-tab',
+      menuItemLabel: 'Close',
+      MenuItemIcon: X,
+      onMenuItemSelect: () => void closeVaultNoteTab(menuVaultNoteRelativePath).then(focusRovingNoteTabAfterClose),
+    },
+    {
+      menuItemKey: 'close-other-note-tabs',
+      menuItemLabel: 'Close Others',
+      MenuItemIcon: ListX,
+      isMenuItemDisabled: openNoteTabRelativePaths.length < 2,
+      onMenuItemSelect: () => void closeOtherVaultNoteTabs(menuVaultNoteRelativePath),
+    },
+    {
+      menuItemKey: 'close-all-note-tabs',
+      menuItemLabel: 'Close All',
+      MenuItemIcon: CopyX,
+      onMenuItemSelect: () => void closeAllVaultNoteTabs(),
+    },
+  ]
+  const openNoteTabMenuUnderNoteTab = (menuVaultNoteRelativePath: string, noteTabElement: Element) => {
+    const noteTabRect = noteTabElement.getBoundingClientRect()
+    setNoteTabMenuState({ menuVaultNoteRelativePath, menuPosition: { menuAnchorLeft: noteTabRect.left, menuAnchorTop: noteTabRect.bottom + 4 } })
+  }
   const [noteTabDrag, setNoteTabDrag] = useState<PapelizNoteTabDrag | null>(null)
   // True for the frame after a drop: the tabs swap places in the list then, so nothing may slide.
   const [isNoteTabDropSettling, setNoteTabDropSettling] = useState(false)
@@ -387,7 +430,7 @@ export function PapelizNoteTabsBar() {
         )}
       >
         <span id={papelizNoteTabKeysDescriptionId} className="sr-only">
-          Left and Right move between tabs, Delete closes a tab, and L locks or unlocks its note.
+          Left and Right move between tabs, Delete closes a tab, L locks or unlocks its note, and Shift+F10 opens its menu.
         </span>
         <div className={isNoteTabsStacked ? 'flex flex-wrap gap-x-0.5 gap-y-1 [&>*]:h-[34px]' : 'flex h-[34px] flex-none items-stretch gap-0.5'}>
           {openNoteTabRelativePaths.map((vaultNoteRelativePath, vaultNoteTabIndex) => {
@@ -456,6 +499,25 @@ export function PapelizNoteTabsBar() {
                 onAuxClick={(auxClickEvent: MouseEvent) => {
                   if (auxClickEvent.button === 1) void closeVaultNoteTab(vaultNoteRelativePath)
                 }}
+                // A right-click opens the menu at the pointer. The menu key reaches here as the same
+                // event, placed on the focused tab or nowhere, so the menu opens under the tab.
+                onContextMenu={(contextMenuEvent: MouseEvent<HTMLDivElement>) => {
+                  contextMenuEvent.preventDefault()
+                  const noteTabRect = contextMenuEvent.currentTarget.getBoundingClientRect()
+                  const isContextMenuPointOnNoteTab =
+                    contextMenuEvent.clientX > noteTabRect.left &&
+                    contextMenuEvent.clientX < noteTabRect.right &&
+                    contextMenuEvent.clientY > noteTabRect.top &&
+                    contextMenuEvent.clientY < noteTabRect.bottom
+                  if (!isContextMenuPointOnNoteTab) {
+                    openNoteTabMenuUnderNoteTab(vaultNoteRelativePath, contextMenuEvent.currentTarget)
+                    return
+                  }
+                  setNoteTabMenuState({
+                    menuVaultNoteRelativePath: vaultNoteRelativePath,
+                    menuPosition: { menuAnchorLeft: contextMenuEvent.clientX, menuAnchorTop: contextMenuEvent.clientY },
+                  })
+                }}
               >
                 <button
                   type="button"
@@ -504,6 +566,10 @@ export function PapelizNoteTabsBar() {
                     } else if (hasNoModifierKey && (keyboardEvent.key === 'l' || keyboardEvent.key === 'L')) {
                       keyboardEvent.preventDefault()
                       toggleVaultNoteTabLock(vaultNoteRelativePath)
+                    } else if (hasNoModifierKey && keyboardEvent.shiftKey && keyboardEvent.key === 'F10') {
+                      // Handled here: Safari has no Shift+F10 menu of its own.
+                      keyboardEvent.preventDefault()
+                      openNoteTabMenuUnderNoteTab(vaultNoteRelativePath, keyboardEvent.currentTarget.closest('[data-papeliz-note-tab-path]') ?? keyboardEvent.currentTarget)
                     }
                   }}
                   className="flex h-full min-w-0 flex-1 items-center gap-2 pr-1 pl-1.5 text-left focus-visible:outline-offset-[-3px]"
@@ -569,6 +635,14 @@ export function PapelizNoteTabsBar() {
         </div>
       </nav>
       {!isNoteTabsStacked && newNoteTabButton}
+      {noteTabMenuState !== null && (
+        <PapelizPopoverMenu
+          menuLabel={getVaultNoteTitle(noteTabMenuState.menuVaultNoteRelativePath)}
+          menuPosition={noteTabMenuState.menuPosition}
+          menuItems={getNoteTabMenuItems(noteTabMenuState.menuVaultNoteRelativePath)}
+          onMenuClose={() => setNoteTabMenuState(null)}
+        />
+      )}
     </div>
   )
 }
