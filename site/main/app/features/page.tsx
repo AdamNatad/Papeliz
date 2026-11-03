@@ -7,7 +7,7 @@ import { createPapelizSitePageMetadata } from '@/lib/papeliz-site-seo'
 export const metadata = createPapelizSitePageMetadata({
   papelizSitePageTitle: 'Features',
   papelizSitePageDescription:
-    'Everything in the Papeliz launch build: a vault of plain Markdown files, MD Code and MD View, export, templates, an assistant that edits on your own key, and optional Sync.',
+    'Papeliz is a Free, Open-Source Markdown Editor for your Personal Knowledge Base, with a built-in AI Assistant and Workflow Templates for Coding and AI Agents.',
   papelizSitePagePath: '/features/',
 })
 

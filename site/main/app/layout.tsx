@@ -39,7 +39,7 @@ const papelizSiteJetBrainsMonoFont = localFont({
   adjustFontFallback: false,
 })
 
-const papelizSiteHomeTitle = 'Papeliz - Making Notes Simple'
+const papelizSiteHomeTitle = 'Papeliz - Free, Open-Source Markdown Editor for your Personal Knowledge Base'
 
 // The home page's metadata; every other page replaces the title, canonical and social cards.
 export const metadata: Metadata = {

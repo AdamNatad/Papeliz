@@ -818,7 +818,7 @@ export function PapelizSiteAdamNatadProfile({ adamNatadProfileConfig }: { adamNa
         },
         {
           name: "Papeliz",
-          description: "AI Markdown Editor",
+          description: "A Free, Open-Source Markdown Editor for your Personal Knowledge Base, with a built-in AI Assistant and Workflow Templates for Coding and AI Agents",
           status: "available",
           href: "/",
           icon: { kind: "papelizMark" },
@@ -944,7 +944,7 @@ export function PapelizSiteAdamNatadProfile({ adamNatadProfileConfig }: { adamNa
     },
     {
       name: "Papeliz",
-      description: "An AI Markdown Editor.",
+      description: "A Free, Open-Source Markdown Editor for your Personal Knowledge Base, with a built-in AI Assistant and Workflow Templates for Coding and AI Agents.",
       rows: [{ label: "Website", description: "papeliz.com", href: adamNatadProfileLinks.papeliz }],
     },
   ];

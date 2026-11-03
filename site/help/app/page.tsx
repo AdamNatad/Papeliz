@@ -25,7 +25,10 @@ export default function PapelizHelpHomePage() {
     <div className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-8 sm:py-14">
       <h1 className="text-3xl leading-tight font-normal tracking-tight text-balance sm:text-5xl">Guides for Papeliz</h1>
       <p className="mt-4 max-w-2xl text-lg text-papeliz-ink-muted">
-        How to write, link and keep your Markdown notes in Papeliz, and how the assistant works on your own key. Press{' '}
+        Papeliz is a Free, Open-Source Markdown Editor for building your Personal Knowledge Base, with a built-in AI
+        Assistant that works with your Preferred AI Provider, as well as the ability to create and import Workflow
+        Templates for Coding and AI Agents. These guides show how to write, link and keep your notes, and how the
+        assistant works on your own key. Press{' '}
         <kbd className="rounded-md border border-papeliz-line-strong bg-papeliz-surface px-1.5 font-mono text-[15px] text-papeliz-ink">/</kbd> to search.
       </p>
 
