@@ -17,6 +17,11 @@ const testSpokenTranscriptText = 'um so we ship the release on friday and uh Ana
 const testWrittenUpText = 'We ship the release on Friday. Ana writes the release notes.'
 const testPictureAltText = 'A blue square on white paper'
 const testWrittenNoteText = '# Friday release\n\nThe team agreed to ship on Friday.'
+// A prompt the test provider turns down, to see the problem in place of the pictures.
+const testTurnedDownPromptText = 'A picture the test provider turns down'
+// Imagine's Ask: the chat model's answer, with a prompt worth drawing in its ```draw block.
+const testAskDrawPromptText = 'A watercolor lighthouse at dawn, soft pink sky'
+const testAskAnswerText = `Soft dawn light suits a lighthouse.\n\n\`\`\`draw\n${testAskDrawPromptText}\n\`\`\``
 
 const testProviderCorsHeaders = {
   'access-control-allow-origin': '*',
@@ -110,6 +115,9 @@ async function playTestMetaProvider(page: Page): Promise<{ testProviderRequests:
     const providerRequestBodyText = providerRequest.postDataBuffer()?.toString('latin1') ?? ''
     testProviderRequests.push({ providerRequestPath, providerRequestAuthorization: await providerRequest.headerValue('authorization'), providerRequestBodyText })
     if (providerRequestPath === 'images/generations') {
+      if (providerRequestBodyText.includes(testTurnedDownPromptText)) {
+        return route.fulfill({ status: 400, headers: testProviderCorsHeaders, json: { error: { message: 'The test provider turned this prompt down.' } } })
+      }
       return route.fulfill({ status: 200, headers: testProviderCorsHeaders, json: { data: [{ b64_json: buildTestPictureWithContentCredentials().toString('base64') }] } })
     }
     if (providerRequestPath === 'images/edits') {
@@ -123,7 +131,9 @@ async function playTestMetaProvider(page: Page): Promise<{ testProviderRequests:
       const chatAnswerText =
         chatRequestBody.messages.length === 1 && chatRequestBody.messages[0]?.content === 'Reply with the single word: ready'
           ? 'ready'
-          : providerRequestBodyText.includes('clean written text')
+          : providerRequestBodyText.includes('before they draw it')
+            ? testAskAnswerText
+            : providerRequestBodyText.includes('clean written text')
             ? testWrittenUpText
             : providerRequestBodyText.includes('alt text')
               ? testPictureAltText
@@ -226,9 +236,159 @@ test('Imagine from the chat box: the picture shows in the chat, and Put in Note 
   await expect(chatPictures.getByText('Saved without C2PA content credentials and a text chunk.')).toBeVisible()
   expectPictureCleaned(await readBlobPictureBytes(page, (await chatPicture.getAttribute('src')) ?? ''))
 
-  // The Imagine tab keeps every picture made, wherever it was made.
+  // The Imagine tab's thread keeps every picture made, wherever it was made.
   await assistantPanel.getByRole('tab', { name: 'Imagine', exact: true }).click()
-  await expect(assistantPanel.getByRole('img', { name: 'A blue square on white paper' })).toBeVisible()
+  const imagineThreadEntry = assistantPanel.getByRole('region', { name: 'Imagine: A blue square on white paper' })
+  await expect(imagineThreadEntry.getByText('From the Notes tab')).toBeVisible()
+  await expect(imagineThreadEntry.getByRole('img', { name: 'A blue square on white paper' })).toBeVisible()
+  expect(refusedOutsideRequestUrls).toEqual([])
+})
+
+test('the Imagine tab is a thread: an example fills the box, Enter sends, and the picture shows under the prompt with Put in Note', async ({ page }) => {
+  const { testProviderRequests, refusedOutsideRequestUrls } = await playTestMetaProvider(page)
+  await openSampleVaultWithMetaProvider(page)
+  const assistantPanel = page.getByRole('complementary', { name: 'AI Assistant' })
+  await assistantPanel.getByRole('tab', { name: 'Imagine', exact: true }).click()
+  const promptBox = assistantPanel.getByRole('textbox', { name: 'Describe a picture' })
+  const sendButton = assistantPanel.getByRole('button', { name: 'Send', exact: true })
+  // The empty thread says what Imagine does; an example fills the box and sends nothing.
+  await expect(assistantPanel.getByText('Nothing is sent until Send.', { exact: false })).toBeVisible()
+  await expect(sendButton).toBeDisabled()
+  await assistantPanel.getByRole('button', { name: 'A watercolor lighthouse at dawn' }).click()
+  await expect(promptBox).toHaveValue('A watercolor lighthouse at dawn')
+  await expect(promptBox).toBeFocused()
+  expect(countProviderRequests(testProviderRequests, 'images/generations')).toBe(0)
+  // Shift+Enter starts a new line; Enter sends.
+  await promptBox.fill('A red fox')
+  await promptBox.press('Shift+Enter')
+  await promptBox.pressSequentially('in snow')
+  await expect(promptBox).toHaveValue('A red fox\nin snow')
+  expect(countProviderRequests(testProviderRequests, 'images/generations')).toBe(0)
+  await expect(assistantPanel.getByRole('button', { name: 'Picture model: muse-image-1.0' })).toBeVisible()
+  await promptBox.press('Enter')
+  await expect(promptBox).toHaveValue('')
+
+  const foxEntry = assistantPanel.getByRole('region', { name: /^Imagine: A red fox\s+in snow$/ })
+  const foxPicture = foxEntry.getByRole('img', { name: /^A red fox\s+in snow$/ })
+  await expect(foxPicture).toBeVisible()
+  await expect(foxEntry.getByText('Carries C2PA content credentials and a text chunk. Removed when saved.')).toBeVisible()
+  expect(JSON.parse(testProviderRequests.find((providerRequest) => providerRequest.providerRequestPath === 'images/generations')?.providerRequestBodyText ?? '{}')).toMatchObject({
+    model: 'muse-image-1.0',
+    prompt: 'A red fox\nin snow',
+    n: 1,
+  })
+  // The box stays at the bottom of the panel, below the thread.
+  const panelBox = await assistantPanel.boundingBox()
+  const promptBoxBox = await promptBox.boundingBox()
+  const foxEntryBox = await foxEntry.boundingBox()
+  expect(panelBox !== null && promptBoxBox !== null && foxEntryBox !== null).toBe(true)
+  expect(panelBox!.y + panelBox!.height - (promptBoxBox!.y + promptBoxBox!.height)).toBeLessThan(90)
+  expect(foxEntryBox!.y).toBeLessThan(promptBoxBox!.y)
+
+  // A second prompt joins below the first; a refused one shows its problem in its own place.
+  await promptBox.fill('A blue square on white paper')
+  await sendButton.click()
+  await expect(assistantPanel.getByRole('region', { name: 'Imagine: A blue square on white paper' }).getByRole('img')).toBeVisible()
+  await promptBox.fill(testTurnedDownPromptText)
+  await sendButton.click()
+  await expect(assistantPanel.getByRole('region', { name: `Imagine: ${testTurnedDownPromptText}` }).getByRole('alert')).toContainText('turned this prompt down')
+  const threadEntryNames = await assistantPanel.getByRole('region', { name: /^Imagine: / }).evaluateAll((entryElements) => entryElements.map((entryElement) => entryElement.getAttribute('aria-label')))
+  expect(threadEntryNames).toEqual(['Imagine: A red fox\nin snow', 'Imagine: A blue square on white paper', `Imagine: ${testTurnedDownPromptText}`])
+
+  await foxEntry.getByRole('button', { name: 'Put in Note' }).click()
+  const pictureDiffCard = foxEntry.getByRole('region', { name: 'Change to Start here' })
+  await expect(pictureDiffCard.locator('.papeliz-text-diff-added')).toContainText('](Attachments/imagine-')
+  await pictureDiffCard.getByRole('button', { name: 'Accept', exact: true }).click()
+  await expect(pictureDiffCard).toBeHidden()
+  await expect(foxEntry.getByText('Saved without C2PA content credentials and a text chunk.')).toBeVisible()
+  expectPictureCleaned(await readBlobPictureBytes(page, (await foxPicture.getAttribute('src')) ?? ''))
+  await page.getByRole('button', { name: 'MD Code', exact: true }).click()
+  await expect(page.locator('.cm-content').first()).toContainText('](Attachments/imagine-')
+  expect(refusedOutsideRequestUrls).toEqual([])
+})
+
+test('Imagine’s Ask talks a picture through with the chat model, and Draw This puts its prompt in Draw without sending it', async ({ page }) => {
+  const { testProviderRequests, refusedOutsideRequestUrls } = await playTestMetaProvider(page)
+  await openSampleVaultWithMetaProvider(page)
+  const assistantPanel = page.getByRole('complementary', { name: 'AI Assistant' })
+  await assistantPanel.getByRole('tab', { name: 'Imagine', exact: true }).click()
+  // Imagine opens on Draw.
+  await expect(assistantPanel.getByRole('tab', { name: 'Draw', exact: true })).toHaveAttribute('aria-selected', 'true')
+  await assistantPanel.getByRole('tab', { name: 'Ask', exact: true }).click()
+  const questionBox = assistantPanel.getByRole('textbox', { name: 'Ask about a picture' })
+  await expect(assistantPanel.getByRole('button', { name: `Model: ${metaChatModelName}` })).toBeVisible()
+  await questionBox.fill('What light suits a lighthouse?')
+  await questionBox.press('Enter')
+  await expect(questionBox).toHaveValue('')
+
+  const askAnswer = assistantPanel.getByRole('region', { name: 'Answer' })
+  await expect(askAnswer.getByText('Soft dawn light suits a lighthouse.')).toBeVisible()
+  await expect(askAnswer.getByText(testAskDrawPromptText)).toBeVisible()
+  const askRequest = testProviderRequests.filter((providerRequest) => providerRequest.providerRequestPath === 'chat/completions').at(-1)
+  const askRequestBody = JSON.parse(askRequest?.providerRequestBodyText ?? '{}') as { model: string; messages: Array<{ role: string; content: string }>; tools?: unknown }
+  expect(askRequestBody.model).toBe(metaChatModelName)
+  expect(askRequestBody.messages[0]?.content).toContain('You cannot draw or show pictures')
+  expect(askRequestBody.messages.at(-1)).toEqual({ role: 'user', content: 'What light suits a lighthouse?' })
+  expect(askRequestBody.tools).toBeUndefined()
+
+  await askAnswer.getByRole('button', { name: 'Draw This' }).click()
+  await expect(assistantPanel.getByRole('tab', { name: 'Draw', exact: true })).toHaveAttribute('aria-selected', 'true')
+  const promptBox = assistantPanel.getByRole('textbox', { name: 'Describe a picture' })
+  await expect(promptBox).toHaveValue(testAskDrawPromptText)
+  await expect(promptBox).toBeFocused()
+  expect(countProviderRequests(testProviderRequests, 'images/generations')).toBe(0)
+  // Ask keeps its own talk while the page is open.
+  await assistantPanel.getByRole('tab', { name: 'Ask', exact: true }).click()
+  await expect(assistantPanel.getByRole('region', { name: 'Answer' }).getByText('Soft dawn light suits a lighthouse.')).toBeVisible()
+  expect(refusedOutsideRequestUrls).toEqual([])
+})
+
+test('Imagine’s Gallery lists every picture newest first, with its actions, a larger view and Show in Draw', async ({ page }) => {
+  const { refusedOutsideRequestUrls } = await playTestMetaProvider(page)
+  await openSampleVaultWithMetaProvider(page)
+  const assistantPanel = page.getByRole('complementary', { name: 'AI Assistant' })
+  await assistantPanel.getByRole('tab', { name: 'Imagine', exact: true }).click()
+  // Empty, Gallery says what shows there and goes to Draw.
+  await assistantPanel.getByRole('tab', { name: 'Gallery', exact: true }).click()
+  await expect(assistantPanel.getByText('Every picture you draw or bring in shows here, newest first.')).toBeVisible()
+  await assistantPanel.getByRole('button', { name: 'Go to Draw' }).click()
+  await expect(assistantPanel.getByRole('tab', { name: 'Draw', exact: true })).toHaveAttribute('aria-selected', 'true')
+
+  const promptBox = assistantPanel.getByRole('textbox', { name: 'Describe a picture' })
+  for (const sentPromptText of ['A red fox', 'A blue square on white paper']) {
+    await promptBox.fill(sentPromptText)
+    await promptBox.press('Enter')
+    await expect(assistantPanel.getByRole('region', { name: `Imagine: ${sentPromptText}` }).getByRole('img')).toBeVisible()
+  }
+  await assistantPanel.getByLabel('Bring in a picture').setInputFiles({ name: 'diagram.png', mimeType: 'image/png', buffer: buildTestPictureWithContentCredentials() })
+  await expect(assistantPanel.getByRole('region', { name: 'Brought in: diagram.png' }).getByRole('img')).toBeVisible()
+
+  await assistantPanel.getByRole('tab', { name: 'Gallery', exact: true }).click()
+  const galleryList = assistantPanel.getByRole('list', { name: 'Gallery' })
+  await expect(galleryList.getByRole('listitem')).toHaveCount(3)
+  expect(await galleryList.getByRole('listitem').evaluateAll((tileElements) => tileElements.map((tileElement) => tileElement.getAttribute('aria-label')))).toEqual([
+    'diagram.png',
+    'Picture of A blue square on white paper',
+    'Picture of A red fox',
+  ])
+  const foxTile = galleryList.getByRole('listitem', { name: 'Picture of A red fox' })
+  await expect(foxTile.getByText('A red fox', { exact: true })).toBeVisible()
+  await expect(foxTile.getByText('muse-image-1.0 · Meta Model API')).toBeVisible()
+  await expect(galleryList.getByRole('listitem', { name: 'diagram.png' }).getByText('Brought in: diagram.png')).toBeVisible()
+  await expect(foxTile.getByRole('switch', { name: 'Remove C2PA' })).toHaveAttribute('aria-checked', 'true')
+  await expect(foxTile.getByRole('button', { name: 'Put in Note' })).toBeEnabled()
+  await foxTile.getByRole('button', { name: 'Save to Vault' }).click()
+  await expect(foxTile.getByText(/^In the vault: imagine-\d{4}-\d{2}-\d{2}-\d{4}-a-red-fox\.png$/)).toBeVisible()
+  expectPictureCleaned(await readBlobPictureBytes(page, (await foxTile.getByRole('img').getAttribute('src')) ?? ''))
+
+  // Pressed, a picture opens larger with its whole prompt; Show in Draw goes to its place in the thread.
+  await foxTile.getByRole('button', { name: 'A red fox' }).click()
+  const largerView = page.getByRole('dialog', { name: 'A red fox' })
+  await expect(largerView.getByRole('img', { name: 'A red fox' })).toBeVisible()
+  await largerView.getByRole('button', { name: 'Show in Draw' }).click()
+  await expect(largerView).toBeHidden()
+  await expect(assistantPanel.getByRole('tab', { name: 'Draw', exact: true })).toHaveAttribute('aria-selected', 'true')
+  await expect(assistantPanel.getByRole('region', { name: 'Imagine: A red fox' })).toBeInViewport()
   expect(refusedOutsideRequestUrls).toEqual([])
 })
 
@@ -238,10 +398,18 @@ test('a picture brought into Imagine with Remove C2PA off is saved as it came', 
   await page.getByRole('button', { name: 'Try Sample' }).first().click()
   const assistantPanel = page.getByRole('complementary', { name: 'AI Assistant' })
   await assistantPanel.getByRole('tab', { name: 'Imagine', exact: true }).click()
-  // No provider yet: the tab says what to add, and bringing in a picture still works.
-  await expect(assistantPanel.getByText('Add a provider that makes pictures')).toBeVisible()
-  await assistantPanel.getByLabel('Bring in a picture').setInputFiles({ name: 'diagram.png', mimeType: 'image/png', buffer: buildTestPictureWithContentCredentials() })
-  await expect(assistantPanel.getByRole('img', { name: 'diagram.png' })).toBeVisible()
+  // No provider yet: the box still shows, with a line to choose one, and bringing in a picture still works.
+  await expect(assistantPanel.getByText('Choose a provider that makes pictures')).toBeVisible()
+  await expect(assistantPanel.getByRole('textbox', { name: 'Describe a picture' })).toBeVisible()
+  await assistantPanel.getByRole('textbox', { name: 'Describe a picture' }).fill('A red fox')
+  await expect(assistantPanel.getByRole('button', { name: 'Send', exact: true })).toBeDisabled()
+  await assistantPanel.getByRole('button', { name: 'Add', exact: true }).click()
+  const pictureFileChooser = page.waitForEvent('filechooser')
+  await page.getByRole('menu', { name: 'Add' }).getByRole('menuitem', { name: 'Bring In a Picture' }).click()
+  await (await pictureFileChooser).setFiles({ name: 'diagram.png', mimeType: 'image/png', buffer: buildTestPictureWithContentCredentials() })
+  const broughtInEntry = assistantPanel.getByRole('region', { name: 'Brought in: diagram.png' })
+  await expect(broughtInEntry.getByText('Brought in: diagram.png')).toBeVisible()
+  await expect(broughtInEntry.getByRole('img', { name: 'diagram.png' })).toBeVisible()
   await assistantPanel.getByRole('switch', { name: 'Remove C2PA' }).click()
   await expect(assistantPanel.getByText('Carries C2PA content credentials and a text chunk. Kept when saved.')).toBeVisible()
   await assistantPanel.getByRole('button', { name: 'Save to Vault' }).click()
@@ -249,6 +417,14 @@ test('a picture brought into Imagine with Remove C2PA off is saved as it came', 
   await expect(assistantPanel.getByText(/^In the vault: picture-\d{4}-\d{2}-\d{2}-\d{4}-diagram\.png$/)).toBeVisible()
   const savedPictureBytes = await readBlobPictureBytes(page, (await assistantPanel.getByRole('img', { name: 'diagram.png' }).getAttribute('src')) ?? '')
   expect(savedPictureBytes.includes(Buffer.from(testC2paManifestText, 'latin1'))).toBe(true)
+  // Ask's box shows before a chat provider too, with the notes chat's line and button.
+  await assistantPanel.getByRole('tab', { name: 'Ask', exact: true }).click()
+  await expect(assistantPanel.getByText('Choose a provider to type or speak')).toBeVisible()
+  await assistantPanel.getByRole('textbox', { name: 'Ask about a picture' }).fill('Which light?')
+  await expect(assistantPanel.getByRole('button', { name: 'Send', exact: true })).toBeDisabled()
+  // The box's own Choose a Provider opens Settings › AI Provider.
+  await assistantPanel.getByRole('button', { name: 'Choose a Provider' }).click()
+  await expect(page.getByRole('dialog', { name: 'Settings' })).toBeVisible()
 })
 
 test('+ in the chat box: an audio file goes to Meta’s transcription as WAV, and the words land in the chat box', async ({ page }) => {
@@ -405,17 +581,25 @@ test('the Ctrl K card’s mic speaks the instruction, and nothing runs until Run
   await expect(inlineCard.getByRole('textbox', { name: 'Instruction for the selection' })).toHaveValue(testSpokenTranscriptText)
 })
 
-test('Imagine’s prompt has its own mic and +, and the spoken words fill the prompt without making a picture', async ({ page }) => {
+test('Imagine’s box has its own mic and +, and the spoken words fill the prompt without making a picture', async ({ page }) => {
   const { testProviderRequests } = await playTestMetaProvider(page)
   await installStandInMicrophone(page, 'tone')
   await openSampleVaultWithMetaProvider(page)
   const assistantPanel = page.getByRole('complementary', { name: 'AI Assistant' })
   await assistantPanel.getByRole('tab', { name: 'Imagine', exact: true }).click()
-  const promptBox = assistantPanel.getByRole('textbox', { name: 'Prompt' })
+  const promptBox = assistantPanel.getByRole('textbox', { name: 'Describe a picture' })
   await promptBox.fill('A red fox')
+  const sendBox = await assistantPanel.getByRole('button', { name: 'Send', exact: true }).boundingBox()
+  const micBox = await assistantPanel.getByRole('button', { name: 'Speak' }).boundingBox()
   await assistantPanel.getByRole('button', { name: 'Speak' }).click()
   const doneButton = assistantPanel.getByRole('button', { name: 'Done Speaking' })
   await expect(doneButton).toBeFocused()
+  // ✓ lands where the mic was, with Send held beside it.
+  const doneBox = await doneButton.boundingBox()
+  expect(Math.abs((doneBox?.x ?? 0) - (micBox?.x ?? 0))).toBeLessThanOrEqual(1)
+  expect(Math.abs((doneBox?.y ?? 0) - (micBox?.y ?? 0))).toBeLessThanOrEqual(1)
+  await expect(assistantPanel.getByRole('button', { name: 'Send', exact: true })).toBeDisabled()
+  expect(Math.abs(((await assistantPanel.getByRole('button', { name: 'Send', exact: true }).boundingBox())?.x ?? 0) - (sendBox?.x ?? 0))).toBeLessThanOrEqual(1)
   await page.waitForTimeout(1200)
   await page.keyboard.press('Enter')
   await expect(promptBox).toHaveValue(`A red fox ${testSpokenTranscriptText}`)

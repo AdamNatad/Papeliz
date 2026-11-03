@@ -1,7 +1,7 @@
 import { ImagePlus } from 'lucide-react'
 import { usePapelizChatImagineStore } from './papeliz-assistant-chat-imagine-store'
 import { usePapelizImagineStore } from './papeliz-assistant-imagine-store'
-import { PapelizImaginePictureCard } from './papeliz-assistant-imagine-view'
+import { PapelizImaginePictureCard } from './papeliz-assistant-imagine-picture-card'
 import { PapelizAssistantMediaNoteDiffCard, PapelizAssistantMediaProblemLine } from './papeliz-assistant-media-parts'
 
 interface PapelizAssistantChatImaginePicturesProps {

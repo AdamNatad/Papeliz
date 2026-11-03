@@ -22,12 +22,14 @@ import {
 } from './papeliz-assistant-media-vault-files'
 import { readPapelizActiveNoteCursorTextOffset, readPapelizCurrentVaultNoteText } from './papeliz-assistant-media-note-text'
 import { describePapelizAssistantMediaProblem } from './papeliz-assistant-media-problem-words'
+import { findPapelizAssistantProviderPreset } from './papeliz-assistant-provider-presets'
 
 // Imagine: pictures made with the person's own provider and key, and pictures the person brings in,
 // each with Remove C2PA (on by default), which strips content credentials and other metadata before a
-// picture is saved. Nothing is sent until Generate. A picture goes into the vault's `Attachments/`
-// folder on Save to Vault, or into the open note on Put in Note, which first shows the change as a diff
-// and saves nothing until it is accepted. Pictures live in this page's memory until then.
+// picture is saved. Nothing is sent until Send. A picture goes into the vault's `Attachments/` folder
+// on Save to Vault, or into the open note on Put in Note, which first shows the change as a diff and
+// saves nothing until it is accepted. Pictures live in this page's memory until then, and the Imagine
+// tab shows them as a thread: each prompt with the pictures it made, and each picture brought in.
 
 export interface PapelizImaginePicture {
   imaginePictureId: string
@@ -61,22 +63,48 @@ export interface PapelizImaginePictureInsertion {
   insertionProblem: string | null
 }
 
-export type PapelizImagineGenerationStage = 'idle' | 'generating' | 'failed'
+// Where a prompt was written: the Imagine tab's box, the chat box (+, Imagine a Picture), or a note
+// (Imagine Here and Edit Picture).
+export type PapelizImaginePromptPlace = 'imagine' | 'chat' | 'note'
+
+// One entry in the Imagine tab's thread, which runs oldest first.
+export type PapelizImagineThreadEntry =
+  | {
+      imagineThreadEntryId: string
+      imagineThreadEntryKind: 'prompt'
+      imaginePromptText: string
+      imaginePromptPlace: PapelizImaginePromptPlace
+      // "muse-image-1.0 · Meta Model API".
+      imageModelLabel: string
+      requestedPictureCount: number
+      imaginePromptStage: 'making' | 'made' | 'failed' | 'stopped'
+      imaginePromptProblem: string | null
+      imaginePictureIds: string[]
+    }
+  | {
+      imagineThreadEntryId: string
+      imagineThreadEntryKind: 'brought-in'
+      broughtInPictureFileName: string
+      // Why the file was turned away (too large, or not a picture).
+      broughtInPictureProblem: string | null
+      imaginePictureIds: string[]
+    }
 
 interface PapelizImagineState {
+  // What is typed in the Imagine tab's box.
   imaginePromptText: string
   imagineImageSizeText: string | null
   imagineGeneratedPictureCount: number
-  imagineGenerationStage: PapelizImagineGenerationStage
-  imagineGenerationProblem: string | null
   imaginePictures: PapelizImaginePicture[]
+  imagineThreadEntries: PapelizImagineThreadEntry[]
   imaginePictureInsertion: PapelizImaginePictureInsertion | null
   setImaginePromptText: (imaginePromptText: string) => void
   setImagineImageSizeText: (imagineImageSizeText: string | null) => void
   setImagineGeneratedPictureCount: (imagineGeneratedPictureCount: number) => void
-  generateImaginePictures: (imageModelChoice: PapelizAssistantMediaModelChoice) => Promise<void>
+  // Sends what is typed as a prompt: it joins the thread, the box empties, and the pictures show under it.
+  sendImaginePrompt: (imageModelChoice: PapelizAssistantMediaModelChoice) => Promise<void>
   stopImagineGeneration: () => void
-  bringInImaginePictureFiles: (pictureFiles: readonly File[]) => Promise<string | null>
+  bringInImaginePictureFiles: (pictureFiles: readonly File[]) => Promise<void>
   setImaginePictureRemoveC2pa: (imaginePictureId: string, isRemoveC2paOn: boolean) => void
   removeImaginePicture: (imaginePictureId: string) => void
   saveImaginePictureToVault: (imaginePictureId: string) => Promise<void>
@@ -90,7 +118,34 @@ const papelizImagineBroughtInPictureByteLimit = 20 * 1024 * 1024
 export const papelizImagineMaximumGeneratedPictureCount = 4
 
 let nextImaginePictureNumber = 1
+let nextImagineThreadEntryNumber = 1
 let activeImagineGenerationAbortController: AbortController | null = null
+
+function createImagineThreadEntryId(): string {
+  return `papeliz-imagine-thread-entry-${nextImagineThreadEntryNumber++}`
+}
+
+// True while the Imagine tab's box is making pictures: its Send is Stop until they come.
+export function selectIsPapelizImagineMaking(imagineState: Pick<PapelizImagineState, 'imagineThreadEntries'>): boolean {
+  return imagineState.imagineThreadEntries.some(
+    (imagineThreadEntry) =>
+      imagineThreadEntry.imagineThreadEntryKind === 'prompt' && imagineThreadEntry.imaginePromptPlace === 'imagine' && imagineThreadEntry.imaginePromptStage === 'making',
+  )
+}
+
+// "Making the picture with muse-image-1.0 · Meta Model API…", or "Making 3 pictures with …".
+export function describePapelizImagineMakingLine(requestedPictureCount: number, imageModelLabel: string): string {
+  return `Making ${requestedPictureCount > 1 ? `${requestedPictureCount} pictures` : 'the picture'} with ${imageModelLabel}…`
+}
+
+// A picture removed from Imagine leaves the thread; so does an entry once its last picture is gone.
+export function removePapelizImaginePictureFromThread(imagineThreadEntries: readonly PapelizImagineThreadEntry[], removedImaginePictureId: string): PapelizImagineThreadEntry[] {
+  return imagineThreadEntries.flatMap((imagineThreadEntry) => {
+    if (!imagineThreadEntry.imaginePictureIds.includes(removedImaginePictureId)) return [imagineThreadEntry]
+    const keptImaginePictureIds = imagineThreadEntry.imaginePictureIds.filter((imaginePictureId) => imaginePictureId !== removedImaginePictureId)
+    return keptImaginePictureIds.length === 0 ? [] : [{ ...imagineThreadEntry, imaginePictureIds: keptImaginePictureIds }]
+  })
+}
 
 function readImaginePictureMetadataNames(imagePictureBytes: Uint8Array): string[] | null {
   try {
@@ -148,14 +203,24 @@ export const usePapelizImagineStore = create<PapelizImagineState>()((setImagineS
       ),
     }))
   const findImaginePicture = (imaginePictureId: string) => getImagineState().imaginePictures.find((imaginePicture) => imaginePicture.imaginePictureId === imaginePictureId)
+  const updateImaginePromptEntry = (
+    imagineThreadEntryId: string,
+    imaginePromptEntryChanges: Partial<Pick<Extract<PapelizImagineThreadEntry, { imagineThreadEntryKind: 'prompt' }>, 'imaginePromptStage' | 'imaginePromptProblem' | 'imaginePictureIds'>>,
+  ) =>
+    setImagineState((imagineState) => ({
+      imagineThreadEntries: imagineState.imagineThreadEntries.map((imagineThreadEntry) =>
+        imagineThreadEntry.imagineThreadEntryId === imagineThreadEntryId && imagineThreadEntry.imagineThreadEntryKind === 'prompt'
+          ? { ...imagineThreadEntry, ...imaginePromptEntryChanges }
+          : imagineThreadEntry,
+      ),
+    }))
 
   return {
     imaginePromptText: '',
     imagineImageSizeText: null,
     imagineGeneratedPictureCount: 1,
-    imagineGenerationStage: 'idle',
-    imagineGenerationProblem: null,
     imaginePictures: [],
+    imagineThreadEntries: [],
     imaginePictureInsertion: null,
 
     setImaginePromptText: (imaginePromptText) => setImagineState({ imaginePromptText }),
@@ -163,53 +228,92 @@ export const usePapelizImagineStore = create<PapelizImagineState>()((setImagineS
     setImagineGeneratedPictureCount: (imagineGeneratedPictureCount) =>
       setImagineState({ imagineGeneratedPictureCount: Math.max(1, Math.min(papelizImagineMaximumGeneratedPictureCount, Math.round(imagineGeneratedPictureCount))) }),
 
-    generateImaginePictures: async (imageModelChoice) => {
+    sendImaginePrompt: async (imageModelChoice) => {
       const { imaginePromptText, imagineImageSizeText, imagineGeneratedPictureCount } = getImagineState()
-      if (imaginePromptText.trim().length === 0) return
-      activeImagineGenerationAbortController?.abort()
+      const sentPromptText = imaginePromptText.trim()
+      // One prompt at a time: while pictures are being made, the box's Send is Stop.
+      if (sentPromptText.length === 0 || selectIsPapelizImagineMaking(getImagineState())) return
       const imagineGenerationAbortController = new AbortController()
       activeImagineGenerationAbortController = imagineGenerationAbortController
-      setImagineState({ imagineGenerationStage: 'generating', imagineGenerationProblem: null })
+      const imagineThreadEntryId = createImagineThreadEntryId()
+      setImagineState((imagineState) => ({
+        imaginePromptText: '',
+        imagineThreadEntries: [
+          ...imagineState.imagineThreadEntries,
+          {
+            imagineThreadEntryId,
+            imagineThreadEntryKind: 'prompt',
+            imaginePromptText: sentPromptText,
+            imaginePromptPlace: 'imagine',
+            imageModelLabel: `${imageModelChoice.providerModelName} · ${findPapelizAssistantProviderPreset(imageModelChoice.papelizAssistantProviderId).providerPresetDisplayName}`,
+            requestedPictureCount: imagineGeneratedPictureCount,
+            imaginePromptStage: 'making',
+            imaginePromptProblem: null,
+            imaginePictureIds: [],
+          },
+        ],
+      }))
       try {
-        await makePapelizImaginePictures({
+        const madeImaginePictures = await makePapelizImaginePictures({
           imageModelChoice,
-          imagePromptText: imaginePromptText,
+          imagePromptText: sentPromptText,
           imageSizeText: imagineImageSizeText,
           pictureCount: imagineGeneratedPictureCount,
           abortSignal: imagineGenerationAbortController.signal,
+          imaginePromptPlace: 'imagine',
         })
-        if (activeImagineGenerationAbortController !== imagineGenerationAbortController) return
-        activeImagineGenerationAbortController = null
-        setImagineState({ imagineGenerationStage: 'idle' })
+        if (madeImaginePictures.length === 0) throw new PapelizAssistantProviderError('The provider sent a picture Papeliz can’t read.', null)
+        updateImaginePromptEntry(imagineThreadEntryId, {
+          imaginePromptStage: 'made',
+          imaginePictureIds: madeImaginePictures.map((imaginePicture) => imaginePicture.imaginePictureId),
+        })
       } catch (imagineGenerationError) {
+        // Stop has already marked the entry.
         if (imagineGenerationError instanceof DOMException && imagineGenerationError.name === 'AbortError') return
-        if (activeImagineGenerationAbortController !== imagineGenerationAbortController) return
-        activeImagineGenerationAbortController = null
-        setImagineState({ imagineGenerationStage: 'failed', imagineGenerationProblem: describePapelizAssistantMediaProblem(imagineGenerationError) })
+        updateImaginePromptEntry(imagineThreadEntryId, { imaginePromptStage: 'failed', imaginePromptProblem: describePapelizAssistantMediaProblem(imagineGenerationError) })
+      } finally {
+        if (activeImagineGenerationAbortController === imagineGenerationAbortController) activeImagineGenerationAbortController = null
       }
     },
 
     stopImagineGeneration: () => {
       activeImagineGenerationAbortController?.abort()
       activeImagineGenerationAbortController = null
-      setImagineState({ imagineGenerationStage: 'idle' })
+      setImagineState((imagineState) => ({
+        imagineThreadEntries: imagineState.imagineThreadEntries.map((imagineThreadEntry) =>
+          imagineThreadEntry.imagineThreadEntryKind === 'prompt' && imagineThreadEntry.imaginePromptPlace === 'imagine' && imagineThreadEntry.imaginePromptStage === 'making'
+            ? { ...imagineThreadEntry, imaginePromptStage: 'stopped' }
+            : imagineThreadEntry,
+        ),
+      }))
     },
 
-    // Gives back why a file was turned away, or null when every file came in.
+    // Each file joins the thread as its own entry: the picture, or why it was turned away.
     bringInImaginePictureFiles: async (pictureFiles) => {
-      let refusedPictureProblem: string | null = null
       const broughtInPictures: PapelizImaginePicture[] = []
+      const broughtInThreadEntries: PapelizImagineThreadEntry[] = []
       for (const pictureFile of pictureFiles) {
-        if (pictureFile.size > papelizImagineBroughtInPictureByteLimit) {
-          refusedPictureProblem = `${pictureFile.name} is over 20 MB.`
-          continue
-        }
-        const broughtInPicture = await createImaginePicture(pictureFile, 'brought-in', pictureFile.name || 'picture', null)
-        if (broughtInPicture === null) refusedPictureProblem = `${pictureFile.name || 'That file'} isn’t a PNG, JPEG or WebP picture.`
-        else broughtInPictures.push(broughtInPicture)
+        const broughtInPictureFileName = pictureFile.name || 'picture'
+        const broughtInPicture =
+          pictureFile.size > papelizImagineBroughtInPictureByteLimit ? null : await createImaginePicture(pictureFile, 'brought-in', broughtInPictureFileName, null)
+        if (broughtInPicture !== null) broughtInPictures.push(broughtInPicture)
+        broughtInThreadEntries.push({
+          imagineThreadEntryId: createImagineThreadEntryId(),
+          imagineThreadEntryKind: 'brought-in',
+          broughtInPictureFileName,
+          broughtInPictureProblem:
+            broughtInPicture !== null
+              ? null
+              : pictureFile.size > papelizImagineBroughtInPictureByteLimit
+                ? `${broughtInPictureFileName} is over 20 MB.`
+                : `${pictureFile.name || 'That file'} isn’t a PNG, JPEG or WebP picture.`,
+          imaginePictureIds: broughtInPicture === null ? [] : [broughtInPicture.imaginePictureId],
+        })
       }
-      setImagineState((imagineState) => ({ imaginePictures: [...broughtInPictures, ...imagineState.imaginePictures] }))
-      return refusedPictureProblem
+      setImagineState((imagineState) => ({
+        imaginePictures: [...broughtInPictures, ...imagineState.imaginePictures],
+        imagineThreadEntries: [...imagineState.imagineThreadEntries, ...broughtInThreadEntries],
+      }))
     },
 
     setImaginePictureRemoveC2pa: (imaginePictureId, isRemoveC2paOn) => updateImaginePicture(imaginePictureId, { isRemoveC2paOn }),
@@ -219,6 +323,7 @@ export const usePapelizImagineStore = create<PapelizImagineState>()((setImagineS
       if (imaginePicture !== undefined) URL.revokeObjectURL(imaginePicture.imaginePicturePreviewUrl)
       setImagineState((imagineState) => ({
         imaginePictures: imagineState.imaginePictures.filter((keptPicture) => keptPicture.imaginePictureId !== imaginePictureId),
+        imagineThreadEntries: removePapelizImaginePictureFromThread(imagineState.imagineThreadEntries, imaginePictureId),
         imaginePictureInsertion: imagineState.imaginePictureInsertion?.imaginePictureId === imaginePictureId ? null : imagineState.imaginePictureInsertion,
       }))
     },
@@ -319,13 +424,14 @@ interface PapelizImaginePictureMakingRequest {
   imageSizeText: string | null
   pictureCount: number
   abortSignal?: AbortSignal
+  imaginePromptPlace: PapelizImaginePromptPlace
 }
 
 // Makes pictures of a prompt with the chosen image model, for the Imagine tab, the chat and Imagine
 // Here. They join Imagine's pictures, newest first, and are given back. Throws when the provider
 // can't make them.
 export async function makePapelizImaginePictures(pictureMakingRequest: PapelizImaginePictureMakingRequest): Promise<PapelizImaginePicture[]> {
-  const { imageModelChoice, imagePromptText, imageSizeText, pictureCount, abortSignal } = pictureMakingRequest
+  const { imageModelChoice, imagePromptText, imageSizeText, pictureCount, abortSignal, imaginePromptPlace } = pictureMakingRequest
   const imageGenerationPreset = findPapelizAssistantImageGenerationPreset(imageModelChoice.papelizAssistantProviderId)
   const mediaConnection = buildPapelizAssistantMediaProviderConnection('image-generation', imageModelChoice)
   if (mediaConnection.mediaConnectionOutcome !== 'ready') throw new PapelizAssistantProviderError(mediaConnection.mediaSetupProblem, null)
@@ -348,15 +454,42 @@ export async function makePapelizImaginePictures(pictureMakingRequest: PapelizIm
     generatedImages.map((generatedImage) => generatedImage.generatedImageBlob),
     imagePromptText,
     `${imageModelChoice.providerModelName} · ${mediaConnection.providerDisplayName}`,
+    imaginePromptPlace,
   )
 }
 
-// Pictures a provider made (or changed, for Edit Picture) join Imagine's pictures, newest first.
-export async function addPapelizMadeImaginePictures(madePictureBlobs: readonly Blob[], madePictureDescriptionText: string, imageModelLabel: string): Promise<PapelizImaginePicture[]> {
+// Pictures a provider made (or changed, for Edit Picture) join Imagine's pictures, newest first. Made
+// from the chat or a note, they also join the Imagine tab's thread under their prompt; the tab's own
+// prompts are in the thread already.
+export async function addPapelizMadeImaginePictures(
+  madePictureBlobs: readonly Blob[],
+  madePictureDescriptionText: string,
+  imageModelLabel: string,
+  imaginePromptPlace: PapelizImaginePromptPlace,
+): Promise<PapelizImaginePicture[]> {
   const madeImaginePictures = (
     await Promise.all(madePictureBlobs.map((madePictureBlob) => createImaginePicture(madePictureBlob, 'generated', madePictureDescriptionText.trim(), imageModelLabel)))
   ).filter((imaginePicture): imaginePicture is PapelizImaginePicture => imaginePicture !== null)
-  usePapelizImagineStore.setState((imagineState) => ({ imaginePictures: [...madeImaginePictures, ...imagineState.imaginePictures] }))
+  usePapelizImagineStore.setState((imagineState) => ({
+    imaginePictures: [...madeImaginePictures, ...imagineState.imaginePictures],
+    imagineThreadEntries:
+      imaginePromptPlace === 'imagine' || madeImaginePictures.length === 0
+        ? imagineState.imagineThreadEntries
+        : [
+            ...imagineState.imagineThreadEntries,
+            {
+              imagineThreadEntryId: createImagineThreadEntryId(),
+              imagineThreadEntryKind: 'prompt',
+              imaginePromptText: madePictureDescriptionText.trim(),
+              imaginePromptPlace,
+              imageModelLabel,
+              requestedPictureCount: madeImaginePictures.length,
+              imaginePromptStage: 'made',
+              imaginePromptProblem: null,
+              imaginePictureIds: madeImaginePictures.map((imaginePicture) => imaginePicture.imaginePictureId),
+            },
+          ],
+  }))
   return madeImaginePictures
 }
 

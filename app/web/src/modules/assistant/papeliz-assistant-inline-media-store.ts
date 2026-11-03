@@ -344,6 +344,7 @@ export const usePapelizInlineMediaStore = create<PapelizInlineMediaState>()((set
           editedImages.map((editedImage) => editedImage.generatedImageBlob),
           inlinePictureLink.pictureAltText.length > 0 ? inlinePictureLink.pictureAltText : inlineEditPicturePromptText,
           `${imageEditingModel.providerModelName} · ${mediaConnection.providerDisplayName}`,
+          'note',
         )
         if (editedImaginePicture === undefined) throw new PapelizAssistantProviderError('The provider sent a picture Papeliz can’t read.', null)
         const plannedPictureVaultFileRelativePath = await pickPapelizImaginePictureFileRelativePath(editedImaginePicture.imaginePictureId)
@@ -381,6 +382,7 @@ export const usePapelizInlineMediaStore = create<PapelizInlineMediaState>()((set
           imageSizeText: usePapelizImagineStore.getState().imagineImageSizeText,
           pictureCount: 1,
           abortSignal: inlineMediaAbortController.signal,
+          imaginePromptPlace: 'note',
         })
         if (activeInlineMediaAbortController !== inlineMediaAbortController || madeImaginePicture === undefined) return
         await showInlinePictureInsertion(madeImaginePicture.imaginePictureId)

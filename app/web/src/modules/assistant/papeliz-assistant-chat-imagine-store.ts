@@ -64,6 +64,7 @@ export const usePapelizChatImagineStore = create<PapelizChatImagineState>()((set
           imagePromptText: trimmedPromptText,
           imageSizeText: usePapelizImagineStore.getState().imagineImageSizeText,
           pictureCount: 1,
+          imaginePromptPlace: 'chat',
         })
         updateChatImagineRun(chatImagineRunId, { chatImagineRunStage: 'made', imaginePictureIds: madeImaginePictures.map((imaginePicture) => imaginePicture.imaginePictureId) })
       } catch (chatImagineError) {

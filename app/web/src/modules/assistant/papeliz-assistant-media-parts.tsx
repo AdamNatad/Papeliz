@@ -1,27 +1,24 @@
 import { Check, CircleAlert, FilePlus, FileText, X } from 'lucide-react'
-import { useEffect, useId, useMemo, useState, type ReactNode } from 'react'
-import { PapelizPillButton } from '../ui/papeliz-buttons'
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
+import { PapelizIconButton, PapelizPillButton } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { PapelizListboxSelect } from '../ui/papeliz-listbox-select'
 import { getVaultNoteTitle } from '../vault/papeliz-vault-relative-paths'
 import {
-  describePapelizAssistantMediaModelChoiceValue,
   listPapelizMediaCapableSavedProviderIds,
   listPapelizOfferedAssistantMediaModels,
-  readPapelizAssistantMediaModelChoiceValue,
   resolvePapelizChosenAssistantMediaModel,
   usePapelizAssistantMediaModelChoicesStore,
   type PapelizAssistantMediaKind,
   type PapelizAssistantOfferedMediaModel,
 } from './papeliz-assistant-media-model-choices-store'
-import { usePapelizAssistantPanelUiStore } from './papeliz-assistant-panel-ui-store'
 import { PapelizTextDiffView } from './papeliz-assistant-proposal-card'
 import { findPapelizAssistantProviderPreset } from './papeliz-assistant-provider-presets'
 import { usePapelizAssistantProviderSettingsStore } from './papeliz-assistant-provider-settings-store'
 import { diffPapelizTextByWords } from './papeliz-assistant-text-diff'
 
-// The pieces Imagine and Transcribe share: a switch, the media model picker, the line that says where
-// a request goes, and the diff card for a change to a note.
+// The pieces Imagine and Transcribe share: a switch, the problem line, the media model in use and the
+// form to type another, and the diff card for a change to a note.
 
 interface PapelizAssistantMediaSwitchProps {
   mediaSwitchLabel: string
@@ -61,10 +58,6 @@ export function PapelizAssistantMediaProblemLine({ children }: { children: React
   )
 }
 
-export function PapelizAssistantMediaSectionHeading({ children }: { children: ReactNode }) {
-  return <h4 className="px-0.5 text-[12px] font-semibold tracking-wide text-papeliz-ink-subtle uppercase">{children}</h4>
-}
-
 // The models offered now and the one in use, read again whenever the providers or the picks change.
 export function usePapelizChosenAssistantMediaModel(assistantMediaKind: PapelizAssistantMediaKind): {
   offeredMediaModels: PapelizAssistantOfferedMediaModel[]
@@ -94,122 +87,85 @@ export function usePapelizChosenAssistantMediaModel(assistantMediaKind: PapelizA
   }, [assistantMediaKind, providerSettingsByProviderId, typedMediaModels, chosenMediaModelChoice])
 }
 
-interface PapelizAssistantMediaModelPickerProps {
+interface PapelizAssistantMediaOtherModelFormProps {
   assistantMediaKind: PapelizAssistantMediaKind
-  mediaModelPickerLabel: string
-  isMediaModelPickerDisabled?: boolean
+  onOtherModelFormClose: () => void
 }
 
-// The model for pictures or speech, by provider, and "Other Model" to type one a provider offers.
-export function PapelizAssistantMediaModelPicker({ assistantMediaKind, mediaModelPickerLabel, isMediaModelPickerDisabled = false }: PapelizAssistantMediaModelPickerProps) {
-  const { offeredMediaModels, chosenMediaModel, mediaCapableSavedProviderIds } = usePapelizChosenAssistantMediaModel(assistantMediaKind)
-  const chooseAssistantMediaModel = usePapelizAssistantMediaModelChoicesStore((choicesState) => choicesState.chooseAssistantMediaModel)
+// Other Model: a model a provider offers that Papeliz doesn't suggest, typed by its name (and, when
+// more than one added provider offers pictures or speech, for which one). Adding it picks it.
+export function PapelizAssistantMediaOtherModelForm({ assistantMediaKind, onOtherModelFormClose }: PapelizAssistantMediaOtherModelFormProps) {
+  const { mediaCapableSavedProviderIds } = usePapelizChosenAssistantMediaModel(assistantMediaKind)
   const addTypedAssistantMediaModel = usePapelizAssistantMediaModelChoicesStore((choicesState) => choicesState.addTypedAssistantMediaModel)
-  const [isOtherModelFormOpen, setIsOtherModelFormOpen] = useState(false)
   const [otherModelProviderId, setOtherModelProviderId] = useState('')
   const [typedOtherModelName, setTypedOtherModelName] = useState('')
-  const modelPickerId = useId()
-  const otherModelProviderLabelId = `${modelPickerId}-other-provider-label`
+  const otherModelFormId = useId()
+  const otherModelNameInputRef = useRef<HTMLInputElement>(null)
+  const otherModelProviderLabelId = `${otherModelFormId}-provider-label`
   const shownOtherModelProviderId = mediaCapableSavedProviderIds.includes(otherModelProviderId) ? otherModelProviderId : (mediaCapableSavedProviderIds[0] ?? '')
+
+  useEffect(() => {
+    otherModelNameInputRef.current?.focus()
+  }, [])
 
   const addOtherModel = () => {
     if (shownOtherModelProviderId.length === 0 || typedOtherModelName.trim().length === 0) return
     addTypedAssistantMediaModel(assistantMediaKind, { papelizAssistantProviderId: shownOtherModelProviderId, providerModelName: typedOtherModelName })
     setTypedOtherModelName('')
-    setIsOtherModelFormOpen(false)
+    onOtherModelFormClose()
   }
 
   return (
-    <div className="flex flex-col gap-1.5">
-      <div className="flex items-baseline justify-between gap-2">
-        <label id={`${modelPickerId}-label`} htmlFor={`${modelPickerId}-trigger`} className="text-[12.5px] font-semibold">
-          {mediaModelPickerLabel}
-        </label>
-        <button
-          type="button"
-          className="text-[12px] font-medium text-papeliz-blue hover:underline disabled:opacity-50"
-          aria-expanded={isOtherModelFormOpen}
-          disabled={isMediaModelPickerDisabled}
-          onClick={() => setIsOtherModelFormOpen((isOpen) => !isOpen)}
-        >
-          Other Model
-        </button>
-      </div>
-      {offeredMediaModels.length > 0 ? (
-        <PapelizListboxSelect
-          listboxSelectTriggerId={`${modelPickerId}-trigger`}
-          listboxSelectLabelId={`${modelPickerId}-label`}
-          isListboxSelectDisabled={isMediaModelPickerDisabled}
-          chosenListboxOptionValue={chosenMediaModel === null ? '' : describePapelizAssistantMediaModelChoiceValue(chosenMediaModel)}
-          listboxSelectOptions={offeredMediaModels.map((offeredMediaModel) => ({
-            listboxOptionValue: describePapelizAssistantMediaModelChoiceValue(offeredMediaModel),
-            listboxOptionLabel: offeredMediaModel.providerModelName,
-            listboxOptionNote: offeredMediaModel.providerDisplayName,
-          }))}
-          onListboxOptionChoose={(listboxOptionValue) => {
-            const mediaModelChoice = readPapelizAssistantMediaModelChoiceValue(listboxOptionValue)
-            if (mediaModelChoice !== null) chooseAssistantMediaModel(assistantMediaKind, mediaModelChoice)
-          }}
+    <form
+      aria-label="Other Model"
+      className="flex flex-col gap-1.5 rounded-2xl bg-papeliz-surface-soft p-2"
+      onKeyDown={(formKeyEvent) => {
+        if (formKeyEvent.key !== 'Escape') return
+        formKeyEvent.preventDefault()
+        formKeyEvent.stopPropagation()
+        onOtherModelFormClose()
+      }}
+      onSubmit={(formSubmitEvent) => {
+        formSubmitEvent.preventDefault()
+        addOtherModel()
+      }}
+    >
+      {mediaCapableSavedProviderIds.length > 1 && (
+        <>
+          <span id={otherModelProviderLabelId} className="text-[12px] text-papeliz-ink-muted">
+            Provider
+          </span>
+          <PapelizListboxSelect
+            listboxSelectTriggerId={`${otherModelFormId}-provider`}
+            listboxSelectLabelId={otherModelProviderLabelId}
+            chosenListboxOptionValue={shownOtherModelProviderId}
+            listboxSelectOptions={mediaCapableSavedProviderIds.map((savedProviderId) => ({
+              listboxOptionValue: savedProviderId,
+              listboxOptionLabel: findPapelizAssistantProviderPreset(savedProviderId).providerPresetDisplayName,
+            }))}
+            onListboxOptionChoose={setOtherModelProviderId}
+          />
+        </>
+      )}
+      <div className="flex items-center gap-1.5">
+        <input
+          ref={otherModelNameInputRef}
+          aria-label={`Model name${shownOtherModelProviderId.length > 0 ? ` for ${findPapelizAssistantProviderPreset(shownOtherModelProviderId).providerPresetDisplayName}` : ''}`}
+          className="h-[30px] min-w-0 flex-1 rounded-full border border-papeliz-line-strong bg-papeliz-surface px-3 text-[13px] outline-none focus-visible:border-papeliz-blue pointer-coarse:h-10"
+          placeholder="Model name"
+          value={typedOtherModelName}
+          spellCheck={false}
+          autoComplete="off"
+          onChange={(inputChangeEvent) => setTypedOtherModelName(inputChangeEvent.target.value)}
         />
-      ) : (
-        <p className="text-[12.5px] text-papeliz-ink-muted">No model yet. Type the one your provider offers with Other Model.</p>
-      )}
-      {isOtherModelFormOpen && (
-        <form
-          className="flex flex-col gap-1.5 rounded-xl bg-papeliz-surface p-2 shadow-[inset_0_0_0_1px_var(--color-papeliz-line)]"
-          onSubmit={(formSubmitEvent) => {
-            formSubmitEvent.preventDefault()
-            addOtherModel()
-          }}
-        >
-          {mediaCapableSavedProviderIds.length > 1 && (
-            <>
-              <span id={otherModelProviderLabelId} className="text-[12px] text-papeliz-ink-muted">
-                Provider
-              </span>
-              <PapelizListboxSelect
-                listboxSelectTriggerId={`${modelPickerId}-other-provider`}
-                listboxSelectLabelId={otherModelProviderLabelId}
-                chosenListboxOptionValue={shownOtherModelProviderId}
-                listboxSelectOptions={mediaCapableSavedProviderIds.map((savedProviderId) => ({
-                  listboxOptionValue: savedProviderId,
-                  listboxOptionLabel: findPapelizAssistantProviderPreset(savedProviderId).providerPresetDisplayName,
-                }))}
-                onListboxOptionChoose={setOtherModelProviderId}
-              />
-            </>
-          )}
-          <div className="flex items-center gap-1.5">
-            <input
-              aria-label={`Model name${shownOtherModelProviderId.length > 0 ? ` for ${findPapelizAssistantProviderPreset(shownOtherModelProviderId).providerPresetDisplayName}` : ''}`}
-              className="h-[30px] min-w-0 flex-1 rounded-full border border-papeliz-line-strong bg-papeliz-surface px-3 text-[13px] outline-none focus-visible:border-papeliz-blue"
-              placeholder="Model name"
-              value={typedOtherModelName}
-              spellCheck={false}
-              autoComplete="off"
-              onChange={(inputChangeEvent) => setTypedOtherModelName(inputChangeEvent.target.value)}
-            />
-            <PapelizPillButton type="submit" pillButtonVariant="outline" pillButtonSize="small" disabled={typedOtherModelName.trim().length === 0}>
-              Add
-            </PapelizPillButton>
-          </div>
-        </form>
-      )}
-    </div>
-  )
-}
-
-// Shown while no added provider offers pictures or speech.
-export function PapelizAssistantMediaSetupCard({ mediaSetupTitle, mediaSetupText }: { mediaSetupTitle: string; mediaSetupText: string }) {
-  const requestAssistantProviderSettingsPage = usePapelizAssistantPanelUiStore((panelUiState) => panelUiState.requestAssistantProviderSettingsPage)
-  return (
-    <div className="flex flex-col gap-2 rounded-2xl bg-papeliz-surface p-3.5 shadow-[inset_0_0_0_1px_var(--color-papeliz-line)]">
-      <p className="text-[13.5px] font-semibold">{mediaSetupTitle}</p>
-      <p className="text-[12.5px] leading-relaxed text-papeliz-ink-muted">{mediaSetupText}</p>
-      <PapelizPillButton className="self-start" pillButtonVariant="primary" pillButtonSize="small" onClick={() => requestAssistantProviderSettingsPage()}>
-        Choose a Provider
-      </PapelizPillButton>
-    </div>
+        <PapelizPillButton type="submit" pillButtonVariant="outline" pillButtonSize="small" disabled={typedOtherModelName.trim().length === 0}>
+          Add
+        </PapelizPillButton>
+        <PapelizIconButton iconButtonLabel="Close Other Model" iconButtonSize="extra-small" onClick={onOtherModelFormClose}>
+          <X className="size-3" aria-hidden="true" />
+        </PapelizIconButton>
+      </div>
+    </form>
   )
 }
 
