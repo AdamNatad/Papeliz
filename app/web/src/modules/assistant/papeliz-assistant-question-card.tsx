@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, ArrowUp, Check, MessageCircleQuestion, PencilLine } from 'lucide-react'
+import { ArrowLeft, ArrowRight, ArrowUp, Check, ListChecks, MessageCircleQuestion, PencilLine, WandSparkles } from 'lucide-react'
 import { useState, type KeyboardEvent } from 'react'
 import { PapelizPillButton } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
@@ -62,11 +62,16 @@ function PapelizQuestionAnswerOptionRow({ answerOptionText, answerOptionNumber, 
 // write your own; picking one (or pressing its number while the card has focus) sends it. Several:
 // one at a time, with a step for each along the top; pick or write an answer, then Next, and Send
 // answers on the last. Typing in the chat box answers them too. Once answered, the answers stay marked.
+// Asked in Plan, the last button is Plan It, and Just Plan It skips the questions for a plan made from
+// the assistant's best guesses.
 export function PapelizAssistantQuestionCard({ questionEntry }: PapelizAssistantQuestionCardProps) {
   const answerAssistantQuestion = usePapelizAssistantConversationStore((conversationState) => conversationState.answerAssistantQuestion)
+  const skipAssistantQuestionsForPlan = usePapelizAssistantConversationStore((conversationState) => conversationState.skipAssistantQuestionsForPlan)
   const { assistantQuestions } = questionEntry
   const isAskingSeveral = assistantQuestions.length > 1
   const isQuestionAnswered = questionEntry.questionAnswerText !== null
+  const isAskedForPlan = questionEntry.questionAskedInMode === 'plan'
+  const wereQuestionsSkippedForPlan = questionEntry.wereQuestionsSkippedForPlan === true
   const [questionStepIndex, setQuestionStepIndex] = useState(0)
   const [questionStepAnswers, setQuestionStepAnswers] = useState<PapelizQuestionStepAnswer[]>(() =>
     assistantQuestions.map(() => ({ pickedAnswerOptionText: null, ownAnswerText: '', isOwnAnswerChosen: false })),
@@ -120,7 +125,7 @@ export function PapelizAssistantQuestionCard({ questionEntry }: PapelizAssistant
     pickAnswerOption(answerOptionText)
   }
 
-  if (isAskingSeveral && isQuestionAnswered) {
+  if ((isAskingSeveral || wereQuestionsSkippedForPlan) && isQuestionAnswered) {
     return (
       <div
         role="group"
@@ -130,13 +135,19 @@ export function PapelizAssistantQuestionCard({ questionEntry }: PapelizAssistant
         <ol className="flex flex-col gap-2.5">
           {assistantQuestions.map((assistantQuestion, questionIndex) => (
             <li key={`${assistantQuestion.questionTopic}-${questionIndex}`} className="flex items-start gap-2.5 text-[13.5px]">
-              <span className="mt-0.5 grid size-[18px] flex-none place-items-center rounded-full bg-papeliz-chosen-tab-ground text-white" aria-hidden="true">
-                <Check className="size-2.5" />
+              <span
+                className={joinPapelizClassNames(
+                  'mt-0.5 grid size-[18px] flex-none place-items-center rounded-full',
+                  wereQuestionsSkippedForPlan ? 'bg-papeliz-surface-gray text-papeliz-ink-muted' : 'bg-papeliz-chosen-tab-ground text-white',
+                )}
+                aria-hidden="true"
+              >
+                {wereQuestionsSkippedForPlan ? <WandSparkles className="size-2.5" /> : <Check className="size-2.5" />}
               </span>
               <span className="min-w-0">
                 <span className="papeliz-selectable-text block text-papeliz-ink-muted">{assistantQuestion.questionText}</span>
-                <span className="papeliz-selectable-text block font-medium text-papeliz-ink">
-                  {questionEntry.questionAnswerTexts?.[questionIndex] ?? 'Answered in the chat'}
+                <span className={joinPapelizClassNames('papeliz-selectable-text block font-medium', wereQuestionsSkippedForPlan ? 'text-papeliz-ink-subtle' : 'text-papeliz-ink')}>
+                  {wereQuestionsSkippedForPlan ? 'Skipped: the plan uses a best guess' : (questionEntry.questionAnswerTexts?.[questionIndex] ?? 'Answered in the chat')}
                 </span>
               </span>
             </li>
@@ -261,24 +272,37 @@ export function PapelizAssistantQuestionCard({ questionEntry }: PapelizAssistant
           )
         )}
       </div>
-      {isAskingSeveral && (
+      {(isAskingSeveral || (isAskedForPlan && !isQuestionAnswered)) && (
         <div className="flex items-center gap-2 border-t border-papeliz-line px-3 py-2">
-          {questionStepIndex > 0 && (
+          {isAskedForPlan && !isQuestionAnswered && (
+            <PapelizPillButton
+              pillButtonVariant="line"
+              pillButtonSize="small"
+              title="Skip the questions: the assistant plans with its best guesses and lists them"
+              onClick={() => skipAssistantQuestionsForPlan(questionEntry.chatEntryId)}
+            >
+              <ListChecks className="size-3.5" aria-hidden="true" />
+              Just Plan It
+            </PapelizPillButton>
+          )}
+          {isAskingSeveral && questionStepIndex > 0 && (
             <PapelizPillButton pillButtonVariant="gray" pillButtonSize="small" className="gap-1" onClick={() => setQuestionStepIndex(questionStepIndex - 1)}>
               <ArrowLeft className="size-3.5" aria-hidden="true" />
               Back
             </PapelizPillButton>
           )}
-          <PapelizPillButton
-            pillButtonVariant="primary"
-            pillButtonSize="small"
-            className="ml-auto gap-1"
-            disabled={isLastQuestionStep ? !isEveryStepAnswered : !isCurrentStepAnswered}
-            onClick={goToNextQuestionStep}
-          >
-            {isLastQuestionStep ? 'Send Answers' : 'Next'}
-            {isLastQuestionStep ? <ArrowUp className="size-3.5" aria-hidden="true" /> : <ArrowRight className="size-3.5" aria-hidden="true" />}
-          </PapelizPillButton>
+          {isAskingSeveral && (
+            <PapelizPillButton
+              pillButtonVariant="primary"
+              pillButtonSize="small"
+              className="ml-auto gap-1"
+              disabled={isLastQuestionStep ? !isEveryStepAnswered : !isCurrentStepAnswered}
+              onClick={goToNextQuestionStep}
+            >
+              {isLastQuestionStep ? (isAskedForPlan ? 'Plan It' : 'Send Answers') : 'Next'}
+              {isLastQuestionStep ? <ArrowUp className="size-3.5" aria-hidden="true" /> : <ArrowRight className="size-3.5" aria-hidden="true" />}
+            </PapelizPillButton>
+          )}
         </div>
       )}
     </div>

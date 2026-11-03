@@ -1,4 +1,4 @@
-import { MessagesSquare, Search, Trash2 } from 'lucide-react'
+import { CircleCheck, ListChecks, MessagesSquare, Search, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { PapelizConfirmDialog } from '../ui/papeliz-confirm-dialog'
@@ -41,8 +41,30 @@ function listChatSessionProviderModelNames(chatSessionRow: PapelizAssistantUsage
     .filter((providerModelName) => providerModelName !== papelizUnknownProviderModelName)
 }
 
+// How far a chat's plan was built, under its name: a small bar and "Plan · 3 of 5 done", or "Plan ·
+// done" once every step is.
+function PapelizChatSessionPlanBadge({ chatSessionPlanProgress }: { chatSessionPlanProgress: NonNullable<PapelizAssistantUsageViewSessionRow['chatSessionPlanProgress']> }) {
+  const { planStepDoneCount, planStepCount } = chatSessionPlanProgress
+  if (planStepCount > 0 && planStepDoneCount === planStepCount) {
+    return (
+      <span className="mt-0.5 flex items-center gap-1.5 text-xs font-medium text-papeliz-diff-added-ink">
+        <CircleCheck className="size-3 flex-none" aria-hidden="true" />
+        Plan · done
+      </span>
+    )
+  }
+  return (
+    <span className="mt-0.5 flex items-center gap-1.5 text-xs text-papeliz-ink-subtle tabular-nums">
+      <span className="h-1 w-[46px] flex-none overflow-hidden rounded-full bg-papeliz-surface-gray" aria-hidden="true">
+        <span className="block h-full bg-papeliz-blue" style={{ width: `${planStepCount === 0 ? 0 : (planStepDoneCount / planStepCount) * 100}%` }} />
+      </span>
+      Plan · {planStepDoneCount} of {planStepCount} done
+    </span>
+  )
+}
+
 // Sessions: every chat saved in this vault, newest first under its day, with a search. A click
-// opens the chat in Chat. Each one is a note in the vault's hidden .csessions folder; Delete moves
+// opens the chat in Chat, a plan where it stopped. Each one is a note in the vault's hidden .csessions folder; Delete moves
 // it to the vault's trash after a confirmation (the open chat gives way to a new one first).
 export function PapelizAssistantSessionsView() {
   const openVault = usePapelizWorkspaceStore((workspaceState) => workspaceState.openVault)
@@ -153,10 +175,17 @@ export function PapelizAssistantSessionsView() {
                         isLiveChatSession ? 'bg-papeliz-chosen-row-ground text-papeliz-chosen-row-ink' : 'hover:bg-papeliz-hover',
                       )}
                     >
-                      <MessagesSquare
-                        className={joinPapelizClassNames('mt-0.5 size-4 flex-none', isLiveChatSession ? 'text-papeliz-chosen-row-ink' : 'text-papeliz-ink-subtle')}
-                        aria-hidden="true"
-                      />
+                      {chatSessionRow.chatSessionPlanProgress === undefined ? (
+                        <MessagesSquare
+                          className={joinPapelizClassNames('mt-0.5 size-4 flex-none', isLiveChatSession ? 'text-papeliz-chosen-row-ink' : 'text-papeliz-ink-subtle')}
+                          aria-hidden="true"
+                        />
+                      ) : (
+                        <ListChecks
+                          className={joinPapelizClassNames('mt-0.5 size-4 flex-none', isLiveChatSession ? 'text-papeliz-chosen-row-ink' : 'text-papeliz-blue')}
+                          aria-hidden="true"
+                        />
+                      )}
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm font-medium">{chatSessionTitle}</span>
                         <span className="block truncate text-xs text-papeliz-ink-subtle tabular-nums">{describeChatSessionRow(chatSessionRow)}</span>
@@ -165,6 +194,7 @@ export function PapelizAssistantSessionsView() {
                             {chatSessionProviderModelNamesText}
                           </span>
                         )}
+                        {chatSessionRow.chatSessionPlanProgress !== undefined && <PapelizChatSessionPlanBadge chatSessionPlanProgress={chatSessionRow.chatSessionPlanProgress} />}
                       </span>
                       {/* The time gives way to Delete while the row is pointed at or focused. */}
                       {!Number.isNaN(chatSessionUpdatedDate.getTime()) && (

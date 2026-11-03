@@ -1,6 +1,7 @@
 import type { PapelizOpenVault } from '../vault/papeliz-open-vault'
 import { readLatestPapelizVaultNoteText } from '../workspace/papeliz-vault-knowledge-store'
 import { parsePapelizChatSessionFile } from './papeliz-assistant-chat-session-files'
+import { countPapelizAssistantPlanProgress, type PapelizAssistantPlanBuildPhase, type PapelizAssistantPlanProgress } from './papeliz-assistant-plan-document'
 import { papelizAssistantInlineEditUsageFileName, parsePapelizAssistantInlineEditUsageFile } from './papeliz-assistant-inline-edit-usage-file'
 import {
   mergePapelizAssistantModelTokenUsageTallies,
@@ -19,6 +20,8 @@ export interface PapelizAssistantUsageViewSessionRow {
   chatSessionUpdatedAt: string
   chatSessionMessageCount: number
   chatSessionTokenUsage: PapelizChatSessionTokenUsage
+  // How far the chat's plan was built, for a chat that wrote one ("Plan · 3 of 5 done").
+  chatSessionPlanProgress?: PapelizAssistantPlanProgress & { chatSessionPlanBuildPhase: PapelizAssistantPlanBuildPhase }
 }
 
 export interface PapelizAssistantVaultTokenUsageRecords {
@@ -56,6 +59,14 @@ export async function readPapelizAssistantChatSessionRows(
           chatSessionUpdatedAt: savedChatSession.chatSessionUpdatedAt,
           chatSessionMessageCount: savedChatSession.chatSessionMessages.length,
           chatSessionTokenUsage: savedChatSession.chatSessionTokenUsage,
+          ...(savedChatSession.chatSessionPlanState === undefined
+            ? {}
+            : {
+                chatSessionPlanProgress: {
+                  ...countPapelizAssistantPlanProgress(savedChatSession.chatSessionPlanState.chatSessionPlanStepStates),
+                  chatSessionPlanBuildPhase: savedChatSession.chatSessionPlanState.chatSessionPlanBuildPhase,
+                },
+              }),
         }
       }),
     )

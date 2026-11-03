@@ -2,7 +2,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { PapelizInMemoryVaultAdapter } from '../vault/papeliz-in-memory-vault-adapter'
 import { startPapelizVaultKnowledgeSync } from '../workspace/papeliz-vault-knowledge-store'
 import { usePapelizWorkspaceStore } from '../workspace/papeliz-workspace-store'
-import { usePapelizAssistantConversationStore } from './papeliz-assistant-conversation-store'
+import {
+  isPapelizAssistantPlanChatEntry,
+  papelizAssistantJustPlanItMessageText,
+  usePapelizAssistantConversationStore,
+  type PapelizAssistantPlanChatEntry,
+} from './papeliz-assistant-conversation-store'
 import { usePapelizAssistantProviderSettingsStore } from './papeliz-assistant-provider-settings-store'
 import { usePapelizAssistantRunOptionsStore } from './papeliz-assistant-run-options-store'
 
@@ -203,6 +208,169 @@ describe('the AI Assistant’s modes, questions, steering and queue', () => {
       ['Keep it short', true],
       ['Now the soil notes', false],
     ])
+    stopVaultKnowledgeSync()
+  })
+})
+
+// A fake provider whose reply depends on the request's last message. A reply of 'hold' waits until the
+// request is stopped, as an answer still being written does.
+function createPlanStepProviderFetch(answerLastMessage: (lastProviderMessage: { role: string; content?: string | null }, requestNumber: number) => Record<string, unknown> | 'hold') {
+  const providerRequestBodies: ScriptedProviderRequestBody[] = []
+  const planStepProviderFetch = vi.fn(async (_requestUrl: string, requestInit: RequestInit) => {
+    const providerRequestBody = JSON.parse(String(requestInit.body)) as ScriptedProviderRequestBody
+    providerRequestBodies.push(providerRequestBody)
+    const providerReply = answerLastMessage(providerRequestBody.messages.at(-1) ?? { role: 'user' }, providerRequestBodies.length)
+    if (providerReply === 'hold') {
+      return new Promise<Response>((_resolveReply, rejectReply) =>
+        requestInit.signal?.addEventListener('abort', () => rejectReply(new DOMException('The request was stopped.', 'AbortError'))),
+      )
+    }
+    return Response.json({ choices: [{ message: providerReply, finish_reason: 'stop' }], usage: { prompt_tokens: 100, completion_tokens: 10 } })
+  })
+  return { planStepProviderFetch, providerRequestBodies }
+}
+
+function readTestPlanEntry(): PapelizAssistantPlanChatEntry {
+  const planEntry = usePapelizAssistantConversationStore.getState().chatEntries.findLast(isPapelizAssistantPlanChatEntry)
+  if (planEntry === undefined) throw new Error('The conversation should have a plan.')
+  return planEntry
+}
+
+const twoStepGardenPlanText = '# Garden tidy\n\nGoal: Tidier garden notes.\n\n- [ ] Name the beds in [[Garden]].\n- [ ] Add a [[Seeds]] note.'
+
+describe('Plan mode’s questions, answers and build', () => {
+  it('answers a plain question briefly with no plan, and Just Plan It plans from best guesses that Change asks about again', async () => {
+    const { scriptedProviderFetch, providerRequestBodies } = createScriptedProviderFetch([
+      { content: 'The second “Tasks” heading came in with a block pasted from [[Garden]].' },
+      scriptToolCall('call_questions', 'askUserQuestion', {
+        questions: [
+          { question: 'Which day is the review for?', topic: 'Day', answerOptions: ['Friday', 'Monday'] },
+          { question: 'Where should reviews live?', topic: 'Place', answerOptions: ['A Reviews folder', 'Top of the vault'] },
+        ],
+      }),
+      { content: '# Weekly review\n\nGoal: One note a week.\n\nAssumed: Friday · a Reviews folder\n\n- [ ] Create [[Reviews/Review 1]].' },
+    ])
+    vi.stubGlobal('fetch', scriptedProviderFetch)
+    await openTestVault(new PapelizInMemoryVaultAdapter([{ vaultNoteRelativePath: 'Garden.md', vaultNoteText: '# Garden' }]))
+    usePapelizAssistantRunOptionsStore.setState({ assistantMode: 'plan' })
+
+    await usePapelizAssistantConversationStore.getState().sendAssistantMessage('Why does my Inbox have two Tasks headings?')
+    const questionAnswerEntry = usePapelizAssistantConversationStore.getState().chatEntries.find((chatEntry) => chatEntry.chatEntryKind === 'assistant-message')
+    expect(questionAnswerEntry).toMatchObject({ assistantMessageMode: 'plan', chatEntryText: expect.stringContaining('pasted') })
+    expect(questionAnswerEntry !== undefined && isPapelizAssistantPlanChatEntry(questionAnswerEntry)).toBe(false)
+
+    await usePapelizAssistantConversationStore.getState().sendAssistantMessage('Plan a weekly review')
+    const questionEntry = usePapelizAssistantConversationStore.getState().chatEntries.find((chatEntry) => chatEntry.chatEntryKind === 'question')
+    expect(questionEntry).toMatchObject({ questionAskedInMode: 'plan', questionAnswerText: null })
+
+    // Just Plan It answers for the questions, asking for the plan from best guesses.
+    usePapelizAssistantRunOptionsStore.setState({ assistantMode: 'ask' })
+    usePapelizAssistantConversationStore.getState().skipAssistantQuestionsForPlan(questionEntry!.chatEntryId)
+    await waitUntil(() => providerRequestBodies.length === 3 && !usePapelizAssistantConversationStore.getState().isAssistantRunning)
+    expect(usePapelizAssistantRunOptionsStore.getState().assistantMode).toBe('plan')
+    expect(providerRequestBodies[2]?.messages.at(-1)).toEqual({ role: 'user', content: papelizAssistantJustPlanItMessageText })
+    expect(usePapelizAssistantConversationStore.getState().chatEntries.find((chatEntry) => chatEntry.chatEntryId === questionEntry!.chatEntryId)).toMatchObject({
+      wereQuestionsSkippedForPlan: true,
+      questionAnswerText: papelizAssistantJustPlanItMessageText,
+    })
+    expect(readTestPlanEntry().assistantPlanDocument.planAssumedText).toBe('Friday · a Reviews folder')
+
+    // Change asks the same questions again.
+    usePapelizAssistantConversationStore.getState().changeAssistantPlanAssumptions(readTestPlanEntry().chatEntryId)
+    const askedAgainEntry = usePapelizAssistantConversationStore.getState().chatEntries.at(-1)
+    expect(askedAgainEntry).toMatchObject({ chatEntryKind: 'question', questionAnswerText: null, questionAskedInMode: 'plan' })
+    expect(askedAgainEntry?.chatEntryKind === 'question' && askedAgainEntry.assistantQuestions.map((assistantQuestion) => assistantQuestion.questionTopic)).toEqual(['Day', 'Place'])
+  })
+
+  it('stops a running step, Continue starts it again, and a failed step waits for Retry Step or Skip Step', async () => {
+    let isFirstStepHeld = true
+    let isFirstStepFailing = true
+    const { planStepProviderFetch, providerRequestBodies } = createPlanStepProviderFetch((lastProviderMessage) => {
+      const lastMessageText = lastProviderMessage.content ?? ''
+      if (lastMessageText.startsWith('Build step 1 of 2')) {
+        if (isFirstStepHeld) return 'hold'
+        if (isFirstStepFailing) return { content: 'Couldn’t find any beds in [[Garden]] to name.' }
+        return { content: 'The beds already have names, so nothing needed changing.' }
+      }
+      if (lastMessageText.startsWith('Build step 2 of 2')) return { content: 'Couldn’t pick a place for [[Seeds]].' }
+      return { content: twoStepGardenPlanText }
+    })
+    vi.stubGlobal('fetch', planStepProviderFetch)
+    const stopVaultKnowledgeSync = startPapelizVaultKnowledgeSync()
+    await openTestVault(new PapelizInMemoryVaultAdapter([{ vaultNoteRelativePath: 'Garden.md', vaultNoteText: '# Garden\n\nThree beds.' }]))
+    usePapelizAssistantRunOptionsStore.setState({ assistantMode: 'plan' })
+    await usePapelizAssistantConversationStore.getState().sendAssistantMessage('Plan a garden tidy')
+    const planChatEntryId = readTestPlanEntry().chatEntryId
+
+    await usePapelizAssistantConversationStore.getState().buildAssistantPlan(planChatEntryId)
+    await waitUntil(() => providerRequestBodies.length === 2)
+    expect(readTestPlanEntry().assistantPlanDocument).toMatchObject({ planBuildPhase: 'building', planSteps: [{ planStepStatus: 'running' }, { planStepStatus: 'to-do' }] })
+    // Stop ends the running step; nothing goes on.
+    usePapelizAssistantConversationStore.getState().stopAssistantPlanBuild(planChatEntryId)
+    await waitUntil(() => readTestPlanEntry().assistantPlanDocument.planBuildPhase === 'stopped')
+    expect(readTestPlanEntry().assistantPlanDocument.planSteps.map((planStep) => planStep.planStepStatus)).toEqual(['stopped', 'to-do'])
+    expect(usePapelizAssistantConversationStore.getState().isAssistantRunning).toBe(false)
+    expect(providerRequestBodies).toHaveLength(2)
+
+    // Continue starts the stopped step again; this time it can't be done.
+    isFirstStepHeld = false
+    await usePapelizAssistantConversationStore.getState().buildAssistantPlan(planChatEntryId)
+    await waitUntil(() => readTestPlanEntry().assistantPlanDocument.planSteps[0]?.planStepStatus === 'failed')
+    expect(readTestPlanEntry().assistantPlanDocument.planSteps[0]?.planStepProblem).toBe('Couldn’t find any beds in [[Garden]] to name.')
+    expect(readTestPlanEntry().assistantPlanDocument.planBuildPhase).toBe('building')
+    expect(providerRequestBodies).toHaveLength(3)
+
+    // Retry Step: a step that needed no change is done, and the next one runs.
+    isFirstStepFailing = false
+    usePapelizAssistantConversationStore.getState().retryAssistantPlanStep(planChatEntryId, readTestPlanEntry().assistantPlanDocument.planSteps[0]!.planStepId)
+    await waitUntil(() => readTestPlanEntry().assistantPlanDocument.planSteps[1]?.planStepStatus === 'failed')
+    expect(readTestPlanEntry().assistantPlanDocument.planSteps[0]?.planStepStatus).toBe('done')
+
+    // Skip Step leaves it unticked, and the plan is built.
+    usePapelizAssistantConversationStore.getState().skipAssistantPlanStep(planChatEntryId, readTestPlanEntry().assistantPlanDocument.planSteps[1]!.planStepId)
+    await waitUntil(() => readTestPlanEntry().assistantPlanDocument.planBuildPhase === 'done')
+    expect(readTestPlanEntry().assistantPlanDocument.planSteps.map((planStep) => planStep.planStepStatus)).toEqual(['done', 'skipped'])
+    expect(providerRequestBodies).toHaveLength(5)
+    stopVaultKnowledgeSync()
+  })
+
+  it('with Bypass permission on, builds every step straight through and marks its note done', async () => {
+    const { planStepProviderFetch, providerRequestBodies } = createPlanStepProviderFetch((lastProviderMessage) => {
+      if (lastProviderMessage.role === 'tool') return { content: 'Done.' }
+      const lastMessageText = lastProviderMessage.content ?? ''
+      if (lastMessageText.startsWith('Build step 1 of 2')) {
+        return scriptToolCall('call_name_beds', 'proposeVaultNoteEdit', {
+          vaultNoteRelativePath: 'Garden.md',
+          edits: [{ findText: 'Three beds.', replaceWithText: 'Three beds: north, south and east.' }],
+          reason: 'Names the beds.',
+        })
+      }
+      if (lastMessageText.startsWith('Build step 2 of 2')) {
+        return scriptToolCall('call_seeds_note', 'proposeVaultNoteCreate', { vaultNoteRelativePath: 'Seeds.md', noteText: '# Seeds\n', reason: 'A note for seeds.' })
+      }
+      return { content: twoStepGardenPlanText }
+    })
+    vi.stubGlobal('fetch', planStepProviderFetch)
+    const stopVaultKnowledgeSync = startPapelizVaultKnowledgeSync()
+    const vaultAdapter = new PapelizInMemoryVaultAdapter([{ vaultNoteRelativePath: 'Garden.md', vaultNoteText: '# Garden\n\nThree beds.' }])
+    await openTestVault(vaultAdapter)
+    usePapelizAssistantRunOptionsStore.setState({ assistantMode: 'plan', assistantChangePermission: 'bypass-permission' })
+    await usePapelizAssistantConversationStore.getState().sendAssistantMessage('Plan a garden tidy')
+
+    await usePapelizAssistantConversationStore.getState().buildAssistantPlan(readTestPlanEntry().chatEntryId)
+    await waitUntil(() => readTestPlanEntry().assistantPlanDocument.planBuildPhase === 'done')
+    expect(readTestPlanEntry().assistantPlanDocument.planSteps.map((planStep) => planStep.planStepStatus)).toEqual(['done', 'done'])
+    expect(providerRequestBodies).toHaveLength(5)
+    expect(await vaultAdapter.readVaultNoteText('Garden.md')).toBe('# Garden\n\nThree beds: north, south and east.')
+    expect(await vaultAdapter.readVaultNoteText('Seeds.md')).toBe('# Seeds\n')
+    await waitUntil(() => usePapelizWorkspaceStore.getState().vaultTreeEntries.some((vaultTreeEntry) => vaultTreeEntry.vaultEntryRelativePath === 'Plans/Garden tidy.md'))
+    let planNoteText = ''
+    for (let attempt = 0; attempt < 100 && !planNoteText.includes('papeliz-plan: done'); attempt += 1) {
+      planNoteText = await vaultAdapter.readVaultNoteText('Plans/Garden tidy.md')
+      await new Promise((resolveWait) => setTimeout(resolveWait, 10))
+    }
+    expect(planNoteText).toContain('papeliz-plan: done')
+    expect(planNoteText).toContain('- [x] Name the beds in [[Garden]].\n- [x] Add a [[Seeds]] note.')
     stopVaultKnowledgeSync()
   })
 })

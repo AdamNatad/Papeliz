@@ -1,21 +1,21 @@
-import { BookOpenText, Check, CircleAlert, FilePen, FileSearch, FileText, Link2, List, ListChecks, PenLine, Search, Tags, WandSparkles } from 'lucide-react'
-import { useEffect, useRef, type ReactNode } from 'react'
+import { FileSearch, FileText, Link2, Tags, WandSparkles } from 'lucide-react'
+import { useEffect, useMemo, useRef, type ReactNode } from 'react'
 import { isPapelizDesktopApp } from 'virtual:papeliz-desktop-platform-availability'
 import { PapelizPillButton } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
-import { getVaultNoteTitle } from '../vault/papeliz-vault-relative-paths'
 import { usePapelizKeyBindingShortcutLabel } from '../workspace/papeliz-key-bindings-store'
 import { selectActiveVaultMarkdownNoteRelativePath, usePapelizWorkspaceStore } from '../workspace/papeliz-workspace-store'
 import {
+  isPapelizAssistantPlanChatEntry,
   papelizSuggestLinksRequestText,
   papelizSuggestTagsRequestText,
   usePapelizAssistantConversationStore,
   type PapelizAssistantChatEntry,
-  type PapelizAssistantReplyProviderModel,
 } from './papeliz-assistant-conversation-store'
 import { PapelizAssistantChatImaginePictures } from './papeliz-assistant-chat-imagine-pictures'
 import { PapelizAssistantMessageMarkdown } from './papeliz-assistant-message-markdown'
 import { usePapelizAssistantPanelUiStore } from './papeliz-assistant-panel-ui-store'
+import { PapelizAssistantPlanBuildStrip, PapelizAssistantPlanCard, PapelizAssistantPlanEmptyPage, PapelizAssistantPlanModeAnswerChips } from './papeliz-assistant-plan-card'
 import { PapelizAssistantProposalCard } from './papeliz-assistant-proposal-card'
 import { PapelizAssistantQuestionCard } from './papeliz-assistant-question-card'
 import {
@@ -23,111 +23,31 @@ import {
   papelizAssistantProviderNotChosenProblem,
   usePapelizAssistantProviderSettingsStore,
 } from './papeliz-assistant-provider-settings-store'
-import type { PapelizAssistantToolActivityKind } from './papeliz-assistant-vault-tools'
+import { usePapelizAssistantRunOptionsStore } from './papeliz-assistant-run-options-store'
+import { PapelizAssistantReplyProviderModelLabel, PapelizAssistantToolActivityRow } from './papeliz-assistant-tool-activity-row'
 
-const papelizToolActivityIcons: Record<PapelizAssistantToolActivityKind, typeof Search> = {
-  searched: Search,
-  read: BookOpenText,
-  'listed-links': Link2,
-  'listed-notes': List,
-  proposed: FilePen,
-  failed: CircleAlert,
+// The Plan answers that aren't plans and end their answer (a question asked in Plan): Switch to Ask
+// and Plan a Fix go under them. The answer running now gets them once it ends.
+function findPlanModeFinalAnswerEntryIds(chatEntries: readonly PapelizAssistantChatEntry[], isAssistantRunning: boolean): ReadonlySet<string> {
+  const planModeFinalAnswerEntryIds = new Set<string>()
+  let candidateChatEntryId: string | null = null
+  for (const chatEntry of chatEntries) {
+    if (chatEntry.assistantPlanStepRun !== undefined) continue
+    if (chatEntry.chatEntryKind === 'user-message') {
+      if (candidateChatEntryId !== null) planModeFinalAnswerEntryIds.add(candidateChatEntryId)
+      candidateChatEntryId = null
+    } else if (chatEntry.chatEntryKind === 'assistant-message' && chatEntry.chatEntryText.trim().length > 0) {
+      candidateChatEntryId =
+        chatEntry.assistantMessageMode === 'plan' && chatEntry.assistantPlanDocument === undefined && !chatEntry.isChatEntryStreaming ? chatEntry.chatEntryId : null
+    } else if (chatEntry.chatEntryKind === 'question' || chatEntry.chatEntryKind === 'proposal') {
+      candidateChatEntryId = null
+    }
+  }
+  if (candidateChatEntryId !== null && !isAssistantRunning) planModeFinalAnswerEntryIds.add(candidateChatEntryId)
+  return planModeFinalAnswerEntryIds
 }
 
-function PapelizAssistantToolActivityRow({ chatEntry }: { chatEntry: Extract<PapelizAssistantChatEntry, { chatEntryKind: 'tool-activity' }> }) {
-  const openVaultNote = usePapelizWorkspaceStore((workspaceState) => workspaceState.openVaultNote)
-  const ToolActivityIcon = papelizToolActivityIcons[chatEntry.toolActivityKind]
-  const shownVaultNoteRelativePaths = chatEntry.toolActivityVaultNoteRelativePaths.slice(0, 4)
-  return (
-    <div
-      className={joinPapelizClassNames(
-        'papeliz-pop-enter flex flex-wrap items-center gap-1.5 text-[12.5px] text-papeliz-ink-subtle',
-        chatEntry.toolActivityKind === 'failed' && 'text-papeliz-diff-removed-ink',
-      )}
-    >
-      <ToolActivityIcon className="size-3.5 flex-none" aria-hidden="true" />
-      <span>{chatEntry.toolActivityLabel}</span>
-      {shownVaultNoteRelativePaths.map((vaultNoteRelativePath) => (
-        <button
-          key={vaultNoteRelativePath}
-          type="button"
-          title={vaultNoteRelativePath}
-          onClick={() => void openVaultNote(vaultNoteRelativePath)}
-          className="rounded-full bg-papeliz-blue-soft px-2 py-0.5 font-medium text-papeliz-blue hover:bg-papeliz-blue-soft-hover"
-        >
-          {getVaultNoteTitle(vaultNoteRelativePath)}
-        </button>
-      ))}
-      {chatEntry.toolActivityVaultNoteRelativePaths.length > shownVaultNoteRelativePaths.length && (
-        <span>+{chatEntry.toolActivityVaultNoteRelativePaths.length - shownVaultNoteRelativePaths.length}</span>
-      )}
-    </div>
-  )
-}
-
-// The model that wrote an answer, muted beside it, since the model chip can switch models in the
-// middle of a chat; the tip adds its provider.
-function PapelizAssistantReplyProviderModelLabel({ replyProviderModel, className }: { replyProviderModel: PapelizAssistantReplyProviderModel; className?: string }) {
-  const { assistantReplyProviderModelName, assistantReplyProviderDisplayName } = replyProviderModel
-  if (assistantReplyProviderModelName === undefined) return null
-  return (
-    <span
-      className={joinPapelizClassNames('min-w-0 truncate', className)}
-      title={`Answered by ${assistantReplyProviderModelName}${assistantReplyProviderDisplayName === undefined ? '' : ` on ${assistantReplyProviderDisplayName}`}`}
-    >
-      {assistantReplyProviderModelName}
-    </span>
-  )
-}
-
-// A plan written in Plan mode: Write It switches to Write and has the assistant carry it out; Save
-// as Note keeps it as a note at the top of the vault.
-function PapelizAssistantPlanCard({ planEntry }: { planEntry: Extract<PapelizAssistantChatEntry, { chatEntryKind: 'assistant-message' }> }) {
-  const isAssistantRunning = usePapelizAssistantConversationStore((conversationState) => conversationState.isAssistantRunning)
-  const carryOutAssistantPlan = usePapelizAssistantConversationStore((conversationState) => conversationState.carryOutAssistantPlan)
-  const saveAssistantPlanAsNote = usePapelizAssistantConversationStore((conversationState) => conversationState.saveAssistantPlanAsNote)
-  const openVaultNote = usePapelizWorkspaceStore((workspaceState) => workspaceState.openVaultNote)
-  const savedPlanVaultNoteRelativePath = planEntry.savedPlanVaultNoteRelativePath ?? null
-  // The plan's `# ` title goes in the card's header; the steps below it.
-  const planTitleMatch = /^\s*#\s+(.+)\n?/.exec(planEntry.chatEntryText)
-  const planTitle = planTitleMatch?.[1]?.trim() ?? null
-  const planStepsText = planTitleMatch === null ? planEntry.chatEntryText : planEntry.chatEntryText.slice(planTitleMatch[0].length)
-  return (
-    <div className="papeliz-pop-enter flex-none overflow-hidden rounded-[18px] border border-papeliz-line bg-papeliz-surface shadow-papeliz-card">
-      <div className="flex items-center gap-2 border-b border-papeliz-line px-3.5 py-2.5 text-[13px] text-papeliz-ink-muted">
-        <ListChecks className="size-4 flex-none text-papeliz-blue" aria-hidden="true" />
-        <span className="min-w-0">
-          Plan{planTitle !== null && <b className="font-semibold text-papeliz-ink"> · {planTitle}</b>}
-        </span>
-        <PapelizAssistantReplyProviderModelLabel replyProviderModel={planEntry} className="ml-auto max-w-[45%] flex-none text-papeliz-ink-subtle" />
-      </div>
-      <div className="max-h-96 overflow-y-auto px-3.5 py-2.5">
-        <PapelizAssistantMessageMarkdown assistantMessageText={planStepsText.trim()} />
-      </div>
-      <div className="flex flex-wrap items-center gap-2 border-t border-papeliz-line bg-papeliz-surface-soft px-3.5 py-2.5">
-        <PapelizPillButton pillButtonVariant="primary" pillButtonSize="small" disabled={isAssistantRunning} onClick={() => carryOutAssistantPlan(planEntry.chatEntryId)}>
-          <PenLine className="size-3.5" aria-hidden="true" />
-          Write It
-        </PapelizPillButton>
-        {savedPlanVaultNoteRelativePath === null ? (
-          <PapelizPillButton pillButtonVariant="line" pillButtonSize="small" onClick={() => void saveAssistantPlanAsNote(planEntry.chatEntryId)}>
-            Save as Note
-          </PapelizPillButton>
-        ) : (
-          <button
-            type="button"
-            onClick={() => void openVaultNote(savedPlanVaultNoteRelativePath)}
-            className="flex items-center gap-1.5 text-[13px] font-medium text-papeliz-diff-added-ink hover:underline"
-          >
-            <Check className="size-3.5" aria-hidden="true" /> Saved as “{getVaultNoteTitle(savedPlanVaultNoteRelativePath)}”
-          </button>
-        )}
-      </div>
-    </div>
-  )
-}
-
-function PapelizAssistantChatEntryView({ chatEntry }: { chatEntry: PapelizAssistantChatEntry }): ReactNode {
+function PapelizAssistantChatEntryView({ chatEntry, isPlanModeFinalAnswer }: { chatEntry: PapelizAssistantChatEntry; isPlanModeFinalAnswer: boolean }): ReactNode {
   const requestAssistantProviderSettingsPage = usePapelizAssistantPanelUiStore((panelUiState) => panelUiState.requestAssistantProviderSettingsPage)
   switch (chatEntry.chatEntryKind) {
     case 'user-message':
@@ -169,26 +89,29 @@ function PapelizAssistantChatEntryView({ chatEntry }: { chatEntry: PapelizAssist
         </div>
       )
     case 'assistant-message':
-      if (chatEntry.assistantMessageMode === 'plan' && !chatEntry.isChatEntryStreaming && chatEntry.chatEntryText.trim().length > 0) {
-        return <PapelizAssistantPlanCard planEntry={chatEntry} />
+      if (isPapelizAssistantPlanChatEntry(chatEntry) && !chatEntry.isChatEntryStreaming) {
+        return <PapelizAssistantPlanCard planEntry={chatEntry} planCardPlacement="conversation" />
       }
       // A reply that ended with nothing written (the request failed) shows only the notice after it.
       if (!chatEntry.isChatEntryStreaming && chatEntry.chatEntryText.length === 0) return null
       return (
-        <div className="papeliz-pop-enter">
-          <div className="mb-1.5 flex items-center gap-2 text-[13px] text-papeliz-ink-subtle">
-            <span className="grid size-[22px] flex-none place-items-center rounded-full bg-linear-to-r from-papeliz-gradient-start to-papeliz-gradient-end text-white">
-              <WandSparkles className="size-3" aria-hidden="true" />
-            </span>
-            <b className="font-semibold text-papeliz-ink">Assistant</b>
-            <PapelizAssistantReplyProviderModelLabel replyProviderModel={chatEntry} />
-            {chatEntry.isChatEntryStreaming && <span className="papeliz-saving-dot size-1.5 rounded-full bg-papeliz-blue" aria-label="Writing" />}
+        <div className="papeliz-pop-enter flex flex-col gap-3">
+          <div>
+            <div className="mb-1.5 flex items-center gap-2 text-[13px] text-papeliz-ink-subtle">
+              <span className="grid size-[22px] flex-none place-items-center rounded-full bg-linear-to-r from-papeliz-gradient-start to-papeliz-gradient-end text-white">
+                <WandSparkles className="size-3" aria-hidden="true" />
+              </span>
+              <b className="font-semibold text-papeliz-ink">Assistant</b>
+              <PapelizAssistantReplyProviderModelLabel replyProviderModel={chatEntry} />
+              {chatEntry.isChatEntryStreaming && <span className="papeliz-saving-dot size-1.5 rounded-full bg-papeliz-blue" aria-label="Writing" />}
+            </div>
+            {chatEntry.chatEntryText.length === 0 ? (
+              <p className="text-sm text-papeliz-ink-subtle">Thinking…</p>
+            ) : (
+              <PapelizAssistantMessageMarkdown assistantMessageText={chatEntry.chatEntryText} />
+            )}
           </div>
-          {chatEntry.chatEntryText.length === 0 ? (
-            <p className="text-sm text-papeliz-ink-subtle">Thinking…</p>
-          ) : (
-            <PapelizAssistantMessageMarkdown assistantMessageText={chatEntry.chatEntryText} />
-          )}
+          {isPlanModeFinalAnswer && <PapelizAssistantPlanModeAnswerChips />}
         </div>
       )
     case 'tool-activity':
@@ -219,13 +142,17 @@ function PapelizAssistantChatEntryView({ chatEntry }: { chatEntry: PapelizAssist
   }
 }
 
-// The conversation: messages, what the assistant looked at, and its proposals.
+// The conversation: messages, what the assistant looked at, and its proposals. A plan shows as its
+// card, with what Build does for each step drawn under that step rather than here; opened to full
+// height, the card takes the whole page. Plan has an empty page of its own.
 export function PapelizAssistantChatView() {
   const chatEntries = usePapelizAssistantConversationStore((conversationState) => conversationState.chatEntries)
+  const fullHeightAssistantPlanChatEntryId = usePapelizAssistantConversationStore((conversationState) => conversationState.fullHeightAssistantPlanChatEntryId)
   const assistantProposalsById = usePapelizAssistantConversationStore((conversationState) => conversationState.assistantProposalsById)
   const isAssistantRunning = usePapelizAssistantConversationStore((conversationState) => conversationState.isAssistantRunning)
   const sendAssistantMessage = usePapelizAssistantConversationStore((conversationState) => conversationState.sendAssistantMessage)
   const acceptAllPendingAssistantProposals = usePapelizAssistantConversationStore((conversationState) => conversationState.acceptAllPendingAssistantProposals)
+  const assistantMode = usePapelizAssistantRunOptionsStore((runOptionsState) => runOptionsState.assistantMode)
   usePapelizAssistantProviderSettingsStore((settingsState) => settingsState.providerSettingsByProviderId)
   usePapelizAssistantProviderSettingsStore((settingsState) => settingsState.activeAssistantProviderId)
   const activeVaultMarkdownNoteRelativePath = usePapelizWorkspaceStore(selectActiveVaultMarkdownNoteRelativePath)
@@ -233,14 +160,28 @@ export function PapelizAssistantChatView() {
   const pendingProposalCount = Object.values(assistantProposalsById).filter((assistantProposal) => assistantProposal.proposalStatus === 'pending').length
   const activeProviderConnection = getActivePapelizAssistantProviderConnection()
   const inlineEditShortcutLabel = usePapelizKeyBindingShortcutLabel('assistant-inline-edit')
+  const planModeFinalAnswerEntryIds = useMemo(() => findPlanModeFinalAnswerEntryIds(chatEntries, isAssistantRunning), [chatEntries, isAssistantRunning])
+  const fullHeightPlanEntry =
+    fullHeightAssistantPlanChatEntryId === null
+      ? null
+      : (chatEntries.filter(isPapelizAssistantPlanChatEntry).find((chatEntry) => chatEntry.chatEntryId === fullHeightAssistantPlanChatEntryId) ?? null)
 
   useEffect(() => {
     const chatScrollArea = chatScrollAreaRef.current
     if (chatScrollArea !== null) chatScrollArea.scrollTo({ top: chatScrollArea.scrollHeight, behavior: 'smooth' })
-  }, [chatEntries])
+  }, [chatEntries, fullHeightPlanEntry])
+
+  if (fullHeightPlanEntry !== null) {
+    return (
+      <div className="flex min-h-0 flex-1 flex-col px-2.5 pt-2.5 pb-2">
+        <PapelizAssistantPlanCard planEntry={fullHeightPlanEntry} planCardPlacement="full-height" />
+      </div>
+    )
+  }
 
   return (
     <div ref={chatScrollAreaRef} className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-[18px] pt-4 pb-3">
+      <PapelizAssistantPlanBuildStrip chatScrollAreaRef={chatScrollAreaRef} />
       {chatEntries.length === 0 && activeProviderConnection.providerConnectionOutcome !== 'ready' && (
         <div className="papeliz-pop-enter m-auto flex max-w-[300px] flex-col items-center gap-3 py-8 text-center">
           <span className="grid size-11 place-items-center rounded-full bg-papeliz-blue-soft text-papeliz-blue">
@@ -258,7 +199,8 @@ export function PapelizAssistantChatView() {
           )}
         </div>
       )}
-      {chatEntries.length === 0 && activeProviderConnection.providerConnectionOutcome === 'ready' && (
+      {chatEntries.length === 0 && activeProviderConnection.providerConnectionOutcome === 'ready' && assistantMode === 'plan' && <PapelizAssistantPlanEmptyPage />}
+      {chatEntries.length === 0 && activeProviderConnection.providerConnectionOutcome === 'ready' && assistantMode !== 'plan' && (
         <div className="papeliz-pop-enter my-auto flex flex-col gap-3 py-6">
           <p className="text-sm text-papeliz-ink-muted">
             Ask about your notes, plan a change, or switch to Write: the assistant proposes edits as diffs, and nothing changes until you accept.
@@ -284,9 +226,11 @@ export function PapelizAssistantChatView() {
           <p className="text-xs text-papeliz-ink-subtle">Select text in a note and press {inlineEditShortcutLabel} to edit it in place.</p>
         </div>
       )}
-      {chatEntries.map((chatEntry) => (
-        <PapelizAssistantChatEntryView key={chatEntry.chatEntryId} chatEntry={chatEntry} />
-      ))}
+      {chatEntries.map((chatEntry) =>
+        chatEntry.assistantPlanStepRun === undefined ? (
+          <PapelizAssistantChatEntryView key={chatEntry.chatEntryId} chatEntry={chatEntry} isPlanModeFinalAnswer={planModeFinalAnswerEntryIds.has(chatEntry.chatEntryId)} />
+        ) : null,
+      )}
       {pendingProposalCount > 1 && !isAssistantRunning && (
         <div className="papeliz-pop-enter sticky bottom-0 flex items-center gap-2 rounded-full border border-papeliz-blue-line bg-papeliz-surface px-3 py-1.5 shadow-papeliz-card">
           <span className="text-[13px] text-papeliz-ink-muted">{pendingProposalCount} changes waiting</span>

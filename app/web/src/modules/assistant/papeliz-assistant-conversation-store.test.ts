@@ -1,12 +1,15 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { PapelizInMemoryVaultAdapter } from '../vault/papeliz-in-memory-vault-adapter'
+import { getVaultNoteTitle } from '../vault/papeliz-vault-relative-paths'
 import { startPapelizVaultKnowledgeSync } from '../workspace/papeliz-vault-knowledge-store'
 import { usePapelizWorkspaceStore } from '../workspace/papeliz-workspace-store'
 import { parsePapelizChatSessionFile } from './papeliz-assistant-chat-session-files'
-import { usePapelizAssistantConversationStore } from './papeliz-assistant-conversation-store'
+import { isPapelizAssistantPlanChatEntry, usePapelizAssistantConversationStore, type PapelizAssistantPlanChatEntry } from './papeliz-assistant-conversation-store'
 import { runPapelizInlineEdit } from './papeliz-assistant-inline-edit-run'
+import { setPapelizAssistantPlanStepWords, togglePapelizAssistantPlanStepTicked } from './papeliz-assistant-plan-document'
 import { usePapelizAssistantProviderSettingsStore } from './papeliz-assistant-provider-settings-store'
 import { usePapelizAssistantRunOptionsStore } from './papeliz-assistant-run-options-store'
+import { readPapelizAssistantChatSessionRows } from './papeliz-assistant-vault-token-usage'
 
 // A fake provider that answers in a fixed order: search, read, propose an edit, then reply. Each
 // answer counts 1000 more input tokens than the one before, and 20 output tokens.
@@ -50,6 +53,7 @@ async function waitUntil(isConditionMet: () => boolean) {
 
 afterEach(async () => {
   vi.unstubAllGlobals()
+  usePapelizAssistantRunOptionsStore.setState({ assistantMode: 'ask', assistantChangePermission: 'review-changes' })
   await usePapelizWorkspaceStore.getState().closeVaultInWorkspace()
 })
 
@@ -318,5 +322,181 @@ describe('the assistant conversation', () => {
       onReplacementTextDelta: () => undefined,
     })
     expect(providerSystemMessages.at(-1)).toContain('You run on the model “claude-haiku-5-5” from the provider “Claude”')
+  })
+})
+
+interface PlanProviderRequestBody {
+  messages: Array<{ role: string; content?: string | null }>
+  tools?: Array<{ function: { name: string } }>
+}
+
+// A fake provider whose reply depends on what it is asked: the plan, then each step Build sends, then
+// a line after each step's tool call.
+function createPlanProviderFetch(answerProviderRequest: (providerRequestBody: PlanProviderRequestBody) => Record<string, unknown>) {
+  const providerRequestBodies: PlanProviderRequestBody[] = []
+  const planProviderFetch = vi.fn(async (_requestUrl: string, requestInit: RequestInit) => {
+    const providerRequestBody = JSON.parse(String(requestInit.body)) as PlanProviderRequestBody
+    providerRequestBodies.push(providerRequestBody)
+    return Response.json({ choices: [{ message: answerProviderRequest(providerRequestBody), finish_reason: 'stop' }], usage: { prompt_tokens: 100, completion_tokens: 10 } })
+  })
+  return { planProviderFetch, providerRequestBodies }
+}
+
+function scriptProposedEdit(toolCallId: string, vaultNoteRelativePath: string, findText: string, replaceWithText: string) {
+  return {
+    tool_calls: [
+      { index: 0, id: toolCallId, function: { name: 'proposeVaultNoteEdit', arguments: JSON.stringify({ vaultNoteRelativePath, edits: [{ findText, replaceWithText }], reason: 'The step.' }) } },
+    ],
+  }
+}
+
+async function waitUntilVaultNoteText(vaultAdapter: PapelizInMemoryVaultAdapter, vaultNoteRelativePath: string, isVaultNoteTextReady: (vaultNoteText: string) => boolean) {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const vaultNoteText = await vaultAdapter.readVaultNoteText(vaultNoteRelativePath).catch(() => '')
+    if (isVaultNoteTextReady(vaultNoteText)) return vaultNoteText
+    await new Promise((resolveWait) => setTimeout(resolveWait, 10))
+  }
+  return vaultAdapter.readVaultNoteText(vaultNoteRelativePath).catch(() => '')
+}
+
+function readPlanEntry(): PapelizAssistantPlanChatEntry {
+  const planEntry = usePapelizAssistantConversationStore.getState().chatEntries.find(isPapelizAssistantPlanChatEntry)
+  if (planEntry === undefined) throw new Error('The conversation should have a plan.')
+  return planEntry
+}
+
+describe('Plan mode', () => {
+  it('writes a plan that is changed on its card, then builds it step by step, ticking its note in Plans/ and keeping it with the chat', async () => {
+    const tidyGardenPlanText =
+      'I read your notes.\n\n# Tidy the garden\n\nGoal: One clear garden note.\n\n- [ ] Name the beds in [[Garden]].\n- [ ] Move the seeds task from [[Inbox]] into [[Garden]].\n- [ ] Link [[Garden]] from [[Inbox]].'
+    const { planProviderFetch, providerRequestBodies } = createPlanProviderFetch((providerRequestBody) => {
+      const lastProviderMessage = providerRequestBody.messages.at(-1)
+      if (lastProviderMessage?.role === 'tool') return { content: 'I proposed the change.' }
+      const lastUserMessageText = lastProviderMessage?.content ?? ''
+      if (lastUserMessageText.startsWith('Build step 1 of 3')) return scriptProposedEdit('call_step_1', 'Garden.md', 'Three beds.', 'Three beds: north, south and east.')
+      if (lastUserMessageText.startsWith('Build step 2 of 3')) return scriptProposedEdit('call_step_2', 'Inbox.md', 'Buy seeds.', 'Seeds: see [[Garden]].')
+      return { content: tidyGardenPlanText }
+    })
+    vi.stubGlobal('fetch', planProviderFetch)
+    const stopVaultKnowledgeSync = startPapelizVaultKnowledgeSync()
+    const vaultAdapter = new PapelizInMemoryVaultAdapter([
+      { vaultNoteRelativePath: 'Garden.md', vaultNoteText: '# Garden\n\nThree beds.' },
+      { vaultNoteRelativePath: 'Inbox.md', vaultNoteText: 'Buy seeds.' },
+    ])
+    await usePapelizWorkspaceStore.getState().openVaultInWorkspace(
+      { papelizVaultId: 'plan-build-test-vault', papelizVaultDisplayName: 'Test vault', papelizVaultAdapter: vaultAdapter },
+      { firstVaultNoteRelativePathToOpen: null, firstNoteViewMode: 'md-view', expandAllTopLevelFolders: false },
+    )
+    usePapelizAssistantProviderSettingsStore.setState({
+      activeAssistantProviderId: 'custom',
+      providerSettingsByProviderId: {
+        custom: { papelizAssistantProviderId: 'custom', providerBaseUrl: 'https://provider.test/v1', providerModelName: 'test-model', providerApiKey: 'test-key' },
+      },
+    })
+    await waitUntil(() => usePapelizWorkspaceStore.getState().vaultTreeEntries.length > 0)
+    await new Promise((resolveWait) => setTimeout(resolveWait, 50))
+    usePapelizAssistantRunOptionsStore.setState({ assistantMode: 'plan', assistantChangePermission: 'review-changes' })
+
+    // Plan looks things up and changes nothing; its words ask for the checklist.
+    await usePapelizAssistantConversationStore.getState().sendAssistantMessage('Plan a tidy-up of my garden notes')
+    const planToolNames = providerRequestBodies[0]?.tools?.map((chatTool) => chatTool.function.name) ?? []
+    expect(planToolNames).toContain('askUserQuestion')
+    expect(planToolNames.some((toolName) => toolName.startsWith('propose'))).toBe(false)
+    const planSystemMessageText = providerRequestBodies[0]?.messages[0]?.content ?? ''
+    expect(planSystemMessageText).toContain('You are in Plan mode')
+    expect(planSystemMessageText).toContain('one `- [ ] ` line each')
+    expect(planSystemMessageText).toContain('answer it briefly')
+    const planEntry = readPlanEntry()
+    expect(planEntry.assistantPlanDocument).toMatchObject({ planTitle: 'Tidy the garden', planGoalText: 'One clear garden note.', planBuildPhase: 'draft' })
+    const [nameBedsStep, moveSeedsStep, linkGardenStep] = planEntry.assistantPlanDocument.planSteps
+
+    // Changed on the card before it is built: a step reworded, and one ticked as already done.
+    const { changeAssistantPlanDocument } = usePapelizAssistantConversationStore.getState()
+    changeAssistantPlanDocument(planEntry.chatEntryId, (planDocument) =>
+      setPapelizAssistantPlanStepWords(planDocument, moveSeedsStep!.planStepId, 'Move the seeds task from [[Inbox]] into [[Garden]], under Seeds.'),
+    )
+    changeAssistantPlanDocument(planEntry.chatEntryId, (planDocument) => togglePapelizAssistantPlanStepTicked(planDocument, linkGardenStep!.planStepId))
+
+    await usePapelizAssistantConversationStore.getState().buildAssistantPlan(planEntry.chatEntryId)
+    await waitUntil(() => readPlanEntry().assistantPlanDocument.planSteps[0]?.planStepStatus === 'needs-review')
+    // Build saved the plan in Plans/ first, tied to its chat.
+    const chatSessionVaultNoteRelativePath = usePapelizAssistantConversationStore.getState().chatSessionVaultNoteRelativePath
+    expect(readPlanEntry().savedPlanVaultNoteRelativePath).toBe('Plans/Tidy the garden.md')
+    const firstPlanNoteText = await vaultAdapter.readVaultNoteText('Plans/Tidy the garden.md')
+    expect(firstPlanNoteText).toContain(`papeliz-plan: in-progress\npapeliz-plan-chat: ${getVaultNoteTitle(chatSessionVaultNoteRelativePath ?? '')}\n---`)
+    expect(firstPlanNoteText).toContain('- [ ] Move the seeds task from [[Inbox]] into [[Garden]], under Seeds.\n- [x] Link [[Garden]] from [[Inbox]].')
+
+    // The step runs as Write with its own words and the plan as it stands, and asks nothing.
+    const firstStepRequest = providerRequestBodies.find((providerRequestBody) => providerRequestBody.messages.at(-1)?.content?.startsWith('Build step 1 of 3'))
+    expect(firstStepRequest?.messages.at(-1)?.content).toContain('Build step 1 of 3 of the plan “Tidy the garden”: Name the beds in [[Garden]].')
+    expect(firstStepRequest?.messages.at(-1)?.content).toContain('- [x] Link [[Garden]] from [[Inbox]].')
+    const firstStepToolNames = firstStepRequest?.tools?.map((chatTool) => chatTool.function.name) ?? []
+    expect(firstStepToolNames).toContain('proposeVaultNoteEdit')
+    expect(firstStepToolNames).not.toContain('askUserQuestion')
+    expect(firstStepRequest?.messages[0]?.content).toContain('You are building one step of a plan')
+    // What the step did is drawn under the step, not in the conversation.
+    const firstStepEntryKinds = usePapelizAssistantConversationStore
+      .getState()
+      .chatEntries.filter((chatEntry) => chatEntry.assistantPlanStepRun?.planStepId === nameBedsStep!.planStepId)
+      .map((chatEntry) => chatEntry.chatEntryKind)
+    expect(firstStepEntryKinds).toEqual(['user-message', 'tool-activity', 'proposal', 'assistant-message'])
+    expect(await vaultAdapter.readVaultNoteText('Garden.md')).toBe('# Garden\n\nThree beds.')
+
+    // Accepting the step's change finishes it, ticks the note, and starts the next step.
+    const [firstStepProposalId] = readPlanEntry().assistantPlanDocument.planSteps[0]!.planStepProposalIds
+    await usePapelizAssistantConversationStore.getState().acceptAssistantProposal(firstStepProposalId!)
+    expect(await vaultAdapter.readVaultNoteText('Garden.md')).toBe('# Garden\n\nThree beds: north, south and east.')
+    await waitUntil(() => readPlanEntry().assistantPlanDocument.planSteps[1]?.planStepStatus === 'needs-review')
+    expect(readPlanEntry().assistantPlanDocument.planSteps[0]?.planStepStatus).toBe('done')
+    expect(await waitUntilVaultNoteText(vaultAdapter, 'Plans/Tidy the garden.md', (planNoteText) => planNoteText.includes('- [x] Name the beds'))).toContain(
+      '- [x] Name the beds in [[Garden]].',
+    )
+
+    // Rejecting every change of a step leaves it unticked and goes on; the ticked step is skipped, so
+    // the plan is built.
+    const [secondStepProposalId] = readPlanEntry().assistantPlanDocument.planSteps[1]!.planStepProposalIds
+    usePapelizAssistantConversationStore.getState().rejectAssistantProposal(secondStepProposalId!)
+    await waitUntil(() => readPlanEntry().assistantPlanDocument.planBuildPhase === 'done')
+    expect(readPlanEntry().assistantPlanDocument.planSteps.map((planStep) => planStep.planStepStatus)).toEqual(['done', 'skipped', 'ticked'])
+    expect(providerRequestBodies.filter((providerRequestBody) => providerRequestBody.messages.at(-1)?.content?.startsWith('Build step 3'))).toHaveLength(0)
+    expect(await vaultAdapter.readVaultNoteText('Inbox.md')).toBe('Buy seeds.')
+    const finalPlanNoteText = await waitUntilVaultNoteText(vaultAdapter, 'Plans/Tidy the garden.md', (planNoteText) => !planNoteText.includes('- [ ] Name'))
+    expect(finalPlanNoteText).toContain('papeliz-plan: in-progress')
+    expect(finalPlanNoteText).toContain('- [x] Name the beds in [[Garden]].\n- [ ] Move the seeds task')
+
+    // The chat keeps the plan and each step's state; its build is quoted in the plan's answer.
+    await new Promise((resolveWait) => setTimeout(resolveWait, 50))
+    const savedChatSession = parsePapelizChatSessionFile(await vaultAdapter.readVaultNoteText(chatSessionVaultNoteRelativePath!))
+    expect(savedChatSession?.chatSessionMessages.map((chatSessionMessage) => chatSessionMessage.chatSessionMessageRole)).toEqual(['user', 'assistant'])
+    expect(savedChatSession?.chatSessionPlanState).toEqual({
+      chatSessionPlanMessageIndex: 1,
+      chatSessionPlanBuildPhase: 'done',
+      chatSessionPlanNoteRelativePath: 'Plans/Tidy the garden.md',
+      chatSessionPlanStepStates: [
+        { planStepStatus: 'done', planStepProblem: null },
+        { planStepStatus: 'skipped', planStepProblem: null },
+        { planStepStatus: 'ticked', planStepProblem: null },
+      ],
+    })
+    const savedPlanMessageText = savedChatSession?.chatSessionMessages[1]?.chatSessionMessageText ?? ''
+    expect(savedPlanMessageText).toContain('> - Step 1 · Proposed an edit to [[Garden|Garden]] · accepted')
+    expect(savedPlanMessageText).toContain('> - Step 2 · Proposed an edit to [[Inbox|Inbox]] · rejected')
+    expect(savedPlanMessageText).toContain('# Tidy the garden\n\nGoal: One clear garden note.\n\n- [x] Name the beds in [[Garden]].')
+    // Sessions shows how far it was built.
+    const [chatSessionRow] = await readPapelizAssistantChatSessionRows(usePapelizWorkspaceStore.getState().openVault!, [chatSessionVaultNoteRelativePath!])
+    expect(chatSessionRow?.chatSessionPlanProgress).toEqual({ planStepDoneCount: 2, planStepCount: 3, chatSessionPlanBuildPhase: 'done' })
+
+    // Reopened, the chat brings the plan back as it was.
+    usePapelizAssistantConversationStore.getState().startNewAssistantChat()
+    await usePapelizAssistantConversationStore.getState().openSavedChatSession(chatSessionVaultNoteRelativePath!)
+    expect(readPlanEntry().savedPlanVaultNoteRelativePath).toBe('Plans/Tidy the garden.md')
+    expect(readPlanEntry().assistantPlanDocument).toMatchObject({ planTitle: 'Tidy the garden', planBuildPhase: 'done' })
+    expect(readPlanEntry().assistantPlanDocument.planSteps.map(({ planStepWords, planStepStatus }) => [planStepWords, planStepStatus])).toEqual([
+      ['Name the beds in [[Garden]].', 'done'],
+      ['Move the seeds task from [[Inbox]] into [[Garden]], under Seeds.', 'skipped'],
+      ['Link [[Garden]] from [[Inbox]].', 'ticked'],
+    ])
+    usePapelizAssistantConversationStore.getState().startNewAssistantChat()
+    stopVaultKnowledgeSync()
   })
 })

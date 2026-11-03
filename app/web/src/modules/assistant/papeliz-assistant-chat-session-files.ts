@@ -6,6 +6,12 @@ import {
   pickFreeVaultEntryName,
 } from '../vault/papeliz-vault-relative-paths'
 import {
+  isPapelizAssistantPlanBuildPhase,
+  isPapelizAssistantPlanStepStatus,
+  type PapelizAssistantPlanBuildPhase,
+  type PapelizAssistantPlanStepStatus,
+} from './papeliz-assistant-plan-document'
+import {
   papelizUnknownProviderModelName,
   type PapelizAssistantModelTokenUsageTally,
   type PapelizAssistantTokenUsageTally,
@@ -51,6 +57,20 @@ import {
 // request the chat made, added up, then split by model, one line per model ("· estimated" at the
 // end when any of its figures is). The context keys are the last request's input plus its output.
 // Notes saved before these keys existed read as no use.
+//
+// A chat that wrote a plan in Plan mode keeps where its latest plan is and how far it was built, so
+// reopening it brings the plan back where it stopped and Sessions can show "Plan · 3 of 5 done":
+//
+//   chat-session-plan-message: 1
+//   chat-session-plan-build: stopped
+//   chat-session-plan-note: "Plans/Weekly review for Project Hub.md"
+//   chat-session-plan-steps:
+//     - "done"
+//     - "failed · Couldn’t find a Decisions heading."
+//     - "to-do"
+//
+// The message number counts the saved messages from 0; that message holds the plan's Markdown
+// (papeliz-assistant-plan-document.ts), one step per line, in the order of the step states.
 
 export const papelizChatSessionsFolderName = papelizVaultChatSessionFolderName
 // Where chats were saved before `.csessions`: `.chatsession`, and before it the visible "Chat
@@ -72,6 +92,13 @@ const papelizChatSessionTokenUsageFrontmatterKeys = {
   chatSessionModelTokenUsageTallies: 'chat-session-tokens-by-model',
 } as const
 const papelizChatSessionModelTokenUsageLinePattern = /^(.*) · (\d+) in · (\d+) out · (\d+) requests?( · estimated)?(?: · provider cost \$(\d+(?:\.\d+)?) over (\d+))?$/
+const papelizChatSessionPlanFrontmatterKeys = {
+  chatSessionPlanMessageIndex: 'chat-session-plan-message',
+  chatSessionPlanBuildPhase: 'chat-session-plan-build',
+  chatSessionPlanNoteRelativePath: 'chat-session-plan-note',
+  chatSessionPlanStepStates: 'chat-session-plan-steps',
+} as const
+const papelizChatSessionPlanStepProblemSeparator = ' · '
 
 export type PapelizChatSessionMessageRole = 'user' | 'assistant'
 
@@ -84,6 +111,21 @@ export interface PapelizChatSessionMessage {
   assistantReplyProviderDisplayName?: string
 }
 
+// One step of the chat's plan as the chat keeps it: its state, and why it failed when it did.
+export interface PapelizChatSessionPlanStepState {
+  planStepStatus: PapelizAssistantPlanStepStatus
+  planStepProblem: string | null
+}
+
+export interface PapelizChatSessionPlanState {
+  // Which saved message holds the plan, counted from 0.
+  chatSessionPlanMessageIndex: number
+  chatSessionPlanBuildPhase: PapelizAssistantPlanBuildPhase
+  // Where Build or Save as Note put the plan's note, once it has one.
+  chatSessionPlanNoteRelativePath: string | null
+  chatSessionPlanStepStates: PapelizChatSessionPlanStepState[]
+}
+
 export interface PapelizChatSession {
   papelizChatSessionId: string
   chatSessionTitle: string
@@ -92,6 +134,8 @@ export interface PapelizChatSession {
   chatSessionModelName: string
   chatSessionMessages: PapelizChatSessionMessage[]
   chatSessionTokenUsage: PapelizChatSessionTokenUsage
+  // Left out for a chat that wrote no plan.
+  chatSessionPlanState?: PapelizChatSessionPlanState
 }
 
 export function isPapelizChatSessionNotePath(vaultNoteRelativePath: string): boolean {
@@ -248,6 +292,60 @@ function parseChatSessionTokenUsageFrontmatter(
   }
 }
 
+function formatChatSessionPlanFrontmatterLines(chatSessionPlanState: PapelizChatSessionPlanState | undefined): string[] {
+  if (chatSessionPlanState === undefined) return []
+  return [
+    `${papelizChatSessionPlanFrontmatterKeys.chatSessionPlanMessageIndex}: ${chatSessionPlanState.chatSessionPlanMessageIndex}`,
+    `${papelizChatSessionPlanFrontmatterKeys.chatSessionPlanBuildPhase}: ${chatSessionPlanState.chatSessionPlanBuildPhase}`,
+    ...(chatSessionPlanState.chatSessionPlanNoteRelativePath === null
+      ? []
+      : [`${papelizChatSessionPlanFrontmatterKeys.chatSessionPlanNoteRelativePath}: ${JSON.stringify(oneLine(chatSessionPlanState.chatSessionPlanNoteRelativePath))}`]),
+    `${papelizChatSessionPlanFrontmatterKeys.chatSessionPlanStepStates}:`,
+    ...chatSessionPlanState.chatSessionPlanStepStates.map(
+      ({ planStepStatus, planStepProblem }) =>
+        `  - ${JSON.stringify(planStepProblem === null ? planStepStatus : `${planStepStatus}${papelizChatSessionPlanStepProblemSeparator}${oneLine(planStepProblem)}`)}`,
+    ),
+  ]
+}
+
+// A frontmatter value written with JSON quotes, read back; one without quotes is taken as it is.
+function readQuotedFrontmatterValue(frontmatterValue: string): string {
+  if (!frontmatterValue.startsWith('"')) return frontmatterValue
+  try {
+    return String(JSON.parse(frontmatterValue))
+  } catch {
+    return frontmatterValue
+  }
+}
+
+function parseChatSessionPlanFrontmatter(
+  frontmatterValues: ReadonlyMap<string, string>,
+  frontmatterListValues: ReadonlyMap<string, readonly string[]>,
+): PapelizChatSessionPlanState | null {
+  const planMessageIndexValue = frontmatterValues.get(papelizChatSessionPlanFrontmatterKeys.chatSessionPlanMessageIndex)
+  const planBuildPhaseValue = frontmatterValues.get(papelizChatSessionPlanFrontmatterKeys.chatSessionPlanBuildPhase) ?? ''
+  if (planMessageIndexValue === undefined || !/^\d+$/.test(planMessageIndexValue) || !isPapelizAssistantPlanBuildPhase(planBuildPhaseValue)) return null
+  const planNoteRelativePathValue = readQuotedFrontmatterValue(frontmatterValues.get(papelizChatSessionPlanFrontmatterKeys.chatSessionPlanNoteRelativePath) ?? '')
+  const chatSessionPlanStepStates = (frontmatterListValues.get(papelizChatSessionPlanFrontmatterKeys.chatSessionPlanStepStates) ?? []).map(
+    (planStepStateValue): PapelizChatSessionPlanStepState => {
+      const planStepStateText = readQuotedFrontmatterValue(planStepStateValue.trim())
+      const problemSeparatorIndex = planStepStateText.indexOf(papelizChatSessionPlanStepProblemSeparator)
+      const planStepStatusText = problemSeparatorIndex === -1 ? planStepStateText : planStepStateText.slice(0, problemSeparatorIndex)
+      const planStepProblemText = problemSeparatorIndex === -1 ? '' : planStepStateText.slice(problemSeparatorIndex + papelizChatSessionPlanStepProblemSeparator.length).trim()
+      return {
+        planStepStatus: isPapelizAssistantPlanStepStatus(planStepStatusText) ? planStepStatusText : 'to-do',
+        planStepProblem: planStepProblemText.length > 0 ? planStepProblemText : null,
+      }
+    },
+  )
+  return {
+    chatSessionPlanMessageIndex: Number(planMessageIndexValue),
+    chatSessionPlanBuildPhase: planBuildPhaseValue,
+    chatSessionPlanNoteRelativePath: planNoteRelativePathValue.length > 0 ? planNoteRelativePathValue : null,
+    chatSessionPlanStepStates,
+  }
+}
+
 export function formatPapelizChatSessionFile(chatSession: PapelizChatSession): string {
   const chatSessionFileParts = [
     '---',
@@ -256,6 +354,7 @@ export function formatPapelizChatSessionFile(chatSession: PapelizChatSession): s
     `updated: ${oneLine(chatSession.chatSessionUpdatedAt)}`,
     `model: ${oneLine(chatSession.chatSessionModelName) || 'unknown'}`,
     ...formatChatSessionTokenUsageFrontmatterLines(chatSession.chatSessionTokenUsage),
+    ...formatChatSessionPlanFrontmatterLines(chatSession.chatSessionPlanState),
     'tags: [chat-session]',
     '---',
     `# ${oneLine(chatSession.chatSessionTitle) || 'Chat'}`,
@@ -326,7 +425,9 @@ export function parsePapelizChatSessionFile(chatSessionFileText: string): Papeli
   const chatSessionModelName = frontmatterValues.get('model') ?? ''
   const isSavedBeforeAnswerModels = !chatSessionMessages.some((chatSessionMessage) => chatSessionMessage.assistantReplyProviderModelName !== undefined)
   const hasKnownChatSessionModel = chatSessionModelName.length > 0 && chatSessionModelName !== papelizUnknownProviderModelName
+  const chatSessionPlanState = parseChatSessionPlanFrontmatter(frontmatterValues, frontmatterListValues)
   return {
+    ...(chatSessionPlanState === null ? {} : { chatSessionPlanState }),
     papelizChatSessionId,
     chatSessionTitle,
     chatSessionCreatedAt: frontmatterValues.get('created') ?? '',

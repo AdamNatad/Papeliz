@@ -118,6 +118,38 @@ describe('chat session files', () => {
     ])
   })
 
+  it('keep where the chat’s plan is and how far each step was built', () => {
+    const planChatSession: PapelizChatSession = {
+      ...testChatSession,
+      chatSessionPlanState: {
+        chatSessionPlanMessageIndex: 1,
+        chatSessionPlanBuildPhase: 'stopped',
+        chatSessionPlanNoteRelativePath: 'Plans/Weekly review: Project "Hub".md',
+        chatSessionPlanStepStates: [
+          { planStepStatus: 'done', planStepProblem: null },
+          { planStepStatus: 'failed', planStepProblem: 'Couldn’t find a “Decisions” heading · it may have been renamed.' },
+          { planStepStatus: 'to-do', planStepProblem: null },
+        ],
+      },
+    }
+    const chatSessionFileText = formatPapelizChatSessionFile(planChatSession)
+    expect(chatSessionFileText).toContain(
+      [
+        'chat-session-plan-message: 1',
+        'chat-session-plan-build: stopped',
+        'chat-session-plan-note: "Plans/Weekly review: Project \\"Hub\\".md"',
+        'chat-session-plan-steps:',
+        '  - "done"',
+        '  - "failed · Couldn’t find a “Decisions” heading · it may have been renamed."',
+        '  - "to-do"',
+      ].join('\n'),
+    )
+    expect(parsePapelizChatSessionFile(chatSessionFileText)).toEqual(planChatSession)
+    // A chat with no plan writes none of it, and a damaged state reads as no plan.
+    expect(formatPapelizChatSessionFile(testChatSession)).not.toContain('chat-session-plan')
+    expect(parsePapelizChatSessionFile(chatSessionFileText.replace('chat-session-plan-build: stopped', 'chat-session-plan-build: paused'))?.chatSessionPlanState).toBeUndefined()
+  })
+
   it('ignore notes that are not chat sessions', () => {
     expect(parsePapelizChatSessionFile('# Garden plan\n\n### You\nnot a chat')).toBeNull()
     expect(parsePapelizChatSessionFile('---\ntags: [x]\n---\n# Note')).toBeNull()
