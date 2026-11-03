@@ -41,6 +41,21 @@ export const papelizHelpAssistantArticles: readonly PapelizHelpArticle[] = [
           'Under **Models** in a provider’s settings, switch on the models you want: they show on the model chip in the assistant. For every preset except Custom, models come from the list the provider returns for your key, so a mistyped name can’t be added. Custom also takes a typed name with **Add Model**.',
         ),
       ]),
+      helpSection('Models for Each Task', [
+        helpParagraph(
+          'Once you’ve added a provider, **Models for Each Task**, under **Saved Providers**, shows the model each job uses and its provider. Choose a row to pick another:',
+        ),
+        helpDetailList([
+          ['Chat', 'The assistant’s model chip. A pick here or on the chip changes both.'],
+          ['Transcribe', 'Turns speech into text. **Automatic** uses the first provider that can, the recommended provider first. See [[choose-a-provider]].'],
+          ['Draw', 'Makes and changes pictures, **Automatic** too. Draw’s model chip in Imagine is the same setting.'],
+          ['Describe Picture', 'Writes a picture’s alt text. **Same as Chat** uses the chat’s model; the other choices are models that can see pictures.'],
+        ]),
+        helpParagraph(
+          'When none of your providers can do a task, its row says so, with **Add Provider** and the providers that can. **Other Model** takes a model name you type.',
+        ),
+        helpParagraph('Hover over the microphone in the assistant to see which model transcribes.'),
+      ]),
       helpSection('Model price', [
         helpParagraph(
           'Usage estimates what the assistant costs from each model’s listed price, taken from the provider’s price page. If you pay a different price, choose **Price** beside the model in its provider’s settings and type yours, per million input and output tokens. Leave both boxes empty to use the listed price. Papeliz itself is free; your providers bill you.',
@@ -120,7 +135,7 @@ export const papelizHelpAssistantArticles: readonly PapelizHelpArticle[] = [
         helpParagraph('The switch at the top of the panel picks how the assistant works:'),
         helpDetailList([
           ['Ask', 'Answers from your notes and never changes them.'],
-          ['Plan', 'Turns an idea into a step-by-step plan. **Write It** has the assistant carry it out, and **Save as Note** keeps the plan as a note.'],
+          ['Plan', 'Asks what it needs, then writes steps you can edit. Nothing changes until you press **Build**.'],
           ['Write', 'Edits, adds and deletes notes, and you review each change. **Bypass Permission**, under **In Write** in the Effort chip’s menu, applies changes at once instead.'],
         ]),
       ]),
@@ -136,9 +151,22 @@ export const papelizHelpAssistantArticles: readonly PapelizHelpArticle[] = [
         helpParagraph('Add files or pictures with **+** beside the message box, or paste or drop them into it.'),
         helpParagraph('The microphone beside it puts what you say into the message box, and the picture button makes a picture of what you typed. See [[pictures-and-speech]].'),
       ]),
+      helpSection('Plan', [
+        helpParagraph(
+          'Describe what to plan. When your request leaves real choices open, the assistant asks a few questions first. **Just Plan It** skips them: the plan says what it assumed, and **Change** asks the questions again.',
+        ),
+        helpParagraph(
+          'The plan comes as a card with steps. Click any words to change them, tick a step that’s already done so Build skips it, drag a step by its handle (or `Alt+Up` and `Alt+Down`) to move it, and choose **Add Step** for another. **Save as Note** keeps the plan without building it.',
+        ),
+        helpParagraph(
+          '**Build** saves the plan as a checklist note in the `Plans` folder, then builds it one step at a time. Each step’s changes come as diffs under it, and the next step starts once you accept or reject them; with **Bypass Permission** on, it runs straight through. The note ticks each step as it’s done. See [[proposed-edits]].',
+        ),
+        helpParagraph('**Stop** ends the running step, and **Continue** starts it again. A step that fails says why, with **Retry Step** and **Skip Step**.'),
+        helpParagraph('A plain question asked in Plan gets a short answer and no plan, with **Switch to Ask**.'),
+      ]),
       helpSection('Pick the model', [
         helpParagraph(
-          'The model chip beside **Effort** lists every model you switched on, by provider, with **AI Provider** at the end to add more. The one you pick answers your next message and your inline edits, with its own provider’s key, and stays picked until you choose another. See [[bring-your-own-key]].',
+          'The model chip beside **Effort** lists every model you switched on, by provider, with **AI Provider** at the end to add more. The one you pick answers your next message and your inline edits, with its own provider’s key, and stays picked until you choose another. **Models for Each Task**, in the same menu, picks the models for speech and pictures. See [[bring-your-own-key]].',
         ),
       ]),
       helpSection('What the assistant sees', [
@@ -258,10 +286,10 @@ export const papelizHelpAssistantArticles: readonly PapelizHelpArticle[] = [
       ]),
       helpSection('Which providers', [
         helpParagraph(
-          'Each action uses a provider you added, with your own key. The recommended provider makes pictures, changes them and turns speech into text; its models are in [[choose-a-provider]]. Transcribe’s write-up and Describe Picture use the chat’s model.',
+          'Each action uses a provider you added, with your own key. The recommended provider makes pictures, changes them and turns speech into text; its models are in [[choose-a-provider]]. Transcribe’s write-up uses the chat’s model, and so does Describe Picture unless you pick another.',
         ),
         helpParagraph(
-          'OpenAI, Google Gemini, OpenRouter and Together make pictures too, and they and Groq turn speech into text. **Edit Picture** works with the recommended provider. Pick the models for pictures and for speech in the Imagine gallery; the chat box and Edit with Assistant use the same ones.',
+          'OpenAI, Google Gemini, OpenRouter and Together make pictures too, and they and Groq turn speech into text. **Edit Picture** works with the recommended provider. **Models for Each Task**, on the gear’s **AI Provider** page, picks the model for each, and Imagine, the chat box and Edit with Assistant all use those. See [[bring-your-own-key]].',
         ),
       ]),
       helpSection('Remove C2PA', [

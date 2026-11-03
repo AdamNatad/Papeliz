@@ -21,9 +21,14 @@ export const papelizHelpPrivacyArticles: readonly PapelizHelpArticle[] = [
           'Unlike a folder on your disk, a browser vault is erased when you clear your browser’s data for Papeliz, with every note in it. Download a backup now and then. See [[keep-a-vault-in-your-browser]].',
         ),
       ]),
+      helpSection('Encrypted on your device', [
+        helpParagraph(
+          'An End-to-end vault, on your disk or in your browser, is encrypted on your device with a key only its passphrase opens. Other apps, and anyone who copies the folder, see only encrypted files with random names. Papeliz decrypts the notes in its memory only, and never writes them to disk decrypted. See [[end-to-end-vaults]].',
+        ),
+      ]),
       helpSection('Settings in your browser', [
         helpParagraph(
-          'Papeliz also keeps a few things in your browser: the list of recent vaults and the permission to reopen folders, your settings, and the assistant’s provider settings. Clearing your browser’s data for Papeliz removes them, and erases vaults kept in the browser. Folders on your disk aren’t affected.',
+          'Papeliz also keeps a few things in your browser: the list of recent vaults and the permission to reopen folders, your settings, the assistant’s provider settings, and the key of an End-to-end vault you chose to remember, sealed. Clearing your browser’s data for Papeliz removes them, and erases vaults kept in the browser. Folders on your disk aren’t affected.',
         ),
       ]),
       helpSection('When you sync a vault', [
@@ -46,7 +51,7 @@ export const papelizHelpPrivacyArticles: readonly PapelizHelpArticle[] = [
       ]),
       helpSection('When you use the assistant', [
         helpParagraph(
-          'The assistant sends your message and the notes it reads to the provider of the model you picked, and nothing goes until you send a message. See [[where-your-key-goes]].',
+          'The assistant sends your message and the notes it reads to the provider of the model you picked, and nothing goes until you send a message. In an End-to-end vault too, the notes it reads go decrypted. See [[where-your-key-goes]].',
         ),
         helpParagraph(
           'Pictures, prompts and audio go from your browser straight to the provider you chose, with your own key, as the chat does. Papeliz has no server for them and keeps no copy. A picture or recording is saved only in your vault, and only when you save it or accept the change. See [[pictures-and-speech]].',

@@ -944,7 +944,7 @@ export function PapelizSiteAdamNatadProfile({ adamNatadProfileConfig }: { adamNa
     },
     {
       name: "Papeliz",
-      description: "An AI Markdown editor.",
+      description: "A Markdown Editor with an AI Assistant.",
       rows: [{ label: "Website", description: "papeliz.com", href: adamNatadProfileLinks.papeliz }],
     },
   ];

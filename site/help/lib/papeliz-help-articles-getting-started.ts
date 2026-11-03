@@ -4,7 +4,7 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
   {
     papelizHelpArticleSlug: 'what-is-papeliz',
     articleTitle: 'What Papeliz is',
-    articleSummary: 'A Markdown editor and AI-powered note-taking app for building your personal knowledge base, with an assistant on your own API key.',
+    articleSummary: 'A Markdown Editor with an AI Assistant on your own API key, for building your personal knowledge base.',
     papelizHelpGroupSlug: 'getting-started',
     papelizHelpArticleAvailability: 'available',
     articleSections: [
@@ -17,6 +17,9 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
         ),
         helpParagraph(
           'Browsers that can’t open a folder on your disk, such as Firefox, Safari and phone browsers, keep the vault in the browser’s own storage instead, with the same Markdown files inside. A backup gives them back to you as a folder. See [[keep-a-vault-in-your-browser]].',
+        ),
+        helpParagraph(
+          'A new vault can also be End-to-end instead: encrypted on your device with a passphrase only you know, so only Papeliz can open it. See [[end-to-end-vaults]].',
         ),
       ]),
       helpSection('Two views of every note', [
@@ -89,9 +92,10 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
         helpNumberedSteps([
           'On the start page, choose **New Vault**. It opens where **Recent Vaults** was.',
           'Type the vault’s name in **Vault Name**. Every vault has one, and it shows in **Recent Vaults**, the top bar and the status bar.',
-          'Choose where to keep it: **Folder Storage** or **Browser Storage**. The table under them compares the two. In Firefox, Safari and phone browsers, **Folder Storage** shows **Off in this browser** and **Browser Storage** is chosen.',
-          'For a folder, choose **Pick Folder**, pick the place it goes, such as **Documents**, and allow editing when the browser asks. Papeliz makes a folder with the vault’s name there. For the browser, choose **Create Vault**.',
-          'Papeliz starts your first note, named and ready to write in.',
+          'Under **Location**, choose where to keep it: **Folder Storage** or **Browser Storage**. **Compare** shows how the two differ. In Firefox, Safari and phone browsers, only **Browser Storage** is offered.',
+          'For a folder, choose **Browse…** and pick the place it goes, such as **Documents**, now or when you choose **Create Vault**, and allow editing when the browser asks. Papeliz makes a folder with the vault’s name there.',
+          'Under **Encryption**, choose **Standard**, plain Markdown files any app can open, or **End-to-end**, encrypted with a passphrase only you know. See [[end-to-end-vaults]].',
+          'Choose **Create Vault**. Papeliz starts your first note, named and ready to write in.',
         ]),
         helpParagraph('**Cancel**, or Esc, goes back to **Recent Vaults**.'),
         helpParagraph('If the place already has a folder with that name and something in it, Papeliz says so and lets you pick another name or another place. An empty folder of that name is used. To open a folder that already has notes, use **Open Vault**.'),
@@ -119,7 +123,7 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
           'Choose the template to open its page, with its first note and **What’s inside**, then choose **Use Template**.',
           'If the template marks some files as optional, its folder tree shows with a switch above it: **Recommended** brings the files the author recommends, **All** brings every file, and ticking or clearing a file yourself moves the switch to **Choose**. Each choice shows how many files it brings. Required files are always ticked.',
           'If the template’s agent settings or scripts name commands, Papeliz lists each one. Papeliz never runs them. Tick **I’ve read these commands**, then choose **Continue**.',
-          'New Vault opens with the template at its top. Name the vault, choose **Folder Storage** or **Browser Storage**, then **Pick Folder** or **Create Vault**. The vault opens on the template’s first note.',
+          'New Vault opens with the template at its top. Name the vault, choose **Folder Storage** or **Browser Storage**, then **Create Vault**. The vault opens on the template’s first note, as a Standard vault.',
         ]),
         helpParagraph(
           'In a vault you already have, choose **Import** in the file list’s header, then **Import from Template**. **Import into This Vault** puts the template in a new folder named after it, at the top of the vault, and changes nothing else. The same **Recommended**, **All** and **Choose** apply.',
@@ -188,7 +192,8 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
         helpNumberedSteps([
           'On the start page, choose **New Vault**.',
           'Type a name in **Vault Name**.',
-          'Choose **Browser Storage**. In Firefox, Safari and phone browsers it’s already chosen.',
+          'Choose **Browser Storage**. In Firefox, Safari and phone browsers it’s the only place offered.',
+          'Under **Encryption**, choose **Standard** or **End-to-end**. See [[end-to-end-vaults]].',
           'Choose **Create Vault**. Papeliz starts your first note.',
         ]),
         helpParagraph(
@@ -265,6 +270,80 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
     relatedArticleSlugs: ['open-a-folder', 'browser-support', 'where-your-notes-live', 'troubleshooting'],
   },
   {
+    papelizHelpArticleSlug: 'end-to-end-vaults',
+    articleTitle: 'End-to-end vaults',
+    articleSummary: 'A vault encrypted on your device with a passphrase only you know. Forget the passphrase and the vault is lost.',
+    papelizHelpGroupSlug: 'getting-started',
+    papelizHelpArticleAvailability: 'available',
+    articleSections: [
+      helpSection('Standard or End-to-end', [
+        helpParagraph('Every vault is one of two kinds. You choose under **Encryption** when you make it with **New Vault**, on the web and in Papeliz for Windows:'),
+        helpDetailList([
+          ['Standard', 'Plain Markdown files any app can open. It’s chosen first, and it’s how every vault worked before.'],
+          ['End-to-end', 'Encrypted with a passphrase only you know. Papeliz encrypts every file on your device, and only Papeliz, with the passphrase, can open them.'],
+        ]),
+        helpNote(
+          '**There’s no recovery.** Papeliz never has your passphrase and can’t recover it. If you forget it, the vault’s notes can’t be opened, by Papeliz or by anything else. Keep it somewhere safe.',
+        ),
+      ]),
+      helpSection('Make one', [
+        helpNumberedSteps([
+          'On the start page, choose **New Vault**, name the vault and choose its **Location**. See [[open-a-folder]].',
+          'Under **Encryption**, choose **End-to-end**.',
+          'Type a passphrase of 12 characters or more in **Vault passphrase**, then again in **Type it again**.',
+          'Choose **Create Vault**. It stays off until the two match.',
+        ]),
+      ]),
+      helpSection('Unlock and lock', [
+        helpParagraph(
+          'In **Recent Vaults**, an End-to-end vault is marked **End-to-End Encryption**. It asks for its passphrase when you open it, from there or with **Open Vault**. Unlocking takes about a second. Then it stays open until you lock it or close it, or close or reload the tab.',
+        ),
+        helpParagraph(
+          'While it’s open, the status bar shows **End-to-end** with a lock: its notes are decrypted in Papeliz’s memory only. **Lock Now**, in the status bar and in the gear, saves every note, closes the vault and clears it from memory with its key.',
+        ),
+      ]),
+      helpSection('Remember on This Device', [
+        helpParagraph(
+          'Unlock has **Remember on This Device**, off at first. Turn it on and this device opens the vault without the passphrase, and **Recent Vaults** marks it **Remembered**. To forget the key, turn it off in the gear’s **Settings** › **Vault**, under **Encryption**.',
+        ),
+        helpBulletList([
+          'On the web, the key is kept sealed in this browser, so anyone who uses this browser can open the vault. The files stay encrypted to other apps.',
+          'Papeliz for Windows keeps the key in Windows Credential Manager, so the vault opens without the passphrase while you’re signed in to Windows.',
+        ]),
+      ]),
+      helpSection('What’s in the folder', [
+        helpParagraph('On your disk, or in Browser Storage, an End-to-end vault holds:'),
+        helpBulletList([
+          '`papeliz-encrypted-files`, one folder of encrypted files with random names. Each note, picture or other file is one of them, and its name and its place in the vault are encrypted too.',
+          '`.papeliz/vault-encryption.json`, the vault’s encryption settings, with its key locked by your passphrase.',
+          '`About this Papeliz vault.txt`, plain words saying what the folder is.',
+        ]),
+        helpParagraph(
+          'Other Markdown apps can’t read it. Inside Papeliz, links, search and pictures work as usual, and nothing decrypted is written to disk.',
+        ),
+      ]),
+      helpSection('Change the kind or the passphrase', [
+        helpParagraph('Open the gear’s **Settings** › **Vault**. Under **Encryption**:'),
+        helpBulletList([
+          '**Change to End-to-end** asks a new passphrase twice, then encrypts each file, checks it by reading it back, and removes the plain file. Copies made before, such as backups, Git history and a cloud drive’s old versions, stay readable.',
+          '**Change to Standard** asks the passphrase, then writes every file back as plain Markdown, and the key this device remembered is dropped.',
+          '**Change Passphrase** asks the current passphrase and a new one. No file is rewritten, and devices that remember the vault keep opening it.',
+        ]),
+        helpParagraph(
+          'Keep Papeliz open while the files change; the vault stays closed until it’s done. If Papeliz closes, it carries on from where it stopped the next time the vault opens.',
+        ),
+      ]),
+      helpSection('Good to know', [
+        helpBulletList([
+          'End-to-end covers the vault’s files, not what you send: the notes the assistant reads go to the provider you chose, decrypted. See [[where-your-key-goes]].',
+          'The sample vault is never encrypted. A vault made from a template starts as Standard, and can change to End-to-end afterwards.',
+          'Papeliz Sync is coming. It doesn’t sync End-to-end vaults yet, so pick Standard for a vault you mean to sync. See [[sync-your-vaults]].',
+        ]),
+      ]),
+    ],
+    relatedArticleSlugs: ['open-a-folder', 'keep-a-vault-in-your-browser', 'where-your-notes-live', 'settings-gear'],
+  },
+  {
     papelizHelpArticleSlug: 'browser-support',
     articleTitle: 'Browser support',
     articleSummary: 'Chrome, Edge, Firefox and Safari keep vaults in the browser. Chrome and Edge on a computer also open folders on your disk.',
@@ -320,9 +399,10 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
         helpBulletList([
           '**Account**: sign in to Papeliz Sync, then see your email, your plan and your devices, and sign out. See [[sync-your-vaults]].',
           '**Sync**: keep your vaults the same on all your devices, with the tabs **Plans** and **Settings**. Every account comes with Free. See [[sync-your-vaults]].',
-          '**Settings**: the tabs **Vault**, the open vault’s name (a vault kept in your browser renames here; a folder vault takes its folder’s name), and **Key Bindings**, the shortcuts you can change. See [[keyboard-shortcuts]]. In a vault kept in your browser, a third tab, **Reminder**, holds the backup reminder and **Download Backup**. See [[keep-a-vault-in-your-browser]].',
+          '**Settings**: the tabs **Vault**, the open vault’s name (a vault kept in your browser renames here; a folder vault takes its folder’s name) and its **Encryption** (see [[end-to-end-vaults]]), and **Key Bindings**, the shortcuts you can change. See [[keyboard-shortcuts]]. In a vault kept in your browser, a third tab, **Reminder**, holds the backup reminder and **Download Backup**. See [[keep-a-vault-in-your-browser]].',
           '**Accessibility**: the theme, how tabs show, how your notes’ text looks (font, size and width), and the **Lock All Notes** and **Focus Mode** switches. See [[text-settings-and-theme]], [[switch-views-and-lock]] and [[focus-mode|focus mode]].',
-          '**AI Provider**: your saved providers. Add one, or open one’s gear for its key, models and **Advanced**. See [[bring-your-own-key]].',
+          '**AI Provider**: your saved providers. Add one, open one’s gear for its key, models and **Advanced**, or pick **Models for Each Task**. See [[bring-your-own-key]].',
+          '**Lock Now**, in an End-to-end vault: saves every note and locks the vault.',
           '**Close Vault**, at the bottom: back to the start page. See [[open-a-folder]].',
         ]),
       ]),

@@ -11,7 +11,7 @@ const papelizHelpSiteName = 'Papeliz'
 const papelizHelpTitle = 'Papeliz Help'
 
 export const papelizHelpDescription =
-  'Guides for Papeliz, the free, open-source, cross-platform Markdown editor and AI-powered note-taking app for building your personal knowledge base.'
+  'Guides for Papeliz, the free, open-source, cross-platform Markdown Editor with an AI Assistant, for building your personal knowledge base.'
 
 // The website's link-preview banner, at the top of the domain.
 const papelizHelpSocialBannerImage = {

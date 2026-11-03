@@ -131,7 +131,7 @@ _Built. Accounts and Sync open later._
 ## 2026-10-29 — Papeliz is live, and the assistant grows up
 
 - Papeliz is live at papeliz.com, with the app at papeliz.com/app and help at papeliz.com/help.
-- The AI assistant works in three modes: Ask, Plan and Write.
+- The AI Assistant works in three modes: Ask, Plan and Write.
 - It can ask you up to four questions on one card, and you answer with a pick or your own words.
 - Steer the assistant while it answers, or queue your next message; choose how much effort it spends.
 - Add files and pictures to the chat.
