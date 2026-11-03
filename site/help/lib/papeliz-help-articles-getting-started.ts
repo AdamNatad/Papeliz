@@ -283,7 +283,7 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
           ['End-to-end', 'Encrypted with a passphrase only you know. Papeliz encrypts every file on your device, and only Papeliz, with the passphrase, can open them.'],
         ]),
         helpNote(
-          '**There’s no recovery.** Papeliz never has your passphrase and can’t recover it. If you forget it, the vault’s notes can’t be opened, by Papeliz or by anything else. Keep it somewhere safe.',
+          '**There’s no recovery.** Papeliz never has your passphrase and can’t recover it. If you forget it, the vault’s notes can’t be opened, by Papeliz or by anything else, except on a device that remembers the vault. Keep it somewhere safe.',
         ),
       ]),
       helpSection('Make one', [
@@ -310,6 +310,9 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
           'On the web, the key is kept sealed in this browser, so anyone who uses this browser can open the vault. The files stay encrypted to other apps.',
           'Papeliz for Windows keeps the key in Windows Credential Manager, so the vault opens without the passphrase while you’re signed in to Windows.',
         ]),
+        helpParagraph(
+          'If you forget the passphrase, a device that remembers the vault still opens it, so you can copy your notes out there. Changing the passphrase still asks for the current one.',
+        ),
       ]),
       helpSection('What’s in the folder', [
         helpParagraph('On your disk, or in Browser Storage, an End-to-end vault holds:'),

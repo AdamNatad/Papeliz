@@ -170,10 +170,30 @@ export const papelizHelpAssistantArticles: readonly PapelizHelpArticle[] = [
         ),
       ]),
       helpSection('What the assistant sees', [
+        helpParagraph('The chip under the message box names what goes with your message. Click it to choose:'),
+        helpDetailList([
+          ['This Note', 'The note in front.'],
+          ['Open Notes', 'Every note open in a tab.'],
+          ['Selected Notes…', 'The notes you tick in **Choose Notes**, where you can search or tick them under their folders.'],
+          ['A Folder…', 'One folder and its subfolders, picked in **Choose a Folder**.'],
+          ['Whole Vault', 'No note goes with the message: the assistant searches and reads notes as it needs them.'],
+        ]),
         helpParagraph(
-          'The chip under the message box shows what goes with your message: the open note, or **Whole Vault**. Click it to switch. With the whole vault, the assistant searches and reads notes as it needs them.',
+          'Each choice shows how many notes it holds, and hovering over the chip lists them. A very long note goes only in part, and when the notes together run long, the rest go by name for the assistant to read as it needs. Over each of your messages, a line says what it was about.',
         ),
+        helpParagraph('The choice is kept with the conversation, so a chat you reopen sees the same notes.'),
         helpParagraph('To ask about a passage, select it and choose **Ask Assistant** in the note menu. The selection goes along with your message.'),
+      ]),
+      helpSection('The context ring', [
+        helpParagraph(
+          'The ring by the message box shows how full the model’s context window is: how much of what it can take in at once this conversation already uses. It’s grey while there’s room, amber from 80% and red from 95%, and from 80% its percent shows beside it.',
+        ),
+        helpParagraph(
+          'Hover over it, click it, or move to it with the keyboard for its card: the model, its window, this conversation’s tokens and their cost, and **Usage** for the whole vault. As the window fills, the card offers **New conversation**, since a fresh start keeps answers sharp.',
+        ),
+        helpParagraph(
+          'When the window’s size isn’t known, the ring is dashed and the card asks for it: type it or pick a size, then **Save**. It’s kept in the provider’s **Advanced** settings.',
+        ),
       ]),
       helpSection('Answers that link to your notes', [
         helpParagraph('When an answer draws on your notes, it links them as wikilinks. Click one to open that note.'),

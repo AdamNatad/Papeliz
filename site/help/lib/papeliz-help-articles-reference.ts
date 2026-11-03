@@ -190,6 +190,7 @@ Three raised beds this year. See [[Reading list]] #garden
         ),
       ]),
       helpSection('The assistant can’t connect', [
+        helpParagraph('A failed answer says why in one red line. On the latest answer, **Retry** asks the same question again. **AI Provider** opens your providers.'),
         helpParagraph(
           'Open the provider’s gear on the gear’s **AI Provider** page, choose **Test Connection**, and check its key, its base URL (under **Advanced**, or at the top for Custom) and the models switched on. A provider that doesn’t accept calls from a web page can’t be used from Papeliz, and servers on your own computer need to allow Papeliz’s address. See [[choose-a-provider]].',
         ),
