@@ -307,6 +307,81 @@ test('the Imagine tab is a thread: an example fills the box, Enter sends, and th
   expect(refusedOutsideRequestUrls).toEqual([])
 })
 
+// OpenAI, added from Draw's picture model menu (Settings › AI Provider) as a second provider, its base
+// URL changed to the provider the test plays.
+async function addTestOpenAiProviderFromDraw(page: Page, assistantPanel: Locator): Promise<void> {
+  await assistantPanel.getByRole('button', { name: /^Picture model: / }).click()
+  await page.getByRole('menu', { name: 'Picture Model' }).getByRole('menuitem', { name: 'AI Provider' }).click()
+  const settingsPanel = page.getByRole('dialog', { name: 'Settings' })
+  await settingsPanel.getByRole('button', { name: 'Add Provider', exact: true }).click()
+  const addProviderDialog = page.getByRole('dialog', { name: 'Add Provider' })
+  await addProviderDialog.getByRole('button', { name: /^Provider / }).click()
+  await addProviderDialog.getByRole('option', { name: /^OpenAI/ }).click()
+  await expect(addProviderDialog.getByRole('button', { name: /^Provider OpenAI/ })).toBeVisible()
+  await addProviderDialog.getByLabel(/^API Key/).fill(testProviderApiKey)
+  await addProviderDialog.getByRole('button', { name: /^Advanced/ }).click()
+  await addProviderDialog.getByRole('textbox', { name: 'Base URL' }).fill(testProviderBaseUrl)
+  await addProviderDialog.getByRole('button', { name: 'Load Models', exact: true }).click()
+  const chatModelSwitch = addProviderDialog.getByRole('switch', { name: metaChatModelName })
+  await expect(chatModelSwitch).toBeVisible()
+  if ((await chatModelSwitch.getAttribute('aria-checked')) !== 'true') await chatModelSwitch.click()
+  await addProviderDialog.getByRole('button', { name: 'Test Connection', exact: true }).click()
+  await expect(addProviderDialog.getByText(`Connected. ${metaChatModelName} answered`, { exact: false })).toBeVisible()
+  await addProviderDialog.getByRole('button', { name: 'Add Provider', exact: true }).click()
+  await expect(addProviderDialog).toBeHidden()
+  await page.keyboard.press('Escape')
+  await expect(settingsPanel).toBeHidden()
+}
+
+test('Draw’s aspect ratio menu: 16:9 is sent as the model’s size, and a model that can’t make it doesn’t offer it', async ({ page }) => {
+  const { testProviderRequests, refusedOutsideRequestUrls } = await playTestMetaProvider(page)
+  await openSampleVaultWithMetaProvider(page)
+  const assistantPanel = page.getByRole('complementary', { name: 'AI Assistant' })
+  await assistantPanel.getByRole('tab', { name: 'Imagine', exact: true }).click()
+  const aspectRatioChip = assistantPanel.getByRole('button', { name: /^Aspect ratio: / })
+  await expect(aspectRatioChip).toHaveAccessibleName('Aspect ratio: 1:1, 1 picture')
+  await expect(aspectRatioChip).toContainText('1:1 ·')
+
+  // One plain list of ratios, each with its outline, then the count under its own heading.
+  await aspectRatioChip.click()
+  const aspectRatioMenu = page.getByRole('menu', { name: 'Aspect Ratio and Pictures' })
+  await expect(aspectRatioMenu.getByRole('menuitemradio')).toHaveText(['Auto', '1:1', '2:3', '3:2', '16:9', '9:16', '1 Picture', '2 Pictures', '3 Pictures', '4 Pictures'])
+  await expect(aspectRatioMenu.getByRole('menuitemradio', { name: '1:1', exact: true })).toHaveAttribute('aria-checked', 'true')
+  await expect(aspectRatioMenu.getByRole('menuitemradio', { name: '16:9', exact: true }).locator('svg rect')).toHaveAttribute('height', '10.125')
+  await expect(aspectRatioMenu.getByText('Shape', { exact: true })).toHaveCount(0)
+  await aspectRatioMenu.getByRole('menuitemradio', { name: '16:9', exact: true }).click()
+  await expect(aspectRatioChip).toHaveAccessibleName('Aspect ratio: 16:9, 1 picture')
+
+  const promptBox = assistantPanel.getByRole('textbox', { name: 'Describe a picture' })
+  await promptBox.fill('A wide valley at dusk')
+  await promptBox.press('Enter')
+  await expect(assistantPanel.getByRole('region', { name: 'Imagine: A wide valley at dusk' }).getByRole('img')).toBeVisible()
+  const readImagesRequestBodies = () =>
+    testProviderRequests
+      .filter((providerRequest) => providerRequest.providerRequestPath === 'images/generations')
+      .map((providerRequest) => JSON.parse(providerRequest.providerRequestBodyText) as Record<string, unknown>)
+  expect(readImagesRequestBodies().at(-1)).toMatchObject({ model: 'muse-image-1.0', prompt: 'A wide valley at dusk', size: '1536x864' })
+
+  // OpenAI's chatgpt-image-latest makes only the standard sizes: no 16:9 or 9:16, and the picture is 1:1.
+  await addTestOpenAiProviderFromDraw(page, assistantPanel)
+  await assistantPanel.getByRole('button', { name: /^Picture model: / }).click()
+  await page.getByRole('menu', { name: 'Picture Model' }).getByRole('menuitemradio', { name: 'chatgpt-image-latest' }).click()
+  await expect(aspectRatioChip).toHaveAccessibleName('Aspect ratio: 1:1, 1 picture')
+  await aspectRatioChip.click()
+  await expect(aspectRatioMenu.getByRole('menuitemradio')).toHaveText(['Auto', '1:1', '2:3', '3:2', '1 Picture', '2 Pictures', '3 Pictures', '4 Pictures'])
+  await page.keyboard.press('Escape')
+
+  // gpt-image-2 takes any size, so the 16:9 chosen before comes back and is sent.
+  await assistantPanel.getByRole('button', { name: /^Picture model: / }).click()
+  await page.getByRole('menu', { name: 'Picture Model' }).getByRole('menuitemradio', { name: 'gpt-image-2' }).click()
+  await expect(aspectRatioChip).toHaveAccessibleName('Aspect ratio: 16:9, 1 picture')
+  await promptBox.fill('A tall lighthouse in fog')
+  await promptBox.press('Enter')
+  await expect(assistantPanel.getByRole('region', { name: 'Imagine: A tall lighthouse in fog' }).getByRole('img')).toBeVisible()
+  expect(readImagesRequestBodies().at(-1)).toMatchObject({ model: 'gpt-image-2', prompt: 'A tall lighthouse in fog', size: '1536x864' })
+  expect(refusedOutsideRequestUrls).toEqual([])
+})
+
 test('Imagine’s Ask talks a picture through with the chat model, and Draw This puts its prompt in Draw without sending it', async ({ page }) => {
   const { testProviderRequests, refusedOutsideRequestUrls } = await playTestMetaProvider(page)
   await openSampleVaultWithMetaProvider(page)

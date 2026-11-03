@@ -11,19 +11,29 @@ import type { PapelizTranscriptionApiShape } from './papeliz-assistant-image-and
 // `/images/generations` (WebP by default), and `muse-voice-transcribe-1.0` on its own
 // `/asr/transcribe`, which takes a 16-bit mono WAV of up to 10 minutes and labels speakers.
 
-export interface PapelizAssistantImageSizeChoice {
-  imageSizeText: string
-  imageSizeLabel: string
+// The picture shapes the Imagine menu offers, as width:height; Auto leaves the shape to the provider.
+export type PapelizAssistantImageAspectRatio = 'auto' | '1:1' | '2:3' | '3:2' | '16:9' | '9:16'
+
+export interface PapelizAssistantImageAspectRatioChoice {
+  imageAspectRatio: PapelizAssistantImageAspectRatio
+  // What is sent for it, as the preset's `imageSizeFieldStyle` says: "1536x1024" as `size` (or as
+  // `width` and `height`), "16:9" as `aspect_ratio`, the provider's own "auto", or null to send no
+  // size at all.
+  imageSizeValue: string | null
+  // Set when only some of the provider's picture models make this shape: the names of those that do.
+  imageModelNamePattern?: RegExp
 }
 
 export interface PapelizAssistantImageGenerationPreset {
   // Where the request goes, after the base URL: OpenAI's `images/generations`, OpenRouter's `images`.
   imageGenerationProviderPath: string
   suggestedImageModelNames: readonly string[]
-  // The first is the default. Empty: no size is sent, and the provider picks.
-  imageSizeChoices: readonly PapelizAssistantImageSizeChoice[]
-  // How the size is sent: "1024x1024" as `size`, or as `width` and `height` (Together).
-  imageSizeFieldStyle: 'size-text' | 'width-and-height'
+  // The shapes it makes, each listed only where the provider's docs say so; 1:1 is the default where
+  // offered. Empty: no size is sent, the provider picks, and the menu offers no shape.
+  imageAspectRatioChoices: readonly PapelizAssistantImageAspectRatioChoice[]
+  // How the size is sent: "1024x1024" as `size`, as `width` and `height` (Together), or "16:9" as
+  // `aspect_ratio` (OpenRouter).
+  imageSizeFieldStyle: 'size-text' | 'width-and-height' | 'aspect-ratio'
   // What `response_format` asks for so pictures come back as bytes, or null when the API always does
   // (OpenAI's GPT image models refuse the field).
   imageResponseFormatValue: string | null
@@ -48,10 +58,11 @@ export interface PapelizAssistantTranscriptionPreset {
   isTranscriptionBrowserAccessConfirmed: boolean
 }
 
-const papelizSquareLandscapePortraitImageSizes: readonly PapelizAssistantImageSizeChoice[] = [
-  { imageSizeText: '1024x1024', imageSizeLabel: 'Square' },
-  { imageSizeText: '1536x1024', imageSizeLabel: 'Landscape' },
-  { imageSizeText: '1024x1536', imageSizeLabel: 'Portrait' },
+// The three sizes every OpenAI-shaped picture API takes.
+const papelizOpenAiStandardImageAspectRatioChoices: readonly PapelizAssistantImageAspectRatioChoice[] = [
+  { imageAspectRatio: '1:1', imageSizeValue: '1024x1024' },
+  { imageAspectRatio: '2:3', imageSizeValue: '1024x1536' },
+  { imageAspectRatio: '3:2', imageSizeValue: '1536x1024' },
 ]
 
 const papelizMegabyte = 1024 * 1024
@@ -60,8 +71,14 @@ export const papelizAssistantImageGenerationPresetsByProviderId: Readonly<Record
   'meta-model-api': {
     imageGenerationProviderPath: 'images/generations',
     suggestedImageModelNames: ['muse-image-1.0'],
-    // The size sets the shape; Meta picks the resolution.
-    imageSizeChoices: papelizSquareLandscapePortraitImageSizes,
+    // Any width x height sets only the shape, and Meta picks the resolution; "auto" (or no size) is
+    // its default shape.
+    imageAspectRatioChoices: [
+      { imageAspectRatio: 'auto', imageSizeValue: 'auto' },
+      ...papelizOpenAiStandardImageAspectRatioChoices,
+      { imageAspectRatio: '16:9', imageSizeValue: '1536x864' },
+      { imageAspectRatio: '9:16', imageSizeValue: '864x1536' },
+    ],
     imageSizeFieldStyle: 'size-text',
     imageResponseFormatValue: 'b64_json',
     isImageGenerationBrowserAccessConfirmed: true,
@@ -70,7 +87,14 @@ export const papelizAssistantImageGenerationPresetsByProviderId: Readonly<Record
   openai: {
     imageGenerationProviderPath: 'images/generations',
     suggestedImageModelNames: ['gpt-image-2', 'chatgpt-image-latest'],
-    imageSizeChoices: [...papelizSquareLandscapePortraitImageSizes, { imageSizeText: 'auto', imageSizeLabel: 'Auto' }],
+    // Every GPT image model takes the three standard sizes and "auto"; the gpt-image-2 family (2.5
+    // included) also takes any width x height divisible by 16, between 1:3 and 3:1.
+    imageAspectRatioChoices: [
+      { imageAspectRatio: 'auto', imageSizeValue: 'auto' },
+      ...papelizOpenAiStandardImageAspectRatioChoices,
+      { imageAspectRatio: '16:9', imageSizeValue: '1536x864', imageModelNamePattern: /^gpt-image-2/ },
+      { imageAspectRatio: '9:16', imageSizeValue: '864x1536', imageModelNamePattern: /^gpt-image-2/ },
+    ],
     imageSizeFieldStyle: 'size-text',
     imageResponseFormatValue: null,
     isImageGenerationBrowserAccessConfirmed: true,
@@ -79,7 +103,8 @@ export const papelizAssistantImageGenerationPresetsByProviderId: Readonly<Record
     imageGenerationProviderPath: 'images/generations',
     // The two its OpenAI-compatible endpoint's docs name.
     suggestedImageModelNames: ['gemini-2.5-flash-image', 'gemini-3-pro-image-preview'],
-    imageSizeChoices: [],
+    // Its OpenAI-compatible endpoint takes `size` but names no values, so none is sent.
+    imageAspectRatioChoices: [],
     imageSizeFieldStyle: 'size-text',
     imageResponseFormatValue: 'b64_json',
     isImageGenerationBrowserAccessConfirmed: true,
@@ -88,28 +113,42 @@ export const papelizAssistantImageGenerationPresetsByProviderId: Readonly<Record
     // OpenRouter's own image API, which always answers in base64.
     imageGenerationProviderPath: 'images',
     suggestedImageModelNames: ['google/gemini-2.5-flash-image', 'openai/gpt-image-2', 'black-forest-labs/flux.2-pro'],
-    imageSizeChoices: papelizSquareLandscapePortraitImageSizes,
-    imageSizeFieldStyle: 'size-text',
+    // Its `aspect_ratio` takes each of these for any model, and "auto" lets the model choose; a model
+    // that can't make one is given its nearest.
+    imageAspectRatioChoices: [
+      { imageAspectRatio: 'auto', imageSizeValue: 'auto' },
+      { imageAspectRatio: '1:1', imageSizeValue: '1:1' },
+      { imageAspectRatio: '2:3', imageSizeValue: '2:3' },
+      { imageAspectRatio: '3:2', imageSizeValue: '3:2' },
+      { imageAspectRatio: '16:9', imageSizeValue: '16:9' },
+      { imageAspectRatio: '9:16', imageSizeValue: '9:16' },
+    ],
+    imageSizeFieldStyle: 'aspect-ratio',
     imageResponseFormatValue: null,
     isImageGenerationBrowserAccessConfirmed: true,
   },
   together: {
     imageGenerationProviderPath: 'images/generations',
     suggestedImageModelNames: ['black-forest-labs/FLUX.2-pro', 'black-forest-labs/FLUX.1.1-pro'],
-    imageSizeChoices: [
-      { imageSizeText: '1024x1024', imageSizeLabel: 'Square' },
-      { imageSizeText: '1344x768', imageSizeLabel: 'Landscape' },
-      { imageSizeText: '768x1344', imageSizeLabel: 'Portrait' },
+    // FLUX takes any width and height from 256 to 1920 in steps of 8; without them it makes its own
+    // default size, so there is no Auto.
+    imageAspectRatioChoices: [
+      { imageAspectRatio: '1:1', imageSizeValue: '1024x1024' },
+      { imageAspectRatio: '2:3', imageSizeValue: '832x1248' },
+      { imageAspectRatio: '3:2', imageSizeValue: '1248x832' },
+      { imageAspectRatio: '16:9', imageSizeValue: '1280x720' },
+      { imageAspectRatio: '9:16', imageSizeValue: '720x1280' },
     ],
     imageSizeFieldStyle: 'width-and-height',
     imageResponseFormatValue: 'base64',
     isImageGenerationBrowserAccessConfirmed: true,
   },
-  // Any OpenAI-compatible API: the person types its image model.
+  // Any OpenAI-compatible API: the person types its image model. Its sizes aren't known, so it gets
+  // the three standard ones, and Auto sends none.
   custom: {
     imageGenerationProviderPath: 'images/generations',
     suggestedImageModelNames: [],
-    imageSizeChoices: papelizSquareLandscapePortraitImageSizes,
+    imageAspectRatioChoices: [{ imageAspectRatio: 'auto', imageSizeValue: null }, ...papelizOpenAiStandardImageAspectRatioChoices],
     imageSizeFieldStyle: 'size-text',
     imageResponseFormatValue: 'b64_json',
     isImageGenerationBrowserAccessConfirmed: false,

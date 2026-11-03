@@ -10,7 +10,8 @@ import {
   type PapelizAssistantImageFileFormat,
 } from './papeliz-assistant-image-metadata-strip'
 import { buildPapelizAssistantMediaProviderConnection, type PapelizAssistantMediaModelChoice } from './papeliz-assistant-media-model-choices-store'
-import { findPapelizAssistantImageGenerationPreset } from './papeliz-assistant-media-provider-presets'
+import { resolvePapelizAssistantImageAspectRatioChoice } from './papeliz-assistant-image-aspect-ratios'
+import { findPapelizAssistantImageGenerationPreset, type PapelizAssistantImageAspectRatio } from './papeliz-assistant-media-provider-presets'
 import {
   buildPapelizMediaFileBaseName,
   buildPapelizPictureLinkMarkdown,
@@ -93,13 +94,15 @@ export type PapelizImagineThreadEntry =
 interface PapelizImagineState {
   // What is typed in the Imagine tab's box.
   imaginePromptText: string
-  imagineImageSizeText: string | null
+  // The shape chosen in Draw's menu, kept as its ratio ("16:9"), and used wherever a picture is made;
+  // null until one is chosen, for 1:1.
+  imagineImageAspectRatio: PapelizAssistantImageAspectRatio | null
   imagineGeneratedPictureCount: number
   imaginePictures: PapelizImaginePicture[]
   imagineThreadEntries: PapelizImagineThreadEntry[]
   imaginePictureInsertion: PapelizImaginePictureInsertion | null
   setImaginePromptText: (imaginePromptText: string) => void
-  setImagineImageSizeText: (imagineImageSizeText: string | null) => void
+  setImagineImageAspectRatio: (imagineImageAspectRatio: PapelizAssistantImageAspectRatio | null) => void
   setImagineGeneratedPictureCount: (imagineGeneratedPictureCount: number) => void
   // Sends what is typed as a prompt: it joins the thread, the box empties, and the pictures show under it.
   sendImaginePrompt: (imageModelChoice: PapelizAssistantMediaModelChoice) => Promise<void>
@@ -217,19 +220,19 @@ export const usePapelizImagineStore = create<PapelizImagineState>()((setImagineS
 
   return {
     imaginePromptText: '',
-    imagineImageSizeText: null,
+    imagineImageAspectRatio: null,
     imagineGeneratedPictureCount: 1,
     imaginePictures: [],
     imagineThreadEntries: [],
     imaginePictureInsertion: null,
 
     setImaginePromptText: (imaginePromptText) => setImagineState({ imaginePromptText }),
-    setImagineImageSizeText: (imagineImageSizeText) => setImagineState({ imagineImageSizeText }),
+    setImagineImageAspectRatio: (imagineImageAspectRatio) => setImagineState({ imagineImageAspectRatio }),
     setImagineGeneratedPictureCount: (imagineGeneratedPictureCount) =>
       setImagineState({ imagineGeneratedPictureCount: Math.max(1, Math.min(papelizImagineMaximumGeneratedPictureCount, Math.round(imagineGeneratedPictureCount))) }),
 
     sendImaginePrompt: async (imageModelChoice) => {
-      const { imaginePromptText, imagineImageSizeText, imagineGeneratedPictureCount } = getImagineState()
+      const { imaginePromptText, imagineImageAspectRatio, imagineGeneratedPictureCount } = getImagineState()
       const sentPromptText = imaginePromptText.trim()
       // One prompt at a time: while pictures are being made, the box's Send is Stop.
       if (sentPromptText.length === 0 || selectIsPapelizImagineMaking(getImagineState())) return
@@ -257,7 +260,7 @@ export const usePapelizImagineStore = create<PapelizImagineState>()((setImagineS
         const madeImaginePictures = await makePapelizImaginePictures({
           imageModelChoice,
           imagePromptText: sentPromptText,
-          imageSizeText: imagineImageSizeText,
+          storedImageShapeText: imagineImageAspectRatio,
           pictureCount: imagineGeneratedPictureCount,
           abortSignal: imagineGenerationAbortController.signal,
           imaginePromptPlace: 'imagine',
@@ -420,8 +423,9 @@ function updateImaginePictureById(imaginePictureId: string, imaginePictureChange
 interface PapelizImaginePictureMakingRequest {
   imageModelChoice: PapelizAssistantMediaModelChoice
   imagePromptText: string
-  // A size the provider offers, or null (or one it doesn't offer) for its first.
-  imageSizeText: string | null
+  // The chosen shape ("16:9", or an older "Landscape"), made as it is when the model makes it, else as
+  // 1:1 or the model's first; null for 1:1.
+  storedImageShapeText: string | null
   pictureCount: number
   abortSignal?: AbortSignal
   imaginePromptPlace: PapelizImaginePromptPlace
@@ -431,19 +435,17 @@ interface PapelizImaginePictureMakingRequest {
 // Here. They join Imagine's pictures, newest first, and are given back. Throws when the provider
 // can't make them.
 export async function makePapelizImaginePictures(pictureMakingRequest: PapelizImaginePictureMakingRequest): Promise<PapelizImaginePicture[]> {
-  const { imageModelChoice, imagePromptText, imageSizeText, pictureCount, abortSignal, imaginePromptPlace } = pictureMakingRequest
+  const { imageModelChoice, imagePromptText, storedImageShapeText, pictureCount, abortSignal, imaginePromptPlace } = pictureMakingRequest
   const imageGenerationPreset = findPapelizAssistantImageGenerationPreset(imageModelChoice.papelizAssistantProviderId)
   const mediaConnection = buildPapelizAssistantMediaProviderConnection('image-generation', imageModelChoice)
   if (mediaConnection.mediaConnectionOutcome !== 'ready') throw new PapelizAssistantProviderError(mediaConnection.mediaSetupProblem, null)
   if (imageGenerationPreset === null) throw new PapelizAssistantProviderError('This provider doesn’t make pictures.', null)
-  const sentImageSizeText = imageGenerationPreset.imageSizeChoices.some((imageSizeChoice) => imageSizeChoice.imageSizeText === imageSizeText)
-    ? imageSizeText
-    : (imageGenerationPreset.imageSizeChoices[0]?.imageSizeText ?? null)
+  const imageAspectRatioChoice = resolvePapelizAssistantImageAspectRatioChoice(imageGenerationPreset, imageModelChoice.providerModelName, storedImageShapeText)
   const generatedImages = await generatePapelizAssistantImages({
     providerConnection: mediaConnection.providerConnection,
     imageGenerationProviderPath: imageGenerationPreset.imageGenerationProviderPath,
     imagePromptText: imagePromptText.trim(),
-    imageSizeText: sentImageSizeText,
+    imageSizeValue: imageAspectRatioChoice?.imageSizeValue ?? null,
     imageSizeFieldStyle: imageGenerationPreset.imageSizeFieldStyle,
     generatedImageCount: Math.max(1, Math.min(papelizImagineMaximumGeneratedPictureCount, pictureCount)),
     imageResponseFormatValue: imageGenerationPreset.imageResponseFormatValue,

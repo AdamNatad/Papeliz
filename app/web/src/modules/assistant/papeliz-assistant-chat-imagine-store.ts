@@ -62,7 +62,7 @@ export const usePapelizChatImagineStore = create<PapelizChatImagineState>()((set
         const madeImaginePictures = await makePapelizImaginePictures({
           imageModelChoice,
           imagePromptText: trimmedPromptText,
-          imageSizeText: usePapelizImagineStore.getState().imagineImageSizeText,
+          storedImageShapeText: usePapelizImagineStore.getState().imagineImageAspectRatio,
           pictureCount: 1,
           imaginePromptPlace: 'chat',
         })

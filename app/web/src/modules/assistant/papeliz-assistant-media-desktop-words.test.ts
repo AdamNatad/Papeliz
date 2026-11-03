@@ -18,7 +18,7 @@ function generateTestPictures(fetchFunction: (requestUrl: string, requestInit: R
     imageGenerationProviderPath: 'images/generations',
     imageSizeFieldStyle: 'size-text',
     imagePromptText: 'A red fox in snow',
-    imageSizeText: '1024x1024',
+    imageSizeValue: '1024x1024',
     generatedImageCount: 1,
     imageResponseFormatValue: 'b64_json',
     fetchFunction,

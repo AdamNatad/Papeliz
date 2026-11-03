@@ -1,4 +1,4 @@
-import { ChevronDown, ImagePlus, ImageUp, Paintbrush, Proportions, Settings, TextCursorInput } from 'lucide-react'
+import { ChevronDown, ImagePlus, ImageUp, Paintbrush, Settings, TextCursorInput } from 'lucide-react'
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import { isPapelizDesktopApp } from 'virtual:papeliz-desktop-platform-availability'
 import { PapelizPillButton } from '../ui/papeliz-buttons'
@@ -11,6 +11,11 @@ import {
   PapelizImagineBoxSendButton,
   PapelizImagineBoxStopButton,
 } from './papeliz-assistant-imagine-box'
+import {
+  findPapelizAssistantImageAspectRatioDisplay,
+  listPapelizAssistantImageAspectRatioChoices,
+  resolvePapelizAssistantImageAspectRatioChoice,
+} from './papeliz-assistant-image-aspect-ratios'
 import { PapelizImaginePictureCard, PapelizImaginePictureInsertionCard } from './papeliz-assistant-imagine-picture-card'
 import { usePapelizImagineSectionStore } from './papeliz-assistant-imagine-sections'
 import {
@@ -104,9 +109,9 @@ function PapelizImagineDrawThreadEntryView({ imagineThreadEntry, isDrawThreadEnt
 }
 
 // Draw's box: the prompt, then + (bring in a picture, or transcribe an audio file into the prompt), the
-// picture model, its shape and how many, the one-press mic and Send, which is Stop while pictures are
-// being made. Before a provider that makes pictures is added the box still shows, with a line to
-// choose one, and the mic opens the settings.
+// picture model, its aspect ratio and how many, the one-press mic and Send, which is Stop while
+// pictures are being made. Before a provider that makes pictures is added the box still shows, with a
+// line to choose one, and the mic opens the settings.
 function PapelizImagineDrawBox({
   promptTextAreaRef,
   isPictureDraggedOverDraw,
@@ -119,11 +124,11 @@ function PapelizImagineDrawBox({
   const { offeredMediaModels, chosenMediaModel, mediaCapableSavedProviderIds } = usePapelizChosenAssistantMediaModel('image-generation')
   const chooseAssistantMediaModel = usePapelizAssistantMediaModelChoicesStore((choicesState) => choicesState.chooseAssistantMediaModel)
   const imaginePromptText = usePapelizImagineStore((imagineState) => imagineState.imaginePromptText)
-  const imagineImageSizeText = usePapelizImagineStore((imagineState) => imagineState.imagineImageSizeText)
+  const imagineImageAspectRatio = usePapelizImagineStore((imagineState) => imagineState.imagineImageAspectRatio)
   const imagineGeneratedPictureCount = usePapelizImagineStore((imagineState) => imagineState.imagineGeneratedPictureCount)
   const isImagineMaking = usePapelizImagineStore(selectIsPapelizImagineMaking)
   const setImaginePromptText = usePapelizImagineStore((imagineState) => imagineState.setImaginePromptText)
-  const setImagineImageSizeText = usePapelizImagineStore((imagineState) => imagineState.setImagineImageSizeText)
+  const setImagineImageAspectRatio = usePapelizImagineStore((imagineState) => imagineState.setImagineImageAspectRatio)
   const setImagineGeneratedPictureCount = usePapelizImagineStore((imagineState) => imagineState.setImagineGeneratedPictureCount)
   const sendImaginePrompt = usePapelizImagineStore((imagineState) => imagineState.sendImaginePrompt)
   const stopImagineGeneration = usePapelizImagineStore((imagineState) => imagineState.stopImagineGeneration)
@@ -139,8 +144,12 @@ function PapelizImagineDrawBox({
   const isDrawMicBusy = useIsPapelizOnePressMicBusy(drawOnePressMicStore)
 
   const imageGenerationPreset = chosenMediaModel === null ? null : findPapelizAssistantImageGenerationPreset(chosenMediaModel.papelizAssistantProviderId)
-  const imageSizeChoices = imageGenerationPreset?.imageSizeChoices ?? []
-  const shownImageSizeChoice = imageSizeChoices.find((imageSizeChoice) => imageSizeChoice.imageSizeText === imagineImageSizeText) ?? imageSizeChoices[0] ?? null
+  const chosenImageModelName = chosenMediaModel?.providerModelName ?? ''
+  // Only the shapes the chosen model makes; one it can't make is left out, not greyed.
+  const offeredImageAspectRatioChoices = listPapelizAssistantImageAspectRatioChoices(imageGenerationPreset, chosenImageModelName)
+  const shownImageAspectRatioChoice = resolvePapelizAssistantImageAspectRatioChoice(imageGenerationPreset, chosenImageModelName, imagineImageAspectRatio)
+  const shownImageAspectRatioDisplay = shownImageAspectRatioChoice === null ? null : findPapelizAssistantImageAspectRatioDisplay(shownImageAspectRatioChoice.imageAspectRatio)
+  const imagineGeneratedPictureCountLabel = imagineGeneratedPictureCount === 1 ? '1 Picture' : `${imagineGeneratedPictureCount} Pictures`
   const canSendPrompt = chosenMediaModel !== null && imaginePromptText.trim().length > 0 && !isImagineMaking && !isDrawMicBusy
   const sendPrompt = () => {
     if (canSendPrompt) void sendImaginePrompt(chosenMediaModel)
@@ -164,14 +173,18 @@ function PapelizImagineDrawBox({
     { menuItemKey: 'other-model', menuItemLabel: 'Other Model', MenuItemIcon: TextCursorInput, menuItemGroupHeading: 'Settings', onMenuItemSelect: () => setIsOtherImageModelFormOpen(true) },
     { menuItemKey: 'ai-provider-settings', menuItemLabel: 'AI Provider', MenuItemIcon: Settings, onMenuItemSelect: () => requestAssistantProviderSettingsPage() },
   ]
-  const shapeAndCountMenuItems: PapelizPopoverMenuItem[] = [
-    ...imageSizeChoices.map((imageSizeChoice, imageSizeChoiceIndex) => ({
-      menuItemKey: `shape-${imageSizeChoice.imageSizeText}`,
-      menuItemLabel: imageSizeChoice.imageSizeLabel,
-      isMenuItemChecked: imageSizeChoice.imageSizeText === shownImageSizeChoice?.imageSizeText,
-      ...(imageSizeChoiceIndex === 0 ? { menuItemGroupHeading: 'Shape' } : {}),
-      onMenuItemSelect: () => setImagineImageSizeText(imageSizeChoice.imageSizeText),
-    })),
+  // Each shape as its ratio beside an outline drawn in it, then how many pictures, under a line.
+  const aspectRatioAndCountMenuItems: PapelizPopoverMenuItem[] = [
+    ...offeredImageAspectRatioChoices.map((imageAspectRatioChoice) => {
+      const { imageAspectRatioLabel, ImageAspectRatioIcon } = findPapelizAssistantImageAspectRatioDisplay(imageAspectRatioChoice.imageAspectRatio)
+      return {
+        menuItemKey: `aspect-ratio-${imageAspectRatioChoice.imageAspectRatio}`,
+        menuItemLabel: imageAspectRatioLabel,
+        MenuItemIcon: ImageAspectRatioIcon,
+        isMenuItemChecked: imageAspectRatioChoice.imageAspectRatio === shownImageAspectRatioChoice?.imageAspectRatio,
+        onMenuItemSelect: () => setImagineImageAspectRatio(imageAspectRatioChoice.imageAspectRatio),
+      }
+    }),
     ...Array.from({ length: papelizImagineMaximumGeneratedPictureCount }, (_, countIndex) => countIndex + 1).map((pictureCount) => ({
       menuItemKey: `count-${pictureCount}`,
       menuItemLabel: pictureCount === 1 ? '1 Picture' : `${pictureCount} Pictures`,
@@ -240,15 +253,24 @@ function PapelizImagineDrawBox({
                 <ChevronDown className="size-3 flex-none opacity-70" aria-hidden="true" />
               </PapelizImagineBoxMenuButton>
               <PapelizImagineBoxMenuButton
-                menuLabel="Shape and Pictures"
-                menuItems={shapeAndCountMenuItems}
-                menuButtonAriaLabel={`${shownImageSizeChoice === null ? '' : `Shape: ${shownImageSizeChoice.imageSizeLabel}, `}${imagineGeneratedPictureCount === 1 ? '1 picture' : `${imagineGeneratedPictureCount} pictures`}`}
-                menuButtonTitle="The shape, and how many pictures to make. Click to change."
+                menuLabel={shownImageAspectRatioDisplay === null ? 'Pictures' : 'Aspect Ratio and Pictures'}
+                menuItems={aspectRatioAndCountMenuItems}
+                menuButtonAriaLabel={`${shownImageAspectRatioDisplay === null ? '' : `Aspect ratio: ${shownImageAspectRatioDisplay.imageAspectRatioLabel}, `}${imagineGeneratedPictureCountLabel.toLowerCase()}`}
+                menuButtonTitle={
+                  shownImageAspectRatioDisplay === null ? 'How many pictures to make. Click to change.' : 'The aspect ratio, and how many pictures to make. Click to change.'
+                }
               >
-                <Proportions className="size-3.5 flex-none" aria-hidden="true" />
-                {/* On a narrow box the shape shows as its icon and count, so the model keeps its name. */}
-                {shownImageSizeChoice !== null && <span className="hidden @min-[20rem]:inline">{shownImageSizeChoice.imageSizeLabel} ·</span>}
-                <span className="tabular-nums">{imagineGeneratedPictureCount}</span>
+                {shownImageAspectRatioDisplay === null ? (
+                  // The model offers no shape: only the count shows.
+                  <span className="tabular-nums">{imagineGeneratedPictureCountLabel}</span>
+                ) : (
+                  <>
+                    <shownImageAspectRatioDisplay.ImageAspectRatioIcon className="size-3.5 flex-none" aria-hidden="true" />
+                    {/* On a narrow box the ratio shows as its icon and the count, so the model keeps its name. */}
+                    <span className="hidden @min-[20rem]:inline">{shownImageAspectRatioDisplay.imageAspectRatioLabel} ·</span>
+                    <span className="tabular-nums">{imagineGeneratedPictureCount}</span>
+                  </>
+                )}
                 <ChevronDown className="size-3 flex-none opacity-70" aria-hidden="true" />
               </PapelizImagineBoxMenuButton>
             </>

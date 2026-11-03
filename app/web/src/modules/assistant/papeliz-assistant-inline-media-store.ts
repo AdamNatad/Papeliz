@@ -379,7 +379,7 @@ export const usePapelizInlineMediaStore = create<PapelizInlineMediaState>()((set
         const [madeImaginePicture] = await makePapelizImaginePictures({
           imageModelChoice,
           imagePromptText: inlineImaginePromptText,
-          imageSizeText: usePapelizImagineStore.getState().imagineImageSizeText,
+          storedImageShapeText: usePapelizImagineStore.getState().imagineImageAspectRatio,
           pictureCount: 1,
           abortSignal: inlineMediaAbortController.signal,
           imaginePromptPlace: 'note',

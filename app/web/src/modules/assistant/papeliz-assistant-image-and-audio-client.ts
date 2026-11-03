@@ -31,10 +31,11 @@ export interface PapelizAssistantImageGenerationRequest {
   // After the base URL: `images/generations`, or OpenRouter's `images`.
   imageGenerationProviderPath: string
   imagePromptText: string
-  // "1024x1024" and the like, or null for the provider's own default.
-  imageSizeText: string | null
-  // Sent as `size`, or as `width` and `height`.
-  imageSizeFieldStyle: 'size-text' | 'width-and-height'
+  // "1024x1024" and the like (or a ratio such as "16:9" for `aspect_ratio`), or null for the
+  // provider's own default.
+  imageSizeValue: string | null
+  // Sent as `size`, as `width` and `height`, or as `aspect_ratio`.
+  imageSizeFieldStyle: 'size-text' | 'width-and-height' | 'aspect-ratio'
   generatedImageCount: number
   // What `response_format` asks for so the picture comes back as bytes, not a link: OpenAI's
   // "b64_json", or null to send none.
@@ -228,23 +229,24 @@ interface PapelizImagesGenerationsResponseBody {
 }
 
 const papelizImageResponseFormatFieldPattern = /response_format|response format/i
-const papelizImageSizeFieldPattern = /\b(size|width|height)\b/i
+const papelizImageSizeFieldPattern = /\b(size|width|height|aspect_ratio)\b|aspect ratio/i
 
 // "1536x1024" as `width` 1536 and `height` 1024.
-function readImageSizeWidthAndHeight(imageSizeText: string): { width: number; height: number } | null {
-  const imageSizeMatch = /^(\d{2,5})x(\d{2,5})$/.exec(imageSizeText)
+function readImageSizeWidthAndHeight(imageSizeValue: string): { width: number; height: number } | null {
+  const imageSizeMatch = /^(\d{2,5})x(\d{2,5})$/.exec(imageSizeValue)
   return imageSizeMatch === null ? null : { width: Number(imageSizeMatch[1]), height: Number(imageSizeMatch[2]) }
 }
 
 async function generateImagesThroughImagesEndpoint(imageGenerationRequest: PapelizAssistantImageGenerationRequest, fetchFunction: PapelizMediaFetchFunction) {
-  const { providerConnection, imageGenerationProviderPath, imagePromptText, imageSizeText, imageSizeFieldStyle, generatedImageCount, imageResponseFormatValue, abortSignal } =
+  const { providerConnection, imageGenerationProviderPath, imagePromptText, imageSizeValue, imageSizeFieldStyle, generatedImageCount, imageResponseFormatValue, abortSignal } =
     imageGenerationRequest
   const sendImagesRequest = async (isResponseFormatSent: boolean, isSizeSent: boolean) => {
     const requestBody: Record<string, unknown> = { model: providerConnection.providerModelName, prompt: imagePromptText, n: generatedImageCount }
-    if (isSizeSent && imageSizeText !== null) {
-      const imageWidthAndHeight = imageSizeFieldStyle === 'width-and-height' ? readImageSizeWidthAndHeight(imageSizeText) : null
+    if (isSizeSent && imageSizeValue !== null) {
+      const imageWidthAndHeight = imageSizeFieldStyle === 'width-and-height' ? readImageSizeWidthAndHeight(imageSizeValue) : null
       if (imageWidthAndHeight !== null) Object.assign(requestBody, imageWidthAndHeight)
-      else requestBody['size'] = imageSizeText
+      else if (imageSizeFieldStyle === 'aspect-ratio') requestBody['aspect_ratio'] = imageSizeValue
+      else requestBody['size'] = imageSizeValue
     }
     if (isResponseFormatSent && imageResponseFormatValue !== null) requestBody['response_format'] = imageResponseFormatValue
     const providerResponse = await sendMediaProviderRequest(

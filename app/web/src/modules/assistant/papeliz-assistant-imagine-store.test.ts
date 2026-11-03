@@ -82,7 +82,14 @@ const readImagineThreadEntries = () => usePapelizImagineStore.getState().imagine
 
 beforeEach(() => {
   vi.mocked(generatePapelizAssistantImages).mockReset()
-  usePapelizImagineStore.setState({ imaginePromptText: '', imagineGeneratedPictureCount: 1, imaginePictures: [], imagineThreadEntries: [], imaginePictureInsertion: null })
+  usePapelizImagineStore.setState({
+    imaginePromptText: '',
+    imagineImageAspectRatio: null,
+    imagineGeneratedPictureCount: 1,
+    imaginePictures: [],
+    imagineThreadEntries: [],
+    imaginePictureInsertion: null,
+  })
 })
 
 describe('the Imagine thread’s words and pieces', () => {
@@ -139,6 +146,19 @@ describe('sending a prompt from the Imagine box', () => {
     expect(usePapelizImagineStore.getState().imaginePictures.map((imaginePicture) => imaginePicture.imaginePictureId).sort()).toEqual([...(madeEntry?.imaginePictureIds ?? [])].sort())
     expect(usePapelizImagineStore.getState().imaginePictures[0]).toMatchObject({ imaginePictureDescriptionText: 'A red fox in snow', isRemoveC2paOn: true })
     expect(vi.mocked(generatePapelizAssistantImages).mock.calls[0]?.[0]).toMatchObject({ imagePromptText: 'A red fox in snow', generatedImageCount: 2 })
+  })
+
+  it('sends the chosen aspect ratio as the model’s size, and 1:1 until one is chosen', async () => {
+    vi.mocked(generatePapelizAssistantImages).mockResolvedValue([{ generatedImageBlob: buildTestPicture(), revisedImagePromptText: null }])
+    usePapelizImagineStore.setState({ imaginePromptText: 'A red fox in snow' })
+    await usePapelizImagineStore.getState().sendImaginePrompt(testImageModelChoice)
+    usePapelizImagineStore.getState().setImagineImageAspectRatio('16:9')
+    usePapelizImagineStore.setState({ imaginePromptText: 'A wide valley at dusk' })
+    await usePapelizImagineStore.getState().sendImaginePrompt(testImageModelChoice)
+    expect(vi.mocked(generatePapelizAssistantImages).mock.calls.map(([imageGenerationRequest]) => [imageGenerationRequest.imageSizeValue, imageGenerationRequest.imageSizeFieldStyle])).toEqual([
+      ['1024x1024', 'size-text'],
+      ['1536x864', 'size-text'],
+    ])
   })
 
   it('shows what went wrong in place of the pictures', async () => {

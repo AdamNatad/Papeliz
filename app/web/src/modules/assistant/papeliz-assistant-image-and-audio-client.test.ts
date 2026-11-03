@@ -42,7 +42,7 @@ describe('Imagine pictures', () => {
       imageGenerationProviderPath: 'images/generations',
       imageSizeFieldStyle: 'size-text',
       imagePromptText: 'A red fox in snow',
-      imageSizeText: '1024x1024',
+      imageSizeValue: '1024x1024',
       generatedImageCount: 2,
       imageResponseFormatValue: 'b64_json',
       fetchFunction: testFetch,
@@ -72,7 +72,7 @@ describe('Imagine pictures', () => {
       imageGenerationProviderPath: 'images/generations',
       imageSizeFieldStyle: 'size-text',
       imagePromptText: 'A red fox',
-      imageSizeText: null,
+      imageSizeValue: null,
       generatedImageCount: 1,
       imageResponseFormatValue: 'b64_json',
       fetchFunction: testFetch,
@@ -89,7 +89,7 @@ describe('Imagine pictures', () => {
       providerConnection: testProviderConnection,
       imageGenerationProviderPath: 'images/generations',
       imagePromptText: 'A red fox',
-      imageSizeText: '1344x768',
+      imageSizeValue: '1344x768',
       imageSizeFieldStyle: 'width-and-height',
       generatedImageCount: 1,
       imageResponseFormatValue: 'base64',
@@ -98,21 +98,39 @@ describe('Imagine pictures', () => {
     expect(readJsonRequestBody(recordedTestRequests[0])).toEqual({ model: 'papeliz-test-image-model', prompt: 'A red fox', n: 1, width: 1344, height: 768, response_format: 'base64' })
   })
 
-  it('reads OpenRouter’s own image API at /images', async () => {
+  it('reads OpenRouter’s own image API at /images, with the shape as its aspect_ratio', async () => {
     const { testFetch, recordedTestRequests } = createTestFetch(() => Response.json({ data: [{ b64_json: testPngBase64, media_type: 'image/png' }] }))
     const generatedImages = await generatePapelizAssistantImages({
       providerConnection: testProviderConnection,
       imageGenerationProviderPath: 'images',
       imagePromptText: 'A red fox',
-      imageSizeText: null,
-      imageSizeFieldStyle: 'size-text',
+      imageSizeValue: '16:9',
+      imageSizeFieldStyle: 'aspect-ratio',
       generatedImageCount: 1,
       imageResponseFormatValue: null,
       fetchFunction: testFetch,
     })
     expect(recordedTestRequests[0]?.requestUrl).toBe('https://papeliz-test-provider.invalid/v1/images')
-    expect(readJsonRequestBody(recordedTestRequests[0])).not.toHaveProperty('response_format')
+    expect(readJsonRequestBody(recordedTestRequests[0])).toEqual({ model: 'papeliz-test-image-model', prompt: 'A red fox', n: 1, aspect_ratio: '16:9' })
     expect(generatedImages[0]?.generatedImageBlob.type).toBe('image/png')
+  })
+
+  it('sends again without the aspect ratio when the model refuses it', async () => {
+    const { testFetch, recordedTestRequests } = createTestFetch((_, requestNumber) =>
+      requestNumber === 1 ? Response.json({ error: { message: 'This model does not support aspect_ratio.' } }, { status: 400 }) : Response.json({ data: [{ b64_json: testPngBase64 }] }),
+    )
+    await generatePapelizAssistantImages({
+      providerConnection: testProviderConnection,
+      imageGenerationProviderPath: 'images',
+      imagePromptText: 'A red fox',
+      imageSizeValue: '9:16',
+      imageSizeFieldStyle: 'aspect-ratio',
+      generatedImageCount: 1,
+      imageResponseFormatValue: null,
+      fetchFunction: testFetch,
+    })
+    expect(readJsonRequestBody(recordedTestRequests[0])).toHaveProperty('aspect_ratio', '9:16')
+    expect(readJsonRequestBody(recordedTestRequests[1])).not.toHaveProperty('aspect_ratio')
   })
 
   it('asks Meta’s /images/edits to change a picture, in its JSON shape', async () => {
@@ -141,7 +159,7 @@ describe('Imagine pictures', () => {
       imageGenerationProviderPath: 'images/generations',
       imageSizeFieldStyle: 'size-text',
       imagePromptText: 'A red fox',
-      imageSizeText: null,
+      imageSizeValue: null,
       generatedImageCount: 1,
       imageResponseFormatValue: 'b64_json',
       fetchFunction: testFetch,
@@ -158,7 +176,7 @@ describe('Imagine pictures', () => {
         imageGenerationProviderPath: 'images/generations',
       imageSizeFieldStyle: 'size-text',
         imagePromptText: 'A red fox',
-        imageSizeText: null,
+        imageSizeValue: null,
         generatedImageCount: 1,
         imageResponseFormatValue: 'b64_json',
         fetchFunction: testFetch,
