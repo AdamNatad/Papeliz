@@ -1,9 +1,11 @@
 import { Check, CircleAlert, Eye, FilePlus, FileText, Folder, Trash2, X } from 'lucide-react'
 import { useMemo } from 'react'
 import { PapelizPillButton } from '../ui/papeliz-buttons'
+import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { getVaultNoteTitle, isVaultNoteFileName, isVaultRelativePathInsideFolder } from '../vault/papeliz-vault-relative-paths'
 import { usePapelizWorkspaceStore } from '../workspace/papeliz-workspace-store'
 import { usePapelizAssistantConversationStore } from './papeliz-assistant-conversation-store'
+import { papelizAssistantPaperCardClassName, papelizAssistantPaperCardFootClassName, readPapelizAssistantPaperCardFrameClassName } from './papeliz-assistant-paper-cards'
 import { diffPapelizTextByWords, type PapelizTextDiffPart } from './papeliz-assistant-text-diff'
 
 export function PapelizTextDiffView({ textDiffParts }: { textDiffParts: readonly PapelizTextDiffPart[] }) {
@@ -85,8 +87,8 @@ export function PapelizAssistantProposalCard({ assistantProposalId }: PapelizAss
   const trashedEntryCount = assistantProposal.trashedVaultEntryRelativePaths.length
 
   return (
-    <div className="papeliz-pop-enter flex-none overflow-hidden rounded-[18px] border border-papeliz-line bg-papeliz-surface shadow-papeliz-card">
-      <div className="flex items-center gap-2 border-b border-papeliz-line px-3.5 py-2.5 text-[13px] text-papeliz-ink-muted">
+    <div className={joinPapelizClassNames(papelizAssistantPaperCardClassName, 'flex-none', readPapelizAssistantPaperCardFrameClassName(assistantProposal.proposalStatus === 'pending'))}>
+      <div className="flex items-center gap-2 px-3.5 pt-3 pb-1 text-[13px] text-papeliz-ink-muted">
         <ProposalIcon className={isTrashProposal ? 'size-4 flex-none text-papeliz-error-notice-icon' : 'size-4 flex-none text-papeliz-blue'} aria-hidden="true" />
         {isTrashProposal ? (
           <span className="min-w-0 font-semibold text-papeliz-ink">
@@ -133,7 +135,7 @@ export function PapelizAssistantProposalCard({ assistantProposalId }: PapelizAss
           ))
         )}
       </div>
-      <div className="flex flex-wrap items-center gap-2 border-t border-papeliz-line bg-papeliz-surface-soft px-3.5 py-2.5">
+      <div className={joinPapelizClassNames('flex flex-wrap items-center gap-2', papelizAssistantPaperCardFootClassName)}>
         {assistantProposal.proposalStatus === 'pending' && (
           <>
             <PapelizPillButton

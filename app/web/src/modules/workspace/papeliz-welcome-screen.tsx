@@ -1135,7 +1135,7 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
             </div>
             {/* The first sentence of the website's description, which follows "Papeliz is". */}
             <p className="mt-3 text-[11.5px] leading-[1.45] text-white/80">
-              A free, open-source, cross-platform Markdown editor and AI-powered note-taking app for building your personal knowledge base.
+              A free, open-source, cross-platform Markdown Editor and AI-powered note-taking app for building your personal knowledge base.
             </p>
 
             <div className="mt-4 grid grid-cols-1 gap-[7px]">

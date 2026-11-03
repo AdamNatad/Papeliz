@@ -21,6 +21,13 @@ import {
   type PapelizChatSessionPlanState,
 } from './papeliz-assistant-chat-session-files'
 import {
+  describePapelizAssistantContextChoiceAboutLabel,
+  listPapelizAssistantContextNoteRelativePaths,
+  papelizDefaultAssistantContextChoice,
+  type PapelizAssistantContextChoice,
+  type PapelizAssistantContextMode,
+} from './papeliz-assistant-context-choice'
+import {
   findPapelizAssistantPlanActiveStep,
   findPapelizAssistantPlanStepToBuild,
   formatPapelizAssistantPlanMarkdown,
@@ -171,8 +178,8 @@ export function isPapelizAssistantPlanChatEntry(chatEntry: PapelizAssistantChatE
   return chatEntry.chatEntryKind === 'assistant-message' && chatEntry.assistantPlanDocument !== undefined
 }
 
-// What the assistant is shown alongside the question.
-export type PapelizAssistantContextMode = 'active-note' | 'whole-vault'
+// What the assistant is shown alongside the question (papeliz-assistant-context-choice.ts).
+export type { PapelizAssistantContextMode } from './papeliz-assistant-context-choice'
 
 // A message waiting to be sent when the assistant's answer ends.
 export interface PapelizAssistantQueuedMessage {
@@ -197,6 +204,9 @@ interface PapelizAssistantConversationState {
   assistantProposalsById: Record<string, PapelizAssistantProposal>
   isAssistantRunning: boolean
   assistantContextMode: PapelizAssistantContextMode
+  // Selected Notes…'s notes and A Folder…'s folder, kept while another choice is on.
+  assistantContextSelectedNoteRelativePaths: readonly string[]
+  assistantContextFolderRelativePath: string | null
   pendingSelectionContext: PapelizAssistantSelectionContext | null
   composerDraftText: string
   queuedAssistantMessages: PapelizAssistantQueuedMessage[]
@@ -204,8 +214,14 @@ interface PapelizAssistantConversationState {
   pendingAssistantAttachments: PapelizAssistantAttachment[]
   // The plan card opened to the panel's full height, if one is.
   fullHeightAssistantPlanChatEntryId: string | null
+  // The error notice that ended the last answer, while Retry can still ask again (in this session, with
+  // nothing sent since).
+  retryableAssistantErrorChatEntryId: string | null
 
   sendAssistantMessage: (userMessageText: string) => Promise<void>
+  // Retry, on the error that ended the last answer: takes that answer back to the message that asked it,
+  // with its files and selection, and asks again.
+  retryAssistantAnswer: () => void
   // While the assistant answers: hands it a message to read before its next step.
   steerAssistant: (userMessageText: string) => void
   // While the assistant answers: keeps a message to send when the answer ends.
@@ -245,6 +261,8 @@ interface PapelizAssistantConversationState {
   acceptAllPendingAssistantProposals: () => Promise<void>
   openSavedChatSession: (chatSessionVaultNoteRelativePath: string) => Promise<void>
   setAssistantContextMode: (assistantContextMode: PapelizAssistantContextMode) => void
+  // The "sees" menu's choice, with its notes or folder; saved with the chat.
+  setAssistantContextChoice: (assistantContextChoice: PapelizAssistantContextChoice) => void
   setPendingSelectionContext: (pendingSelectionContext: PapelizAssistantSelectionContext | null) => void
   setComposerDraftText: (composerDraftText: string) => void
   appendImaginePicturesChatEntry: (chatImagineRunId: string, imaginePromptText: string) => void
@@ -252,6 +270,35 @@ interface PapelizAssistantConversationState {
 
 const papelizAssistantMaximumToolRounds = 10
 const papelizAssistantContextNoteCharacterLimit = 16_000
+// All the notes a choice sends, together: past it, the rest are named for the assistant to read.
+const papelizAssistantContextNotesCharacterLimit = 120_000
+
+// The "sees" menu's choice as the conversation holds it.
+export function selectPapelizAssistantContextChoice(
+  conversationState: Pick<PapelizAssistantConversationState, 'assistantContextMode' | 'assistantContextSelectedNoteRelativePaths' | 'assistantContextFolderRelativePath'>,
+): PapelizAssistantContextChoice {
+  return {
+    assistantContextMode: conversationState.assistantContextMode,
+    contextSelectedNoteRelativePaths: conversationState.assistantContextSelectedNoteRelativePaths,
+    contextFolderRelativePath: conversationState.assistantContextFolderRelativePath,
+  }
+}
+
+// The notes the conversation's choice covers now, in the open vault.
+export function listPapelizAssistantConversationContextNoteRelativePaths(assistantContextChoice: PapelizAssistantContextChoice): string[] {
+  const workspaceState = usePapelizWorkspaceStore.getState()
+  return listPapelizAssistantContextNoteRelativePaths(assistantContextChoice, {
+    activeVaultMarkdownNoteRelativePath: selectActiveVaultMarkdownNoteRelativePath(workspaceState),
+    openNoteTabMarkdownNoteRelativePaths: workspaceState.openNoteTabRelativePaths.filter((noteTabRelativePath) => isVaultNoteFileName(getVaultEntryName(noteTabRelativePath))),
+    vaultNoteRelativePaths: workspaceState.vaultTreeEntries.filter((vaultTreeEntry) => vaultTreeEntry.vaultEntryKind === 'note').map((vaultTreeEntry) => vaultTreeEntry.vaultEntryRelativePath),
+  })
+}
+
+// One note's text as it goes into the request.
+interface PapelizAssistantContextNote {
+  vaultNoteRelativePath: string
+  contextNoteText: string
+}
 
 let nextChatEntryNumber = 1
 let activeAssistantAbortController: AbortController | null = null
@@ -529,12 +576,13 @@ function describeAssistantModeRules(assistantMode: PapelizAssistantMode, isPlanS
 // provider's name and the exact model name Papeliz sends the request to. Asked who it is or who made it,
 // it answers as Papeliz, the whole app, and names Papeliz's maker.
 export function describePapelizAssistantRunningProviderModel(runningProviderModelName: string, runningProviderDisplayName: string): string {
-  return `You run on the model “${runningProviderModelName}” from the provider “${runningProviderDisplayName}”: Papeliz sends this request to exactly that model name. When asked which model or provider you are, or what runs under the hood, give exactly that model name and provider. Never claim to be another model, and never guess beyond those names. When asked who you are or who made you, answer as Papeliz: Papeliz is a Markdown editor and viewer with a built-in AI assistant, made by Adam Natad.`
+  return `You run on the model “${runningProviderModelName}” from the provider “${runningProviderDisplayName}”: Papeliz sends this request to exactly that model name. When asked which model or provider you are, or what runs under the hood, give exactly that model name and provider. Never claim to be another model, and never guess beyond those names. When asked who you are or who made you, answer as Papeliz: Papeliz is a Markdown Editor and viewer with a built-in AI Assistant, made by Adam Natad.`
 }
 
 function buildAssistantSystemMessage(
   assistantMode: PapelizAssistantMode,
-  contextNoteText: string | null,
+  contextNotes: readonly PapelizAssistantContextNote[],
+  contextNotesLeftOutRelativePaths: readonly string[],
   selectionContext: PapelizAssistantSelectionContext | null,
   runningProviderModelName: string,
   runningProviderDisplayName: string,
@@ -563,8 +611,16 @@ function buildAssistantSystemMessage(
   if (activeVaultMarkdownNoteRelativePath !== null) {
     systemMessageLines.push(`The note open on screen is [[${getVaultNoteTitle(activeVaultMarkdownNoteRelativePath)}]] (${activeVaultMarkdownNoteRelativePath}).`)
   }
-  if (contextNoteText !== null && activeVaultMarkdownNoteRelativePath !== null) {
-    systemMessageLines.push(`Its text:\n<note path="${activeVaultMarkdownNoteRelativePath}">\n${contextNoteText.slice(0, papelizAssistantContextNoteCharacterLimit)}\n</note>`)
+  // The notes the user chose for the assistant to see ("sees" menu), each in full up to its limit.
+  const isOnlyTheOpenNoteSent = contextNotes.length === 1 && contextNotes[0]?.vaultNoteRelativePath === activeVaultMarkdownNoteRelativePath && contextNotesLeftOutRelativePaths.length === 0
+  if (isOnlyTheOpenNoteSent) {
+    systemMessageLines.push(`Its text:\n<note path="${contextNotes[0]!.vaultNoteRelativePath}">\n${contextNotes[0]!.contextNoteText}\n</note>`)
+  } else if (contextNotes.length > 0 || contextNotesLeftOutRelativePaths.length > 0) {
+    systemMessageLines.push(`The user asks about these ${contextNotes.length + contextNotesLeftOutRelativePaths.length} notes; their text follows.`)
+    for (const contextNote of contextNotes) systemMessageLines.push(`<note path="${contextNote.vaultNoteRelativePath}">\n${contextNote.contextNoteText}\n</note>`)
+    if (contextNotesLeftOutRelativePaths.length > 0) {
+      systemMessageLines.push(`These are part of it too, but too long to include; read them with readVaultNote as needed: ${contextNotesLeftOutRelativePaths.join(', ')}`)
+    }
   }
   if (selectionContext !== null) {
     systemMessageLines.push(`The user selected this passage in ${selectionContext.vaultNoteRelativePath}:\n<selection>\n${selectionContext.selectedText}\n</selection>`)
@@ -603,6 +659,7 @@ export const usePapelizAssistantConversationStore = create<PapelizAssistantConve
     chatSessionVaultNoteRelativePath: null,
     chatSessionCreatedAt: new Date().toISOString(),
     chatSessionTokenUsage: papelizEmptyChatSessionTokenUsage,
+    retryableAssistantErrorChatEntryId: null,
   })
 
   // Adds one request's tokens to the conversation that made it (not to a new chat started since).
@@ -709,6 +766,12 @@ export const usePapelizAssistantConversationStore = create<PapelizAssistantConve
         pendingSelectionContext: null,
         fullHeightAssistantPlanChatEntryId: null,
         ...createFreshChatSessionFields(),
+        // Another vault's notes and folders mean nothing here.
+        assistantContextSelectedNoteRelativePaths: [],
+        assistantContextFolderRelativePath: null,
+        ...(getConversationState().assistantContextMode === 'selected-notes' || getConversationState().assistantContextMode === 'folder'
+          ? { assistantContextMode: papelizDefaultAssistantContextChoice.assistantContextMode }
+          : {}),
       })
     }
   }
@@ -739,6 +802,7 @@ export const usePapelizAssistantConversationStore = create<PapelizAssistantConve
         chatSessionMessages,
         chatSessionTokenUsage: conversationState.chatSessionTokenUsage,
         ...(chatSessionPlanState === undefined ? {} : { chatSessionPlanState }),
+        chatSessionContextChoice: selectPapelizAssistantContextChoice(conversationState),
       })
       const existingVaultEntryPaths = new Set(workspaceState.vaultTreeEntries.map((vaultTreeEntry) => vaultTreeEntry.vaultEntryRelativePath.toLowerCase()))
       try {
@@ -978,6 +1042,16 @@ export const usePapelizAssistantConversationStore = create<PapelizAssistantConve
   // One answer: the user's message, or a plan step Build sends, then the assistant's steps until it
   // replies. A plan step runs as Write whatever the switch says, doesn't ask questions, leaves the
   // box, the selection and the attachments alone, and is drawn under its step on the plan card.
+  // Where Retry takes the conversation back to: the last answer's message, what it sent, and the
+  // conversation as it was before it.
+  let lastAssistantAnswerRetryPoint: {
+    chatEntryCountBeforeAnswer: number
+    providerChatMessagesBeforeAnswer: PapelizChatMessage[]
+    retriedUserMessageText: string
+    retriedAttachments: PapelizAssistantAttachment[]
+    retriedSelectionContext: PapelizAssistantSelectionContext | null
+  } | null = null
+
   const runAssistantAnswer = async (userMessageText: string, planStepRunTag: PapelizAssistantPlanStepRunTag | null) => {
     const trimmedUserMessageText = userMessageText.trim()
     const sentAttachments = planStepRunTag === null ? getConversationState().pendingAssistantAttachments : []
@@ -1000,16 +1074,26 @@ export const usePapelizAssistantConversationStore = create<PapelizAssistantConve
     const openVault = workspaceState.openVault
     const conversationState = getConversationState()
     const selectionContext = planStepRunTag === null ? conversationState.pendingSelectionContext : null
-    const activeVaultMarkdownNoteRelativePath = selectActiveVaultMarkdownNoteRelativePath(workspaceState)
+    // A plan step reads what it needs itself; an answer gets the notes the "sees" menu chose.
+    const assistantContextChoice = selectPapelizAssistantContextChoice(conversationState)
+    const contextNoteRelativePaths = planStepRunTag === null ? listPapelizAssistantConversationContextNoteRelativePaths(assistantContextChoice) : []
     const contextLabel =
       planStepRunTag !== null
         ? null
         : selectionContext !== null
           ? `Selection in ${getVaultNoteTitle(selectionContext.vaultNoteRelativePath)}`
-          : conversationState.assistantContextMode === 'active-note' && activeVaultMarkdownNoteRelativePath !== null
-            ? getVaultNoteTitle(activeVaultMarkdownNoteRelativePath)
-            : null
+          : describePapelizAssistantContextChoiceAboutLabel(assistantContextChoice, contextNoteRelativePaths)
     const userMessageEntryId = createChatEntryId()
+    if (planStepRunTag === null) {
+      lastAssistantAnswerRetryPoint = {
+        chatEntryCountBeforeAnswer: getConversationState().chatEntries.length,
+        providerChatMessagesBeforeAnswer: getConversationState().providerChatMessages,
+        retriedUserMessageText: trimmedUserMessageText,
+        retriedAttachments: sentAttachments,
+        retriedSelectionContext: selectionContext,
+      }
+      setConversationState({ retryableAssistantErrorChatEntryId: null })
+    }
     appendRunChatEntry({
       chatEntryId: userMessageEntryId,
       chatEntryKind: 'user-message',
@@ -1062,10 +1146,21 @@ export const usePapelizAssistantConversationStore = create<PapelizAssistantConve
     pendingSteeringMessageTexts = []
     activeAssistantPlanStepRun = planStepRunTag
     setConversationState({ isAssistantRunning: true })
-    const contextNoteText =
-      conversationState.assistantContextMode === 'active-note' && activeVaultMarkdownNoteRelativePath !== null
-        ? await readLatestPapelizVaultNoteText(openVault, activeVaultMarkdownNoteRelativePath).catch(() => null)
-        : null
+    // Each note's text, up to its own limit and all of them together up to theirs; the rest are named.
+    const contextNotes: PapelizAssistantContextNote[] = []
+    const contextNotesLeftOutRelativePaths: string[] = []
+    let contextNotesCharacterCount = 0
+    for (const contextNoteRelativePath of contextNoteRelativePaths) {
+      if (contextNotesCharacterCount >= papelizAssistantContextNotesCharacterLimit) {
+        contextNotesLeftOutRelativePaths.push(contextNoteRelativePath)
+        continue
+      }
+      const readContextNoteText = await readLatestPapelizVaultNoteText(openVault, contextNoteRelativePath).catch(() => null)
+      if (readContextNoteText === null) continue
+      const contextNoteText = readContextNoteText.slice(0, papelizAssistantContextNoteCharacterLimit)
+      contextNotesCharacterCount += contextNoteText.length
+      contextNotes.push({ vaultNoteRelativePath: contextNoteRelativePath, contextNoteText })
+    }
     const providerChatMessages: PapelizChatMessage[] = [
       ...getConversationState().providerChatMessages,
       { role: 'user', content: buildPapelizAssistantUserMessageContent(trimmedUserMessageText, sentAttachments) },
@@ -1115,7 +1210,7 @@ export const usePapelizAssistantConversationStore = create<PapelizAssistantConve
         const sentChatMessages: PapelizChatMessage[] = [
           {
             role: 'system',
-            content: buildAssistantSystemMessage(runAssistantMode, contextNoteText, selectionContext, runProviderModelName, runProviderDisplayName, isPlanStepRun),
+            content: buildAssistantSystemMessage(runAssistantMode, contextNotes, contextNotesLeftOutRelativePaths, selectionContext, runProviderModelName, runProviderDisplayName, isPlanStepRun),
           },
           ...providerChatMessages,
         ]
@@ -1282,7 +1377,9 @@ export const usePapelizAssistantConversationStore = create<PapelizAssistantConve
             assistantRunError instanceof Error ? assistantRunError.message : 'The assistant could not answer.',
             activeProviderConnection.providerConnection.providerApiKey,
           )
-      appendRunChatEntry({ chatEntryId: createChatEntryId(), chatEntryKind: 'notice', chatEntryText: runProblemText, isChatEntryError: !wasStopped })
+      const runProblemChatEntryId = createChatEntryId()
+      appendRunChatEntry({ chatEntryId: runProblemChatEntryId, chatEntryKind: 'notice', chatEntryText: runProblemText, isChatEntryError: !wasStopped })
+      if (!wasStopped && planStepRunTag === null) setConversationState({ retryableAssistantErrorChatEntryId: runProblemChatEntryId })
       planStepRunOutcome = wasStopped ? { planStepRunOutcome: 'stopped' } : { planStepRunOutcome: 'failed', planStepRunProblem: runProblemText }
     } finally {
       if (activeAssistantAbortController === assistantAbortController) activeAssistantAbortController = null
@@ -1327,7 +1424,9 @@ export const usePapelizAssistantConversationStore = create<PapelizAssistantConve
     providerChatMessages: [],
     assistantProposalsById: {},
     isAssistantRunning: false,
-    assistantContextMode: 'active-note',
+    assistantContextMode: papelizDefaultAssistantContextChoice.assistantContextMode,
+    assistantContextSelectedNoteRelativePaths: papelizDefaultAssistantContextChoice.contextSelectedNoteRelativePaths,
+    assistantContextFolderRelativePath: papelizDefaultAssistantContextChoice.contextFolderRelativePath,
     pendingSelectionContext: null,
     composerDraftText: '',
     queuedAssistantMessages: [],
@@ -1335,6 +1434,22 @@ export const usePapelizAssistantConversationStore = create<PapelizAssistantConve
     fullHeightAssistantPlanChatEntryId: null,
 
     sendAssistantMessage: (userMessageText) => runAssistantAnswer(userMessageText, null),
+
+    retryAssistantAnswer: () => {
+      const { isAssistantRunning, retryableAssistantErrorChatEntryId, chatEntries, composerDraftText, pendingAssistantAttachments, pendingSelectionContext } = getConversationState()
+      const retryPoint = lastAssistantAnswerRetryPoint
+      if (isAssistantRunning || retryPoint === null || retryableAssistantErrorChatEntryId === null || chatEntries.at(-1)?.chatEntryId !== retryableAssistantErrorChatEntryId) return
+      setConversationState({
+        chatEntries: chatEntries.slice(0, retryPoint.chatEntryCountBeforeAnswer),
+        providerChatMessages: retryPoint.providerChatMessagesBeforeAnswer,
+        pendingAssistantAttachments: retryPoint.retriedAttachments,
+        pendingSelectionContext: retryPoint.retriedSelectionContext,
+        retryableAssistantErrorChatEntryId: null,
+      })
+      // The answer takes what it sends as it starts; what was typed, added or selected since stays.
+      void runAssistantAnswer(retryPoint.retriedUserMessageText, null)
+      setConversationState({ composerDraftText, pendingAssistantAttachments, pendingSelectionContext })
+    },
 
     steerAssistant: (userMessageText) => {
       const trimmedUserMessageText = userMessageText.trim()
@@ -1613,6 +1728,7 @@ export const usePapelizAssistantConversationStore = create<PapelizAssistantConve
         return
       }
       const savedPlanState = savedChatSession.chatSessionPlanState
+      const savedContextChoice = savedChatSession.chatSessionContextChoice ?? papelizDefaultAssistantContextChoice
       activeAssistantPlanStepRun = null
       assistantPlanWaitingForRunEndChatEntryId = null
       // Earlier answers come back as text; their proposals were settled when the chat was saved. The
@@ -1627,6 +1743,11 @@ export const usePapelizAssistantConversationStore = create<PapelizAssistantConve
         assistantProposalsById: {},
         pendingSelectionContext: null,
         fullHeightAssistantPlanChatEntryId: null,
+        retryableAssistantErrorChatEntryId: null,
+        // The chat sees what it saw when it was saved.
+        assistantContextMode: savedContextChoice.assistantContextMode,
+        assistantContextSelectedNoteRelativePaths: [...savedContextChoice.contextSelectedNoteRelativePaths],
+        assistantContextFolderRelativePath: savedContextChoice.contextFolderRelativePath,
         chatEntries: savedChatSession.chatSessionMessages.map((chatSessionMessage, chatSessionMessageIndex): PapelizAssistantChatEntry => {
           if (chatSessionMessage.chatSessionMessageRole === 'user') {
             return { chatEntryId: createChatEntryId(), chatEntryKind: 'user-message', chatEntryText: chatSessionMessage.chatSessionMessageText, chatEntryContextLabel: null, isSteeringMessage: false }
@@ -1696,6 +1817,16 @@ export const usePapelizAssistantConversationStore = create<PapelizAssistantConve
     },
 
     setAssistantContextMode: (assistantContextMode) => setConversationState({ assistantContextMode }),
+
+    setAssistantContextChoice: (assistantContextChoice) => {
+      setConversationState({
+        assistantContextMode: assistantContextChoice.assistantContextMode,
+        assistantContextSelectedNoteRelativePaths: [...assistantContextChoice.contextSelectedNoteRelativePaths],
+        assistantContextFolderRelativePath: assistantContextChoice.contextFolderRelativePath,
+      })
+      // A chat already saved keeps its new choice; one with nothing in it yet saves with its first answer.
+      if (getConversationState().chatEntries.length > 0) saveChatSessionToVault()
+    },
     setPendingSelectionContext: (pendingSelectionContext) => setConversationState({ pendingSelectionContext }),
     setComposerDraftText: (composerDraftText) => setConversationState({ composerDraftText }),
     appendImaginePicturesChatEntry: (chatImagineRunId, imaginePromptText) =>

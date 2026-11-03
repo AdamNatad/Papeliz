@@ -4,6 +4,8 @@ import { isPapelizChatSessionNotePath } from './papeliz-assistant-chat-session-f
 import { usePapelizAssistantConversationStore } from './papeliz-assistant-conversation-store'
 import { usePapelizAssistantInlineEditUsageFileWriteStore } from './papeliz-assistant-inline-edit-usage-file'
 import {
+  addUpPapelizAssistantModelCosts,
+  describePapelizAssistantAddedUpCost,
   findPapelizAssistantModelPrice,
   formatPapelizAssistantCostUsd,
   papelizAssistantBuiltInModelPricesCheckedOnLabel,
@@ -39,23 +41,6 @@ function describeModelCostSource(modelCost: PapelizAssistantModelCost | null): s
   if (modelCost.modelCostSource === 'provider-reported') return 'Provider’s figure'
   if (modelCost.modelCostSource === 'typed-by-user') return 'Your price'
   return 'Listed price'
-}
-
-// What several models' requests cost together. Null when none of them has a cost; `isCostPartial`
-// when some do and some don't, and `isCostEstimated` when any is worked out from a price.
-function addUpModelCosts(modelCosts: ReadonlyArray<PapelizAssistantModelCost | null>): { costUsd: number; isCostEstimated: boolean; isCostPartial: boolean } | null {
-  const knownModelCosts = modelCosts.filter((modelCost): modelCost is PapelizAssistantModelCost => modelCost !== null)
-  if (knownModelCosts.length === 0) return null
-  return {
-    costUsd: knownModelCosts.reduce((costUsd, modelCost) => costUsd + modelCost.modelCostUsd, 0),
-    isCostEstimated: knownModelCosts.some((modelCost) => modelCost.modelCostSource !== 'provider-reported'),
-    isCostPartial: knownModelCosts.length < modelCosts.length,
-  }
-}
-
-// "about $0.61", or "$0.61+" when some of it has no price.
-function describeAddedUpCost(addedUpCost: { costUsd: number; isCostEstimated: boolean; isCostPartial: boolean }): string {
-  return `${addedUpCost.isCostEstimated ? 'about ' : ''}${formatPapelizAssistantCostUsd(addedUpCost.costUsd)}${addedUpCost.isCostPartial ? '+' : ''}`
 }
 
 // One model under By model: its tokens, its cost and where the cost came from. Its price is set with
@@ -108,7 +93,7 @@ export function PapelizAssistantUsageView() {
   const userModelPrices = usePapelizAssistantModelPricesStore((modelPricesState) => modelPricesState.userModelPrices)
   // What a list of model rows cost together, at today's prices.
   const addUpModelTokenUsageCosts = (modelTokenUsageTallies: readonly PapelizAssistantModelTokenUsageTally[]) =>
-    addUpModelCosts(
+    addUpPapelizAssistantModelCosts(
       modelTokenUsageTallies.map((modelTokenUsageTally) =>
         workOutPapelizAssistantModelCost(modelTokenUsageTally, findPapelizAssistantModelPrice(modelTokenUsageTally.providerModelName, userModelPrices)),
       ),
@@ -204,7 +189,7 @@ export function PapelizAssistantUsageView() {
           <div className="flex items-baseline justify-between gap-3 px-2 py-1 text-sm">
             <dt className="text-papeliz-ink-muted">Cost</dt>
             <dd className="font-semibold tabular-nums">
-              {vaultAddedUpCost === null ? <span className="font-normal text-papeliz-ink-subtle">No prices yet</span> : describeAddedUpCost(vaultAddedUpCost)}
+              {vaultAddedUpCost === null ? <span className="font-normal text-papeliz-ink-subtle">No prices yet</span> : describePapelizAssistantAddedUpCost(vaultAddedUpCost)}
             </dd>
           </div>
         </dl>
@@ -224,7 +209,7 @@ export function PapelizAssistantUsageView() {
           <PapelizUsageViewSectionHeading>Inline Edits</PapelizUsageViewSectionHeading>
           <p className="px-2 py-1 text-sm text-papeliz-ink-muted tabular-nums">
             {describeAssistantTokenUsageTally(inlineEditsTokenUsageTally, true)}
-            {inlineEditsAddedUpCost !== null && ` · ${describeAddedUpCost(inlineEditsAddedUpCost)}`}
+            {inlineEditsAddedUpCost !== null && ` · ${describePapelizAssistantAddedUpCost(inlineEditsAddedUpCost)}`}
           </p>
         </section>
       )}

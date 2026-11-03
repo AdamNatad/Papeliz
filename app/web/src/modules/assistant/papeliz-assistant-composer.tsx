@@ -3,7 +3,6 @@ import {
   ChevronDown,
   CornerDownLeft,
   FileText,
-  Library,
   ListChecks,
   ListPlus,
   MessageCircleQuestion,
@@ -24,10 +23,17 @@ import { useEffect, useRef, useState, type MouseEvent } from 'react'
 import { PapelizIconButton, PapelizPillButton } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { PapelizPopoverMenu, type PapelizPopoverMenuItem, type PapelizPopoverMenuPosition } from '../ui/papeliz-popover-menu'
-import { getVaultNoteTitle } from '../vault/papeliz-vault-relative-paths'
 import { selectActiveVaultMarkdownNoteRelativePath, usePapelizWorkspaceStore } from '../workspace/papeliz-workspace-store'
 import { PapelizAssistantComposerAddMenu, usePapelizComposerOnePressMic } from './papeliz-assistant-composer-media-buttons'
+import {
+  papelizComposerEffortFoldedAttributeName,
+  papelizComposerRowGiveWayClassNames,
+  papelizComposerRowGroupClassName,
+  usePapelizComposerRowFit,
+} from './papeliz-assistant-composer-row-fit'
+import { PapelizAssistantContextChoiceButton } from './papeliz-assistant-context-choice-button'
 import { PapelizAssistantContextWindowGauge } from './papeliz-assistant-context-window-gauge'
+import { describePapelizAssistantModelShortName, listPapelizAssistantModelNameHyphenCuts } from './papeliz-assistant-model-short-names'
 import {
   describePapelizAssistantPlanComposerPlaceholder,
   selectPapelizAssistantBuildingPlanEntry,
@@ -77,11 +83,18 @@ const papelizAssistantComposerModeChoices: ReadonlyArray<{
 
 // The quiet text buttons along the bottom of the box; on a touch screen at least 40px each way, for a
 // finger, even when a narrow box shows only the icon.
-const papelizComposerQuietButtonClassName =
-  'flex h-7 min-w-0 flex-none items-center gap-1 rounded-lg px-1.5 text-[12.5px] text-papeliz-ink-muted transition-colors hover:bg-papeliz-hover hover:text-papeliz-ink aria-expanded:bg-papeliz-hover pointer-coarse:h-10 pointer-coarse:min-w-10 pointer-coarse:justify-center'
+const papelizComposerQuietButtonClassName = joinPapelizClassNames(
+  'flex h-7 min-w-0 flex-none items-center gap-1 rounded-lg px-1.5 text-[12.5px] text-papeliz-ink-muted transition-colors hover:bg-papeliz-hover hover:text-papeliz-ink aria-expanded:bg-papeliz-hover pointer-coarse:h-10 pointer-coarse:min-w-10 pointer-coarse:justify-center',
+  papelizComposerRowGiveWayClassNames.quietButtonTight,
+)
 
 // Which of the composer's chip menus is open, and where.
-type PapelizComposerChipMenu = { composerChipMenuKind: 'model' | 'effort' | 'permission' | 'mode'; composerChipMenuPosition: PapelizPopoverMenuPosition }
+// The model's menu carries Effort while the row has folded the Effort chip into it.
+type PapelizComposerChipMenu = {
+  composerChipMenuKind: 'model' | 'effort' | 'permission' | 'mode'
+  composerChipMenuPosition: PapelizPopoverMenuPosition
+  isReasoningEffortInModelMenu: boolean
+}
 
 // The popover menu's rows (h-9), a group heading with its line, and its padding, so a menu that opens
 // above its chip can be placed before it is drawn.
@@ -97,10 +110,11 @@ interface PapelizAssistantComposerProps {
 // Where the user writes to the assistant, laid out compactly: the text, then one row of
 // quiet buttons. On the left: + (a menu: add files and pictures, which can also be pasted or dropped
 // on the box, transcribe an audio file, or imagine a picture of what is typed), what the assistant
-// will see (this note, or the vault) and, in Write, whether its changes wait for review or apply at
-// once (Bypass permission, in red). On the right: the context gauge, the model (a menu of every model
-// switched on in Settings › AI Provider, by provider), how hard it thinks (Effort, left out for a
-// model that refused it), the one-press mic and Send. One press on the mic turns the row into the
+// will see (a menu: this note, the open notes, chosen notes, a folder or the vault) and, in Write,
+// whether its changes wait for review or apply at once (Bypass permission, in red). On the right: the
+// context ring and its card, the model (a menu of every model switched on in Settings › AI Provider,
+// by provider), how hard it thinks (Effort, left out for a model that refused it), the one-press mic
+// and Send. A narrow row gives way in measured steps (papeliz-assistant-composer-row-fit.ts). One press on the mic turns the row into the
 // recorder (papeliz-assistant-one-press-mic.tsx), and the words land after what is typed. Enter
 // sends, Shift+Enter starts a new line. While the assistant answers, Enter steers it (it reads the
 // message before its next step), and Queue keeps the message for when the answer ends. Before a
@@ -116,7 +130,6 @@ export function PapelizAssistantComposer({ composerPlacement }: PapelizAssistant
   const sendAssistantMessage = usePapelizAssistantConversationStore((conversationState) => conversationState.sendAssistantMessage)
   const stopAssistant = usePapelizAssistantConversationStore((conversationState) => conversationState.stopAssistant)
   const setComposerDraftText = usePapelizAssistantConversationStore((conversationState) => conversationState.setComposerDraftText)
-  const setAssistantContextMode = usePapelizAssistantConversationStore((conversationState) => conversationState.setAssistantContextMode)
   const setPendingSelectionContext = usePapelizAssistantConversationStore((conversationState) => conversationState.setPendingSelectionContext)
   const activeVaultMarkdownNoteRelativePath = usePapelizWorkspaceStore(selectActiveVaultMarkdownNoteRelativePath)
   const activeAssistantProviderId = usePapelizAssistantProviderSettingsStore(selectActivePapelizAssistantProviderId)
@@ -187,7 +200,11 @@ export function PapelizAssistantComposer({ composerPlacement }: PapelizAssistant
     if (isAssistantRunning) steerAssistant(composerDraftText)
     else void sendAssistantMessage(composerDraftText)
   }
+  // The prompt names what the assistant sees: this note, the notes chosen, or the vault.
   const isNoteContextShown = assistantContextMode === 'active-note' && activeVaultMarkdownNoteRelativePath !== null
+  const areChosenNotesShown = assistantContextMode === 'open-notes' || assistantContextMode === 'selected-notes' || assistantContextMode === 'folder'
+  // The strip along the box's top edge where the "sees" pickers and the context ring's card open.
+  const [composerBoxTopEdgeStripElement, setComposerBoxTopEdgeStripElement] = useState<HTMLDivElement | null>(null)
   const providerChipLabel = activeProviderModelName || findPapelizAssistantProviderPreset(activeAssistantProviderId).providerPresetDisplayName
   // The models on the model chip's menu: each saved provider's switched-on models, under its name.
   const enabledProviderModelGroups = listPapelizSavedAssistantProviderIds(providerSettingsByProviderId)
@@ -197,6 +214,12 @@ export function PapelizAssistantComposer({ composerPlacement }: PapelizAssistant
     }))
     .filter((enabledProviderModelGroup) => enabledProviderModelGroup.enabledProviderModelNames.length > 0)
   const isComposerDraftEmpty = composerDraftText.trim().length === 0 && pendingAssistantAttachments.length === 0
+  const isModelChipSteppingAside = isAssistantRunning && !isComposerDraftEmpty
+  // The model chip's shorter names, for a narrow row.
+  const providerChipShortName = describePapelizAssistantModelShortName(providerChipLabel)
+  const providerChipNameCuts = listPapelizAssistantModelNameHyphenCuts(providerChipShortName.modelShortName)
+  const composerRowRef = useRef<HTMLDivElement>(null)
+  usePapelizComposerRowFit(composerRowRef)
   const isBypassPermissionOn = assistantChangePermission === 'bypass-permission'
   const chosenReasoningEffortChoice =
     papelizAssistantReasoningEffortChoices.find((reasoningEffortChoice) => reasoningEffortChoice.assistantReasoningEffort === assistantReasoningEffort) ??
@@ -208,18 +231,31 @@ export function PapelizAssistantComposer({ composerPlacement }: PapelizAssistant
 
   const openComposerChipMenuBelow = (composerChipMenuKind: PapelizComposerChipMenu['composerChipMenuKind'], clickEvent: MouseEvent<HTMLButtonElement>) => {
     const chipRect = clickEvent.currentTarget.getBoundingClientRect()
+    const isReasoningEffortInModelMenu =
+      composerChipMenuKind === 'model' && !isReasoningEffortRefusedByModel && composerRowRef.current?.hasAttribute(papelizComposerEffortFoldedAttributeName) === true
     // The menu opens above the chip; the popover keeps it inside the window. Its Settings group holds
-    // two rows.
+    // two rows, and Effort its choices when it is folded in.
     const modelMenuHeight =
-      (enabledProviderModelGroups.reduce((modelRowCount, enabledProviderModelGroup) => modelRowCount + enabledProviderModelGroup.enabledProviderModelNames.length, 0) + 2) *
+      (enabledProviderModelGroups.reduce((modelRowCount, enabledProviderModelGroup) => modelRowCount + enabledProviderModelGroup.enabledProviderModelNames.length, 0) +
+        2 +
+        (isReasoningEffortInModelMenu ? papelizAssistantReasoningEffortChoices.length : 0)) *
         papelizComposerChipMenuRowHeight +
-      (enabledProviderModelGroups.length + 1) * papelizComposerChipMenuGroupHeadingHeight +
+      (enabledProviderModelGroups.length + 1 + (isReasoningEffortInModelMenu ? 1 : 0)) * papelizComposerChipMenuGroupHeadingHeight +
       papelizComposerChipMenuFrameHeight
     setOpenComposerChipMenu({
       composerChipMenuKind,
       composerChipMenuPosition: { menuAnchorLeft: chipRect.left, menuAnchorTop: chipRect.top - (composerChipMenuKind === 'model' ? modelMenuHeight + 6 : 150) },
+      isReasoningEffortInModelMenu,
     })
   }
+  const reasoningEffortMenuItems: PapelizPopoverMenuItem[] = papelizAssistantReasoningEffortChoices.map((reasoningEffortChoice, reasoningEffortChoiceIndex) => ({
+    menuItemKey: reasoningEffortChoice.assistantReasoningEffort,
+    menuItemLabel: reasoningEffortChoice.reasoningEffortLabel,
+    MenuItemIcon: reasoningEffortChoice.ReasoningEffortIcon,
+    isMenuItemChecked: reasoningEffortChoice.assistantReasoningEffort === assistantReasoningEffort,
+    ...(reasoningEffortChoiceIndex === 0 ? { menuItemGroupHeading: 'Effort' } : {}),
+    onMenuItemSelect: () => setAssistantReasoningEffort(reasoningEffortChoice.assistantReasoningEffort),
+  }))
   const isActiveProviderModel = (papelizAssistantProviderId: string, providerModelName: string) =>
     papelizAssistantProviderId === activeAssistantProviderId && providerModelName === activeProviderModelName
   const composerChipMenuItems: PapelizPopoverMenuItem[] =
@@ -242,6 +278,7 @@ export function PapelizAssistantComposer({ composerPlacement }: PapelizAssistant
               },
             })),
           ),
+          ...(openComposerChipMenu.isReasoningEffortInModelMenu ? reasoningEffortMenuItems : []),
           {
             menuItemKey: 'ai-provider-settings',
             menuItemLabel: 'AI Provider',
@@ -267,14 +304,7 @@ export function PapelizAssistantComposer({ composerPlacement }: PapelizAssistant
           onMenuItemSelect: () => setAssistantMode(modeChoice.assistantMode),
         }))
       : openComposerChipMenu?.composerChipMenuKind === 'effort'
-      ? papelizAssistantReasoningEffortChoices.map((reasoningEffortChoice, reasoningEffortChoiceIndex) => ({
-          menuItemKey: reasoningEffortChoice.assistantReasoningEffort,
-          menuItemLabel: reasoningEffortChoice.reasoningEffortLabel,
-          MenuItemIcon: reasoningEffortChoice.ReasoningEffortIcon,
-          isMenuItemChecked: reasoningEffortChoice.assistantReasoningEffort === assistantReasoningEffort,
-          ...(reasoningEffortChoiceIndex === 0 ? { menuItemGroupHeading: 'Effort' } : {}),
-          onMenuItemSelect: () => setAssistantReasoningEffort(reasoningEffortChoice.assistantReasoningEffort),
-        }))
+      ? reasoningEffortMenuItems
       : [
           {
             menuItemKey: 'review-changes',
@@ -298,15 +328,35 @@ export function PapelizAssistantComposer({ composerPlacement }: PapelizAssistant
   // place, held, so ✓ lands on the mic's own spot; Stop still stops.
   const composerSendControls =
     isAssistantRunning ? (
-      <span className="ml-1 flex flex-none items-center gap-1.5">
+      <span className={joinPapelizClassNames('ml-1 flex flex-none items-center gap-1.5', papelizComposerRowGiveWayClassNames.sendButtonGap)}>
         {!isComposerDraftEmpty && (
           <>
-            <PapelizPillButton pillButtonVariant="line" pillButtonSize="small" title="Send when the answer ends" disabled={isComposerMicBusy} onClick={() => queueAssistantMessage(composerDraftText)}>
+            <PapelizPillButton
+              pillButtonVariant="line"
+              pillButtonSize="small"
+              aria-label="Queue"
+              title="Queue: send when the answer ends"
+              disabled={isComposerMicBusy}
+              onClick={() => queueAssistantMessage(composerDraftText)}
+              className={papelizComposerRowGiveWayClassNames.queueAndSteerPill}
+            >
               <ListPlus className="size-3.5" aria-hidden="true" />
-              Queue
+              <span data-papeliz-composer-give-way-label="steer" className={papelizComposerRowGiveWayClassNames.queueAndSteerLabel}>
+                Queue
+              </span>
             </PapelizPillButton>
-            <PapelizPillButton pillButtonVariant="primary" pillButtonSize="small" title="Read before the assistant’s next step (Enter)" disabled={isComposerMicBusy} onClick={sendComposerDraft}>
-              Steer
+            <PapelizPillButton
+              pillButtonVariant="primary"
+              pillButtonSize="small"
+              aria-label="Steer"
+              title="Steer: read before the assistant’s next step (Enter)"
+              disabled={isComposerMicBusy}
+              onClick={sendComposerDraft}
+              className={papelizComposerRowGiveWayClassNames.queueAndSteerPill}
+            >
+              <span data-papeliz-composer-give-way-label="steer" className={papelizComposerRowGiveWayClassNames.queueAndSteerLabel}>
+                Steer
+              </span>
               <CornerDownLeft className="size-3.5" aria-hidden="true" />
             </PapelizPillButton>
           </>
@@ -316,7 +366,10 @@ export function PapelizAssistantComposer({ composerPlacement }: PapelizAssistant
           aria-label="Stop"
           title="Stop"
           onClick={stopAssistant}
-          className="grid size-8 flex-none place-items-center rounded-full bg-papeliz-ink text-papeliz-surface transition-transform active:scale-90 pointer-coarse:size-10"
+          className={joinPapelizClassNames(
+            'grid size-8 flex-none place-items-center rounded-full bg-papeliz-ink text-papeliz-surface transition-transform active:scale-90 pointer-coarse:size-10',
+            papelizComposerRowGiveWayClassNames.roundButtonSmall,
+          )}
         >
           <Square className="size-3.5 fill-current" aria-hidden="true" />
         </button>
@@ -328,7 +381,11 @@ export function PapelizAssistantComposer({ composerPlacement }: PapelizAssistant
         title={isAssistantProviderReady ? 'Send (Enter)' : 'Choose a provider first'}
         disabled={isComposerDraftEmpty || isComposerMicBusy || !isAssistantProviderReady}
         onClick={sendComposerDraft}
-        className="ml-1 grid size-8 flex-none place-items-center rounded-full bg-papeliz-gradient-start text-white transition-[transform,opacity,background-color] hover:brightness-95 active:scale-90 disabled:opacity-40 pointer-coarse:size-10"
+        className={joinPapelizClassNames(
+          'ml-1 grid size-8 flex-none place-items-center rounded-full bg-papeliz-gradient-start text-white transition-[transform,opacity,background-color] hover:brightness-95 active:scale-90 disabled:opacity-40 pointer-coarse:size-10',
+          papelizComposerRowGiveWayClassNames.sendButtonGap,
+          papelizComposerRowGiveWayClassNames.roundButtonSmall,
+        )}
       >
         <ArrowUp className="size-4" strokeWidth={2.4} aria-hidden="true" />
       </button>
@@ -336,6 +393,8 @@ export function PapelizAssistantComposer({ composerPlacement }: PapelizAssistant
 
   return (
     <>
+      {/* Along the box's top edge: the "sees" pickers and the ring's card open here, over the conversation. */}
+      <div ref={setComposerBoxTopEdgeStripElement} className="relative z-30 h-0" />
       <div
         // While the mic records, Enter finishes and Esc throws the recording away, wherever focus is.
         onKeyDown={(keyboardEvent) => void handlePapelizOnePressMicKey(keyboardEvent, composerOnePressMicStore)}
@@ -354,11 +413,15 @@ export function PapelizAssistantComposer({ composerPlacement }: PapelizAssistant
           setIsFileDraggedOverComposer(false)
           void addAssistantAttachmentFiles([...dropEvent.dataTransfer.files])
         }}
+        // In the panel a hairline frame on the white page, with no shadow; floating over the note in Focus
+        // mode it keeps its lift.
         className={joinPapelizClassNames(
-          'rounded-[22px] border border-papeliz-line bg-papeliz-surface pt-2.5 pr-2 pb-2 pl-3.5 shadow-papeliz-card transition-[border-color,box-shadow] duration-150 focus-within:border-papeliz-blue-line focus-within:shadow-[0_0_0_4px_var(--color-papeliz-blue-soft),var(--shadow-papeliz-card)]',
-          composerPlacement === 'floating' && 'shadow-papeliz-pop',
-          isFileDraggedOverComposer && 'border-papeliz-blue shadow-[0_0_0_4px_var(--color-papeliz-blue-soft),var(--shadow-papeliz-card)]',
-          isComposerMicBusy && 'border-papeliz-blue-line shadow-[0_0_0_4px_var(--color-papeliz-blue-soft),var(--shadow-papeliz-card)]',
+          'rounded-[20px] border border-papeliz-line-strong bg-papeliz-surface pt-2.5 pr-2 pb-2 pl-3.5 transition-[border-color,box-shadow] duration-150 focus-within:border-papeliz-blue-line',
+          composerPlacement === 'floating'
+            ? 'shadow-papeliz-pop focus-within:shadow-[0_0_0_4px_var(--color-papeliz-blue-soft),var(--shadow-papeliz-pop)]'
+            : 'focus-within:shadow-[0_0_0_4px_var(--color-papeliz-blue-soft)]',
+          isFileDraggedOverComposer && 'border-papeliz-blue shadow-[0_0_0_4px_var(--color-papeliz-blue-soft)]',
+          isComposerMicBusy && 'border-papeliz-blue-line shadow-[0_0_0_4px_var(--color-papeliz-blue-soft)]',
         )}
       >
         {/* Before a provider is set up the box still shows, mic and all, with the way to set one up. */}
@@ -451,12 +514,16 @@ export function PapelizAssistantComposer({ composerPlacement }: PapelizAssistant
                   assistantMode === 'write'
                   ? isNoteContextShown
                     ? 'Ask for a change to this note'
-                    : 'Ask for a change'
+                    : areChosenNotesShown
+                      ? 'Ask for a change to these notes'
+                      : 'Ask for a change'
                   : assistantMode === 'plan'
                     ? (assistantPlanComposerPlaceholder ?? 'Describe what to plan')
                     : isNoteContextShown
                       ? 'Ask about this note'
-                      : 'Ask about your notes'
+                      : areChosenNotesShown
+                        ? 'Ask about these notes'
+                        : 'Ask about your notes'
           }
           onChange={(changeEvent) => setComposerDraftText(changeEvent.target.value)}
           // A pasted picture or file is added to the message.
@@ -480,8 +547,12 @@ export function PapelizAssistantComposer({ composerPlacement }: PapelizAssistant
             composerPlacement === 'floating' ? 'text-[16px] leading-relaxed' : 'text-[14.5px] leading-normal',
           )}
         />
-        {/* On a narrow panel the note, Review and the effort show as icons, so the model keeps its name. */}
-        <div className="@container mt-1.5 flex min-w-0 items-center gap-0.5">
+        {/* When the row is narrow its buttons give way in measured steps (papeliz-assistant-composer-row-fit.ts). */}
+        <div
+          ref={composerRowRef}
+          data-papeliz-composer-row
+          className={joinPapelizClassNames(papelizComposerRowGroupClassName, 'mt-1.5 flex min-w-0 items-center gap-0.5 data-[papeliz-composer-gaps-tight]:gap-0')}
+        >
           <input
             ref={attachmentFileInputRef}
             type="file"
@@ -501,16 +572,10 @@ export function PapelizAssistantComposer({ composerPlacement }: PapelizAssistant
                 onAddFilesOrPictures={() => attachmentFileInputRef.current?.click()}
                 onTranscribeAudioFile={() => audioFileInputRef.current?.click()}
               />
-              <button
-                type="button"
-                onClick={() => setAssistantContextMode(assistantContextMode === 'active-note' ? 'whole-vault' : 'active-note')}
-                title="What the assistant sees with your message. Click to switch."
-                aria-label={isNoteContextShown ? `Sees ${getVaultNoteTitle(activeVaultMarkdownNoteRelativePath)}` : 'Sees the Whole Vault'}
-                className={joinPapelizClassNames(papelizComposerQuietButtonClassName, 'max-w-[30%] flex-shrink')}
-              >
-                {isNoteContextShown ? <FileText className="size-3.5 flex-none" aria-hidden="true" /> : <Library className="size-3.5 flex-none" aria-hidden="true" />}
-                <span className="hidden truncate @min-[26rem]:inline">{isNoteContextShown ? getVaultNoteTitle(activeVaultMarkdownNoteRelativePath) : 'Whole Vault'}</span>
-              </button>
+              <PapelizAssistantContextChoiceButton
+                contextChoiceButtonClassName={joinPapelizClassNames(papelizComposerQuietButtonClassName, 'max-w-56')}
+                contextPickerSheetHostElement={composerBoxTopEdgeStripElement}
+              />
               {composerPlacement === 'floating' && (
                 <button
                   type="button"
@@ -522,8 +587,10 @@ export function PapelizAssistantComposer({ composerPlacement }: PapelizAssistant
                   className={papelizComposerQuietButtonClassName}
                 >
                   <ChosenComposerModeIcon className="size-3.5 flex-none" aria-hidden="true" />
-                  <span className="hidden @min-[24rem]:inline">{chosenComposerModeChoice.assistantModeLabel}</span>
-                  <ChevronDown className="size-3 flex-none opacity-70" aria-hidden="true" />
+                  <span data-papeliz-composer-give-way-label="mode" className={papelizComposerRowGiveWayClassNames.contextChoiceLabel}>
+                    {chosenComposerModeChoice.assistantModeLabel}
+                  </span>
+                  <ChevronDown data-papeliz-composer-give-way-chevron className={joinPapelizClassNames('size-3 flex-none opacity-70', papelizComposerRowGiveWayClassNames.chipChevron)} aria-hidden="true" />
                 </button>
               )}
               {assistantMode === 'write' && (
@@ -531,6 +598,7 @@ export function PapelizAssistantComposer({ composerPlacement }: PapelizAssistant
                   type="button"
                   aria-haspopup="menu"
                   aria-expanded={openComposerChipMenu?.composerChipMenuKind === 'permission'}
+                  aria-label={isBypassPermissionOn ? 'Changes in Write: Bypass Permission' : 'Changes in Write: Review Changes'}
                   onClick={(clickEvent) => openComposerChipMenuBelow('permission', clickEvent)}
                   title={isBypassPermissionOn ? 'Bypass permission: changes apply at once. Click to change.' : 'Review changes: each change waits for you. Click to change.'}
                   className={joinPapelizClassNames(
@@ -539,11 +607,17 @@ export function PapelizAssistantComposer({ composerPlacement }: PapelizAssistant
                   )}
                 >
                   {isBypassPermissionOn ? <ShieldAlert className="size-3.5 flex-none" aria-hidden="true" /> : <ShieldCheck className="size-3.5 flex-none" aria-hidden="true" />}
-                  <span className={joinPapelizClassNames('truncate', !isBypassPermissionOn && 'hidden @min-[24rem]:inline')}>{isBypassPermissionOn ? 'Bypass' : 'Review'}</span>
+                  {isBypassPermissionOn ? (
+                    <span>Bypass</span>
+                  ) : (
+                    <span data-papeliz-composer-give-way-label="review" className={papelizComposerRowGiveWayClassNames.contextChoiceLabel}>
+                      Review
+                    </span>
+                  )}
                 </button>
               )}
               <span className="min-w-1 flex-1" />
-              <PapelizAssistantContextWindowGauge />
+              <PapelizAssistantContextWindowGauge contextWindowCardHostElement={composerBoxTopEdgeStripElement} />
               {/* With a model switched on, a menu of them all; until then, Settings › AI Provider. */}
               <button
                 type="button"
@@ -551,11 +625,42 @@ export function PapelizAssistantComposer({ composerPlacement }: PapelizAssistant
                 aria-expanded={enabledProviderModelGroups.length > 0 ? openComposerChipMenu?.composerChipMenuKind === 'model' : undefined}
                 aria-label={activeProviderModelName.length > 0 ? `Model: ${activeProviderModelName}` : undefined}
                 onClick={(clickEvent) => (enabledProviderModelGroups.length > 0 ? openComposerChipMenuBelow('model', clickEvent) : requestAssistantProviderSettingsPage())}
-                title="Model. Click to change."
-                className={joinPapelizClassNames(papelizComposerQuietButtonClassName, 'max-w-[48%] flex-shrink')}
+                title={`${providerChipLabel}${providerChipShortName.isContributorModel ? ' (Contributor mode)' : ''}. Click to change.`}
+                {...(isModelChipSteppingAside ? { 'data-papeliz-composer-model-chip-steps-aside': '' } : {})}
+                className={joinPapelizClassNames(
+                  papelizComposerQuietButtonClassName,
+                  'max-w-56',
+                  isModelChipSteppingAside && papelizComposerRowGiveWayClassNames.modelChipSteppingAside,
+                )}
               >
-                <span className="truncate">{providerChipLabel}</span>
-                <ChevronDown className="size-3 flex-none opacity-70" aria-hidden="true" />
+                <span
+                  data-papeliz-composer-model-full-name
+                  {...(providerChipShortName.modelShortName === providerChipLabel ? { 'data-papeliz-composer-model-name-same-as-short': '' } : {})}
+                  className={joinPapelizClassNames('truncate', papelizComposerRowGiveWayClassNames.modelChipFullName)}
+                >
+                  {providerChipLabel}
+                </span>
+                <span className={joinPapelizClassNames('truncate', papelizComposerRowGiveWayClassNames.modelChipShortName)}>{providerChipShortName.modelShortName}</span>
+                {/* Filled by the row's last step, one hyphen part shorter at a time. */}
+                {providerChipNameCuts.length > 0 && (
+                  <span
+                    data-papeliz-composer-model-name-cut
+                    data-papeliz-composer-model-name-cuts={JSON.stringify(providerChipNameCuts)}
+                    className={papelizComposerRowGiveWayClassNames.modelChipNameCut}
+                  />
+                )}
+                {providerChipShortName.isContributorModel && (
+                  <span
+                    aria-hidden="true"
+                    className={joinPapelizClassNames(
+                      'rounded-[5px] border border-papeliz-line-strong px-1 py-0.5 text-[10px] leading-none font-bold text-papeliz-ink-muted',
+                      papelizComposerRowGiveWayClassNames.modelChipContributorTag,
+                    )}
+                  >
+                    C
+                  </span>
+                )}
+                <ChevronDown data-papeliz-composer-give-way-chevron className={joinPapelizClassNames('size-3 flex-none opacity-70', papelizComposerRowGiveWayClassNames.chipChevron)} aria-hidden="true" />
               </button>
               {!isReasoningEffortRefusedByModel && (
                 <button
@@ -565,15 +670,19 @@ export function PapelizAssistantComposer({ composerPlacement }: PapelizAssistant
                   onClick={(clickEvent) => openComposerChipMenuBelow('effort', clickEvent)}
                   aria-label={`Effort: ${chosenReasoningEffortChoice.reasoningEffortLabel}`}
                   title="Effort: how long the model thinks before it answers. Click to change."
-                  className={papelizComposerQuietButtonClassName}
+                  data-papeliz-composer-effort-chip
+                  className={joinPapelizClassNames(papelizComposerQuietButtonClassName, papelizComposerRowGiveWayClassNames.effortChip)}
                 >
                   <ChosenReasoningEffortIcon className="size-3.5 flex-none" aria-hidden="true" />
-                  <span className="hidden @min-[22rem]:inline">{chosenReasoningEffortChoice.reasoningEffortLabel}</span>
-                  <ChevronDown className="size-3 flex-none opacity-70" aria-hidden="true" />
+                  <span data-papeliz-composer-give-way-label="effort" className={papelizComposerRowGiveWayClassNames.effortChipLabel}>
+                    {chosenReasoningEffortChoice.reasoningEffortLabel}
+                  </span>
+                  <ChevronDown data-papeliz-composer-give-way-chevron className={joinPapelizClassNames('size-3 flex-none opacity-70', papelizComposerRowGiveWayClassNames.chipChevron)} aria-hidden="true" />
                 </button>
               )}
               <PapelizOnePressMicButton
                 onePressMicStore={composerOnePressMicStore}
+                micButtonClassName={papelizComposerRowGiveWayClassNames.roundButtonSmall}
                 // Before a provider is set up there is nothing to send the words to: the mic opens the settings.
                 onMicPressInstead={isAssistantProviderReady ? undefined : () => requestAssistantProviderSettingsPage()}
               />

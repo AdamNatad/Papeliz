@@ -1114,8 +1114,8 @@ label:has(> input[type='search']:focus-visible) {
 .papeliz-md-view-article.papeliz-assistant-message-markdown {
   max-width: none;
   margin: 0;
-  font-size: 14px;
-  line-height: 1.6;
+  font-size: 14.5px;
+  line-height: 1.62;
 }
 
 .papeliz-assistant-message-markdown h1,

@@ -2,12 +2,14 @@ import { create } from 'zustand'
 import { describePapelizAssistantMediaProblem } from './papeliz-assistant-media-problem-words'
 import { resolvePapelizAssistantMediaModelNow } from './papeliz-assistant-media-model-choices-store'
 import { getActivePapelizAssistantProviderConnection, selectActivePapelizAssistantProviderModelName, usePapelizAssistantProviderSettingsStore } from './papeliz-assistant-provider-settings-store'
+import { addPapelizChatCompletionToChatSessionTokenUsage, papelizEmptyChatSessionTokenUsage, type PapelizChatSessionTokenUsage } from './papeliz-assistant-token-usage'
 import { streamPapelizChatCompletion, type PapelizChatMessage } from './papeliz-openai-compatible-client'
 
 // Imagine's Ask: a talk with the chat model chosen for the AI Assistant about a picture before it is
 // drawn. The model answers in words and draws nothing; a prompt it thinks worth drawing comes in a
 // fenced block (```draw), which shows with Draw This. Ask keeps its own thread while the page is
-// open, apart from the notes chat. Nothing is sent until Send.
+// open, apart from the notes chat. Nothing is sent until Send. Its tokens are tallied for the context
+// ring in Imagine's box, as a chat's are.
 
 export type PapelizImagineAskEntry =
   | { imagineAskEntryId: string; imagineAskEntryKind: 'question'; askQuestionText: string }
@@ -29,6 +31,8 @@ export type PapelizImagineAskAnswerPart =
 interface PapelizImagineAskState {
   imagineAskDraftText: string
   imagineAskEntries: PapelizImagineAskEntry[]
+  // The talk's tokens, and how full the model's window is after the last answer.
+  imagineAskTokenUsage: PapelizChatSessionTokenUsage
   setImagineAskDraftText: (imagineAskDraftText: string) => void
   sendImagineAskQuestion: () => Promise<void>
   stopImagineAskAnswer: () => void
@@ -91,6 +95,7 @@ export const usePapelizImagineAskStore = create<PapelizImagineAskState>()((setIm
   return {
     imagineAskDraftText: '',
     imagineAskEntries: [],
+    imagineAskTokenUsage: papelizEmptyChatSessionTokenUsage,
     setImagineAskDraftText: (imagineAskDraftText) => setImagineAskState({ imagineAskDraftText }),
 
     sendImagineAskQuestion: async () => {
@@ -141,6 +146,14 @@ export const usePapelizImagineAskStore = create<PapelizImagineAskState>()((setIm
           askAnswerText: askCompletionResult.assistantText,
           isAskAnswerStreaming: false,
           askAnswerProblem: askCompletionResult.assistantText.trim().length === 0 ? 'The model sent no answer. Try asking again.' : null,
+        }))
+        setImagineAskState((imagineAskState) => ({
+          imagineAskTokenUsage: addPapelizChatCompletionToChatSessionTokenUsage(
+            imagineAskState.imagineAskTokenUsage,
+            activeProviderConnection.providerConnection.providerModelName,
+            askCompletionResult.completionTokenUsage,
+            askCompletionResult.completionProviderReportedCostUsd,
+          ),
         }))
       } catch (imagineAskError) {
         const isAskAnswerStopped = imagineAskError instanceof DOMException && imagineAskError.name === 'AbortError'

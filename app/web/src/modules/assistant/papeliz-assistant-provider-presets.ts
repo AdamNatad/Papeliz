@@ -235,13 +235,16 @@ export function findPapelizAssistantProviderPreset(papelizAssistantProviderId: s
   )
 }
 
-// How many tokens each suggested model's context window holds, for the gauge beside the model chip.
-// Only a published size goes here. `null` means the size is not confirmed yet, and the gauge then
-// shows only the tokens the chat holds, never a guessed limit; so does any model not listed.
+// How many tokens each suggested model's context window holds, for the ring beside the model chip.
+// Only a published size goes here. `null` means the size is not confirmed yet, and the ring then
+// shows a dashed track and asks for the size, never a guessed limit; so does any model not listed.
 export const papelizAssistantModelContextWindowTokenCounts: Readonly<Record<string, number | null>> = {
-  // Long context ("about a million tokens"), but no exact size is confirmed yet.
-  'muse-spark-1.3': null,
-  'muse-spark-1.1': null,
+  // Meta's model page: every Muse Spark version has a 1,048,576-token window.
+  'muse-spark-1.3': 1_048_576,
+  'muse-spark-1.3-contributor': 1_048_576,
+  'muse-spark-1.2': 1_048_576,
+  'muse-spark-1.2-contributor': 1_048_576,
+  'muse-spark-1.1': 1_048_576,
 }
 
 // A model's context window size, by its name as typed or after a provider's "vendor/" prefix.

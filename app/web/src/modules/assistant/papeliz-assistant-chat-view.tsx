@@ -1,8 +1,9 @@
-import { FileSearch, FileText, Link2, Tags, WandSparkles } from 'lucide-react'
-import { useEffect, useMemo, useRef, type ReactNode } from 'react'
+import { BookOpenText, ChevronRight, CircleAlert, FileSearch, FileText, Link2, Search, Tags, WandSparkles } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { isPapelizDesktopApp } from 'virtual:papeliz-desktop-platform-availability'
 import { PapelizPillButton } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
+import { getVaultNoteTitle } from '../vault/papeliz-vault-relative-paths'
 import { usePapelizKeyBindingShortcutLabel } from '../workspace/papeliz-key-bindings-store'
 import { selectActiveVaultMarkdownNoteRelativePath, usePapelizWorkspaceStore } from '../workspace/papeliz-workspace-store'
 import {
@@ -47,8 +48,66 @@ function findPlanModeFinalAnswerEntryIds(chatEntries: readonly PapelizAssistantC
   return planModeFinalAnswerEntryIds
 }
 
+// The pulsing dot while the assistant writes or thinks; it holds still with reduced motion.
+function PapelizAssistantWritingDot() {
+  return <span className="papeliz-saving-dot size-1.5 flex-none rounded-full bg-papeliz-blue motion-reduce:animate-none" aria-label="Writing" />
+}
+
+type PapelizAssistantToolActivityChatEntry = Extract<PapelizAssistantChatEntry, { chatEntryKind: 'tool-activity' }>
+
+// What the assistant looked at between two messages, as one line: "Read 1 note", "Looked at 3 notes",
+// or the one step's own words. Pressed, it opens to each step, on a thin rule.
+export function describePapelizAssistantToolActivityFold(toolActivityEntries: readonly PapelizAssistantToolActivityChatEntry[]): string {
+  const lookedAtNoteCount = new Set(toolActivityEntries.flatMap((toolActivityEntry) => toolActivityEntry.toolActivityVaultNoteRelativePaths)).size
+  const failedStepCount = toolActivityEntries.filter((toolActivityEntry) => toolActivityEntry.toolActivityKind === 'failed').length
+  const noteCountWords = `${lookedAtNoteCount} ${lookedAtNoteCount === 1 ? 'note' : 'notes'}`
+  const lookedAtWords =
+    lookedAtNoteCount === 0
+      ? toolActivityEntries.length === 1
+        ? (toolActivityEntries[0]?.toolActivityLabel ?? '')
+        : `${toolActivityEntries.length} steps`
+      : toolActivityEntries.every((toolActivityEntry) => toolActivityEntry.toolActivityKind === 'read')
+        ? `Read ${noteCountWords}`
+        : `Looked at ${noteCountWords}`
+  return failedStepCount === 0 || (toolActivityEntries.length === 1 && lookedAtNoteCount === 0) ? lookedAtWords : `${lookedAtWords} · ${failedStepCount} failed`
+}
+
+function PapelizAssistantToolActivityFold({ toolActivityEntries }: { toolActivityEntries: readonly PapelizAssistantToolActivityChatEntry[] }) {
+  const [isToolActivityFoldOpen, setIsToolActivityFoldOpen] = useState(false)
+  const hasFailedStep = toolActivityEntries.some((toolActivityEntry) => toolActivityEntry.toolActivityKind === 'failed')
+  const isEveryStepARead = toolActivityEntries.every((toolActivityEntry) => toolActivityEntry.toolActivityKind === 'read')
+  const ToolActivityFoldIcon = hasFailedStep ? CircleAlert : isEveryStepARead ? BookOpenText : Search
+  return (
+    <div className="papeliz-pop-enter flex flex-col gap-1">
+      <button
+        type="button"
+        aria-expanded={isToolActivityFoldOpen}
+        title={toolActivityEntries.map((toolActivityEntry) => toolActivityEntry.toolActivityLabel).join('\n')}
+        onClick={() => setIsToolActivityFoldOpen(!isToolActivityFoldOpen)}
+        className={joinPapelizClassNames(
+          'inline-flex w-fit max-w-full items-center gap-1.5 rounded-md text-left text-[12.5px] hover:text-papeliz-ink-muted',
+          hasFailedStep ? 'text-papeliz-diff-removed-ink' : 'text-papeliz-ink-subtle',
+        )}
+      >
+        <ToolActivityFoldIcon className="size-[13px] flex-none" aria-hidden="true" />
+        <span className="min-w-0 truncate">{describePapelizAssistantToolActivityFold(toolActivityEntries)}</span>
+        <ChevronRight className={joinPapelizClassNames('size-3 flex-none transition-transform duration-150', isToolActivityFoldOpen && 'rotate-90')} aria-hidden="true" />
+      </button>
+      {isToolActivityFoldOpen && (
+        <div className="ml-1.5 flex flex-col gap-1 border-l border-papeliz-line pl-3">
+          {toolActivityEntries.map((toolActivityEntry) => (
+            <PapelizAssistantToolActivityRow key={toolActivityEntry.chatEntryId} chatEntry={toolActivityEntry} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function PapelizAssistantChatEntryView({ chatEntry, isPlanModeFinalAnswer }: { chatEntry: PapelizAssistantChatEntry; isPlanModeFinalAnswer: boolean }): ReactNode {
   const requestAssistantProviderSettingsPage = usePapelizAssistantPanelUiStore((panelUiState) => panelUiState.requestAssistantProviderSettingsPage)
+  const retryableAssistantErrorChatEntryId = usePapelizAssistantConversationStore((conversationState) => conversationState.retryableAssistantErrorChatEntryId)
+  const retryAssistantAnswer = usePapelizAssistantConversationStore((conversationState) => conversationState.retryAssistantAnswer)
   switch (chatEntry.chatEntryKind) {
     case 'user-message':
       return (
@@ -84,7 +143,7 @@ function PapelizAssistantChatEntryView({ chatEntry, isPlanModeFinalAnswer }: { c
             </ul>
           )}
           {chatEntry.chatEntryText.length > 0 && (
-            <div className="papeliz-selectable-text max-w-[88%] rounded-[20px] bg-papeliz-surface-gray px-3.5 py-2.5 text-sm whitespace-pre-wrap">{chatEntry.chatEntryText}</div>
+            <div className="papeliz-selectable-text max-w-[88%] rounded-[16px_16px_4px_16px] bg-papeliz-surface-soft px-[13px] py-[9px] text-sm whitespace-pre-wrap">{chatEntry.chatEntryText}</div>
           )}
         </div>
       )
@@ -97,16 +156,22 @@ function PapelizAssistantChatEntryView({ chatEntry, isPlanModeFinalAnswer }: { c
       return (
         <div className="papeliz-pop-enter flex flex-col gap-3">
           <div>
-            <div className="mb-1.5 flex items-center gap-2 text-[13px] text-papeliz-ink-subtle">
-              <span className="grid size-[22px] flex-none place-items-center rounded-full bg-linear-to-r from-papeliz-gradient-start to-papeliz-gradient-end text-white">
-                <WandSparkles className="size-3" aria-hidden="true" />
-              </span>
-              <b className="font-semibold text-papeliz-ink">Assistant</b>
+            {/* "Assistant · model", one quiet line, with the dot while it writes. */}
+            <div className="mb-1 flex min-w-0 items-center gap-1.5 text-[12.5px] text-papeliz-ink-subtle">
+              <b className="font-semibold text-papeliz-ink-muted">Assistant</b>
+              {chatEntry.assistantReplyProviderModelName !== undefined && (
+                <span className="text-papeliz-line-strong" aria-hidden="true">
+                  ·
+                </span>
+              )}
               <PapelizAssistantReplyProviderModelLabel replyProviderModel={chatEntry} />
-              {chatEntry.isChatEntryStreaming && <span className="papeliz-saving-dot size-1.5 rounded-full bg-papeliz-blue" aria-label="Writing" />}
+              {chatEntry.isChatEntryStreaming && chatEntry.chatEntryText.length > 0 && <PapelizAssistantWritingDot />}
             </div>
             {chatEntry.chatEntryText.length === 0 ? (
-              <p className="text-sm text-papeliz-ink-subtle">Thinking…</p>
+              <p className="flex items-center gap-2 text-sm text-papeliz-ink-subtle">
+                <PapelizAssistantWritingDot />
+                Thinking…
+              </p>
             ) : (
               <PapelizAssistantMessageMarkdown assistantMessageText={chatEntry.chatEntryText} />
             )}
@@ -123,23 +188,64 @@ function PapelizAssistantChatEntryView({ chatEntry, isPlanModeFinalAnswer }: { c
     case 'question':
       return <PapelizAssistantQuestionCard questionEntry={chatEntry} />
     case 'notice':
+      if (!chatEntry.isChatEntryError) {
+        return (
+          <p role="status" className="papeliz-pop-enter papeliz-selectable-text text-[13px] text-papeliz-ink-subtle">
+            {chatEntry.chatEntryText}
+          </p>
+        )
+      }
+      // An error: one red line, with Retry while the answer can be asked again, and AI Provider.
       return (
-        <div
-          role={chatEntry.isChatEntryError ? 'alert' : 'status'}
-          className={joinPapelizClassNames(
-            'papeliz-pop-enter papeliz-selectable-text rounded-2xl px-3.5 py-2.5 text-[13px]',
-            chatEntry.isChatEntryError ? 'bg-papeliz-diff-removed text-papeliz-diff-removed-ink' : 'bg-papeliz-surface text-papeliz-ink-muted',
-          )}
-        >
-          {chatEntry.chatEntryText}
-          {chatEntry.isChatEntryError && (
-            <button type="button" className="ml-2 font-semibold underline underline-offset-2" onClick={() => requestAssistantProviderSettingsPage()}>
+        <div role="alert" className="papeliz-pop-enter flex flex-wrap items-start gap-x-2 gap-y-1 text-[13px] text-papeliz-diff-removed-ink">
+          <CircleAlert className="mt-0.5 size-[15px] flex-none" aria-hidden="true" />
+          <span className="papeliz-selectable-text min-w-0 flex-[1_1_180px]">{chatEntry.chatEntryText}</span>
+          {/* The two stay together, at the right, when a narrow panel wraps them under the words. */}
+          <span className="ml-auto flex flex-none gap-x-2">
+            {chatEntry.chatEntryId === retryableAssistantErrorChatEntryId && (
+              <button type="button" className="font-semibold text-papeliz-blue underline-offset-2 hover:underline" onClick={() => retryAssistantAnswer()}>
+                Retry
+              </button>
+            )}
+            <button type="button" className="font-semibold text-papeliz-blue underline-offset-2 hover:underline" onClick={() => requestAssistantProviderSettingsPage()}>
               AI Provider
             </button>
-          )}
+          </span>
         </div>
       )
   }
+}
+
+type PapelizAssistantConversationChatEntryGroup =
+  | { chatEntryGroupKind: 'chat-entry'; chatEntry: PapelizAssistantChatEntry }
+  | { chatEntryGroupKind: 'tool-activity-fold'; toolActivityEntries: PapelizAssistantToolActivityChatEntry[] }
+
+// The conversation's entries as drawn: look-ups next to each other fold into one line, and a plan
+// step's own entries stay under its step on the plan card.
+export function groupPapelizAssistantConversationChatEntries(chatEntries: readonly PapelizAssistantChatEntry[]): PapelizAssistantConversationChatEntryGroup[] {
+  const conversationChatEntryGroups: PapelizAssistantConversationChatEntryGroup[] = []
+  for (const chatEntry of chatEntries) {
+    if (chatEntry.assistantPlanStepRun !== undefined) continue
+    const lastChatEntryGroup = conversationChatEntryGroups.at(-1)
+    if (chatEntry.chatEntryKind !== 'tool-activity') conversationChatEntryGroups.push({ chatEntryGroupKind: 'chat-entry', chatEntry })
+    else if (lastChatEntryGroup?.chatEntryGroupKind === 'tool-activity-fold') lastChatEntryGroup.toolActivityEntries.push(chatEntry)
+    else conversationChatEntryGroups.push({ chatEntryGroupKind: 'tool-activity-fold', toolActivityEntries: [chatEntry] })
+  }
+  return conversationChatEntryGroups
+}
+
+// A suggestion on the empty panel: a quiet row, not a chip.
+function PapelizAssistantEmptyPanelSuggestion({ SuggestionIcon, children, onSuggestionPick }: { SuggestionIcon: typeof Link2; children: ReactNode; onSuggestionPick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onSuggestionPick}
+      className="flex h-[34px] items-center gap-2 rounded-[10px] px-2 text-left text-[13.5px] text-papeliz-ink transition-colors hover:bg-papeliz-hover pointer-coarse:h-10"
+    >
+      <SuggestionIcon className="size-3.5 flex-none text-papeliz-ink-muted" aria-hidden="true" />
+      {children}
+    </button>
+  )
 }
 
 // The conversation: messages, what the assistant looked at, and its proposals. A plan shows as its
@@ -161,6 +267,7 @@ export function PapelizAssistantChatView() {
   const activeProviderConnection = getActivePapelizAssistantProviderConnection()
   const inlineEditShortcutLabel = usePapelizKeyBindingShortcutLabel('assistant-inline-edit')
   const planModeFinalAnswerEntryIds = useMemo(() => findPlanModeFinalAnswerEntryIds(chatEntries, isAssistantRunning), [chatEntries, isAssistantRunning])
+  const conversationChatEntryGroups = useMemo(() => groupPapelizAssistantConversationChatEntries(chatEntries), [chatEntries])
   const fullHeightPlanEntry =
     fullHeightAssistantPlanChatEntryId === null
       ? null
@@ -180,7 +287,7 @@ export function PapelizAssistantChatView() {
   }
 
   return (
-    <div ref={chatScrollAreaRef} className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-[18px] pt-4 pb-3">
+    <div ref={chatScrollAreaRef} className="flex min-h-0 flex-1 flex-col gap-[18px] overflow-y-auto px-[18px] pt-[18px] pb-3">
       <PapelizAssistantPlanBuildStrip chatScrollAreaRef={chatScrollAreaRef} />
       {chatEntries.length === 0 && activeProviderConnection.providerConnectionOutcome !== 'ready' && (
         <div className="papeliz-pop-enter m-auto flex max-w-[300px] flex-col items-center gap-3 py-8 text-center">
@@ -202,34 +309,45 @@ export function PapelizAssistantChatView() {
       {chatEntries.length === 0 && activeProviderConnection.providerConnectionOutcome === 'ready' && assistantMode === 'plan' && <PapelizAssistantPlanEmptyPage />}
       {chatEntries.length === 0 && activeProviderConnection.providerConnectionOutcome === 'ready' && assistantMode !== 'plan' && (
         <div className="papeliz-pop-enter my-auto flex flex-col gap-3 py-6">
-          <p className="text-sm text-papeliz-ink-muted">
-            Ask about your notes, plan a change, or switch to Write: the assistant proposes edits as diffs, and nothing changes until you accept.
+          <h3 className="text-[17px] font-semibold">
+            {activeVaultMarkdownNoteRelativePath === null ? 'Ask about your notes' : `Ask about ${getVaultNoteTitle(activeVaultMarkdownNoteRelativePath)}`}
+          </h3>
+          <p className="-mt-1 text-sm text-papeliz-ink-muted">
+            {activeVaultMarkdownNoteRelativePath === null ? '' : 'Or about your whole vault. '}Plan a change, or switch to Write: changes come as diffs, and nothing changes until you accept.
           </p>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="-mx-2 flex flex-col gap-0.5">
             {activeVaultMarkdownNoteRelativePath !== null && (
-              <button type="button" className="papeliz-assistant-suggestion-chip" onClick={() => void sendAssistantMessage('Summarize this note in a few bullet points.')}>
-                <FileSearch className="size-3.5" aria-hidden="true" /> Summarize This Note
-              </button>
+              <PapelizAssistantEmptyPanelSuggestion SuggestionIcon={FileSearch} onSuggestionPick={() => void sendAssistantMessage('Summarize this note in a few bullet points.')}>
+                Summarize This Note
+              </PapelizAssistantEmptyPanelSuggestion>
             )}
             {activeVaultMarkdownNoteRelativePath !== null && (
-              <button type="button" className="papeliz-assistant-suggestion-chip" onClick={() => void sendAssistantMessage('Which of my notes are related to this one, and how?')}>
-                <Link2 className="size-3.5" aria-hidden="true" /> Related Notes
-              </button>
+              <PapelizAssistantEmptyPanelSuggestion SuggestionIcon={Link2} onSuggestionPick={() => void sendAssistantMessage('Which of my notes are related to this one, and how?')}>
+                Related Notes
+              </PapelizAssistantEmptyPanelSuggestion>
             )}
-            <button type="button" className="papeliz-assistant-suggestion-chip" onClick={() => void sendAssistantMessage(papelizSuggestLinksRequestText)}>
-              <Link2 className="size-3.5" aria-hidden="true" /> Suggest Links
-            </button>
-            <button type="button" className="papeliz-assistant-suggestion-chip" onClick={() => void sendAssistantMessage(papelizSuggestTagsRequestText)}>
-              <Tags className="size-3.5" aria-hidden="true" /> Suggest Tags
-            </button>
+            <PapelizAssistantEmptyPanelSuggestion SuggestionIcon={Link2} onSuggestionPick={() => void sendAssistantMessage(papelizSuggestLinksRequestText)}>
+              Suggest Links
+            </PapelizAssistantEmptyPanelSuggestion>
+            <PapelizAssistantEmptyPanelSuggestion SuggestionIcon={Tags} onSuggestionPick={() => void sendAssistantMessage(papelizSuggestTagsRequestText)}>
+              Suggest Tags
+            </PapelizAssistantEmptyPanelSuggestion>
           </div>
-          <p className="text-xs text-papeliz-ink-subtle">Select text in a note and press {inlineEditShortcutLabel} to edit it in place.</p>
+          <p className="text-xs text-papeliz-ink-subtle">
+            Select text in a note and press <kbd className="rounded-[5px] border border-papeliz-line-strong bg-papeliz-surface px-[5px] py-0.5 font-mono text-[11px] text-papeliz-ink-muted">{inlineEditShortcutLabel}</kbd> to edit it in place.
+          </p>
         </div>
       )}
-      {chatEntries.map((chatEntry) =>
-        chatEntry.assistantPlanStepRun === undefined ? (
-          <PapelizAssistantChatEntryView key={chatEntry.chatEntryId} chatEntry={chatEntry} isPlanModeFinalAnswer={planModeFinalAnswerEntryIds.has(chatEntry.chatEntryId)} />
-        ) : null,
+      {conversationChatEntryGroups.map((conversationChatEntryGroup) =>
+        conversationChatEntryGroup.chatEntryGroupKind === 'tool-activity-fold' ? (
+          <PapelizAssistantToolActivityFold key={conversationChatEntryGroup.toolActivityEntries[0]!.chatEntryId} toolActivityEntries={conversationChatEntryGroup.toolActivityEntries} />
+        ) : (
+          <PapelizAssistantChatEntryView
+            key={conversationChatEntryGroup.chatEntry.chatEntryId}
+            chatEntry={conversationChatEntryGroup.chatEntry}
+            isPlanModeFinalAnswer={planModeFinalAnswerEntryIds.has(conversationChatEntryGroup.chatEntry.chatEntryId)}
+          />
+        ),
       )}
       {pendingProposalCount > 1 && !isAssistantRunning && (
         <div className="papeliz-pop-enter sticky bottom-0 flex items-center gap-2 rounded-full border border-papeliz-blue-line bg-papeliz-surface px-3 py-1.5 shadow-papeliz-card">

@@ -41,6 +41,7 @@ import {
   type PapelizAssistantChatEntry,
   type PapelizAssistantPlanChatEntry,
 } from './papeliz-assistant-conversation-store'
+import { papelizAssistantPaperCardClassName, papelizAssistantPaperCardFootClassName, readPapelizAssistantPaperCardFrameClassName } from './papeliz-assistant-paper-cards'
 import {
   addPapelizAssistantPlanStep,
   countPapelizAssistantPlanProgress,
@@ -506,13 +507,14 @@ export function PapelizAssistantPlanCard({ planEntry, planCardPlacement }: Papel
       role="group"
       aria-label={`Plan: ${planDocument.planTitle}`}
       className={joinPapelizClassNames(
-        'papeliz-pop-enter flex flex-col overflow-hidden rounded-[18px] border bg-papeliz-surface',
-        isPlanBuilding ? 'border-papeliz-blue-line' : 'border-papeliz-line',
-        planCardPlacement === 'focus' ? 'flex-none' : 'shadow-papeliz-card',
+        papelizAssistantPaperCardClassName,
+        'flex flex-col',
+        // A step waiting for its review is the card waiting for you; building, the card stays blue-edged.
+        activePlanStep?.planStepStatus === 'needs-review' ? readPapelizAssistantPaperCardFrameClassName(true) : isPlanBuilding ? 'border-papeliz-blue-line' : 'border-papeliz-line',
         planCardPlacement === 'full-height' ? 'min-h-0 flex-1' : 'flex-none',
       )}
     >
-      <div className="flex min-h-[42px] flex-none items-center gap-2 border-b border-papeliz-line py-1.5 pr-2 pl-3.5 text-[13px] text-papeliz-ink-muted">
+      <div className="flex min-h-[42px] flex-none items-center gap-2 pt-2 pr-2 pb-1 pl-3.5 text-[13px] text-papeliz-ink-muted">
         <ListChecks className="size-4 flex-none text-papeliz-blue" aria-hidden="true" />
         <span className="font-semibold text-papeliz-ink">Plan</span>
         {planHeaderState}
@@ -766,7 +768,7 @@ export function PapelizAssistantPlanCard({ planEntry, planCardPlacement }: Papel
         </div>
       </div>
 
-      <div className="flex flex-none flex-wrap items-center gap-2 border-t border-papeliz-line bg-papeliz-surface-soft px-3.5 py-2.5">
+      <div className={joinPapelizClassNames('flex flex-none flex-wrap items-center gap-2', papelizAssistantPaperCardFootClassName)}>
         {planBuildPhase === 'draft' && (
           <>
             <PapelizPillButton

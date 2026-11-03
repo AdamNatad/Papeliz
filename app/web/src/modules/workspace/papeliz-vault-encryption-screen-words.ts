@@ -40,7 +40,7 @@ export const papelizRememberEndToEndVaultInWindowsLine =
 
 // Unlock's lines.
 export const papelizEndToEndVaultForgottenPassphraseLine =
-  'Forgot it? Papeliz can’t recover it. Where this vault is remembered on another device, open it there and set a new one in Settings › Vault.'
+  'Forgot it? Papeliz can’t recover it. A device that remembers this vault still opens it, so you can copy your notes out there.'
 export const papelizEndToEndVaultFoundByOpenVaultLine = 'This folder is a Papeliz vault, encrypted End-to-end. Enter its passphrase to open it.'
 export const papelizEndToEndVaultWrongPassphraseHintLine = 'Check Caps Lock and the keyboard’s language. Every try takes about a second.'
 

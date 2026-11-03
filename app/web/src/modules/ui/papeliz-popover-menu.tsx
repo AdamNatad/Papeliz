@@ -17,6 +17,8 @@ export interface PapelizPopoverMenuItem {
   menuItemGroupHeading?: string
   // A quieter second line under the label ("muse-voice-transcribe-1.0 now", "Typed").
   menuItemDetailText?: string
+  // A count or short value at the row's right end ("148").
+  menuItemTrailingText?: string
   onMenuItemSelect: () => void
 }
 
@@ -130,7 +132,12 @@ export function PapelizPopoverMenuItemButton({ menuItem, setMenuItemButtonElemen
           <span className="truncate text-[11.5px] font-normal text-papeliz-ink-subtle">{menuItem.menuItemDetailText}</span>
         </span>
       )}
-      {menuItem.isMenuItemChecked === true && <Check className="ml-auto size-4 flex-none text-papeliz-blue" aria-hidden="true" />}
+      {menuItem.menuItemTrailingText !== undefined && (
+        <span className="ml-auto flex-none pl-3 text-[12px] font-normal text-papeliz-ink-subtle tabular-nums">{menuItem.menuItemTrailingText}</span>
+      )}
+      {menuItem.isMenuItemChecked === true && (
+        <Check className={joinPapelizClassNames('size-4 flex-none text-papeliz-blue', menuItem.menuItemTrailingText === undefined && 'ml-auto')} aria-hidden="true" />
+      )}
     </button>
   )
 }

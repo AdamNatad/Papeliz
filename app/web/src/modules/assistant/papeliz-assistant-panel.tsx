@@ -170,7 +170,7 @@ export function PapelizAssistantPanel({ onAssistantPanelClose }: PapelizAssistan
   }, [assistantPanelTab])
 
   return (
-    <aside aria-label="AI Assistant" className="flex h-full min-h-0 flex-col bg-papeliz-surface-soft">
+    <aside aria-label="AI Assistant" className="flex h-full min-h-0 flex-col bg-papeliz-surface">
       <div className="flex h-10 flex-none items-center gap-2.5 bg-papeliz-tab-strip pt-1.5 pr-3 pl-[18px] shadow-[inset_0_-1px_0_var(--color-papeliz-line)] max-md:pointer-coarse:h-12 max-md:pointer-coarse:pt-0 max-md:pointer-coarse:pr-1.5">
         <span className="grid size-[22px] flex-none place-items-center rounded-full bg-linear-to-r from-papeliz-gradient-start to-papeliz-gradient-end text-white">
           <WandSparkles className="size-3" aria-hidden="true" />

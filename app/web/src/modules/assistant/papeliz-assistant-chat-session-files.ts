@@ -6,6 +6,11 @@ import {
   pickFreeVaultEntryName,
 } from '../vault/papeliz-vault-relative-paths'
 import {
+  isPapelizAssistantContextMode,
+  papelizDefaultAssistantContextChoice,
+  type PapelizAssistantContextChoice,
+} from './papeliz-assistant-context-choice'
+import {
   isPapelizAssistantPlanBuildPhase,
   isPapelizAssistantPlanStepStatus,
   type PapelizAssistantPlanBuildPhase,
@@ -71,6 +76,17 @@ import {
 //
 // The message number counts the saved messages from 0; that message holds the plan's Markdown
 // (papeliz-assistant-plan-document.ts), one step per line, in the order of the step states.
+//
+// What the assistant sees, when it isn't the note in front (papeliz-assistant-context-choice.ts), so a
+// reopened chat sees the same notes:
+//
+//   chat-session-sees: selected-notes
+//   chat-session-sees-notes:
+//     - "Projects/Project Hub.md"
+//     - "Inbox.md"
+//
+// or `chat-session-sees: folder` with `chat-session-sees-folder: "Projects"`. Notes saved before this
+// see the note in front.
 
 export const papelizChatSessionsFolderName = papelizVaultChatSessionFolderName
 // Where chats were saved before `.csessions`: `.chatsession`, and before it the visible "Chat
@@ -92,6 +108,11 @@ const papelizChatSessionTokenUsageFrontmatterKeys = {
   chatSessionModelTokenUsageTallies: 'chat-session-tokens-by-model',
 } as const
 const papelizChatSessionModelTokenUsageLinePattern = /^(.*) · (\d+) in · (\d+) out · (\d+) requests?( · estimated)?(?: · provider cost \$(\d+(?:\.\d+)?) over (\d+))?$/
+const papelizChatSessionContextChoiceFrontmatterKeys = {
+  assistantContextMode: 'chat-session-sees',
+  contextSelectedNoteRelativePaths: 'chat-session-sees-notes',
+  contextFolderRelativePath: 'chat-session-sees-folder',
+} as const
 const papelizChatSessionPlanFrontmatterKeys = {
   chatSessionPlanMessageIndex: 'chat-session-plan-message',
   chatSessionPlanBuildPhase: 'chat-session-plan-build',
@@ -136,6 +157,8 @@ export interface PapelizChatSession {
   chatSessionTokenUsage: PapelizChatSessionTokenUsage
   // Left out for a chat that wrote no plan.
   chatSessionPlanState?: PapelizChatSessionPlanState
+  // Left out for a chat that sees the note in front.
+  chatSessionContextChoice?: PapelizAssistantContextChoice
 }
 
 export function isPapelizChatSessionNotePath(vaultNoteRelativePath: string): boolean {
@@ -308,6 +331,38 @@ function formatChatSessionPlanFrontmatterLines(chatSessionPlanState: PapelizChat
   ]
 }
 
+function formatChatSessionContextChoiceFrontmatterLines(chatSessionContextChoice: PapelizAssistantContextChoice | undefined): string[] {
+  if (chatSessionContextChoice === undefined || chatSessionContextChoice.assistantContextMode === 'active-note') return []
+  const contextChoiceLines = [`${papelizChatSessionContextChoiceFrontmatterKeys.assistantContextMode}: ${chatSessionContextChoice.assistantContextMode}`]
+  if (chatSessionContextChoice.assistantContextMode === 'selected-notes') {
+    contextChoiceLines.push(
+      `${papelizChatSessionContextChoiceFrontmatterKeys.contextSelectedNoteRelativePaths}:`,
+      ...chatSessionContextChoice.contextSelectedNoteRelativePaths.map((contextSelectedNoteRelativePath) => `  - ${JSON.stringify(oneLine(contextSelectedNoteRelativePath))}`),
+    )
+  }
+  if (chatSessionContextChoice.assistantContextMode === 'folder' && chatSessionContextChoice.contextFolderRelativePath !== null) {
+    contextChoiceLines.push(`${papelizChatSessionContextChoiceFrontmatterKeys.contextFolderRelativePath}: ${JSON.stringify(oneLine(chatSessionContextChoice.contextFolderRelativePath))}`)
+  }
+  return contextChoiceLines
+}
+
+function parseChatSessionContextChoiceFrontmatter(
+  frontmatterValues: ReadonlyMap<string, string>,
+  frontmatterListValues: ReadonlyMap<string, readonly string[]>,
+): PapelizAssistantContextChoice | null {
+  const contextModeValue = frontmatterValues.get(papelizChatSessionContextChoiceFrontmatterKeys.assistantContextMode) ?? ''
+  if (!isPapelizAssistantContextMode(contextModeValue) || contextModeValue === 'active-note') return null
+  const contextFolderRelativePathValue = readQuotedFrontmatterValue(frontmatterValues.get(papelizChatSessionContextChoiceFrontmatterKeys.contextFolderRelativePath) ?? '')
+  return {
+    ...papelizDefaultAssistantContextChoice,
+    assistantContextMode: contextModeValue,
+    contextSelectedNoteRelativePaths: (frontmatterListValues.get(papelizChatSessionContextChoiceFrontmatterKeys.contextSelectedNoteRelativePaths) ?? [])
+      .map((contextSelectedNoteValue) => readQuotedFrontmatterValue(contextSelectedNoteValue.trim()))
+      .filter((contextSelectedNoteRelativePath) => contextSelectedNoteRelativePath.length > 0),
+    contextFolderRelativePath: contextFolderRelativePathValue.length > 0 ? contextFolderRelativePathValue : null,
+  }
+}
+
 // A frontmatter value written with JSON quotes, read back; one without quotes is taken as it is.
 function readQuotedFrontmatterValue(frontmatterValue: string): string {
   if (!frontmatterValue.startsWith('"')) return frontmatterValue
@@ -355,6 +410,7 @@ export function formatPapelizChatSessionFile(chatSession: PapelizChatSession): s
     `model: ${oneLine(chatSession.chatSessionModelName) || 'unknown'}`,
     ...formatChatSessionTokenUsageFrontmatterLines(chatSession.chatSessionTokenUsage),
     ...formatChatSessionPlanFrontmatterLines(chatSession.chatSessionPlanState),
+    ...formatChatSessionContextChoiceFrontmatterLines(chatSession.chatSessionContextChoice),
     'tags: [chat-session]',
     '---',
     `# ${oneLine(chatSession.chatSessionTitle) || 'Chat'}`,
@@ -426,8 +482,10 @@ export function parsePapelizChatSessionFile(chatSessionFileText: string): Papeli
   const isSavedBeforeAnswerModels = !chatSessionMessages.some((chatSessionMessage) => chatSessionMessage.assistantReplyProviderModelName !== undefined)
   const hasKnownChatSessionModel = chatSessionModelName.length > 0 && chatSessionModelName !== papelizUnknownProviderModelName
   const chatSessionPlanState = parseChatSessionPlanFrontmatter(frontmatterValues, frontmatterListValues)
+  const chatSessionContextChoice = parseChatSessionContextChoiceFrontmatter(frontmatterValues, frontmatterListValues)
   return {
     ...(chatSessionPlanState === null ? {} : { chatSessionPlanState }),
+    ...(chatSessionContextChoice === null ? {} : { chatSessionContextChoice }),
     papelizChatSessionId,
     chatSessionTitle,
     chatSessionCreatedAt: frontmatterValues.get('created') ?? '',

@@ -106,6 +106,29 @@ export function workOutPapelizAssistantModelCost(
   }
 }
 
+// What several models' requests cost together. Null when none of them has a cost; `isCostPartial`
+// when some do and some don't, and `isCostEstimated` when any is worked out from a price.
+export interface PapelizAssistantAddedUpCost {
+  costUsd: number
+  isCostEstimated: boolean
+  isCostPartial: boolean
+}
+
+export function addUpPapelizAssistantModelCosts(modelCosts: ReadonlyArray<PapelizAssistantModelCost | null>): PapelizAssistantAddedUpCost | null {
+  const knownModelCosts = modelCosts.filter((modelCost): modelCost is PapelizAssistantModelCost => modelCost !== null)
+  if (knownModelCosts.length === 0) return null
+  return {
+    costUsd: knownModelCosts.reduce((costUsd, modelCost) => costUsd + modelCost.modelCostUsd, 0),
+    isCostEstimated: knownModelCosts.some((modelCost) => modelCost.modelCostSource !== 'provider-reported'),
+    isCostPartial: knownModelCosts.length < modelCosts.length,
+  }
+}
+
+// "about $0.61", or "$0.61+" when some of it has no price.
+export function describePapelizAssistantAddedUpCost(addedUpCost: PapelizAssistantAddedUpCost): string {
+  return `${addedUpCost.isCostEstimated ? 'about ' : ''}${formatPapelizAssistantCostUsd(addedUpCost.costUsd)}${addedUpCost.isCostPartial ? '+' : ''}`
+}
+
 // A cost in a few characters: "$0.61", "<$0.01", "$0.00".
 export function formatPapelizAssistantCostUsd(costUsd: number): string {
   if (costUsd > 0 && costUsd < 0.01) return '<$0.01'

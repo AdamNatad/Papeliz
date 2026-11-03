@@ -219,6 +219,140 @@ describe('the assistant conversation', () => {
     expect(savedChatSessionText).not.toContain('papeliz-fake')
   })
 
+  it('sends the notes the “sees” menu chose, names any past the limit, and keeps the choice with the chat', async () => {
+    const providerSystemMessages: string[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_requestUrl: string, requestInit: RequestInit) => {
+        const providerRequestBody = JSON.parse(String(requestInit.body)) as { messages: Array<{ role: string; content: string }> }
+        providerSystemMessages.push(providerRequestBody.messages.find((providerMessage) => providerMessage.role === 'system')?.content ?? '')
+        return Response.json({ choices: [{ message: { content: 'Done.' }, finish_reason: 'stop' }], usage: { prompt_tokens: 10, completion_tokens: 2 } })
+      }),
+    )
+    const vaultAdapter = new PapelizInMemoryVaultAdapter([
+      { vaultNoteRelativePath: 'Inbox.md', vaultNoteText: 'Buy seeds.' },
+      { vaultNoteRelativePath: 'Projects/Project Hub.md', vaultNoteText: 'Hub text.' },
+      { vaultNoteRelativePath: 'Projects/Garden/Beds.md', vaultNoteText: 'Three beds.' },
+      { vaultNoteRelativePath: 'Projects Archive/Old.md', vaultNoteText: 'Old text.' },
+      // Nine long notes: eight fill the request, and the ninth is named for the assistant to read.
+      ...Array.from({ length: 9 }, (_, longNoteIndex) => ({ vaultNoteRelativePath: `Long/Note ${longNoteIndex + 1}.md`, vaultNoteText: 'x'.repeat(20_000) })),
+    ])
+    await usePapelizWorkspaceStore.getState().openVaultInWorkspace(
+      { papelizVaultId: 'context-choice-vault', papelizVaultDisplayName: 'Test vault', papelizVaultAdapter: vaultAdapter },
+      { firstVaultNoteRelativePathToOpen: null, firstNoteViewMode: 'md-view', expandAllTopLevelFolders: false },
+    )
+    usePapelizAssistantProviderSettingsStore.setState({
+      activeAssistantProviderId: 'custom',
+      providerSettingsByProviderId: {
+        custom: { papelizAssistantProviderId: 'custom', providerBaseUrl: 'https://provider.test/v1', providerModelName: 'test-model', providerApiKey: 'test-key' },
+      },
+    })
+    usePapelizAssistantRunOptionsStore.setState({ assistantMode: 'ask' })
+    await waitUntil(() => usePapelizWorkspaceStore.getState().vaultTreeEntries.length > 0)
+    await usePapelizWorkspaceStore.getState().openVaultNote('Inbox.md')
+    await usePapelizWorkspaceStore.getState().openVaultNote('Projects/Project Hub.md')
+    const sendWithContextChoice = async (assistantContextChoice: Parameters<ReturnType<typeof usePapelizAssistantConversationStore.getState>['setAssistantContextChoice']>[0]) => {
+      usePapelizAssistantConversationStore.getState().setAssistantContextChoice(assistantContextChoice)
+      await usePapelizAssistantConversationStore.getState().sendAssistantMessage('What is in these?')
+      return providerSystemMessages.at(-1) ?? ''
+    }
+
+    const thisNoteSystemMessage = await sendWithContextChoice({ assistantContextMode: 'active-note', contextSelectedNoteRelativePaths: [], contextFolderRelativePath: null })
+    expect(thisNoteSystemMessage).toContain('Its text:\n<note path="Projects/Project Hub.md">\nHub text.\n</note>')
+
+    const openNotesSystemMessage = await sendWithContextChoice({ assistantContextMode: 'open-notes', contextSelectedNoteRelativePaths: [], contextFolderRelativePath: null })
+    expect(openNotesSystemMessage).toContain('The user asks about these 2 notes; their text follows.')
+    expect(openNotesSystemMessage).toContain('<note path="Inbox.md">\nBuy seeds.\n</note>')
+    expect(openNotesSystemMessage).toContain('<note path="Projects/Project Hub.md">\nHub text.\n</note>')
+    expect(openNotesSystemMessage).not.toContain('Beds.md')
+
+    const selectedNotesSystemMessage = await sendWithContextChoice({
+      assistantContextMode: 'selected-notes',
+      contextSelectedNoteRelativePaths: ['Projects/Garden/Beds.md', 'Inbox.md'],
+      contextFolderRelativePath: null,
+    })
+    expect(selectedNotesSystemMessage).toContain('<note path="Projects/Garden/Beds.md">\nThree beds.\n</note>')
+    expect(selectedNotesSystemMessage).toContain('<note path="Inbox.md">')
+    expect(selectedNotesSystemMessage).not.toContain('<note path="Projects/Project Hub.md">')
+
+    const folderSystemMessage = await sendWithContextChoice({ assistantContextMode: 'folder', contextSelectedNoteRelativePaths: [], contextFolderRelativePath: 'Projects' })
+    expect(folderSystemMessage).toContain('<note path="Projects/Project Hub.md">')
+    expect(folderSystemMessage).toContain('<note path="Projects/Garden/Beds.md">')
+    expect(folderSystemMessage).not.toContain('Projects Archive')
+    expect(folderSystemMessage).not.toContain('<note path="Inbox.md">')
+
+    const longFolderSystemMessage = await sendWithContextChoice({ assistantContextMode: 'folder', contextSelectedNoteRelativePaths: [], contextFolderRelativePath: 'Long' })
+    expect(longFolderSystemMessage.match(/<note path="Long\//g)).toHaveLength(8)
+    expect(longFolderSystemMessage).toContain('read them with readVaultNote as needed: Long/Note 9.md')
+
+    const wholeVaultSystemMessage = await sendWithContextChoice({ assistantContextMode: 'whole-vault', contextSelectedNoteRelativePaths: [], contextFolderRelativePath: null })
+    expect(wholeVaultSystemMessage).not.toContain('<note path=')
+
+    const userMessageEntries = usePapelizAssistantConversationStore.getState().chatEntries.filter((chatEntry) => chatEntry.chatEntryKind === 'user-message')
+    expect(userMessageEntries.map((chatEntry) => chatEntry.chatEntryContextLabel)).toEqual(['Project Hub', '2 open notes', '2 notes', 'Projects', 'Long', null])
+
+    // The chat is saved with its choice; reopened, it sees the same.
+    usePapelizAssistantConversationStore
+      .getState()
+      .setAssistantContextChoice({ assistantContextMode: 'folder', contextSelectedNoteRelativePaths: [], contextFolderRelativePath: 'Projects/Garden' })
+    let savedChatSessionText = ''
+    for (let attempt = 0; attempt < 100 && !savedChatSessionText.includes('chat-session-sees-folder'); attempt += 1) {
+      await new Promise((resolveWait) => setTimeout(resolveWait, 10))
+      const chatSessionVaultNoteRelativePath = usePapelizAssistantConversationStore.getState().chatSessionVaultNoteRelativePath
+      savedChatSessionText = chatSessionVaultNoteRelativePath === null ? '' : await vaultAdapter.readVaultNoteText(chatSessionVaultNoteRelativePath).catch(() => '')
+    }
+    expect(savedChatSessionText).toContain('chat-session-sees: folder\nchat-session-sees-folder: "Projects/Garden"')
+    const savedChatSessionVaultNoteRelativePath = usePapelizAssistantConversationStore.getState().chatSessionVaultNoteRelativePath!
+    usePapelizAssistantConversationStore.getState().startNewAssistantChat()
+    usePapelizAssistantConversationStore.getState().setAssistantContextChoice({ assistantContextMode: 'active-note', contextSelectedNoteRelativePaths: [], contextFolderRelativePath: null })
+    await usePapelizAssistantConversationStore.getState().openSavedChatSession(savedChatSessionVaultNoteRelativePath)
+    expect(usePapelizAssistantConversationStore.getState()).toMatchObject({ assistantContextMode: 'folder', assistantContextFolderRelativePath: 'Projects/Garden' })
+    usePapelizAssistantConversationStore.getState().setAssistantContextChoice({ assistantContextMode: 'active-note', contextSelectedNoteRelativePaths: [], contextFolderRelativePath: null })
+  })
+
+  it('retries a failed answer from the same question, keeping what was typed since', async () => {
+    const providerRequestBodies: Array<{ messages: Array<{ role: string; content: string }> }> = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_requestUrl: string, requestInit: RequestInit) => {
+        providerRequestBodies.push(JSON.parse(String(requestInit.body)))
+        if (providerRequestBodies.length === 1) return Response.json({ error: { message: 'Not now.' } }, { status: 401 })
+        return Response.json({ choices: [{ message: { content: 'Here it is.' }, finish_reason: 'stop' }], usage: { prompt_tokens: 10, completion_tokens: 2 } })
+      }),
+    )
+    const vaultAdapter = new PapelizInMemoryVaultAdapter([{ vaultNoteRelativePath: 'Inbox.md', vaultNoteText: 'Buy seeds.' }])
+    await usePapelizWorkspaceStore.getState().openVaultInWorkspace(
+      { papelizVaultId: 'retry-vault', papelizVaultDisplayName: 'Test vault', papelizVaultAdapter: vaultAdapter },
+      { firstVaultNoteRelativePathToOpen: null, firstNoteViewMode: 'md-view', expandAllTopLevelFolders: false },
+    )
+    usePapelizAssistantProviderSettingsStore.setState({
+      activeAssistantProviderId: 'custom',
+      providerSettingsByProviderId: {
+        custom: { papelizAssistantProviderId: 'custom', providerBaseUrl: 'https://provider.test/v1', providerModelName: 'test-model', providerApiKey: 'test-key' },
+      },
+    })
+    usePapelizAssistantRunOptionsStore.setState({ assistantMode: 'ask' })
+    await waitUntil(() => usePapelizWorkspaceStore.getState().vaultTreeEntries.length > 0)
+
+    await usePapelizAssistantConversationStore.getState().sendAssistantMessage('Summarize my inbox')
+    const failedConversationState = usePapelizAssistantConversationStore.getState()
+    const errorNoticeEntry = failedConversationState.chatEntries.at(-1)
+    expect(errorNoticeEntry).toMatchObject({ chatEntryKind: 'notice', isChatEntryError: true })
+    expect(failedConversationState.retryableAssistantErrorChatEntryId).toBe(errorNoticeEntry?.chatEntryId)
+
+    usePapelizAssistantConversationStore.getState().setComposerDraftText('Then the garden')
+    usePapelizAssistantConversationStore.getState().retryAssistantAnswer()
+    await waitUntil(() => !usePapelizAssistantConversationStore.getState().isAssistantRunning)
+    const retriedConversationState = usePapelizAssistantConversationStore.getState()
+    expect(retriedConversationState.chatEntries.map((chatEntry) => chatEntry.chatEntryKind)).toEqual(['user-message', 'assistant-message'])
+    expect(retriedConversationState.retryableAssistantErrorChatEntryId).toBeNull()
+    expect(retriedConversationState.composerDraftText).toBe('Then the garden')
+    // The question goes once in the retried request, not twice.
+    expect(providerRequestBodies[1]?.messages.filter((providerMessage) => providerMessage.role === 'user').map((providerMessage) => providerMessage.content)).toEqual([
+      'Summarize my inbox',
+    ])
+  })
+
   it('reopens a saved chat with its messages', async () => {
     const stopVaultKnowledgeSync = startPapelizVaultKnowledgeSync()
     const vaultAdapter = new PapelizInMemoryVaultAdapter([
@@ -281,7 +415,7 @@ describe('the assistant conversation', () => {
     expect(providerSystemMessages.at(-1)).toContain('You run on the model “muse-spark-1.3-contributor” from the provider “Meta Model API”')
     expect(providerSystemMessages.at(-1)).toContain('Never claim to be another model')
     expect(providerSystemMessages.at(-1)).toContain(
-      'When asked who you are or who made you, answer as Papeliz: Papeliz is a Markdown editor and viewer with a built-in AI assistant, made by Adam Natad.',
+      'When asked who you are or who made you, answer as Papeliz: Papeliz is a Markdown Editor and viewer with a built-in AI Assistant, made by Adam Natad.',
     )
     usePapelizAssistantProviderSettingsStore.setState({ activeAssistantProviderId: 'claude', activeAssistantProviderModelName: 'claude-haiku-5-5' })
     await usePapelizAssistantConversationStore.getState().sendAssistantMessage('And now?')

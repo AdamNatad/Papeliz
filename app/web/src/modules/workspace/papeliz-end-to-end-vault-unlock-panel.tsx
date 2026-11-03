@@ -28,9 +28,9 @@ import {
   papelizVaultEncryptionChangeKeepOpenLine,
 } from './papeliz-vault-encryption-screen-words'
 
-// The help guide on starting, opening and importing a vault, as New Vault links it.
-const papelizEndToEndVaultUnlockHelpArticleUrl = 'https://papeliz.com/help/open-a-folder/'
-const papelizEndToEndVaultUnlockHelpLinkLabel = 'Help: start or open a vault'
+// The help guide on End-to-end vaults: the passphrase, unlocking, and what a forgotten one means.
+const papelizEndToEndVaultUnlockHelpArticleUrl = 'https://papeliz.com/help/end-to-end-vaults/'
+const papelizEndToEndVaultUnlockHelpLinkLabel = 'Help: End-to-end vaults'
 
 // How Unlock came to show, for the line at its top: a Recent Vaults row says nothing more; Open Vault
 // says the folder it found is an End-to-end vault; Lock Now says the vault was locked.

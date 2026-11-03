@@ -44,7 +44,7 @@ const papelizImagineAskExampleQuestionTexts = [
 function PapelizImagineAskDrawPromptCard({ drawPromptText, isDrawPromptComplete }: { drawPromptText: string; isDrawPromptComplete: boolean }) {
   const drawSectionLabel = readPapelizImagineSectionLabel('draw')
   return (
-    <div className="flex flex-col gap-2 rounded-2xl border border-papeliz-line bg-papeliz-surface p-3 shadow-papeliz-card">
+    <div className="flex flex-col gap-2 rounded-[14px] border border-papeliz-line bg-papeliz-surface p-3">
       <span className="flex items-center gap-1.5 text-[11.5px] font-semibold tracking-wide text-papeliz-ink-subtle uppercase">
         <Paintbrush className="size-3.5 text-papeliz-blue" aria-hidden="true" />
         Prompt
@@ -72,22 +72,34 @@ function PapelizImagineAskEntryView({ imagineAskEntry }: { imagineAskEntry: Pape
   if (imagineAskEntry.imagineAskEntryKind === 'question') {
     return (
       <div className="papeliz-pop-enter flex justify-end">
-        <div className="papeliz-selectable-text max-w-[88%] rounded-[20px] bg-papeliz-surface-gray px-3.5 py-2.5 text-sm break-words whitespace-pre-wrap">{imagineAskEntry.askQuestionText}</div>
+        <div className="papeliz-selectable-text max-w-[88%] rounded-[16px_16px_4px_16px] bg-papeliz-surface-soft px-[13px] py-[9px] text-sm break-words whitespace-pre-wrap">{imagineAskEntry.askQuestionText}</div>
       </div>
     )
   }
   const askAnswerParts = splitPapelizImagineAskAnswer(imagineAskEntry.askAnswerText)
   return (
     <section aria-label="Answer" className="papeliz-pop-enter flex flex-col gap-2">
-      <div className="flex items-center gap-2 text-[13px] text-papeliz-ink-subtle">
-        <span className="grid size-[22px] flex-none place-items-center rounded-full bg-linear-to-r from-papeliz-gradient-start to-papeliz-gradient-end text-white">
-          <WandSparkles className="size-3" aria-hidden="true" />
-        </span>
-        <b className="font-semibold text-papeliz-ink">Assistant</b>
-        {imagineAskEntry.askAnswerModelName.length > 0 && <span className="min-w-0 truncate">{imagineAskEntry.askAnswerModelName}</span>}
-        {imagineAskEntry.isAskAnswerStreaming && <span className="papeliz-saving-dot size-1.5 rounded-full bg-papeliz-blue" aria-label="Writing" />}
+      {/* "Assistant · model", one quiet line, as in Notes. */}
+      <div className="-mb-1 flex min-w-0 items-center gap-1.5 text-[12.5px] text-papeliz-ink-subtle">
+        <b className="font-semibold text-papeliz-ink-muted">Assistant</b>
+        {imagineAskEntry.askAnswerModelName.length > 0 && (
+          <>
+            <span className="text-papeliz-line-strong" aria-hidden="true">
+              ·
+            </span>
+            <span className="min-w-0 truncate">{imagineAskEntry.askAnswerModelName}</span>
+          </>
+        )}
+        {imagineAskEntry.isAskAnswerStreaming && askAnswerParts.length > 0 && (
+          <span className="papeliz-saving-dot size-1.5 flex-none rounded-full bg-papeliz-blue motion-reduce:animate-none" aria-label="Writing" />
+        )}
       </div>
-      {askAnswerParts.length === 0 && imagineAskEntry.isAskAnswerStreaming && <p className="text-sm text-papeliz-ink-subtle">Thinking…</p>}
+      {askAnswerParts.length === 0 && imagineAskEntry.isAskAnswerStreaming && (
+        <p className="flex items-center gap-2 text-sm text-papeliz-ink-subtle">
+          <span className="papeliz-saving-dot size-1.5 flex-none rounded-full bg-papeliz-blue motion-reduce:animate-none" aria-label="Writing" />
+          Thinking…
+        </p>
+      )}
       {askAnswerParts.map((askAnswerPart, askAnswerPartIndex) =>
         askAnswerPart.askAnswerPartKind === 'words' ? (
           <PapelizAssistantMessageMarkdown key={askAnswerPartIndex} assistantMessageText={askAnswerPart.askAnswerWordsText} />
@@ -108,6 +120,7 @@ function PapelizImagineAskEntryView({ imagineAskEntry }: { imagineAskEntry: Pape
 export function PapelizImagineAskSection() {
   const imagineAskEntries = usePapelizImagineAskStore((imagineAskState) => imagineAskState.imagineAskEntries)
   const imagineAskDraftText = usePapelizImagineAskStore((imagineAskState) => imagineAskState.imagineAskDraftText)
+  const imagineAskTokenUsage = usePapelizImagineAskStore((imagineAskState) => imagineAskState.imagineAskTokenUsage)
   const isImagineAskAnswering = usePapelizImagineAskStore(selectIsPapelizImagineAskAnswering)
   const setImagineAskDraftText = usePapelizImagineAskStore((imagineAskState) => imagineAskState.setImagineAskDraftText)
   const sendImagineAskQuestion = usePapelizImagineAskStore((imagineAskState) => imagineAskState.sendImagineAskQuestion)
@@ -219,6 +232,7 @@ export function PapelizImagineAskSection() {
         boxAddMenuItems={[]}
         boxAddButtonTitle="Transcribe an audio file into the question"
         audioFileInputLabel="Transcribe an audio file into the question"
+        boxContextTokenUsage={isChatProviderReady ? imagineAskTokenUsage : undefined}
         boxChips={
           isChatProviderReady && (
             <PapelizImagineBoxMenuButton

@@ -150,6 +150,42 @@ describe('chat session files', () => {
     expect(parsePapelizChatSessionFile(chatSessionFileText.replace('chat-session-plan-build: stopped', 'chat-session-plan-build: paused'))?.chatSessionPlanState).toBeUndefined()
   })
 
+  it('keep what the assistant sees, when it is not the note in front', () => {
+    const selectedNotesChatSession: PapelizChatSession = {
+      ...testChatSession,
+      chatSessionContextChoice: {
+        assistantContextMode: 'selected-notes',
+        contextSelectedNoteRelativePaths: ['Projects/Project "Hub".md', 'Inbox.md'],
+        contextFolderRelativePath: null,
+      },
+    }
+    const selectedNotesFileText = formatPapelizChatSessionFile(selectedNotesChatSession)
+    expect(selectedNotesFileText).toContain(['chat-session-sees: selected-notes', 'chat-session-sees-notes:', '  - "Projects/Project \\"Hub\\".md"', '  - "Inbox.md"'].join('\n'))
+    expect(parsePapelizChatSessionFile(selectedNotesFileText)).toEqual(selectedNotesChatSession)
+
+    const folderChatSession: PapelizChatSession = {
+      ...testChatSession,
+      chatSessionContextChoice: { assistantContextMode: 'folder', contextSelectedNoteRelativePaths: [], contextFolderRelativePath: 'Projects/Garden' },
+    }
+    const folderFileText = formatPapelizChatSessionFile(folderChatSession)
+    expect(folderFileText).toContain('chat-session-sees: folder\nchat-session-sees-folder: "Projects/Garden"')
+    expect(parsePapelizChatSessionFile(folderFileText)).toEqual(folderChatSession)
+
+    const wholeVaultChatSession: PapelizChatSession = {
+      ...testChatSession,
+      chatSessionContextChoice: { assistantContextMode: 'whole-vault', contextSelectedNoteRelativePaths: [], contextFolderRelativePath: null },
+    }
+    expect(parsePapelizChatSessionFile(formatPapelizChatSessionFile(wholeVaultChatSession))).toEqual(wholeVaultChatSession)
+
+    // The note in front is the default: nothing is written for it, and an unknown choice reads as it.
+    const activeNoteChatSession: PapelizChatSession = {
+      ...testChatSession,
+      chatSessionContextChoice: { assistantContextMode: 'active-note', contextSelectedNoteRelativePaths: [], contextFolderRelativePath: 'Projects/Garden' },
+    }
+    expect(formatPapelizChatSessionFile(activeNoteChatSession)).not.toContain('chat-session-sees')
+    expect(parsePapelizChatSessionFile(folderFileText.replace('chat-session-sees: folder', 'chat-session-sees: everything'))?.chatSessionContextChoice).toBeUndefined()
+  })
+
   it('ignore notes that are not chat sessions', () => {
     expect(parsePapelizChatSessionFile('# Garden plan\n\n### You\nnot a chat')).toBeNull()
     expect(parsePapelizChatSessionFile('---\ntags: [x]\n---\n# Note')).toBeNull()

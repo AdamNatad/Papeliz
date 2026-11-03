@@ -85,7 +85,11 @@ describe('Unlock', () => {
     expect(unlockPanelMarkup).toContain('Remember on This Device')
     expect(unlockPanelMarkup).not.toMatch(/type="checkbox"[^>]*checked=""/)
     expect(unlockPanelMarkup).toContain('This browser then opens it without the passphrase, for anyone who uses it.')
-    expect(unlockPanelMarkup).toContain('Forgot it? Papeliz can’t recover it.')
+    // Changing the passphrase needs the current one, so a device that remembers the vault can only open it.
+    expect(unlockPanelMarkup).toContain('Forgot it? Papeliz can’t recover it. A device that remembers this vault still opens it, so you can copy your notes out there.')
+    expect(unlockPanelMarkup).not.toContain('set a new one')
+    expect(unlockPanelMarkup).toContain('href="https://papeliz.com/help/end-to-end-vaults/"')
+    expect(unlockPanelMarkup).toContain('aria-label="Help: End-to-end vaults"')
     // Unlock waits for a passphrase.
     expect(unlockPanelMarkup).toMatch(/<button type="submit" disabled=""[^>]*>.*Unlock<\/button>/)
   })

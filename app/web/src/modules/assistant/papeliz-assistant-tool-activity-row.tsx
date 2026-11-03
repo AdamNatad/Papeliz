@@ -35,7 +35,7 @@ export function PapelizAssistantToolActivityRow({ chatEntry }: { chatEntry: Extr
           type="button"
           title={vaultNoteRelativePath}
           onClick={() => void openVaultNote(vaultNoteRelativePath)}
-          className="rounded-full bg-papeliz-blue-soft px-2 py-0.5 font-medium text-papeliz-blue hover:bg-papeliz-blue-soft-hover"
+          className="rounded-md border border-papeliz-line px-1.5 text-papeliz-ink-muted transition-colors hover:border-papeliz-blue-line hover:text-papeliz-blue"
         >
           {getVaultNoteTitle(vaultNoteRelativePath)}
         </button>

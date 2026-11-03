@@ -156,6 +156,15 @@ export function formatPapelizAssistantTokenCountShort(assistantTokenCount: numbe
   return `${trimTrailingZeroDecimals(tokenCountInMillions, tokenCountInMillions < 10 ? 2 : 1)}M`
 }
 
+// A context window's size in a few characters. A power of two reads the way people say it ("128k",
+// "256k", and "1M" for 1,048,576); any other size as formatPapelizAssistantTokenCountShort has it.
+export function formatPapelizAssistantContextWindowTokenCountShort(contextWindowTokenCount: number): string {
+  if (contextWindowTokenCount >= 1024 && Number.isInteger(contextWindowTokenCount) && Number.isInteger(Math.log2(contextWindowTokenCount))) {
+    return contextWindowTokenCount >= 1_048_576 ? `${contextWindowTokenCount / 1_048_576}M` : `${contextWindowTokenCount / 1024}k`
+  }
+  return formatPapelizAssistantTokenCountShort(contextWindowTokenCount)
+}
+
 const papelizAssistantTokenCountInFullFormat = new Intl.NumberFormat('en-US')
 
 // A token count with every digit: "12,034".
@@ -163,9 +172,9 @@ export function formatPapelizAssistantTokenCountInFull(assistantTokenCount: numb
   return papelizAssistantTokenCountInFullFormat.format(assistantTokenCount)
 }
 
-// The context window gauge beside the model chip: how much of the model's context window the chat
-// fills, colored amber from 80% and red from 95%. With no known window size it only says how many
-// tokens the chat holds.
+// The context ring beside the model chip: how much of the model's context window the chat fills,
+// colored amber from 80% and red from 95%. With no known window size it says how many tokens the chat
+// holds, and that the size is not known.
 export type PapelizAssistantContextWindowFillLevel = 'roomy' | 'filling' | 'nearly-full'
 
 export interface PapelizAssistantContextWindowGaugeReading {
@@ -174,7 +183,9 @@ export interface PapelizAssistantContextWindowGaugeReading {
   contextWindowFillLevel: PapelizAssistantContextWindowFillLevel
   // "12.4k", or "~12.4k" when estimated.
   contextWindowGaugeShortLabel: string
-  // "Context: 12.4k of 128k tokens (10%)", or "12.4k tokens in this chat".
+  // "10%", "<1%"; null when the window size is not known.
+  contextWindowFilledPercentageLabel: string | null
+  // "Context: 12.4k of 1M tokens (1%)", or "Context: 12.4k tokens, window size not known".
   contextWindowGaugeDescription: string
 }
 
@@ -193,7 +204,8 @@ export function readPapelizAssistantContextWindowGauge(
       contextWindowFilledFraction: null,
       contextWindowFillLevel: 'roomy',
       contextWindowGaugeShortLabel,
-      contextWindowGaugeDescription: `${isChatSessionContextTokenCountEstimated ? 'About ' : ''}${shortContextTokenCount} tokens in this chat`,
+      contextWindowFilledPercentageLabel: null,
+      contextWindowGaugeDescription: `Context: ${isChatSessionContextTokenCountEstimated ? 'about ' : ''}${shortContextTokenCount} tokens, window size not known`,
     }
   }
   const contextWindowFilledFraction = chatSessionContextTokenCount / modelContextWindowTokenCount
@@ -208,6 +220,7 @@ export function readPapelizAssistantContextWindowGauge(
           ? 'filling'
           : 'roomy',
     contextWindowGaugeShortLabel,
-    contextWindowGaugeDescription: `Context: ${isChatSessionContextTokenCountEstimated ? 'about ' : ''}${shortContextTokenCount} of ${formatPapelizAssistantTokenCountShort(modelContextWindowTokenCount)} tokens (${filledPercentageLabel})`,
+    contextWindowFilledPercentageLabel: filledPercentageLabel,
+    contextWindowGaugeDescription: `Context: ${isChatSessionContextTokenCountEstimated ? 'about ' : ''}${shortContextTokenCount} of ${formatPapelizAssistantContextWindowTokenCountShort(modelContextWindowTokenCount)} tokens (${filledPercentageLabel})`,
   }
 }

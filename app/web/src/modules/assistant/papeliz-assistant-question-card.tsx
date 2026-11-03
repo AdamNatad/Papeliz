@@ -3,6 +3,7 @@ import { useState, type KeyboardEvent } from 'react'
 import { PapelizPillButton } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { usePapelizAssistantConversationStore, type PapelizAssistantChatEntry } from './papeliz-assistant-conversation-store'
+import { papelizAssistantPaperCardClassName, readPapelizAssistantPaperCardFrameClassName } from './papeliz-assistant-paper-cards'
 
 interface PapelizAssistantQuestionCardProps {
   questionEntry: Extract<PapelizAssistantChatEntry, { chatEntryKind: 'question' }>
@@ -130,7 +131,7 @@ export function PapelizAssistantQuestionCard({ questionEntry }: PapelizAssistant
       <div
         role="group"
         aria-label="Questions the assistant asked"
-        className="papeliz-pop-enter flex-none overflow-hidden rounded-[18px] border border-papeliz-line bg-papeliz-surface px-3.5 py-3 shadow-papeliz-card"
+        className={joinPapelizClassNames(papelizAssistantPaperCardClassName, 'flex-none px-3.5 py-3', readPapelizAssistantPaperCardFrameClassName(false))}
       >
         <ol className="flex flex-col gap-2.5">
           {assistantQuestions.map((assistantQuestion, questionIndex) => (
@@ -167,7 +168,7 @@ export function PapelizAssistantQuestionCard({ questionEntry }: PapelizAssistant
       aria-label={isAskingSeveral ? `Question ${questionStepIndex + 1} of ${assistantQuestions.length}: ${currentQuestion.questionText}` : currentQuestion.questionText}
       tabIndex={-1}
       onKeyDown={handleQuestionCardKeyDown}
-      className="papeliz-pop-enter flex-none overflow-hidden rounded-[18px] border border-papeliz-blue-line bg-papeliz-surface shadow-papeliz-card outline-none"
+      className={joinPapelizClassNames(papelizAssistantPaperCardClassName, 'flex-none outline-none', readPapelizAssistantPaperCardFrameClassName(!isQuestionAnswered))}
     >
       {isAskingSeveral && (
         <div className="flex items-center gap-1.5 overflow-x-auto px-3 pt-2.5">

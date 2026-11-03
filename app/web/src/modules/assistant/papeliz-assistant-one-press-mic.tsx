@@ -55,6 +55,8 @@ interface PapelizOnePressMicButtonProps {
   isMicDisabled?: boolean
   // Pressed when the box can't take words yet (no provider): the press does this instead.
   onMicPressInstead?: () => void
+  // The chat box's row narrows it when it is short of room.
+  micButtonClassName?: string
 }
 
 // The mic's hover: how it works, which model transcribes (Models for Each Task's Transcribe, or what
@@ -76,7 +78,7 @@ export function describePapelizOnePressMicTranscribingWords(transcribingProgress
   return transcriptionModelName === null ? `${transcribingStepWords}…` : `${transcribingStepWords} · ${transcriptionModelName}`
 }
 
-export function PapelizOnePressMicButton({ onePressMicStore, isMicDisabled = false, onMicPressInstead }: PapelizOnePressMicButtonProps) {
+export function PapelizOnePressMicButton({ onePressMicStore, isMicDisabled = false, onMicPressInstead, micButtonClassName }: PapelizOnePressMicButtonProps) {
   const isMicStarting = useStore(onePressMicStore, (onePressMicState) => onePressMicState.onePressMicStage === 'starting')
   const transcriptionModelInUse = usePapelizAssistantMediaModelInUse('transcription')
   return (
@@ -91,6 +93,7 @@ export function PapelizOnePressMicButton({ onePressMicStore, isMicDisabled = fal
         papelizOnePressMicRoundClassName,
         'text-papeliz-ink-muted hover:bg-papeliz-hover hover:text-papeliz-ink disabled:opacity-40',
         isMicStarting && 'bg-papeliz-blue-soft text-papeliz-blue disabled:opacity-100',
+        micButtonClassName,
       )}
     >
       <Mic className="size-[17px]" aria-hidden="true" />

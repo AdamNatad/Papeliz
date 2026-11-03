@@ -2,6 +2,7 @@ import { ArrowUp, FileAudio, Plus, Square } from 'lucide-react'
 import { useEffect, useRef, useState, type MouseEvent, type ReactNode, type RefObject } from 'react'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { PapelizPopoverMenu, type PapelizPopoverMenuItem, type PapelizPopoverMenuPosition } from '../ui/papeliz-popover-menu'
+import { PapelizAssistantContextWindowRing } from './papeliz-assistant-context-window-gauge'
 import {
   PapelizOnePressMicAudioFileInput,
   PapelizOnePressMicButton,
@@ -12,10 +13,11 @@ import {
 } from './papeliz-assistant-one-press-mic'
 import type { PapelizOnePressMicStore } from './papeliz-assistant-one-press-mic-controller'
 import { usePapelizAssistantPanelUiStore } from './papeliz-assistant-panel-ui-store'
+import type { PapelizChatSessionTokenUsage } from './papeliz-assistant-token-usage'
 
 // The box Imagine's Ask and Draw share, laid out as the chat box is: the text on top, then one quiet
-// row with + (a menu that always ends with Transcribe an Audio File), the section's own chips, the
-// one-press mic and a round Send. Enter sends, Shift+Enter starts a new line. One press on the mic
+// row with + (a menu that always ends with Transcribe an Audio File), the context ring for a section
+// that talks with a chat model (Ask), the section's own chips, the one-press mic and a round Send. Enter sends, Shift+Enter starts a new line. One press on the mic
 // turns the row into the recorder (papeliz-assistant-one-press-mic.tsx), and the words land after
 // what is typed.
 
@@ -116,6 +118,8 @@ interface PapelizImagineBoxProps {
   boxAddMenuItems: readonly PapelizPopoverMenuItem[]
   boxAddButtonTitle: string
   audioFileInputLabel: string
+  // The talk's tokens, for the context ring beside the chips; left out where no chat model answers.
+  boxContextTokenUsage?: PapelizChatSessionTokenUsage | undefined
   // The chips between + and the mic.
   boxChips?: ReactNode
   onePressMicStore: PapelizOnePressMicStore
@@ -139,6 +143,7 @@ export function PapelizImagineBox({
   boxAddMenuItems,
   boxAddButtonTitle,
   audioFileInputLabel,
+  boxContextTokenUsage,
   boxChips,
   onePressMicStore,
   onMicPressInstead,
@@ -149,6 +154,8 @@ export function PapelizImagineBox({
   const isMicBusy = useIsPapelizOnePressMicBusy(onePressMicStore)
   const audioFileInputRef = useRef<HTMLInputElement>(null)
   const [addMenuPosition, setAddMenuPosition] = useState<PapelizPopoverMenuPosition | null>(null)
+  // The strip along the box's top edge where the context ring's card opens.
+  const [imagineBoxTopEdgeStripElement, setImagineBoxTopEdgeStripElement] = useState<HTMLDivElement | null>(null)
   const addMenuItems: PapelizPopoverMenuItem[] = [
     ...boxAddMenuItems,
     { menuItemKey: 'audio-file', menuItemLabel: 'Transcribe an Audio File', MenuItemIcon: FileAudio, onMenuItemSelect: () => audioFileInputRef.current?.click() },
@@ -164,12 +171,13 @@ export function PapelizImagineBox({
 
   return (
     <div className="flex-none px-3.5 pb-2">
+      <div ref={setImagineBoxTopEdgeStripElement} className="relative z-30 h-0" />
       <div
         // While the mic records, Enter finishes and Esc throws the recording away, wherever focus is.
         onKeyDown={(keyboardEvent) => void handlePapelizOnePressMicKey(keyboardEvent, onePressMicStore)}
         className={joinPapelizClassNames(
-          'rounded-[22px] border border-papeliz-line bg-papeliz-surface pt-2.5 pr-2 pb-2 pl-3.5 shadow-papeliz-card transition-[border-color,box-shadow] duration-150 focus-within:border-papeliz-blue-line focus-within:shadow-[0_0_0_4px_var(--color-papeliz-blue-soft),var(--shadow-papeliz-card)]',
-          (isBoxLit || isMicBusy) && 'border-papeliz-blue-line shadow-[0_0_0_4px_var(--color-papeliz-blue-soft),var(--shadow-papeliz-card)]',
+          'rounded-[20px] border border-papeliz-line-strong bg-papeliz-surface pt-2.5 pr-2 pb-2 pl-3.5 transition-[border-color,box-shadow] duration-150 focus-within:border-papeliz-blue-line focus-within:shadow-[0_0_0_4px_var(--color-papeliz-blue-soft)]',
+          (isBoxLit || isMicBusy) && 'border-papeliz-blue-line shadow-[0_0_0_4px_var(--color-papeliz-blue-soft)]',
         )}
       >
         {boxNotice}
@@ -214,6 +222,15 @@ export function PapelizImagineBox({
                 <Plus className="size-4" aria-hidden="true" />
               </button>
               <span className="min-w-1 flex-1" />
+              {boxContextTokenUsage !== undefined && (
+                <PapelizAssistantContextWindowRing
+                  contextTokenCount={boxContextTokenUsage.chatSessionContextTokenCount}
+                  isContextTokenCountEstimated={boxContextTokenUsage.isChatSessionContextTokenCountEstimated}
+                  conversationTokenUsageTally={boxContextTokenUsage.chatSessionTokenUsageTally}
+                  conversationModelTokenUsageTallies={boxContextTokenUsage.chatSessionModelTokenUsageTallies}
+                  contextWindowCardHostElement={imagineBoxTopEdgeStripElement}
+                />
+              )}
               {boxChips}
               <PapelizOnePressMicButton onePressMicStore={onePressMicStore} onMicPressInstead={onMicPressInstead} />
               {boxSendControls}
