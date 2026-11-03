@@ -42,6 +42,7 @@ import {
 } from '../vault/papeliz-browser-vaults'
 import {
   makeAndOpenNewPapelizFolderVault,
+  openPapelizExistingFolderVaultInNewVaultPlace,
   openPapelizSampleVault,
   pickAndOpenPapelizVaultFolder,
   pickPapelizNewVaultParentFolder,
@@ -851,7 +852,7 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
   const finishNewVault = async (
     typedNewVaultName: string,
     chosenNewVaultPlace: PapelizNewVaultPlace,
-    { newVaultParentFolder, newVaultEncryptionChoice, newVaultSyncVaultEncryptionChoice }: PapelizNewVaultConfirmDetails,
+    { newVaultParentFolder, newVaultFolderName, newVaultEncryptionChoice, newVaultSyncVaultEncryptionChoice }: PapelizNewVaultConfirmDetails,
   ) => {
     if (startScreenEyePreview !== null) {
       showStartScreenPreviewOnlyNotice()
@@ -895,7 +896,7 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
       if (pickedNewVaultParentFolder === null) return
       setIsOpeningVault(true)
       try {
-        await openNewVaultInWorkspace(await makeAndOpenNewPapelizFolderVault(pickedNewVaultParentFolder, typedNewVaultName))
+        await openNewVaultInWorkspace(await makeAndOpenNewPapelizFolderVault(pickedNewVaultParentFolder, newVaultFolderName ?? typedNewVaultName, typedNewVaultName))
       } finally {
         setIsOpeningVault(false)
       }
@@ -911,6 +912,24 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
         describePapelizFailureMessage(`Couldn’t make “${typedNewVaultName}”`, browserVaultCreateError, { failedEntryName: typedNewVaultName, failedEntryKind: 'vault' }),
       )
       reloadRecentVaults()
+    } finally {
+      setIsOpeningVault(false)
+    }
+  }
+
+  // New Vault's Open It: its folder name is already a Papeliz vault in the place picked, so that vault
+  // opens instead, as Open Vault opens one. Runs from its click, which a browser may need to ask for
+  // permission again.
+  const openExistingFolderVaultFromNewVault = async (newVaultParentFolder: PapelizNewVaultParentFolder, existingVaultFolderName: string) => {
+    if (startScreenEyePreview !== null) {
+      showStartScreenPreviewOnlyNotice()
+      return
+    }
+    setIsOpeningVault(true)
+    try {
+      const existingVaultOpenResult = await openPapelizExistingFolderVaultInNewVaultPlace(newVaultParentFolder, existingVaultFolderName)
+      if (existingVaultOpenResult.openVaultOutcome === 'opened') setNewVaultFormRequest(null)
+      await finishOpeningVault(existingVaultOpenResult, false, 'found-by-open-vault')
     } finally {
       setIsOpeningVault(false)
     }
@@ -1287,6 +1306,8 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                 existingBrowserVaultRecords={browserVaultRecords}
                 isNewVaultConfirmHeld={isOpeningVault}
                 onNewVaultParentFolderPick={pickNewVaultParentFolderFromForm}
+                isNewVaultFolderNameEditable
+                onNewVaultExistingFolderVaultOpen={(newVaultParentFolder, existingVaultFolderName) => void openExistingFolderVaultFromNewVault(newVaultParentFolder, existingVaultFolderName)}
                 areNewVaultEncryptionAndSyncPartsShown
                 newVaultCreateFailureMessage={newVaultCreateFailureMessage}
                 onNewVaultConfirm={(typedNewVaultName, chosenNewVaultPlace, newVaultConfirmDetails) =>

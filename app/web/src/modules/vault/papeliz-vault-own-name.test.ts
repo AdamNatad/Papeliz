@@ -11,10 +11,17 @@ import {
   type PapelizFakeFileHandle,
 } from './papeliz-fake-file-system-access.test-support'
 import {
+  describeNewFolderVaultNameTakenMessage,
+  findPapelizNewFolderVaultNameProblem,
+  findPapelizNewVaultFolderNameTaken,
+  findPapelizNewVaultFreeFolderName,
   makeAndOpenNewPapelizFolderVault,
+  makePapelizNewVaultFolderNameFromVaultName,
   openPapelizDesktopVaultFolderPath,
+  openPapelizExistingFolderVaultInNewVaultPlace,
   openPapelizVaultFolderHandle,
   renameOpenPapelizFolderVault,
+  type PapelizNewVaultParentFolder,
   type PapelizOpenVault,
 } from './papeliz-open-vault'
 import { listPapelizRecentVaults, reopenPapelizRecentVault, type PapelizStartScreenRecentVault } from './papeliz-recent-vaults'
@@ -164,7 +171,7 @@ describe('a folder vault’s own name, in a Standard vault', () => {
   })
 
   it('goes back to the folder’s name when the saved one is gone or can’t be used', async () => {
-    const fakeVaultRootHandle = await createPapelizFakeVaultFolder('Field Notes', { [vaultOwnNameSettingsFileRelativePath]: '{"papelizVaultName":"Work/Home"}' })
+    const fakeVaultRootHandle = await createPapelizFakeVaultFolder('Field Notes', { [vaultOwnNameSettingsFileRelativePath]: '{"papelizVaultName":"   "}' })
     expect((await openTestVaultFolder(fakeVaultRootHandle)).papelizVaultDisplayName).toBe('Field Notes')
     const damagedFakeVaultRootHandle = await createPapelizFakeVaultFolder('Reading List', { [vaultOwnNameSettingsFileRelativePath]: 'not json' })
     expect((await openTestVaultFolder(damagedFakeVaultRootHandle)).papelizVaultDisplayName).toBe('Reading List')
@@ -176,10 +183,19 @@ describe('a folder vault’s own name, in a Standard vault', () => {
     expect(findPapelizVaultOwnNameProblem('   ')).toBe('Name Empty')
     expect(findPapelizVaultOwnNameProblem('Garden Journal')).toBeNull()
     await expect(renameOpenPapelizFolderVault(papelizOpenVault, '   ')).rejects.toThrow('Name Empty')
-    await expect(renameOpenPapelizFolderVault(papelizOpenVault, 'Work/Home')).rejects.toThrow('Has A Blocked Character')
-    await expect(renameOpenPapelizFolderVault(papelizOpenVault, '.notes')).rejects.toThrow('Starts With A Dot')
+    await expect(renameOpenPapelizFolderVault(papelizOpenVault, 'Garden\nJournal')).rejects.toThrow('Has A Blocked Character')
+    await expect(renameOpenPapelizFolderVault(papelizOpenVault, 'x'.repeat(201))).rejects.toThrow('Name Too Long')
     expect(await readPapelizFakeVaultFolder(fakeVaultRootHandle)).toEqual({ 'Inbox.md': '# Inbox' })
     expect(await readOnlyRecentVault()).toMatchObject({ papelizVaultDisplayName: 'Field Notes' })
+  })
+
+  it('may hold what a folder’s name can’t, since the folder keeps its own', async () => {
+    const fakeVaultRootHandle = await createPapelizFakeVaultFolder('Field Notes', { 'Inbox.md': '# Inbox' })
+    const papelizOpenVault = await openTestVaultFolder(fakeVaultRootHandle)
+    expect(await renameOpenPapelizFolderVault(papelizOpenVault, 'Work/Home: 2026?')).toBe('Work/Home: 2026?')
+    expect(await renameOpenPapelizFolderVault(papelizOpenVault, '.notes')).toBe('.notes')
+    expect((await openTestVaultFolder(fakeVaultRootHandle)).papelizVaultDisplayName).toBe('.notes')
+    expect(fakeVaultRootHandle.name).toBe('Field Notes')
   })
 
   it('is saved and read back in a folder in Papeliz for Windows too', async () => {
@@ -314,6 +330,127 @@ describe('a folder vault’s own name, in an End-to-end vault', () => {
     if (toStandardResult.vaultEncryptionKindChangeOutcome !== 'changed') throw new Error(JSON.stringify(toStandardResult))
     expect((await readPapelizFakeVaultFolder(fakeVaultRootHandle))[vaultOwnNameSettingsFileRelativePath]).toBe(describeVaultOwnNameSettingsFileText('Garden Journal'))
     expect((await openTestVaultFolder(fakeVaultRootHandle)).papelizVaultDisplayName).toBe('Garden Journal')
+  })
+})
+
+describe('New Vault’s folder name, apart from the vault’s', () => {
+  it('starts as the vault’s name with what a folder can’t hold replaced', () => {
+    expect(makePapelizNewVaultFolderNameFromVaultName('My Notes')).toBe('My Notes')
+    expect(makePapelizNewVaultFolderNameFromVaultName('Work/Home')).toBe('Work-Home')
+    expect(makePapelizNewVaultFolderNameFromVaultName('Plans: 2026 <draft>')).toBe('Plans- 2026 -draft')
+    expect(makePapelizNewVaultFolderNameFromVaultName('What next?')).toBe('What next')
+    expect(makePapelizNewVaultFolderNameFromVaultName('  ..Hidden notes.  ')).toBe('Hidden notes')
+    expect(makePapelizNewVaultFolderNameFromVaultName('Tab\there')).toBe('Tab-here')
+    expect(makePapelizNewVaultFolderNameFromVaultName('???')).toBe('Vault')
+    expect(makePapelizNewVaultFolderNameFromVaultName('x'.repeat(250))).toHaveLength(200)
+    for (const vaultName of ['Work/Home', 'Plans: 2026 <draft>', '  ..Hidden notes.  ', 'Tab\there', '???', `${'x'.repeat(199)} .`]) {
+      expect(findPapelizNewFolderVaultNameProblem(makePapelizNewVaultFolderNameFromVaultName(vaultName))).toBeNull()
+    }
+  })
+
+  it('makes the folder under its own name and saves the vault’s name in it', async () => {
+    const pickedPlaceHandle = await createPapelizFakeVaultFolder('Documents', {})
+    const openVaultResult = await makeAndOpenNewPapelizFolderVault(
+      { newVaultParentFolderKind: 'browser-folder-handle', browserParentFolderHandle: pickedPlaceHandle.asFileSystemDirectoryHandle() },
+      'Work-Home',
+      'Work/Home',
+    )
+    expect(openVaultResult.openVaultOutcome === 'opened' && openVaultResult.papelizOpenVault.papelizVaultDisplayName).toBe('Work/Home')
+    expect(await readPapelizFakeVaultFolder(pickedPlaceHandle)).toEqual({
+      'Work-Home/': '',
+      'Work-Home/.papeliz/': '',
+      'Work-Home/.papeliz/vault-name.json': describeVaultOwnNameSettingsFileText('Work/Home'),
+    })
+  })
+
+  // A place on the web's Folder Storage and in Papeliz for Windows, each holding a plain folder of
+  // notes, a Papeliz vault, a numbered folder and a file.
+  const takenPlaceFiles = {
+    'Garden/Beds.md': '# Beds',
+    'My Notes/.papeliz/vault-name.json': describeVaultOwnNameSettingsFileText('Research'),
+    'My Notes/Inbox.md': '# Inbox',
+    'My Notes 2/Plan.md': '# Plan',
+    'Reading List': 'a file',
+    'Empty/': '',
+  }
+  const newVaultPlaceMakers: [string, () => Promise<{ newVaultParentFolder: PapelizNewVaultParentFolder; readPlaceFiles: () => Promise<Record<string, string>> }>][] = [
+    [
+      'the web’s Folder Storage',
+      async () => {
+        const pickedPlaceHandle = await createPapelizFakeVaultFolder('Documents', takenPlaceFiles)
+        return {
+          newVaultParentFolder: { newVaultParentFolderKind: 'browser-folder-handle', browserParentFolderHandle: pickedPlaceHandle.asFileSystemDirectoryHandle() },
+          readPlaceFiles: () => readPapelizFakeVaultFolder(pickedPlaceHandle),
+        }
+      },
+    ],
+    [
+      'a folder path in Papeliz for Windows',
+      async () => {
+        const desktopPlaceFolderPath = 'C:\\Users\\Ada\\Documents'
+        const fakeDesktopFileSystem = new PapelizFakeDesktopFileSystem(['C:\\Users\\Ada'])
+        fakeDesktopFileSystem.addFakeDesktopFiles(desktopPlaceFolderPath, takenPlaceFiles)
+        const papelizDesktopPlatform = { desktopFileSystem: fakeDesktopFileSystem, rememberDesktopVaultFolderPath: async () => undefined }
+        usePapelizDesktopPlatformStore.setState({ papelizDesktopPlatform: papelizDesktopPlatform as unknown as PapelizDesktopPlatform })
+        return {
+          newVaultParentFolder: { newVaultParentFolderKind: 'desktop-folder-path', desktopParentFolderPath: desktopPlaceFolderPath },
+          readPlaceFiles: async () => fakeDesktopFileSystem.readFakeDesktopFolder(desktopPlaceFolderPath),
+        }
+      },
+    ],
+  ]
+
+  describe.each(newVaultPlaceMakers)('in %s', (_newVaultPlaceName, makeNewVaultPlace) => {
+    it('finds a vault, a plain folder or a file already there, and the next free name for each', async () => {
+      const { newVaultParentFolder } = await makeNewVaultPlace()
+      expect(await findPapelizNewVaultFolderNameTaken(newVaultParentFolder, 'My Notes')).toBe('folder-is-a-vault')
+      expect(await findPapelizNewVaultFolderNameTaken(newVaultParentFolder, 'Garden')).toBe('folder-not-empty')
+      expect(await findPapelizNewVaultFolderNameTaken(newVaultParentFolder, 'Reading List')).toBe('file-has-the-name')
+      expect(await findPapelizNewVaultFolderNameTaken(newVaultParentFolder, 'Empty')).toBeNull()
+      expect(await findPapelizNewVaultFolderNameTaken(newVaultParentFolder, 'Orchard')).toBeNull()
+      // "My Notes 2" is taken too, so the next free one is 3; a numbered name goes on from its number.
+      expect(await findPapelizNewVaultFreeFolderName(newVaultParentFolder, 'My Notes')).toBe('My Notes 3')
+      expect(await findPapelizNewVaultFreeFolderName(newVaultParentFolder, 'My Notes 2')).toBe('My Notes 3')
+      expect(await findPapelizNewVaultFreeFolderName(newVaultParentFolder, 'Garden')).toBe('Garden 2')
+      expect(await findPapelizNewVaultFreeFolderName(newVaultParentFolder, 'Reading List')).toBe('Reading List 2')
+      expect(describeNewFolderVaultNameTakenMessage('folder-is-a-vault', 'My Notes')).toBe(
+        'The folder “My Notes” there is already a Papeliz vault. Pick another name or another place.',
+      )
+    })
+
+    it('never makes the vault in a folder already taken, and changes nothing there', async () => {
+      const { newVaultParentFolder, readPlaceFiles } = await makeNewVaultPlace()
+      const placeFilesBefore = await readPlaceFiles()
+      for (const takenFolderName of ['My Notes', 'Garden', 'Reading List']) {
+        const openVaultResult = await makeAndOpenNewPapelizFolderVault(newVaultParentFolder, takenFolderName, 'Fresh Notes')
+        expect(openVaultResult.openVaultOutcome).toBe('failed')
+      }
+      expect(await readPlaceFiles()).toEqual(placeFilesBefore)
+    })
+
+    it('opens the vault already there, as it is, for Open It', async () => {
+      const { newVaultParentFolder, readPlaceFiles } = await makeNewVaultPlace()
+      const placeFilesBefore = await readPlaceFiles()
+      const existingVaultOpenResult = await openPapelizExistingFolderVaultInNewVaultPlace(newVaultParentFolder, 'My Notes')
+      if (existingVaultOpenResult.openVaultOutcome !== 'opened') throw new Error(JSON.stringify(existingVaultOpenResult))
+      expect(existingVaultOpenResult.papelizOpenVault.papelizVaultDisplayName).toBe('Research')
+      expect(await existingVaultOpenResult.papelizOpenVault.papelizVaultAdapter.readVaultNoteText('Inbox.md')).toBe('# Inbox')
+      expect(await readPlaceFiles()).toEqual(placeFilesBefore)
+      expect(await readOnlyRecentVault()).toMatchObject({ papelizVaultDisplayName: 'Research' })
+    })
+  })
+
+  it('opens an End-to-end vault already there locked, for its passphrase', async () => {
+    const pickedPlaceHandle = await createPapelizFakeVaultFolder('Vaults', {})
+    const pickedParentFolder = { newVaultParentFolderKind: 'browser-folder-handle' as const, browserParentFolderHandle: pickedPlaceHandle.asFileSystemDirectoryHandle() }
+    const madeVaultOpenResult = await makeAndOpenNewPapelizFolderVault(pickedParentFolder, 'Private', 'Private Notes')
+    if (madeVaultOpenResult.openVaultOutcome !== 'opened') throw new Error(JSON.stringify(madeVaultOpenResult))
+    const endToEndVaultMakeResult = await makePapelizEndToEndVault({ newVaultOpenVault: madeVaultOpenResult.papelizOpenVault, vaultPassphrase: testVaultPassphrase })
+    expect(endToEndVaultMakeResult.endToEndVaultUnlockOutcome).toBe('unlocked')
+    expect(await findPapelizNewVaultFolderNameTaken(pickedParentFolder, 'Private')).toBe('folder-is-a-vault')
+    const existingVaultOpenResult = await openPapelizExistingFolderVaultInNewVaultPlace(pickedParentFolder, 'Private')
+    if (existingVaultOpenResult.openVaultOutcome !== 'needs-unlock') throw new Error(existingVaultOpenResult.openVaultOutcome)
+    expect(existingVaultOpenResult.papelizLockedEndToEndVault.papelizVaultDisplayName).toBe('Private Notes')
   })
 })
 

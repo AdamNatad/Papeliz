@@ -13,6 +13,8 @@ import {
   pickPapelizNewVaultParentFolder,
   pickPapelizVaultFolderHandle,
   readPapelizNewVaultDefaultParentFolder,
+  writePapelizNewBrowserFolderVaultOwnName,
+  writePapelizNewDesktopFolderVaultOwnName,
   type PapelizNewDesktopFolderVaultFolderResult,
   type PapelizNewVaultParentFolder,
   type PapelizOpenVaultResult,
@@ -229,6 +231,7 @@ export async function makePapelizTemplateFolderVault(
   } catch (folderVaultWriteError) {
     return { openVaultOutcome: 'failed', openVaultFailureMessage: describeTemplateFolderVaultWriteFailure(typedNewVaultName, folderVaultWriteError, templateWrittenFileCount) }
   }
+  await writePapelizNewBrowserFolderVaultOwnName(newVaultFolderHandle, typedNewVaultName)
   return openPapelizVaultFolderHandle(newVaultFolderHandle)
 }
 
@@ -310,5 +313,6 @@ async function makePapelizTemplateDesktopFolderVault(
   } catch (folderVaultWriteError) {
     return { openVaultOutcome: 'failed', openVaultFailureMessage: describeTemplateFolderVaultWriteFailure(typedNewVaultName, folderVaultWriteError, templateWrittenFileCount) }
   }
+  await writePapelizNewDesktopFolderVaultOwnName(desktopVaultFolderPath, desktopFileSystem, typedNewVaultName)
   return openPapelizDesktopVaultFolderPath(desktopVaultFolderPath, papelizDesktopPlatform, { isDesktopVaultFolderJustPicked: true })
 }

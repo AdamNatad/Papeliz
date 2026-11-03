@@ -1,6 +1,6 @@
 import type { PapelizSyncVaultEncryptionChoice } from '../sync/papeliz-sync-engine-contract'
 import { isPapelizSyncNewPassphraseReady } from '../sync/papeliz-sync-passphrase-fields'
-import type { PapelizNewVaultParentFolder } from '../vault/papeliz-open-vault'
+import { makePapelizNewVaultFolderNameFromVaultName, type PapelizNewVaultFolderNameTaken, type PapelizNewVaultParentFolder } from '../vault/papeliz-open-vault'
 import type { PapelizVaultEncryptionKind } from '../vault/papeliz-vault-encryption'
 
 // New Vault's rules, apart from its screen so tests can read them: which parts it shows, what keeps
@@ -55,21 +55,25 @@ export function readPapelizNewVaultSyncVaultEncryptionChoice(isSyncThisVaultOn: 
 
 // Why Create Vault is off, or null when it can be pressed:
 // - `name-problem`: the name can't be the vault's (empty, a blocked character, taken in this browser);
-// - `folder-name-taken`: the place picked already has a folder of that name with something in it, or
-//   a file of that name;
+// - `folder-name-problem`: the folder's name, typed by hand, can't be a folder's;
+// - `folder-name-taken`: the place picked already has a Papeliz vault or another folder of that name
+//   with something in it, or a file of that name;
 // - `passphrase-not-ready`: End-to-end, with its passphrase too short or not typed the same twice;
 // - `held`: the vault is being made, or Use Template's files aren't read yet.
-export type PapelizNewVaultCreateBlock = 'name-problem' | 'folder-name-taken' | 'passphrase-not-ready' | 'held'
+export type PapelizNewVaultCreateBlock = 'name-problem' | 'folder-name-problem' | 'folder-name-taken' | 'passphrase-not-ready' | 'held'
 
 export interface PapelizNewVaultCreateState {
   newVaultNameProblem: string | null
-  newVaultFolderNameTaken: 'folder-not-empty' | 'file-has-the-name' | null
+  // New Vault's own form, where the folder has a name of its own; null elsewhere.
+  newVaultFolderNameProblem?: string | null
+  newVaultFolderNameTaken: PapelizNewVaultFolderNameTaken | null
   newVaultEncryptionPick: PapelizNewVaultEncryptionPick | null
   isNewVaultConfirmHeld: boolean
 }
 
 export function findPapelizNewVaultCreateBlock(newVaultCreateState: PapelizNewVaultCreateState): PapelizNewVaultCreateBlock | null {
   if (newVaultCreateState.newVaultNameProblem !== null) return 'name-problem'
+  if ((newVaultCreateState.newVaultFolderNameProblem ?? null) !== null) return 'folder-name-problem'
   if (newVaultCreateState.newVaultFolderNameTaken !== null) return 'folder-name-taken'
   const { newVaultEncryptionPick } = newVaultCreateState
   if (
@@ -82,7 +86,13 @@ export function findPapelizNewVaultCreateBlock(newVaultCreateState: PapelizNewVa
   return newVaultCreateState.isNewVaultConfirmHeld ? 'held' : null
 }
 
-// Where the vault's folder will be, as the Location row shows it: the place, then the vault's name.
+// New Vault's folder name: the vault's name made a folder's (papeliz-open-vault.ts says how) while it
+// follows, or the name typed by hand once it has been, which it keeps.
+export function readPapelizNewVaultFolderName(typedNewVaultName: string, handTypedNewVaultFolderName: string | null): string {
+  return handTypedNewVaultFolderName ?? makePapelizNewVaultFolderNameFromVaultName(typedNewVaultName)
+}
+
+// Where the vault's folder will be, as the Location row shows it: the place, then the folder's name.
 // In Papeliz for Windows the place is its whole path; a browser tells Papeliz only the folder's name.
 export function describePapelizNewVaultParentFolderPlace(newVaultParentFolder: PapelizNewVaultParentFolder): string {
   if (newVaultParentFolder.newVaultParentFolderKind === 'browser-folder-handle') return `${newVaultParentFolder.browserParentFolderHandle.name} › `

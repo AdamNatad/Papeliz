@@ -5,6 +5,7 @@ import {
   findPapelizNewVaultCreateBlock,
   isPapelizNewVaultSyncThisVaultOn,
   readPapelizNewVaultEncryptionChoice,
+  readPapelizNewVaultFolderName,
   readPapelizNewVaultParentFolderName,
   readPapelizNewVaultPartsKind,
   readPapelizNewVaultSyncVaultEncryptionChoice,
@@ -13,7 +14,7 @@ import {
 } from './papeliz-new-vault-form-rules'
 
 // New Vault's rules: the parts each build shows (Encryption in every build, "Sync This Vault" where
-// Sync is), Create Vault's gate (the name, the folder taken in the place picked, End-to-end's
+// Sync is), Create Vault's gate (the name, the folder's name and whether the place picked has it, End-to-end's
 // passphrase), what the vault is made with and Sync turned on with, and how the place reads.
 
 const standardEncryptionPick: PapelizNewVaultEncryptionPick = {
@@ -82,9 +83,15 @@ describe('Create Vault', () => {
     expect(findPapelizNewVaultCreateBlock({ ...readyCreateState, newVaultNameProblem: 'Name Empty' })).toBe('name-problem')
   })
 
-  it('stays off when the place picked already has a folder of that name with notes, or a file of that name', () => {
+  it('stays off when the place picked already has a vault or a folder of that name with notes, or a file of that name', () => {
+    expect(findPapelizNewVaultCreateBlock({ ...readyCreateState, newVaultFolderNameTaken: 'folder-is-a-vault' })).toBe('folder-name-taken')
     expect(findPapelizNewVaultCreateBlock({ ...readyCreateState, newVaultFolderNameTaken: 'folder-not-empty' })).toBe('folder-name-taken')
     expect(findPapelizNewVaultCreateBlock({ ...readyCreateState, newVaultFolderNameTaken: 'file-has-the-name' })).toBe('folder-name-taken')
+  })
+
+  it('stays off for a folder name typed by hand that can’t be a folder’s', () => {
+    expect(findPapelizNewVaultCreateBlock({ ...readyCreateState, newVaultFolderNameProblem: 'Has A Blocked Character' })).toBe('folder-name-problem')
+    expect(findPapelizNewVaultCreateBlock({ ...readyCreateState, newVaultFolderNameProblem: null })).toBeNull()
   })
 
   it('waits for End-to-end’s passphrase, with or without Sync: 12 characters or more, typed the same twice', () => {
@@ -100,6 +107,20 @@ describe('Create Vault', () => {
 
   it('stays off while the vault is being made', () => {
     expect(findPapelizNewVaultCreateBlock({ ...readyCreateState, isNewVaultConfirmHeld: true })).toBe('held')
+  })
+})
+
+describe('the vault’s folder name in New Vault', () => {
+  it('follows the vault’s name, made a folder’s, while it isn’t typed by hand', () => {
+    expect(readPapelizNewVaultFolderName('My Notes', null)).toBe('My Notes')
+    expect(readPapelizNewVaultFolderName('Work/Home', null)).toBe('Work-Home')
+    expect(readPapelizNewVaultFolderName('Plans: 2026?', null)).toBe('Plans- 2026')
+  })
+
+  it('stops following once typed by hand, even emptied', () => {
+    expect(readPapelizNewVaultFolderName('My Notes', 'Notes Folder')).toBe('Notes Folder')
+    expect(readPapelizNewVaultFolderName('Something Else Entirely', 'Notes Folder')).toBe('Notes Folder')
+    expect(readPapelizNewVaultFolderName('My Notes', '')).toBe('')
   })
 })
 

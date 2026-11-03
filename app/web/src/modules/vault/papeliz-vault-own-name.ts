@@ -1,6 +1,5 @@
 import type { PapelizVaultAdapter } from './papeliz-vault-adapter'
 import { readPapelizVaultEncryptionSettingsFile } from './papeliz-vault-encryption-settings-file'
-import { describeVaultEntryNameProblem } from './papeliz-vault-relative-paths'
 
 // A folder vault's own name (a folder opened in the browser, or in Papeliz for Windows), kept in the
 // vault so every device and app that opens it shows the same name, while the folder on disk keeps its
@@ -18,11 +17,23 @@ interface PapelizVaultOwnNameSettingsFile {
   papelizVaultName: string
 }
 
+export const papelizVaultOwnNameLongestLength = 200
+
 // What is wrong with a name for a folder vault, as a code ("Name Empty", "Has A Blocked Character",
-// ...), or null. The rule New Vault's folder name follows, so a name made there can be typed here
-// again, and exports can still name their files from it.
+// "Name Too Long"), or null. Only Papeliz shows it, so a character a folder can't use is fine: the
+// folder keeps its own name, and exports make their file names safe themselves. A control character
+// (a tab, a line break) shows as nothing, so it is refused.
 export function findPapelizVaultOwnNameProblem(typedVaultOwnName: string): string | null {
-  return describeVaultEntryNameProblem(typedVaultOwnName)
+  const trimmedVaultOwnName = typedVaultOwnName.trim()
+  if (trimmedVaultOwnName.length === 0) return 'Name Empty'
+  if ([...trimmedVaultOwnName].some((vaultOwnNameCharacter) => isControlCharacter(vaultOwnNameCharacter))) return 'Has A Blocked Character'
+  if (trimmedVaultOwnName.length > papelizVaultOwnNameLongestLength) return 'Name Too Long'
+  return null
+}
+
+function isControlCharacter(vaultOwnNameCharacter: string): boolean {
+  const characterCode = vaultOwnNameCharacter.charCodeAt(0)
+  return characterCode < 0x20 || characterCode === 0x7f
 }
 
 // The name saved in the vault, or null when none is, or the file can't be read or holds no usable name.

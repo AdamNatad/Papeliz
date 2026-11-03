@@ -214,12 +214,14 @@ describe('template vault maker in Papeliz for Windows', () => {
       '.gitignore',
       '.papeliz/file-list-order.json',
       '.papeliz/template-source.json',
+      '.papeliz/vault-name.json',
       'Crops/Tomatoes.md',
       'Photos/harvest.jpg',
       'Start here.md',
       'beds.png',
     ])
     expect(JSON.parse(madeDesktopVaultFiles['.papeliz/template-source.json'] ?? '{}')).toMatchObject({ papelizTemplateGalleryId: 'garden-notes/Garden-Journal' })
+    expect(JSON.parse(madeDesktopVaultFiles['.papeliz/vault-name.json'] ?? '{}')).toEqual({ papelizVaultName: 'My Garden' })
     expect(writeProgressSteps.at(-1)).toBe('8/8')
   })
 

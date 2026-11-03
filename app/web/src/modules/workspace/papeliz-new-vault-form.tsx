@@ -14,14 +14,18 @@ import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { usePapelizFooterEqualButtonWidthRef } from '../ui/papeliz-footer-equal-button-width'
 import { PapelizInfoTip } from '../ui/papeliz-info-tip'
 import { findPapelizBrowserVaultNameProblem, type PapelizBrowserVaultRecord } from '../vault/papeliz-browser-vaults'
+import { describePapelizFailureCode } from '../vault/papeliz-failure-code-words'
 import {
   describeNewFolderVaultNameTakenMessage,
   findPapelizNewFolderVaultNameProblem,
   findPapelizNewVaultFolderNameTaken,
+  findPapelizNewVaultFreeFolderName,
   readPapelizNewVaultDefaultParentFolder,
+  type PapelizNewVaultFolderNameTaken,
   type PapelizNewVaultParentFolder,
 } from '../vault/papeliz-open-vault'
 import type { PapelizVaultEncryptionKind } from '../vault/papeliz-vault-encryption'
+import { findPapelizVaultOwnNameProblem } from '../vault/papeliz-vault-own-name'
 import { PapelizBrowserVaultNameField } from './papeliz-browser-vault-name-field'
 import {
   canPapelizSyncCarryNewVault,
@@ -29,6 +33,7 @@ import {
   findPapelizNewVaultCreateBlock,
   isPapelizNewVaultSyncThisVaultOn,
   readPapelizNewVaultEncryptionChoice,
+  readPapelizNewVaultFolderName,
   readPapelizNewVaultParentFolderName,
   readPapelizNewVaultPartsKind,
   readPapelizNewVaultSyncVaultEncryptionChoice,
@@ -199,6 +204,9 @@ export interface PapelizNewVaultConfirmDetails {
   // The folder the vault's folder is made in, when the form picked one (null: none picked yet, so it
   // is asked for now).
   newVaultParentFolder: PapelizNewVaultParentFolder | null
+  // The name of the vault's folder, in New Vault's own form when it keeps the vault in a folder; null
+  // in a browser, and in Use Template's form, which names the folder after the vault.
+  newVaultFolderName: string | null
   // Standard, or End-to-end with its passphrase.
   newVaultEncryptionChoice: PapelizNewVaultEncryptionChoice
   // The kind to turn Sync on with once the vault opens, or null when it doesn't sync.
@@ -222,6 +230,12 @@ interface PapelizNewVaultFormProps {
   // Where the vault's folder goes, picked from the form (Browse…), shown before Create Vault. Without
   // it the form shows no place row, and the place is picked once Create Vault is pressed.
   onNewVaultParentFolderPick?: () => Promise<PapelizNewVaultParentFolder | null>
+  // New Vault's own form: the folder's name follows the vault's name until it is changed by hand, a
+  // place not picked yet is picked at Create Vault before anything is made, and a name already taken
+  // there offers the next free one. Use Template's form names the folder after the vault, as before.
+  isNewVaultFolderNameEditable?: boolean
+  // Open It, when the folder name is already a Papeliz vault in the place picked: that vault opens.
+  onNewVaultExistingFolderVaultOpen?: (newVaultParentFolder: PapelizNewVaultParentFolder, existingVaultFolderName: string) => void
   // Encryption under Location, and "Sync This Vault" where Sync is: the start page's New Vault has
   // them; Use Template's doesn't, since it makes a Standard vault.
   areNewVaultEncryptionAndSyncPartsShown?: boolean
@@ -364,6 +378,8 @@ export function PapelizNewVaultForm({
   newVaultFromTemplate,
   isNewVaultConfirmHeld = false,
   onNewVaultParentFolderPick,
+  isNewVaultFolderNameEditable = false,
+  onNewVaultExistingFolderVaultOpen,
   areNewVaultEncryptionAndSyncPartsShown = false,
   newVaultCreateFailureMessage = null,
   onNewVaultConfirm,
@@ -388,10 +404,29 @@ export function PapelizNewVaultForm({
           : 'browser-vault-in-opfs',
   )
   const isFolderVaultChosen = chosenNewVaultPlace === 'folder-on-disk'
+  // A folder vault's name is its own when its folder has a name of its own; otherwise the folder takes
+  // the vault's name, so it follows a folder's rule.
+  const isNewVaultFolderNameOwn = isNewVaultFolderNameEditable && isFolderVaultChosen
   const newVaultNameProblem = isFolderVaultChosen
-    ? findPapelizNewFolderVaultNameProblem(typedNewVaultName)
+    ? isNewVaultFolderNameOwn
+      ? findPapelizVaultOwnNameProblem(typedNewVaultName)
+      : findPapelizNewFolderVaultNameProblem(typedNewVaultName)
     : findPapelizBrowserVaultNameProblem(typedNewVaultName, existingBrowserVaultRecords, null)
   const trimmedNewVaultName = typedNewVaultName.trim()
+
+  // The vault's folder name: the vault's name made a folder's, until it is typed by hand (Folder Name,
+  // or a free name pressed), when it stops following.
+  const newVaultFolderNameInputRef = useRef<HTMLInputElement>(null)
+  const [handTypedNewVaultFolderName, setHandTypedNewVaultFolderName] = useState<string | null>(null)
+  const [isNewVaultFolderNameFieldShown, setIsNewVaultFolderNameFieldShown] = useState(false)
+  const shownNewVaultFolderName = isNewVaultFolderNameOwn ? readPapelizNewVaultFolderName(typedNewVaultName, handTypedNewVaultFolderName) : typedNewVaultName
+  const newVaultFolderName = shownNewVaultFolderName.trim()
+  const newVaultFolderNameProblem = isNewVaultFolderNameOwn ? findPapelizNewFolderVaultNameProblem(newVaultFolderName) : null
+  // While it follows, an empty vault name leaves the folder unnamed too.
+  const isNewVaultFolderNameUnnamed = newVaultFolderName === '' || (handTypedNewVaultFolderName === null && trimmedNewVaultName === '')
+  useEffect(() => {
+    if (isNewVaultFolderNameFieldShown) newVaultFolderNameInputRef.current?.focus()
+  }, [isNewVaultFolderNameFieldShown])
 
   // The web shows its places as tiles while both can be used, or neither can (each then says why); a
   // browser with only one shows it as a plain line. Papeliz for Windows keeps every vault in a folder.
@@ -417,46 +452,57 @@ export function PapelizNewVaultForm({
       isNewVaultFormLeft = true
     }
   }, [isNewVaultParentFolderPickable])
-  const pickNewVaultParentFolder = async () => {
-    if (onNewVaultParentFolderPick === undefined) return
+  // The place picked, or null when nothing was.
+  const pickNewVaultParentFolder = async (): Promise<PapelizNewVaultParentFolder | null> => {
+    if (onNewVaultParentFolderPick === undefined) return null
     setIsNewVaultParentFolderPicking(true)
     try {
       const pickedNewVaultParentFolder = await onNewVaultParentFolderPick()
-      if (pickedNewVaultParentFolder === null) return
+      if (pickedNewVaultParentFolder === null) return null
       isNewVaultParentFolderPicked.current = true
       setNewVaultParentFolder(pickedNewVaultParentFolder)
+      return pickedNewVaultParentFolder
     } finally {
       setIsNewVaultParentFolderPicking(false)
     }
   }
 
-  // Whether the place picked already has the name: looked at a moment after the name or place changes.
+  // Whether the place picked already has the folder's name: looked at a moment after the name or place
+  // changes. In New Vault's own form a name taken comes with the next free one.
   const [newVaultFolderNameTakenReading, setNewVaultFolderNameTakenReading] = useState<{
     readNewVaultParentFolder: PapelizNewVaultParentFolder
-    readNewVaultName: string
-    newVaultFolderNameTaken: 'folder-not-empty' | 'file-has-the-name' | null
+    readNewVaultFolderName: string
+    newVaultFolderNameTaken: PapelizNewVaultFolderNameTaken | null
+    newVaultFreeFolderName: string | null
   } | null>(null)
-  const isNewVaultFolderNameCheckable = isNewVaultParentFolderRowShown && newVaultParentFolder !== null && findPapelizNewFolderVaultNameProblem(typedNewVaultName) === null
+  const isNewVaultFolderNameCheckable = isNewVaultParentFolderRowShown && newVaultParentFolder !== null && findPapelizNewFolderVaultNameProblem(newVaultFolderName) === null
   useEffect(() => {
     if (!isNewVaultFolderNameCheckable || newVaultParentFolder === null) return
     let isCheckOutdated = false
     const newVaultFolderNameTakenCheckTimer = setTimeout(() => {
-      void findPapelizNewVaultFolderNameTaken(newVaultParentFolder, trimmedNewVaultName).then((newVaultFolderNameTaken) => {
-        if (!isCheckOutdated) setNewVaultFolderNameTakenReading({ readNewVaultParentFolder: newVaultParentFolder, readNewVaultName: trimmedNewVaultName, newVaultFolderNameTaken })
-      })
+      void (async () => {
+        const newVaultFolderNameTaken = await findPapelizNewVaultFolderNameTaken(newVaultParentFolder, newVaultFolderName)
+        const newVaultFreeFolderName =
+          newVaultFolderNameTaken !== null && isNewVaultFolderNameEditable ? await findPapelizNewVaultFreeFolderName(newVaultParentFolder, newVaultFolderName) : null
+        if (!isCheckOutdated) {
+          setNewVaultFolderNameTakenReading({ readNewVaultParentFolder: newVaultParentFolder, readNewVaultFolderName: newVaultFolderName, newVaultFolderNameTaken, newVaultFreeFolderName })
+        }
+      })()
     }, papelizNewVaultFolderNameTakenCheckDelayMilliseconds)
     return () => {
       isCheckOutdated = true
       clearTimeout(newVaultFolderNameTakenCheckTimer)
     }
-  }, [isNewVaultFolderNameCheckable, newVaultParentFolder, trimmedNewVaultName])
-  const newVaultFolderNameTaken =
+  }, [isNewVaultFolderNameCheckable, isNewVaultFolderNameEditable, newVaultParentFolder, newVaultFolderName])
+  const shownNewVaultFolderNameTakenReading =
     isNewVaultFolderNameCheckable &&
     newVaultFolderNameTakenReading !== null &&
     newVaultFolderNameTakenReading.readNewVaultParentFolder === newVaultParentFolder &&
-    newVaultFolderNameTakenReading.readNewVaultName === trimmedNewVaultName
-      ? newVaultFolderNameTakenReading.newVaultFolderNameTaken
+    newVaultFolderNameTakenReading.readNewVaultFolderName === newVaultFolderName
+      ? newVaultFolderNameTakenReading
       : null
+  const newVaultFolderNameTaken = shownNewVaultFolderNameTakenReading?.newVaultFolderNameTaken ?? null
+  const newVaultFreeFolderName = shownNewVaultFolderNameTakenReading?.newVaultFreeFolderName ?? null
 
   // Encryption, in every build, and "Sync This Vault" in a build with Sync. The switch is off until the
   // person is signed in to Sync, then on unless they turn it off.
@@ -490,6 +536,7 @@ export function PapelizNewVaultForm({
 
   const newVaultCreateBlock = findPapelizNewVaultCreateBlock({
     newVaultNameProblem,
+    newVaultFolderNameProblem,
     newVaultFolderNameTaken,
     newVaultEncryptionPick,
     isNewVaultConfirmHeld: isNewVaultConfirmHeld || isNewVaultParentFolderPicking,
@@ -501,11 +548,21 @@ export function PapelizNewVaultForm({
     newVaultNameInputRef.current?.select()
   }, [])
 
-  const confirmNewVault = () => {
+  const confirmNewVault = async () => {
     if (newVaultCreateBlock !== null) return
+    let confirmedNewVaultParentFolder = isNewVaultParentFolderRowShown ? newVaultParentFolder : null
+    // New Vault's own form picks the place first when none is picked yet (the folder window needs this
+    // click), and stops there when the folder's name is taken in it: the line under Location then says
+    // so, with its fixes, and nothing is made.
+    if (isNewVaultFolderNameOwn && isNewVaultParentFolderRowShown && confirmedNewVaultParentFolder === null) {
+      confirmedNewVaultParentFolder = await pickNewVaultParentFolder()
+      if (confirmedNewVaultParentFolder === null) return
+      if ((await findPapelizNewVaultFolderNameTaken(confirmedNewVaultParentFolder, newVaultFolderName)) !== null) return
+    }
     const newVaultEncryptionChoice = readPapelizNewVaultEncryptionChoice(newVaultEncryptionPick)
     onNewVaultConfirm(trimmedNewVaultName, chosenNewVaultPlace, {
-      newVaultParentFolder: isNewVaultParentFolderRowShown ? newVaultParentFolder : null,
+      newVaultParentFolder: confirmedNewVaultParentFolder,
+      newVaultFolderName: isNewVaultFolderNameOwn ? newVaultFolderName : null,
       newVaultEncryptionChoice,
       newVaultSyncVaultEncryptionChoice: readPapelizNewVaultSyncVaultEncryptionChoice(isSyncThisVaultOn, newVaultEncryptionChoice),
     })
@@ -565,7 +622,7 @@ export function PapelizNewVaultForm({
             browserVaultNameProblem={newVaultNameProblem}
             browserVaultNameProblemId={`${newVaultFormIdPrefix}-name-problem`}
             onBrowserVaultNameType={setTypedNewVaultName}
-            onBrowserVaultNameSubmit={confirmNewVault}
+            onBrowserVaultNameSubmit={() => void confirmNewVault()}
           />
         </div>
 
@@ -642,7 +699,7 @@ export function PapelizNewVaultForm({
                     'flex h-[34px] min-w-0 flex-1 items-center gap-2 rounded-lg border px-2.5 text-[12.5px] whitespace-nowrap',
                     newVaultFolderNameTaken !== null ? 'border-papeliz-diff-removed-ink/35 bg-papeliz-diff-removed' : 'border-papeliz-line bg-papeliz-surface-soft',
                   )}
-                  title={newVaultParentFolder === null ? undefined : `${describePapelizNewVaultParentFolderPlace(newVaultParentFolder)}${trimmedNewVaultName}`}
+                  title={newVaultParentFolder === null ? undefined : `${describePapelizNewVaultParentFolderPlace(newVaultParentFolder)}${newVaultFolderName}`}
                 >
                   <Folder className="size-4 flex-none text-papeliz-blue" aria-hidden="true" />
                   <span className="sr-only">Where the vault’s folder goes: </span>
@@ -651,10 +708,10 @@ export function PapelizNewVaultForm({
                   ) : (
                     <span className="truncate text-papeliz-ink-muted" dir="ltr">
                       {describePapelizNewVaultParentFolderPlace(newVaultParentFolder)}
-                      {trimmedNewVaultName === '' ? (
-                        <span className="text-papeliz-ink-subtle italic">vault name</span>
+                      {isNewVaultFolderNameUnnamed ? (
+                        <span className="text-papeliz-ink-subtle italic">{isNewVaultFolderNameOwn ? 'folder name' : 'vault name'}</span>
                       ) : (
-                        <span className="font-semibold text-papeliz-ink">{trimmedNewVaultName}</span>
+                        <span className="font-semibold text-papeliz-ink">{newVaultFolderName}</span>
                       )}
                     </span>
                   )}
@@ -672,23 +729,104 @@ export function PapelizNewVaultForm({
               </div>
               {newVaultCreateFailureMessage !== null ? (
                 <PapelizNewVaultFailureLine newVaultFailureLineId={newVaultParentFolderLineId}>{newVaultCreateFailureMessage}</PapelizNewVaultFailureLine>
+              ) : newVaultFolderNameTaken !== null && isNewVaultFolderNameOwn ? (
+                <>
+                  <PapelizNewVaultFailureLine newVaultFailureLineId={newVaultParentFolderLineId}>
+                    {describeNewFolderVaultNameTakenMessage(newVaultFolderNameTaken, newVaultFolderName)} Nothing in it is changed.
+                  </PapelizNewVaultFailureLine>
+                  <div className="mt-1.5 flex flex-wrap gap-2">
+                    {newVaultFreeFolderName !== null && (
+                      <button
+                        type="button"
+                        disabled={isNewVaultConfirmHeld}
+                        onClick={() => setHandTypedNewVaultFolderName(newVaultFreeFolderName)}
+                        className={joinPapelizClassNames(newVaultFormFooterButtonClassName, newVaultFormFooterCancelButtonColorClassName, 'h-7')}
+                      >
+                        Use “{newVaultFreeFolderName}”
+                      </button>
+                    )}
+                    {newVaultFolderNameTaken === 'folder-is-a-vault' && newVaultParentFolder !== null && onNewVaultExistingFolderVaultOpen !== undefined && (
+                      <button
+                        type="button"
+                        disabled={isNewVaultConfirmHeld}
+                        onClick={() => onNewVaultExistingFolderVaultOpen(newVaultParentFolder, newVaultFolderName)}
+                        className={joinPapelizClassNames(newVaultFormFooterButtonClassName, newVaultFormFooterCancelButtonColorClassName, 'h-7')}
+                      >
+                        Open It
+                      </button>
+                    )}
+                    {!isNewVaultFolderNameFieldShown && (
+                      <button
+                        type="button"
+                        onClick={() => setIsNewVaultFolderNameFieldShown(true)}
+                        className="rounded-full px-1 text-[12px] font-medium text-papeliz-blue hover:bg-papeliz-blue-soft"
+                      >
+                        Change Folder Name
+                      </button>
+                    )}
+                  </div>
+                </>
               ) : newVaultFolderNameTaken !== null ? (
                 <PapelizNewVaultFailureLine newVaultFailureLineId={newVaultParentFolderLineId}>
-                  {describeNewFolderVaultNameTakenMessage(newVaultFolderNameTaken, trimmedNewVaultName)} Or open it with Open Vault.
+                  {describeNewFolderVaultNameTakenMessage(newVaultFolderNameTaken, newVaultFolderName)} Or open it with Open Vault.
                 </PapelizNewVaultFailureLine>
               ) : (
                 <p id={newVaultParentFolderLineId} className="mt-1 text-[12px] leading-snug text-papeliz-ink-subtle">
                   {newVaultParentFolder === null ? (
                     'Pick the folder it goes in, now or at Create Vault.'
-                  ) : trimmedNewVaultName === '' || newVaultNameProblem !== null ? (
+                  ) : isNewVaultFolderNameUnnamed || newVaultNameProblem !== null || newVaultFolderNameProblem !== null ? (
                     'Papeliz makes the vault’s folder here.'
                   ) : (
                     <>
-                      Papeliz makes the folder <b className="font-semibold text-papeliz-ink-muted">{trimmedNewVaultName}</b> in “{readPapelizNewVaultParentFolderName(newVaultParentFolder)}”, with every note
+                      Papeliz makes the folder <b className="font-semibold text-papeliz-ink-muted">{newVaultFolderName}</b> in “{readPapelizNewVaultParentFolderName(newVaultParentFolder)}”, with every note
                       in it {chosenNewVaultEncryptionKind === 'end-to-end' && newVaultEncryptionPick !== null ? 'encrypted' : 'as a Markdown file'}.
                     </>
                   )}
+                  {isNewVaultFolderNameOwn && !isNewVaultFolderNameFieldShown && (
+                    <>
+                      {' '}
+                      <button
+                        type="button"
+                        onClick={() => setIsNewVaultFolderNameFieldShown(true)}
+                        className="rounded-full px-1 font-medium text-papeliz-blue hover:bg-papeliz-blue-soft"
+                      >
+                        Change Folder Name
+                      </button>
+                    </>
+                  )}
                 </p>
+              )}
+              {isNewVaultFolderNameOwn && isNewVaultFolderNameFieldShown && (
+                <div className="mt-2">
+                  <label className="block text-[12px] leading-snug font-semibold whitespace-nowrap text-papeliz-ink">
+                    Folder Name
+                    <input
+                      ref={newVaultFolderNameInputRef}
+                      value={shownNewVaultFolderName}
+                      maxLength={200}
+                      onChange={(changeEvent) => setHandTypedNewVaultFolderName(changeEvent.target.value)}
+                      onKeyDown={(keyDownEvent) => {
+                        if (keyDownEvent.key !== 'Enter') return
+                        keyDownEvent.preventDefault()
+                        void confirmNewVault()
+                      }}
+                      aria-invalid={newVaultFolderNameProblem !== null || undefined}
+                      aria-describedby={newVaultFolderNameProblem === null ? undefined : `${newVaultFormIdPrefix}-folder-name-problem`}
+                      autoComplete="off"
+                      spellCheck={false}
+                      className="mt-1 block h-[30px] w-full rounded-md border border-papeliz-line bg-papeliz-surface px-2.5 text-[13px] font-normal text-papeliz-ink focus:border-papeliz-blue-line focus:ring-2 focus:ring-papeliz-blue-line/55 focus:outline-none"
+                    />
+                  </label>
+                  {newVaultFolderNameProblem !== null && shownNewVaultFolderName.length > 0 ? (
+                    <p id={`${newVaultFormIdPrefix}-folder-name-problem`} role="alert" className="mt-1 text-[12px] leading-snug font-medium text-papeliz-diff-removed-ink">
+                      {describePapelizFailureCode(newVaultFolderNameProblem, { failedEntryName: newVaultFolderName, failedEntryKind: 'folder' })}
+                    </p>
+                  ) : (
+                    <p className="mt-1 text-[12px] leading-snug text-papeliz-ink-subtle">
+                      {handTypedNewVaultFolderName === null ? 'It follows the vault’s name until you change it.' : 'The vault keeps its own name; only the folder has this one.'}
+                    </p>
+                  )}
+                </div>
               )}
             </div>
           )}
@@ -764,7 +902,7 @@ export function PapelizNewVaultForm({
         <button
           type="button"
           disabled={newVaultCreateBlock !== null}
-          onClick={confirmNewVault}
+          onClick={() => void confirmNewVault()}
           className={joinPapelizClassNames(newVaultFormFooterButtonClassName, newVaultFormFooterActionButtonColorClassName)}
         >
           Create Vault
