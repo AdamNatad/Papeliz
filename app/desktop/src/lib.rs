@@ -5,6 +5,7 @@
 mod papeliz_desktop_app_distribution;
 mod papeliz_desktop_save_files;
 mod papeliz_desktop_snap_layouts;
+mod papeliz_desktop_vault_encryption_key_store;
 mod papeliz_desktop_vault_folders;
 mod papeliz_desktop_webview_permission_requests;
 mod papeliz_desktop_window_minimum_size;
@@ -55,6 +56,9 @@ pub fn run_papeliz_desktop_app() {
             papeliz_desktop_vault_folders::read_papeliz_desktop_new_vault_default_parent_folder_path,
             papeliz_desktop_save_files::pick_papeliz_desktop_save_file_path,
             papeliz_desktop_snap_layouts::set_papeliz_desktop_maximize_button_bounds,
+            papeliz_desktop_vault_encryption_key_store::remember_papeliz_desktop_vault_encryption_key,
+            papeliz_desktop_vault_encryption_key_store::read_remembered_papeliz_desktop_vault_encryption_key,
+            papeliz_desktop_vault_encryption_key_store::forget_remembered_papeliz_desktop_vault_encryption_key,
         ])
         .setup(|app| {
             papeliz_desktop_vault_folders::allow_remembered_papeliz_desktop_vault_folders(app.handle());

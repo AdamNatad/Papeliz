@@ -37,6 +37,9 @@ const papelizDesktopRustCommandNames = {
   readNewVaultDefaultParentFolder: 'read_papeliz_desktop_new_vault_default_parent_folder_path',
   pickSaveFilePath: 'pick_papeliz_desktop_save_file_path',
   setMaximizeButtonBounds: 'set_papeliz_desktop_maximize_button_bounds',
+  rememberVaultEncryptionKey: 'remember_papeliz_desktop_vault_encryption_key',
+  readRememberedVaultEncryptionKey: 'read_remembered_papeliz_desktop_vault_encryption_key',
+  forgetRememberedVaultEncryptionKey: 'forget_remembered_papeliz_desktop_vault_encryption_key',
 } as const
 const papelizDesktopMaximizeButtonPointerStateEventName = 'papeliz-desktop-maximize-button-pointer-state'
 
@@ -286,6 +289,19 @@ export async function loadPapelizDesktopPlatform(): Promise<PapelizDesktopPlatfo
     // (capabilities/papeliz-desktop-main-window.json); any other address fails there.
     fetchFromDesktopNativeSide: fetchFromTauriNativeSide as typeof fetch,
     checkForDesktopAppUpdate: () => checkForPapelizDesktopAppUpdate(desktopAppDistribution),
+    // An End-to-end vault's key in Windows Credential Manager, for this user on this computer. The bytes
+    // cross to Rust and back as a list of numbers.
+    rememberDesktopVaultEncryptionKey: (papelizVaultId, vaultEncryptionKeyBytes) =>
+      invoke<void>(papelizDesktopRustCommandNames.rememberVaultEncryptionKey, { papelizVaultId, vaultEncryptionKeyBytes }),
+    async readRememberedDesktopVaultEncryptionKey(papelizVaultId) {
+      const rememberedVaultEncryptionKeyByteValues = await invoke<number[] | null>(
+        papelizDesktopRustCommandNames.readRememberedVaultEncryptionKey,
+        { papelizVaultId },
+      )
+      return rememberedVaultEncryptionKeyByteValues ? Uint8Array.from(rememberedVaultEncryptionKeyByteValues) : null
+    },
+    forgetRememberedDesktopVaultEncryptionKey: (papelizVaultId) =>
+      invoke<void>(papelizDesktopRustCommandNames.forgetRememberedVaultEncryptionKey, { papelizVaultId }),
   }
   return { papelizDesktopPlatformAvailability: 'in-the-desktop-app', papelizDesktopPlatform }
 }
