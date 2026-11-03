@@ -272,39 +272,3 @@ export function stripPapelizAssistantImageMetadata(imageFileBytes: Uint8Array): 
   }
   return { imageFileFormat, strippedImageFileBytes, removedImageMetadataNames }
 }
-
-// Each piece's name in plain words, once and when there are several.
-const papelizImageMetadataPlainNames: Readonly<Record<string, readonly [string, string]>> = {
-  'C2PA (caBX)': ['C2PA content credentials', 'C2PA content credentials'],
-  'C2PA (JUMBF)': ['C2PA content credentials', 'C2PA content credentials'],
-  C2PA: ['C2PA content credentials', 'C2PA content credentials'],
-  EXIF: ['EXIF', 'EXIF'],
-  eXIf: ['EXIF', 'EXIF'],
-  XMP: ['XMP', 'XMP'],
-  'XMP (iTXt)': ['XMP', 'XMP'],
-  IPTC: ['IPTC', 'IPTC'],
-  tEXt: ['a text chunk', 'text chunks'],
-  zTXt: ['a text chunk', 'text chunks'],
-  iTXt: ['a text chunk', 'text chunks'],
-  comment: ['a comment', 'comments'],
-  tIME: ['the date', 'the date'],
-}
-
-// "C2PA content credentials, 2 text chunks, EXIF and the date", for the line under a cleaned picture.
-export function describePapelizRemovedImageMetadata(removedImageMetadataNames: readonly string[]): string {
-  if (removedImageMetadataNames.length === 0) return 'No metadata found'
-  const countsByPlainName = new Map<readonly [string, string], number>()
-  for (const removedImageMetadataName of removedImageMetadataNames) {
-    const plainNames = papelizImageMetadataPlainNames[removedImageMetadataName] ?? [removedImageMetadataName, removedImageMetadataName]
-    const sharedPlainNames = [...countsByPlainName.keys()].find((countedPlainNames) => countedPlainNames[0] === plainNames[0]) ?? plainNames
-    countsByPlainName.set(sharedPlainNames, (countsByPlainName.get(sharedPlainNames) ?? 0) + 1)
-  }
-  const describedNames = [...countsByPlainName].map(([[singularPlainName, pluralPlainName], plainNameCount]) =>
-    plainNameCount === 1 || singularPlainName === pluralPlainName ? singularPlainName : `${plainNameCount} ${pluralPlainName}`,
-  )
-  return describedNames.length === 1 ? describedNames[0]! : `${describedNames.slice(0, -1).join(', ')} and ${describedNames[describedNames.length - 1]}`
-}
-
-export function hasPapelizContentCredentials(imageMetadataNames: readonly string[]): boolean {
-  return imageMetadataNames.some((imageMetadataName) => imageMetadataName.startsWith('C2PA'))
-}

@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  describePapelizRemovedImageMetadata,
   detectPapelizAssistantImageFileFormat,
-  hasPapelizContentCredentials,
   listPapelizAssistantImageMetadataNames,
   PapelizAssistantImageMetadataStripError,
   stripPapelizAssistantImageMetadata,
@@ -150,7 +148,6 @@ describe('Remove Metadata', () => {
 
   it('takes C2PA, text, XMP, EXIF and the date out of a PNG and keeps its picture and color', () => {
     const testPngBytes = buildTestPngWithMetadata()
-    expect(hasPapelizContentCredentials(listPapelizAssistantImageMetadataNames(testPngBytes))).toBe(true)
     const pngStripResult = stripPapelizAssistantImageMetadata(testPngBytes)
     expect(pngStripResult.imageFileFormat).toBe('png')
     expect(pngStripResult.removedImageMetadataNames).toEqual(['C2PA (caBX)', 'tEXt', 'XMP (iTXt)', 'eXIf', 'tIME'])
@@ -194,12 +191,5 @@ describe('Remove Metadata', () => {
     const testWebpBytes = buildTestWebpWithMetadata()
     expect(() => stripPapelizAssistantImageMetadata(testWebpBytes.subarray(0, testWebpBytes.length - 30))).toThrow(PapelizAssistantImageMetadataStripError)
     expect(() => stripPapelizAssistantImageMetadata(latin1Bytes('GIF89a not a supported picture'))).toThrow('Only PNG, JPEG and WebP')
-  })
-
-  it('says what was removed in plain words', () => {
-    expect(describePapelizRemovedImageMetadata(['C2PA (caBX)', 'tEXt', 'XMP (iTXt)', 'eXIf', 'tIME'])).toBe('C2PA content credentials, a text chunk, XMP, EXIF and the date')
-    expect(describePapelizRemovedImageMetadata(['tEXt', 'zTXt', 'comment'])).toBe('2 text chunks and a comment')
-    expect(describePapelizRemovedImageMetadata(['EXIF'])).toBe('EXIF')
-    expect(describePapelizRemovedImageMetadata([])).toBe('No metadata found')
   })
 })

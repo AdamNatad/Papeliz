@@ -1,7 +1,7 @@
 import { ImagePlus } from 'lucide-react'
 import { usePapelizChatImagineStore } from './papeliz-assistant-chat-imagine-store'
 import { usePapelizImagineStore } from './papeliz-assistant-imagine-store'
-import { PapelizImaginePictureCard } from './papeliz-assistant-imagine-picture-card'
+import { PapelizImaginePictureCard, readPapelizImaginePictureColumnsClassName } from './papeliz-assistant-imagine-picture-card'
 import { PapelizAssistantMediaNoteDiffCard, PapelizAssistantMediaProblemLine } from './papeliz-assistant-media-parts'
 
 interface PapelizAssistantChatImaginePicturesProps {
@@ -37,7 +37,7 @@ export function PapelizAssistantChatImaginePictures({ chatImagineRunId, imagineP
       ) : chatImagineRun.chatImagineRunStage === 'failed' ? (
         <PapelizAssistantMediaProblemLine>{chatImagineRun.chatImagineRunProblem}</PapelizAssistantMediaProblemLine>
       ) : (
-        <ul aria-label="Pictures" className="grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-2.5">
+        <ul aria-label="Pictures" className={`grid gap-x-3 gap-y-5 ${readPapelizImaginePictureColumnsClassName(runImaginePictures.length)}`}>
           {runImaginePictures.map((imaginePicture) => (
             <PapelizImaginePictureCard key={imaginePicture.imaginePictureId} imaginePicture={imaginePicture} />
           ))}

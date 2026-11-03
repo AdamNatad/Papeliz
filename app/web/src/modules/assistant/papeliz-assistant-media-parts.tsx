@@ -1,4 +1,4 @@
-import { Check, CircleAlert, FilePlus, FileText, X } from 'lucide-react'
+import { Check, CircleAlert, FilePlus, FileText, Info, X } from 'lucide-react'
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { PapelizIconButton, PapelizPillButton } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
@@ -36,8 +36,11 @@ interface PapelizAssistantMediaSwitchProps {
   mediaSwitchLabel: string
   // Shown on hover: what the switch does, when the label alone doesn't say.
   mediaSwitchTitle?: string
-  // The app's tooltip bubble instead of the browser's title, on hover and on keyboard focus.
+  // The app's tooltip bubble instead of the browser's title, on hover and on keyboard focus; an ⓘ
+  // after the label says it is there.
   mediaSwitchTooltip?: PapelizAssistantMediaSwitchTooltip
+  // The track at the end, after the label, for a switch that sits at the right of its line.
+  isMediaSwitchTrackAfterLabel?: boolean
   isMediaSwitchOn: boolean
   isMediaSwitchDisabled?: boolean
   onMediaSwitchToggle: (isMediaSwitchOn: boolean) => void
@@ -47,6 +50,7 @@ export function PapelizAssistantMediaSwitch({
   mediaSwitchLabel,
   mediaSwitchTitle,
   mediaSwitchTooltip,
+  isMediaSwitchTrackAfterLabel = false,
   isMediaSwitchOn,
   isMediaSwitchDisabled = false,
   onMediaSwitchToggle,
@@ -60,6 +64,15 @@ export function PapelizAssistantMediaSwitch({
     setPointerOverTooltipAnchorElement(null)
     setKeyboardFocusedTooltipAnchorElement(null)
   }, [])
+  const mediaSwitchTrack = (
+    <span
+      aria-hidden="true"
+      className={joinPapelizClassNames(
+        'relative h-4 w-7 flex-none rounded-full transition-colors after:absolute after:top-0.5 after:size-3 after:rounded-full after:bg-white after:shadow-[0_1px_2px_rgb(17_17_18/0.25)] after:transition-[left] after:duration-150',
+        isMediaSwitchOn ? 'bg-papeliz-blue after:left-3.5' : 'bg-papeliz-line-strong after:left-0.5',
+      )}
+    />
+  )
 
   return (
     // The hover sits on a wrapper, so the tooltip still shows once the switch is disabled.
@@ -77,19 +90,24 @@ export function PapelizAssistantMediaSwitch({
         disabled={isMediaSwitchDisabled}
         onClick={() => onMediaSwitchToggle(!isMediaSwitchOn)}
         onFocus={(focusEvent) => {
-          if (mediaSwitchTooltip !== undefined && focusEvent.currentTarget.matches(':focus-visible')) setKeyboardFocusedTooltipAnchorElement(focusEvent.currentTarget.parentElement)
+          if (mediaSwitchTooltip === undefined || !focusEvent.currentTarget.matches(':focus-visible')) return
+          // Focus can scroll the switch into view, and the bubble closes on a scroll, so it shows a frame
+          // later, once that scroll's event has passed.
+          const focusedMediaSwitchElement = focusEvent.currentTarget
+          requestAnimationFrame(() => {
+            if (document.activeElement === focusedMediaSwitchElement) setKeyboardFocusedTooltipAnchorElement(focusedMediaSwitchElement.parentElement)
+          })
         }}
         onBlur={() => setKeyboardFocusedTooltipAnchorElement(null)}
-        className="inline-flex min-h-6 items-center gap-2 rounded-full pr-1 text-[12.5px] font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-papeliz-blue disabled:opacity-50"
+        className={joinPapelizClassNames(
+          'inline-flex min-h-6 items-center rounded-full text-[12.5px] font-medium whitespace-nowrap focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-papeliz-blue disabled:opacity-50',
+          isMediaSwitchTrackAfterLabel ? 'gap-1.5 pl-1' : 'gap-2 pr-1',
+        )}
       >
-        <span
-          aria-hidden="true"
-          className={joinPapelizClassNames(
-            'relative h-4 w-7 flex-none rounded-full transition-colors after:absolute after:top-0.5 after:size-3 after:rounded-full after:bg-white after:shadow-[0_1px_2px_rgb(17_17_18/0.25)] after:transition-[left] after:duration-150',
-            isMediaSwitchOn ? 'bg-papeliz-blue after:left-3.5' : 'bg-papeliz-line-strong after:left-0.5',
-          )}
-        />
+        {!isMediaSwitchTrackAfterLabel && mediaSwitchTrack}
         {mediaSwitchLabel}
+        {mediaSwitchTooltip !== undefined && <Info className="size-3.5 flex-none text-papeliz-ink-subtle" aria-hidden="true" />}
+        {isMediaSwitchTrackAfterLabel && mediaSwitchTrack}
       </button>
       {mediaSwitchTooltip !== undefined && (
         <span id={mediaSwitchTooltipDescriptionId} className="sr-only">
@@ -126,16 +144,24 @@ const papelizRemoveMetadataTooltip: PapelizAssistantMediaSwitchTooltip = {
 interface PapelizAssistantRemoveMetadataSwitchProps {
   isRemoveMetadataOn: boolean
   isRemoveMetadataSwitchDisabled?: boolean
+  // At the right end of a picture's model line, the track goes last.
+  isRemoveMetadataSwitchTrackAfterLabel?: boolean
   onRemoveMetadataToggle: (isRemoveMetadataOn: boolean) => void
 }
 
 // Remove Metadata on a picture in Draw, Gallery, the chat and a note's Imagine and Edit Picture cards,
 // with a tooltip that says what it removes.
-export function PapelizAssistantRemoveMetadataSwitch({ isRemoveMetadataOn, isRemoveMetadataSwitchDisabled = false, onRemoveMetadataToggle }: PapelizAssistantRemoveMetadataSwitchProps) {
+export function PapelizAssistantRemoveMetadataSwitch({
+  isRemoveMetadataOn,
+  isRemoveMetadataSwitchDisabled = false,
+  isRemoveMetadataSwitchTrackAfterLabel = false,
+  onRemoveMetadataToggle,
+}: PapelizAssistantRemoveMetadataSwitchProps) {
   return (
     <PapelizAssistantMediaSwitch
       mediaSwitchLabel="Remove Metadata"
       mediaSwitchTooltip={papelizRemoveMetadataTooltip}
+      isMediaSwitchTrackAfterLabel={isRemoveMetadataSwitchTrackAfterLabel}
       isMediaSwitchOn={isRemoveMetadataOn}
       isMediaSwitchDisabled={isRemoveMetadataSwitchDisabled}
       onMediaSwitchToggle={onRemoveMetadataToggle}

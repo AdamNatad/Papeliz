@@ -16,7 +16,7 @@ import {
   listPapelizAssistantImageAspectRatioChoices,
   resolvePapelizAssistantImageAspectRatioChoice,
 } from './papeliz-assistant-image-aspect-ratios'
-import { PapelizImaginePictureCard, PapelizImaginePictureInsertionCard } from './papeliz-assistant-imagine-picture-card'
+import { PapelizImaginePictureCard, PapelizImaginePictureInsertionCard, readPapelizImaginePictureColumnsClassName } from './papeliz-assistant-imagine-picture-card'
 import { usePapelizImagineSectionStore } from './papeliz-assistant-imagine-sections'
 import {
   describePapelizImagineMakingLine,
@@ -97,7 +97,7 @@ function PapelizImagineDrawThreadEntryView({ imagineThreadEntry, isDrawThreadEnt
       ) : entryProblem !== null ? (
         <PapelizAssistantMediaProblemLine>{entryProblem}</PapelizAssistantMediaProblemLine>
       ) : (
-        <ul aria-label="Pictures" className="grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-2.5">
+        <ul aria-label="Pictures" className={joinPapelizClassNames('grid gap-x-3 gap-y-5', readPapelizImaginePictureColumnsClassName(entryImaginePictures.length))}>
           {entryImaginePictures.map((imaginePicture) => (
             <PapelizImaginePictureCard key={imaginePicture.imaginePictureId} imaginePicture={imaginePicture} />
           ))}

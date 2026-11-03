@@ -57,7 +57,7 @@ export function PapelizImagineGallerySection({ isPictureDraggedOverSection }: { 
       ) : (
         <>
           {isInsertionPictureShown && imaginePictureInsertion !== null && <PapelizImaginePictureInsertionCard imaginePictureInsertion={imaginePictureInsertion} />}
-          <ul aria-label="Gallery" className="grid grid-cols-[repeat(auto-fill,minmax(10rem,1fr))] gap-2.5">
+          <ul aria-label="Gallery" className="grid grid-cols-[repeat(auto-fill,minmax(10rem,1fr))] gap-x-3 gap-y-5">
             {imaginePictures.map((imaginePicture) => {
               const { galleryPictureCaption, drawThreadEntryId } = describePapelizImagineGalleryPicture(imaginePicture, imagineThreadEntries)
               return (

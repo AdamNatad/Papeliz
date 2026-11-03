@@ -2,7 +2,6 @@ import { ArrowUp, Check, FileAudio, ImagePlus, Lock, Mic, Paintbrush, RotateCw, 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { PapelizPillButton } from '../ui/papeliz-buttons'
 import { formatPapelizAudioDuration, isPapelizAudioRecordingAvailable, papelizMicrophoneFirstAskSentence } from './papeliz-assistant-audio-recording'
-import { describePapelizRemovedImageMetadata } from './papeliz-assistant-image-metadata-strip'
 import { usePapelizImagineStore } from './papeliz-assistant-imagine-store'
 import { usePapelizInlineEditStore } from './papeliz-assistant-inline-edit-store'
 import { usePapelizInlineMediaStore } from './papeliz-assistant-inline-media-store'
@@ -86,12 +85,6 @@ export function PapelizAssistantInlineMediaCardBody() {
 
   if (inlineMediaAction === null) return null
   const isImagine = inlineMediaAction === 'imagine'
-  const metadataLine =
-    inlineImaginePicture === undefined || inlineImaginePicture.imaginePictureMetadataNames === null
-      ? null
-      : inlineImaginePicture.imaginePictureMetadataNames.length === 0
-        ? 'No metadata found.'
-        : `Carries ${describePapelizRemovedImageMetadata(inlineImaginePicture.imaginePictureMetadataNames)}. ${inlineImaginePicture.isRemoveMetadataOn ? 'Removed when saved.' : 'Kept when saved.'}`
 
   const isPictureAction = inlineMediaAction === 'describe-picture' || inlineMediaAction === 'edit-picture'
 
@@ -240,7 +233,6 @@ export function PapelizAssistantInlineMediaCardBody() {
               />
               <div className="flex min-w-[12rem] flex-1 flex-col gap-1">
                 <PapelizAssistantRemoveMetadataSwitch isRemoveMetadataOn={inlineImaginePicture.isRemoveMetadataOn} onRemoveMetadataToggle={setInlinePictureRemoveMetadata} />
-                {metadataLine !== null && <p className="text-[12px] leading-snug text-papeliz-ink-subtle">{metadataLine}</p>}
               </div>
             </div>
           )}

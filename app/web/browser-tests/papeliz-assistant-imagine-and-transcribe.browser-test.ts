@@ -118,7 +118,13 @@ async function playTestMetaProvider(page: Page): Promise<{ testProviderRequests:
       if (providerRequestBodyText.includes(testTurnedDownPromptText)) {
         return route.fulfill({ status: 400, headers: testProviderCorsHeaders, json: { error: { message: 'The test provider turned this prompt down.' } } })
       }
-      return route.fulfill({ status: 200, headers: testProviderCorsHeaders, json: { data: [{ b64_json: buildTestPictureWithContentCredentials().toString('base64') }] } })
+      // As many pictures as the request's `n` asks for.
+      const requestedPictureCount = Number((JSON.parse(providerRequestBodyText.length > 0 ? providerRequestBodyText : '{}') as { n?: number }).n ?? 1)
+      return route.fulfill({
+        status: 200,
+        headers: testProviderCorsHeaders,
+        json: { data: Array.from({ length: requestedPictureCount }, () => ({ b64_json: buildTestPictureWithContentCredentials().toString('base64') })) },
+      })
     }
     if (providerRequestPath === 'images/edits') {
       return route.fulfill({ status: 200, headers: testProviderCorsHeaders, json: { data: [{ b64_json: buildTestPictureWithContentCredentials([0xd4, 0x20, 0x20]).toString('base64') }] } })
@@ -203,6 +209,27 @@ async function scrollNoteBy(page: Page, scrolledPixels: number): Promise<void> {
     }, scrolledPixels)
 }
 
+interface PapelizTestElementBox {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+// Where each element is, all read in the same frame, so a new entry still settling into the thread can't
+// skew a comparison between them.
+async function readElementBoxesInOneFrame(page: Page, boxedElementLocators: readonly Locator[]): Promise<PapelizTestElementBox[]> {
+  const boxedElementHandles = await Promise.all(boxedElementLocators.map((boxedElementLocator) => boxedElementLocator.elementHandle()))
+  return page.evaluate(
+    (boxedElements) =>
+      boxedElements.map((boxedElement) => {
+        const boxedElementRect = boxedElement!.getBoundingClientRect()
+        return { x: boxedElementRect.x, y: boxedElementRect.y, width: boxedElementRect.width, height: boxedElementRect.height }
+      }),
+    boxedElementHandles,
+  )
+}
+
 // In MD Code: selects the whole line holding `lineText`, then opens Edit with Assistant (Ctrl+K).
 async function openInlineCardOnLine(page: Page, lineText: string): Promise<Locator> {
   await page.locator('.cm-line', { hasText: lineText }).first().click()
@@ -231,7 +258,7 @@ test('Imagine from the chat box: the picture shows in the chat, and Put in Note 
   const chatPicture = chatPictures.getByRole('img', { name: 'A blue square on white paper' })
   await expect(chatPicture).toBeVisible()
   await expect.poll(() => chatPicture.evaluate((pictureElement: HTMLImageElement) => pictureElement.naturalWidth)).toBe(16)
-  await expect(chatPictures.getByText('Carries C2PA content credentials and a text chunk. Removed when saved.')).toBeVisible()
+  await expect(chatPictures.getByRole('switch', { name: 'Remove Metadata' })).toHaveAttribute('aria-checked', 'true')
   const imagesRequest = testProviderRequests.find((providerRequest) => providerRequest.providerRequestPath === 'images/generations')
   expect(imagesRequest?.providerRequestAuthorization).toBe(`Bearer ${testProviderApiKey}`)
   expect(JSON.parse(imagesRequest?.providerRequestBodyText ?? '{}')).toMatchObject({ model: 'muse-image-1.0', prompt: 'A blue square on white paper', n: 1, response_format: 'b64_json' })
@@ -246,7 +273,7 @@ test('Imagine from the chat box: the picture shows in the chat, and Put in Note 
   await page.getByRole('button', { name: 'MD Code', exact: true }).click()
   await expect(noteEditorContent).toContainText('![A blue square on white paper](Attachments/imagine-')
   expect(await noteEditorContent.locator('.cm-line').first().textContent()).toBe('---')
-  await expect(chatPictures.getByText('Saved without C2PA content credentials and a text chunk.')).toBeVisible()
+  await expect(chatPictures.getByText(/^In the vault: imagine-/)).toBeVisible()
   expectPictureCleaned(await readBlobPictureBytes(page, (await chatPicture.getAttribute('src')) ?? ''))
 
   // The Imagine tab's thread keeps every picture made, wherever it was made.
@@ -284,7 +311,22 @@ test('the Imagine tab is a thread: an example fills the box, Enter sends, and th
   const foxEntry = assistantPanel.getByRole('region', { name: /^Imagine: A red fox\s+in snow$/ })
   const foxPicture = foxEntry.getByRole('img', { name: /^A red fox\s+in snow$/ })
   await expect(foxPicture).toBeVisible()
-  await expect(foxEntry.getByText('Carries C2PA content credentials and a text chunk. Removed when saved.')).toBeVisible()
+  // One picture takes the reply column's whole width, with no box and no line about what it carries:
+  // the model on the left and Remove Metadata at the right of one line.
+  const foxCard = foxEntry.getByRole('listitem')
+  const foxRemoveMetadataSwitch = foxCard.getByRole('switch', { name: 'Remove Metadata' })
+  await expect(foxRemoveMetadataSwitch).toHaveAttribute('aria-checked', 'true')
+  await expect(foxCard.getByText('C2PA', { exact: true })).toHaveCount(0)
+  await expect(foxCard.getByText(/^Carries /)).toHaveCount(0)
+  const [foxPicturesListBox, foxCardBox, foxModelLineBox, foxRemoveMetadataSwitchBox] = await readElementBoxesInOneFrame(page, [
+    foxEntry.getByRole('list', { name: 'Pictures' }),
+    foxCard,
+    foxCard.getByText('muse-image-1.0 · Meta Model API'),
+    foxRemoveMetadataSwitch,
+  ])
+  expect(foxCardBox!.width).toBeGreaterThan(foxPicturesListBox!.width - 1)
+  expect(Math.abs(foxModelLineBox!.y + foxModelLineBox!.height / 2 - (foxRemoveMetadataSwitchBox!.y + foxRemoveMetadataSwitchBox!.height / 2))).toBeLessThan(6)
+  expect(foxCardBox!.x + foxCardBox!.width - (foxRemoveMetadataSwitchBox!.x + foxRemoveMetadataSwitchBox!.width)).toBeLessThan(8)
   expect(JSON.parse(testProviderRequests.find((providerRequest) => providerRequest.providerRequestPath === 'images/generations')?.providerRequestBodyText ?? '{}')).toMatchObject({
     model: 'muse-image-1.0',
     prompt: 'A red fox\nin snow',
@@ -313,7 +355,7 @@ test('the Imagine tab is a thread: an example fills the box, Enter sends, and th
   await expect(pictureDiffCard.locator('.papeliz-text-diff-added')).toContainText('](Attachments/imagine-')
   await pictureDiffCard.getByRole('button', { name: 'Accept', exact: true }).click()
   await expect(pictureDiffCard).toBeHidden()
-  await expect(foxEntry.getByText('Saved without C2PA content credentials and a text chunk.')).toBeVisible()
+  await expect(foxEntry.getByText(/^In the vault: imagine-/)).toBeVisible()
   expectPictureCleaned(await readBlobPictureBytes(page, (await foxPicture.getAttribute('src')) ?? ''))
   await page.getByRole('button', { name: 'MD Code', exact: true }).click()
   await expect(page.locator('.cm-content').first()).toContainText('](Attachments/imagine-')
@@ -516,10 +558,11 @@ test('a picture in Draw opens in a lightbox by mouse and by keyboard, and its ca
   await foxCard.scrollIntoViewIfNeeded()
 
   // Put in Note and Save to Vault fill the card's width, one under the other.
-  const foxCardBox = await foxCard.boundingBox()
-  const putInNoteBox = await foxCard.getByRole('button', { name: 'Put in Note' }).boundingBox()
-  const saveToVaultBox = await foxCard.getByRole('button', { name: 'Save to Vault' }).boundingBox()
-  expect(foxCardBox !== null && putInNoteBox !== null && saveToVaultBox !== null).toBe(true)
+  const [foxCardBox, putInNoteBox, saveToVaultBox] = await readElementBoxesInOneFrame(page, [
+    foxCard,
+    foxCard.getByRole('button', { name: 'Put in Note' }),
+    foxCard.getByRole('button', { name: 'Save to Vault' }),
+  ])
   expect(putInNoteBox!.width).toBeGreaterThan(foxCardBox!.width - 20)
   expect(Math.abs(saveToVaultBox!.width - putInNoteBox!.width)).toBeLessThan(1)
   expect(saveToVaultBox!.y).toBeGreaterThanOrEqual(putInNoteBox!.y + putInNoteBox!.height)
@@ -545,7 +588,9 @@ test('a picture in Draw opens in a lightbox by mouse and by keyboard, and its ca
   await expect(removeMetadataTooltip).toBeHidden()
 
   // Pressed, the picture opens over the page, larger than on the card and inside the window, with the
-  // card's actions under it; the page behind doesn't scroll.
+  // card's actions under it; the page behind doesn't scroll. The picture is scrolled fully into view
+  // first, so the click itself has nothing to scroll.
+  await foxPictureButton.scrollIntoViewIfNeeded()
   const foxCardPictureBox = await foxCard.getByRole('img').boundingBox()
   const drawThreadScrollBefore = await readDrawThreadScroll(foxEntry)
   expect(drawThreadScrollBefore.isDrawThreadScrollable).toBe(true)
@@ -600,6 +645,25 @@ test('a picture in Draw opens in a lightbox by mouse and by keyboard, and its ca
   await pictureLightbox.getByRole('button', { name: 'Put in Note' }).click()
   await expect(pictureLightbox).toBeHidden()
   await expect(foxEntry.getByRole('region', { name: 'Change to Start here' })).toBeVisible()
+
+  // Two pictures from one prompt share the column's width, side by side.
+  const aspectRatioChip = assistantPanel.getByRole('button', { name: /^Aspect ratio: / })
+  await aspectRatioChip.click()
+  await page.getByRole('menu', { name: 'Aspect Ratio and Pictures' }).getByRole('menuitemradio', { name: '2 Pictures' }).click()
+  await expect(aspectRatioChip).toHaveAccessibleName('Aspect ratio: 1:1, 2 pictures')
+  const promptBox = assistantPanel.getByRole('textbox', { name: 'Describe a picture' })
+  await promptBox.fill('Two red foxes')
+  await promptBox.press('Enter')
+  const twoFoxesPicturesList = assistantPanel.getByRole('region', { name: 'Imagine: Two red foxes' }).getByRole('list', { name: 'Pictures' })
+  await expect(twoFoxesPicturesList.getByRole('listitem')).toHaveCount(2)
+  const [twoFoxesPicturesListBox, firstFoxCardBox, secondFoxCardBox] = await readElementBoxesInOneFrame(page, [
+    twoFoxesPicturesList,
+    twoFoxesPicturesList.getByRole('listitem').nth(0),
+    twoFoxesPicturesList.getByRole('listitem').nth(1),
+  ])
+  expect(secondFoxCardBox!.y).toBeCloseTo(firstFoxCardBox!.y, 0)
+  expect(secondFoxCardBox!.x).toBeGreaterThan(firstFoxCardBox!.x + firstFoxCardBox!.width)
+  expect(firstFoxCardBox!.width + secondFoxCardBox!.width).toBeGreaterThan(twoFoxesPicturesListBox!.width - 20)
   expect(refusedOutsideRequestUrls).toEqual([])
 })
 
@@ -658,9 +722,9 @@ test('a picture brought into Imagine with Remove Metadata off is saved as it cam
   await expect(broughtInEntry.getByText('Brought in: diagram.png')).toBeVisible()
   await expect(broughtInEntry.getByRole('img', { name: 'diagram.png' })).toBeVisible()
   await assistantPanel.getByRole('switch', { name: 'Remove Metadata' }).click()
-  await expect(assistantPanel.getByText('Carries C2PA content credentials and a text chunk. Kept when saved.')).toBeVisible()
+  await expect(assistantPanel.getByRole('switch', { name: 'Remove Metadata' })).toHaveAttribute('aria-checked', 'false')
   await assistantPanel.getByRole('button', { name: 'Save to Vault' }).click()
-  await expect(assistantPanel.getByText('Saved as it came, metadata and all.')).toBeVisible()
+  await expect(assistantPanel.getByRole('switch', { name: 'Remove Metadata' })).toBeDisabled()
   await expect(assistantPanel.getByText(/^In the vault: picture-\d{4}-\d{2}-\d{2}-\d{4}-diagram\.png$/)).toBeVisible()
   const savedPictureBytes = await readBlobPictureBytes(page, (await assistantPanel.getByRole('img', { name: 'diagram.png' }).getAttribute('src')) ?? '')
   expect(savedPictureBytes.includes(Buffer.from(testC2paManifestText, 'latin1'))).toBe(true)

@@ -8,8 +8,8 @@ interface PapelizImaginePictureLightboxProps {
   imaginePicture: PapelizImaginePicture
   // The prompt the picture came from, or "Brought in: name.png", in full.
   pictureLightboxCaption: string
-  // The model and what the picture carries, as the card says it.
-  pictureLightboxDetailLine: string
+  // The model that made the picture and its provider, or "Brought in".
+  pictureLightboxModelLine: string
   // The card's own Put in Note and Save to Vault, so they stay in reach.
   pictureLightboxActionButtons: ReactNode
   // Gallery's pictures also offer Show in Draw.
@@ -23,7 +23,7 @@ interface PapelizImaginePictureLightboxProps {
 export function PapelizImaginePictureLightbox({
   imaginePicture,
   pictureLightboxCaption,
-  pictureLightboxDetailLine,
+  pictureLightboxModelLine,
   pictureLightboxActionButtons,
   showInDrawThreadEntryId,
   onPictureLightboxClose,
@@ -60,16 +60,18 @@ export function PapelizImaginePictureLightbox({
           </PapelizIconButton>
         </div>
         <div data-papeliz-picture-lightbox-backdrop="true" className="flex min-h-0 w-full flex-1 items-center justify-center">
+          {/* A small picture grows to 28rem, or the room there is, so the lightbox never shows it smaller
+              than its card does. */}
           <img
             src={imaginePicture.imaginePicturePreviewUrl}
             alt={imaginePicture.imaginePictureDescriptionText}
-            className="max-h-full max-w-full min-w-[min(100%,18rem)] rounded-xl object-contain"
+            className="max-h-full min-h-[min(100%,28rem)] max-w-full min-w-[min(100%,28rem)] rounded-xl object-contain"
             draggable={false}
           />
         </div>
         <div className="flex w-full max-w-[40rem] flex-none flex-col gap-2 rounded-2xl bg-papeliz-surface p-3 shadow-papeliz-pop">
           <p className="papeliz-selectable-text max-h-[4.5rem] overflow-y-auto text-[14px] leading-snug break-words whitespace-pre-wrap">{pictureLightboxCaption}</p>
-          <p className="text-[12px] leading-snug text-papeliz-ink-muted">{pictureLightboxDetailLine}</p>
+          <p className="text-[12px] leading-snug text-papeliz-ink-muted">{pictureLightboxModelLine}</p>
           <div className="grid grid-cols-1 gap-2 sm:auto-cols-fr sm:grid-flow-col">
             {pictureLightboxActionButtons}
             {showInDrawThreadEntryId !== null && (

@@ -1,28 +1,16 @@
 import { FileInput, Save, Trash2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { PapelizIconButton, PapelizPillButton } from '../ui/papeliz-buttons'
-import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { getVaultEntryName } from '../vault/papeliz-vault-relative-paths'
 import { selectActiveVaultMarkdownNoteRelativePath, usePapelizWorkspaceStore } from '../workspace/papeliz-workspace-store'
-import { describePapelizRemovedImageMetadata, hasPapelizContentCredentials } from './papeliz-assistant-image-metadata-strip'
 import { PapelizImaginePictureLightbox } from './papeliz-assistant-imagine-picture-lightbox'
 import { usePapelizImagineStore, type PapelizImaginePicture, type PapelizImaginePictureInsertion } from './papeliz-assistant-imagine-store'
 import { PapelizAssistantMediaNoteDiffCard, PapelizAssistantMediaProblemLine, PapelizAssistantRemoveMetadataSwitch } from './papeliz-assistant-media-parts'
 
-// What a picture carries, and what Remove Metadata does with it, in one line under the picture.
-export function describePapelizImaginePictureMetadataLine(imaginePicture: PapelizImaginePicture): string {
-  if (imaginePicture.removedMetadataNamesWhenSaved !== null) {
-    return imaginePicture.removedMetadataNamesWhenSaved.length > 0
-      ? `Saved without ${describePapelizRemovedImageMetadata(imaginePicture.removedMetadataNamesWhenSaved)}.`
-      : imaginePicture.isRemoveMetadataOn
-        ? 'Saved. It carried no metadata.'
-        : 'Saved as it came, metadata and all.'
-  }
-  const imaginePictureMetadataNames = imaginePicture.imaginePictureMetadataNames
-  if (imaginePictureMetadataNames === null) return 'This picture can’t be read to clean it, so it can’t be saved cleaned.'
-  if (imaginePictureMetadataNames.length === 0) return 'No metadata found.'
-  const metadataDescription = describePapelizRemovedImageMetadata(imaginePictureMetadataNames)
-  return imaginePicture.isRemoveMetadataOn ? `Carries ${metadataDescription}. Removed when saved.` : `Carries ${metadataDescription}. Kept when saved.`
+// How many pictures sit side by side in Draw's thread and the chat: one picture takes the reply
+// column's whole width, two or more share it in two columns.
+export function readPapelizImaginePictureColumnsClassName(imaginePictureCount: number): string {
+  return imaginePictureCount > 1 ? 'grid-cols-2' : 'grid-cols-1'
 }
 
 interface PapelizImaginePictureActionButtonsProps {
@@ -96,8 +84,8 @@ export function PapelizImaginePictureCard({ imaginePicture, pictureCardCaption, 
   const pictureLightboxOpenButtonRef = useRef<HTMLButtonElement>(null)
   // A brought-in picture's caption already says so.
   const pictureModelLine = imaginePicture.imaginePictureModelLabel ?? (pictureCardCaption === undefined ? 'Brought in' : '')
-  const isContentCredentialsCarried = hasPapelizContentCredentials(imaginePicture.imaginePictureMetadataNames ?? [])
-  const pictureMetadataLine = describePapelizImaginePictureMetadataLine(imaginePicture)
+  // A damaged file can't be cleaned, so Save waits until Remove Metadata is off; this says why.
+  const isPictureUnreadableForCleaning = imaginePicture.imaginePictureMetadataNames === null && imaginePicture.savedVaultFileRelativePath === null
   const closePictureLightbox = () => {
     setIsPictureLightboxOpen(false)
     // Focus goes back to the picture that opened it, once the dialog has let go of it.
@@ -106,10 +94,10 @@ export function PapelizImaginePictureCard({ imaginePicture, pictureCardCaption, 
 
   return (
     <li
-      className="flex min-w-0 flex-col gap-2 rounded-2xl bg-papeliz-surface p-2 shadow-[inset_0_0_0_1px_var(--color-papeliz-line)]"
+      className="flex min-w-0 flex-col gap-2"
       aria-label={imaginePicture.imaginePictureOrigin === 'generated' ? `Picture of ${imaginePicture.imaginePictureDescriptionText}` : imaginePicture.imaginePictureDescriptionText}
     >
-      <div className="relative overflow-hidden rounded-xl bg-papeliz-surface-soft">
+      <div className="relative overflow-hidden rounded-2xl bg-papeliz-surface-soft">
         <button
           ref={pictureLightboxOpenButtonRef}
           type="button"
@@ -133,26 +121,26 @@ export function PapelizImaginePictureCard({ imaginePicture, pictureCardCaption, 
           {pictureCardCaption}
         </p>
       )}
-      {(pictureModelLine.length > 0 || isContentCredentialsCarried) && (
-        <p className="truncate px-0.5 text-[12px] text-papeliz-ink-muted" title={imaginePicture.imaginePictureModelLabel ?? imaginePicture.imaginePictureDescriptionText}>
-          {pictureModelLine}
-          {isContentCredentialsCarried && (
-            <span className={joinPapelizClassNames('rounded-full bg-papeliz-blue-soft px-1.5 py-px text-[11px] font-semibold text-papeliz-blue', pictureModelLine.length > 0 && 'ml-1.5')}>
-              C2PA
-            </span>
-          )}
-        </p>
-      )}
-      <div className="flex flex-col gap-1 px-0.5">
-        <PapelizAssistantRemoveMetadataSwitch
-          isRemoveMetadataOn={imaginePicture.isRemoveMetadataOn}
-          isRemoveMetadataSwitchDisabled={imaginePicture.savedVaultFileRelativePath !== null}
-          onRemoveMetadataToggle={(isRemoveMetadataOn) => setImaginePictureRemoveMetadata(imaginePicture.imaginePictureId, isRemoveMetadataOn)}
-        />
-        <p className="text-[11.5px] leading-snug text-papeliz-ink-subtle" aria-live="polite">
-          {pictureMetadataLine}
-        </p>
+      {/* The model on the left and Remove Metadata at the right, on one line: the model shortens with "…"
+          first, and only on a narrow column (two pictures side by side) does the switch move under it. */}
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-0.5">
+        {pictureModelLine.length > 0 && (
+          <p className="min-w-0 flex-[1_1_5rem] truncate text-[12px] text-papeliz-ink-muted" title={imaginePicture.imaginePictureModelLabel ?? imaginePicture.imaginePictureDescriptionText}>
+            {pictureModelLine}
+          </p>
+        )}
+        <span className="ml-auto flex-none">
+          <PapelizAssistantRemoveMetadataSwitch
+            isRemoveMetadataOn={imaginePicture.isRemoveMetadataOn}
+            isRemoveMetadataSwitchDisabled={imaginePicture.savedVaultFileRelativePath !== null}
+            isRemoveMetadataSwitchTrackAfterLabel
+            onRemoveMetadataToggle={(isRemoveMetadataOn) => setImaginePictureRemoveMetadata(imaginePicture.imaginePictureId, isRemoveMetadataOn)}
+          />
+        </span>
       </div>
+      {isPictureUnreadableForCleaning && (
+        <p className="px-0.5 text-[11.5px] leading-snug text-papeliz-ink-subtle">This picture can’t be read to clean it, so it can’t be saved cleaned.</p>
+      )}
       {imaginePicture.savedVaultFileRelativePath !== null && (
         <p className="truncate px-0.5 text-[11.5px] text-papeliz-ink-muted" title={imaginePicture.savedVaultFileRelativePath}>
           In the vault: {getVaultEntryName(imaginePicture.savedVaultFileRelativePath)}
@@ -169,7 +157,7 @@ export function PapelizImaginePictureCard({ imaginePicture, pictureCardCaption, 
             pictureCardCaption ??
             (imaginePicture.imaginePictureOrigin === 'brought-in' ? `Brought in: ${imaginePicture.imaginePictureDescriptionText}` : imaginePicture.imaginePictureDescriptionText)
           }
-          pictureLightboxDetailLine={`${imaginePicture.imaginePictureModelLabel ?? 'Brought in'} · ${pictureMetadataLine}`}
+          pictureLightboxModelLine={imaginePicture.imaginePictureModelLabel ?? 'Brought in'}
           pictureLightboxActionButtons={<PapelizImaginePictureActionButtons imaginePicture={imaginePicture} onPutInNoteStart={closePictureLightbox} />}
           showInDrawThreadEntryId={showInDrawThreadEntryId}
           onPictureLightboxClose={closePictureLightbox}
