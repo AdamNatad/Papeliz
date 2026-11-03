@@ -14,19 +14,24 @@ interface PapelizAssistantPanelProps {
   onAssistantPanelClose: () => void
 }
 
-const papelizAssistantModeChoices: ReadonlyArray<{
-  assistantMode: PapelizAssistantMode
-  assistantModeLabel: string
-  AssistantModeIcon: typeof PenLine
+// The switch at the top: the chat's three modes, then Imagine, which opens in place of the chat.
+type PapelizAssistantPanelSwitchChoice = PapelizAssistantMode | 'imagine'
+
+const papelizAssistantPanelSwitchChoices: ReadonlyArray<{
+  assistantPanelSwitchChoice: PapelizAssistantPanelSwitchChoice
+  assistantPanelSwitchLabel: string
+  AssistantPanelSwitchIcon: typeof PenLine
 }> = [
-  { assistantMode: 'ask', assistantModeLabel: 'Ask', AssistantModeIcon: MessageCircleQuestion },
-  { assistantMode: 'plan', assistantModeLabel: 'Plan', AssistantModeIcon: ListChecks },
-  { assistantMode: 'write', assistantModeLabel: 'Write', AssistantModeIcon: PenLine },
+  { assistantPanelSwitchChoice: 'ask', assistantPanelSwitchLabel: 'Ask', AssistantPanelSwitchIcon: MessageCircleQuestion },
+  { assistantPanelSwitchChoice: 'plan', assistantPanelSwitchLabel: 'Plan', AssistantPanelSwitchIcon: ListChecks },
+  { assistantPanelSwitchChoice: 'write', assistantPanelSwitchLabel: 'Write', AssistantPanelSwitchIcon: PenLine },
+  { assistantPanelSwitchChoice: 'imagine', assistantPanelSwitchLabel: 'Imagine', AssistantPanelSwitchIcon: ImagePlus },
 ]
 
-// The heading over each view that opens in place of the chat.
-const papelizAssistantPanelViewTitles: Readonly<Record<Exclude<PapelizAssistantPanelTab, 'chat'>, string>> = {
-  imagine: 'Imagine',
+// The views the header opens in place of the chat, and the heading over each.
+type PapelizAssistantPanelHeaderView = Exclude<PapelizAssistantPanelTab, 'chat' | 'imagine'>
+
+const papelizAssistantPanelHeaderViewTitles: Readonly<Record<PapelizAssistantPanelHeaderView, string>> = {
   sessions: 'Sessions',
   usage: 'Usage',
 }
@@ -35,20 +40,21 @@ const papelizAssistantPanelViewTitles: Readonly<Record<Exclude<PapelizAssistantP
 // header to 48 px) so a finger finds them.
 const papelizAssistantPanelHeaderButtonTouchClassName = 'max-md:pointer-coarse:size-10'
 
-// The line under the mode switch: what the mode does.
-function describeAssistantModeHint(assistantMode: PapelizAssistantMode, isBypassPermissionOn: boolean): string {
-  if (assistantMode === 'ask') return 'Answers from your notes and never changes them.'
-  if (assistantMode === 'plan') return 'Turn an idea into a step-by-step plan. Nothing changes until you press Write It.'
+// The line under the switch: what the mode does, or what Imagine keeps. Imagine's own view says how
+// its pictures are made, so this line doesn't repeat it.
+function describeAssistantPanelSwitchHint(assistantPanelSwitchChoice: PapelizAssistantPanelSwitchChoice, isBypassPermissionOn: boolean): string {
+  if (assistantPanelSwitchChoice === 'imagine') return 'Every picture made or brought in stays here, to make more, clean and save.'
+  if (assistantPanelSwitchChoice === 'ask') return 'Answers from your notes and never changes them.'
+  if (assistantPanelSwitchChoice === 'plan') return 'Turn an idea into a step-by-step plan. Nothing changes until you press Write It.'
   return isBypassPermissionOn ? 'Edits, adds and deletes notes. Bypass permission is on, so changes apply at once.' : 'Edits, adds and deletes notes. You review each change.'
 }
 
-// The docked AI Assistant panel, for the AI only. The chat answers in one of three modes, Ask, Plan
-// and Write, picked in the switch at the top. Imagine (every picture made or brought in, to make more,
-// clean and save), Sessions (every chat saved in this vault) and Usage (the tokens and cost the
-// assistant used here) open from the header, in place of the chat. The
-// open note's Outline and Backlinks are under the file list, as This note. The key button opens the
-// provider settings. Until a provider is set up, the chat shows the setup card and the box under it
-// offers to choose one.
+// The docked AI Assistant panel, for the AI only. The switch at the top has the chat's three modes,
+// Ask, Plan and Write, then Imagine (every picture made or brought in, to make more, clean and save),
+// which opens in place of the chat and leaves the mode as it was. Sessions (every chat saved in this
+// vault) and Usage (the tokens and cost the assistant used here) open from the header, in place of the
+// chat, with a way back to it. The open note's Outline and Backlinks are under the file list, as This
+// note. Until a provider is set up, the box under the chat offers to choose one.
 export function PapelizAssistantPanel({ onAssistantPanelClose }: PapelizAssistantPanelProps) {
   const assistantPanelTab = usePapelizAssistantPanelUiStore((panelUiState) => panelUiState.assistantPanelTab)
   const setAssistantPanelTab = usePapelizAssistantPanelUiStore((panelUiState) => panelUiState.setAssistantPanelTab)
@@ -57,9 +63,21 @@ export function PapelizAssistantPanel({ onAssistantPanelClose }: PapelizAssistan
   const setAssistantMode = usePapelizAssistantRunOptionsStore((runOptionsState) => runOptionsState.setAssistantMode)
   const isBypassPermissionOn = usePapelizAssistantRunOptionsStore((runOptionsState) => runOptionsState.assistantChangePermission === 'bypass-permission')
 
-  // Imagine, Sessions and Usage open in place of the chat; pressed again, they go back to it.
-  const toggleAssistantPanelView = (assistantPanelView: Exclude<PapelizAssistantPanelTab, 'chat'>) =>
+  // Sessions and Usage open in place of the chat; pressed again, they go back to it.
+  const toggleAssistantPanelView = (assistantPanelView: PapelizAssistantPanelHeaderView) =>
     setAssistantPanelTab(assistantPanelTab === assistantPanelView ? 'chat' : assistantPanelView)
+  // The switch shows Imagine while its tab is open, and the run mode otherwise. Imagine keeps the mode;
+  // a mode goes back to the chat.
+  const chosenAssistantPanelSwitchChoice: PapelizAssistantPanelSwitchChoice = assistantPanelTab === 'imagine' ? 'imagine' : assistantMode
+  const chooseAssistantPanelSwitchChoice = (assistantPanelSwitchChoice: PapelizAssistantPanelSwitchChoice) => {
+    if (assistantPanelSwitchChoice === 'imagine') {
+      setAssistantPanelTab('imagine')
+      return
+    }
+    setAssistantMode(assistantPanelSwitchChoice)
+    setAssistantPanelTab('chat')
+  }
+  const isAssistantPanelSwitchShown = assistantPanelTab === 'chat' || assistantPanelTab === 'imagine'
 
   return (
     <aside aria-label="AI Assistant" className="flex h-full min-h-0 flex-col bg-papeliz-surface-soft">
@@ -68,8 +86,8 @@ export function PapelizAssistantPanel({ onAssistantPanelClose }: PapelizAssistan
           <WandSparkles className="size-3" aria-hidden="true" />
         </span>
         <h2 className="min-w-0 truncate text-[15px] font-semibold">AI Assistant</h2>
-        {/* New chat, Imagine, Sessions, Usage and Close. The provider's settings open from the gear's
-            AI Assistant page and from the composer's model chip. */}
+        {/* New chat, Sessions, Usage and Close. Imagine is in the switch below. The provider's settings
+            open from the gear's AI Assistant page and from the composer's model chip. */}
         <div className="ml-auto flex items-center gap-0.5">
           <PapelizIconButton
             iconButtonLabel="New Chat"
@@ -81,15 +99,6 @@ export function PapelizAssistantPanel({ onAssistantPanelClose }: PapelizAssistan
             }}
           >
             <SquarePen className="size-[15px]" aria-hidden="true" />
-          </PapelizIconButton>
-          <PapelizIconButton
-            iconButtonLabel="Imagine"
-            iconButtonSize="small"
-            className={papelizAssistantPanelHeaderButtonTouchClassName}
-            aria-pressed={assistantPanelTab === 'imagine'}
-            onClick={() => toggleAssistantPanelView('imagine')}
-          >
-            <ImagePlus className="size-[15px]" aria-hidden="true" />
           </PapelizIconButton>
           <PapelizIconButton
             iconButtonLabel="Sessions"
@@ -120,32 +129,32 @@ export function PapelizAssistantPanel({ onAssistantPanelClose }: PapelizAssistan
         </div>
       </div>
 
-      {/* The modes: a solid blue sliding switch, so the chosen one stands out in both themes. They
-          follow the panel's width: icon and label when wide, the label alone at the default width,
-          and the icon alone (the label as its tooltip) when narrow. */}
-      {assistantPanelTab === 'chat' && (
+      {/* The modes and Imagine: a solid blue sliding switch, so the chosen one stands out in both
+          themes. They follow the panel's width: icon and label when wide, the label alone at the
+          default width, and the icon alone (the label as its tooltip) when narrow. */}
+      {isAssistantPanelSwitchShown && (
         <div className="@container flex-none px-3.5 pt-2.5">
           <PapelizSlidingChoiceGroup
             slidingChoiceGroupLabel="AI Assistant mode"
             slidingChoiceGroupRole="radiogroup"
             slidingChoiceGroupTone="solid-blue"
-            chosenSlidingChoiceValue={assistantMode}
-            onSlidingChoiceSelect={setAssistantMode}
-            slidingChoices={papelizAssistantModeChoices.map(({ assistantMode: modeValue, assistantModeLabel, AssistantModeIcon }) => ({
-              slidingChoiceValue: modeValue,
-              slidingChoiceTitle: assistantModeLabel,
+            chosenSlidingChoiceValue={chosenAssistantPanelSwitchChoice}
+            onSlidingChoiceSelect={chooseAssistantPanelSwitchChoice}
+            slidingChoices={papelizAssistantPanelSwitchChoices.map(({ assistantPanelSwitchChoice, assistantPanelSwitchLabel, AssistantPanelSwitchIcon }) => ({
+              slidingChoiceValue: assistantPanelSwitchChoice,
+              slidingChoiceTitle: assistantPanelSwitchLabel,
               slidingChoiceContent: (
                 <>
-                  <AssistantModeIcon className="hidden size-3.5 @max-[17.5rem]:block @min-[26rem]:block" aria-hidden="true" />
-                  <span className="truncate @max-[17.5rem]:sr-only">{assistantModeLabel}</span>
+                  <AssistantPanelSwitchIcon className="hidden size-3.5 @max-[17.5rem]:block @min-[26rem]:block" aria-hidden="true" />
+                  <span className="truncate @max-[17.5rem]:sr-only">{assistantPanelSwitchLabel}</span>
                 </>
               ),
             }))}
           />
-          <p className="mt-1.5 px-1 text-[12px] leading-snug text-papeliz-ink-muted">{describeAssistantModeHint(assistantMode, isBypassPermissionOn)}</p>
+          <p className="mt-1.5 px-1 text-[12px] leading-snug text-papeliz-ink-muted">{describeAssistantPanelSwitchHint(chosenAssistantPanelSwitchChoice, isBypassPermissionOn)}</p>
         </div>
       )}
-      {assistantPanelTab !== 'chat' && (
+      {!isAssistantPanelSwitchShown && (
         <div className="flex flex-none items-center gap-1.5 px-2.5 pt-2">
           <PapelizIconButton
             iconButtonLabel="Back to the Chat"
@@ -155,7 +164,7 @@ export function PapelizAssistantPanel({ onAssistantPanelClose }: PapelizAssistan
           >
             <ArrowLeft className="size-[15px]" aria-hidden="true" />
           </PapelizIconButton>
-          <h3 className="text-[14px] font-semibold">{papelizAssistantPanelViewTitles[assistantPanelTab]}</h3>
+          <h3 className="text-[14px] font-semibold">{papelizAssistantPanelHeaderViewTitles[assistantPanelTab]}</h3>
         </div>
       )}
 
