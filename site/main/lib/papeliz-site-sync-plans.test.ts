@@ -73,7 +73,7 @@ describe('yearly billing chosen first', () => {
 describe("every plan's lines", () => {
   it('count old versions in storage, and name the devices and both kinds of encryption, on Free', () => {
     const papelizSiteTestFreePlanLines = describePapelizSiteSyncFreePlanLimits()
-    expect(papelizSiteTestFreePlanLines[0]).toBe(`${papelizSiteSyncFreePlan.papelizSiteSyncFreePlanStorageLabel} storage, old versions included`)
+    expect(papelizSiteTestFreePlanLines[0]).toBe(`${papelizSiteSyncFreePlan.papelizSiteSyncFreePlanStorageLabel} storage`)
     expect(papelizSiteTestFreePlanLines).toContain(`${papelizSiteSyncFreePlan.papelizSiteSyncFreePlanConnectedDeviceLimit} devices`)
     expect(papelizSiteTestFreePlanLines.at(-1)).toBe(papelizSiteSyncPlanEncryptionLine)
   })
@@ -81,7 +81,7 @@ describe("every plan's lines", () => {
   it('count old versions in storage, and name the devices and both kinds of encryption, on every paid plan', () => {
     for (const papelizSiteSyncPlan of papelizSiteSyncPlans) {
       const papelizSiteTestPaidPlanLines = describePapelizSiteSyncPlanLimits(papelizSiteSyncPlan)
-      expect(papelizSiteTestPaidPlanLines[0]).toBe(`${papelizSiteSyncPlan.papelizSiteSyncPlanStorageLabel} storage, old versions included`)
+      expect(papelizSiteTestPaidPlanLines[0]).toBe(`${papelizSiteSyncPlan.papelizSiteSyncPlanStorageLabel} storage`)
       expect(papelizSiteTestPaidPlanLines).toContain(`${papelizSiteSyncConnectedDeviceLimit} devices`)
       expect(papelizSiteTestPaidPlanLines.at(-1)).toBe(papelizSiteSyncPlanEncryptionLine)
     }

@@ -77,9 +77,9 @@ export const papelizSiteSyncFreePlan = {
 // Every plan, Free included, offers both kinds of vault.
 export const papelizSiteSyncPlanEncryptionLine = 'Standard and End-to-end encryption'
 
-// A storage line: old versions count toward storage, as the app's Settings › Sync says.
+// A storage line, such as "10 GB storage".
 function describePapelizSiteSyncPlanStorageLine(papelizSiteSyncPlanStorageLabel: string): string {
-  return `${papelizSiteSyncPlanStorageLabel} storage, old versions included`
+  return `${papelizSiteSyncPlanStorageLabel} storage`
 }
 
 // The Free card's lines, in the paid cards' order. Free's file count in a vault is a hidden limit, so

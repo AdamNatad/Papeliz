@@ -510,7 +510,7 @@ function PapelizSyncOnState({
           <PapelizSyncPageLabel>Storage</PapelizSyncPageLabel>
           <PapelizSyncProgressBar syncProgressLabel="Storage used" syncProgressFraction={syncAccount.syncStorageUsedByteLength / syncVisiblePlanLimits.syncStorageByteLimit} />
           <PapelizSyncPageSmallText className="mt-1">
-            {formatPapelizSyncByteSize(syncAccount.syncStorageUsedByteLength)} of {formatPapelizSyncByteSize(syncVisiblePlanLimits.syncStorageByteLimit)}, old versions included
+            {formatPapelizSyncByteSize(syncAccount.syncStorageUsedByteLength)} of {formatPapelizSyncByteSize(syncVisiblePlanLimits.syncStorageByteLimit)}
           </PapelizSyncPageSmallText>
           {isFreeUpSpaceOffered && <div className="mt-2">{freeUpSpaceButton}</div>}
           {freeUpSpaceOutcome !== null &&

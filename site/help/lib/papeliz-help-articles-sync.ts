@@ -38,7 +38,7 @@ function describePapelizHelpSyncPlanPrice(papelizSiteSyncPlan: PapelizSiteSyncPl
 
 const papelizHelpSyncFreePlanDetails = helpDetailList([
   ['Price', 'Free, with every Papeliz account'],
-  ['Storage', `${papelizSiteSyncFreePlan.papelizSiteSyncFreePlanStorageLabel}, old versions included`],
+  ['Storage', papelizSiteSyncFreePlan.papelizSiteSyncFreePlanStorageLabel],
   ['Synced vaults', String(papelizSiteSyncFreePlan.papelizSiteSyncFreePlanVaultLimit)],
   ['Devices', String(papelizSiteSyncFreePlan.papelizSiteSyncFreePlanConnectedDeviceLimit)],
   ['Largest file', papelizSiteSyncFreePlan.papelizSiteSyncFreePlanLargestFileLabel],
@@ -50,7 +50,7 @@ const papelizHelpSyncFreePlanDetails = helpDetailList([
 function readPapelizHelpSyncPaidPlanDetails(papelizSiteSyncPlan: PapelizSiteSyncPlan) {
   return helpDetailList([
     ['Price', describePapelizHelpSyncPlanPrice(papelizSiteSyncPlan)],
-    ['Storage', `${papelizSiteSyncPlan.papelizSiteSyncPlanStorageLabel}, old versions included`],
+    ['Storage', papelizSiteSyncPlan.papelizSiteSyncPlanStorageLabel],
     ['Synced vaults', String(papelizSiteSyncPlan.papelizSiteSyncPlanVaultLimit)],
     ['Files in each vault', papelizSiteSyncPlan.papelizSiteSyncPlanFilesPerVaultLimit.toLocaleString('en-US')],
     ['Devices', String(papelizSiteSyncConnectedDeviceLimit)],
@@ -74,7 +74,7 @@ export const papelizHelpSyncArticles: readonly PapelizHelpArticle[] = [
           'Papeliz Sync keeps your vaults the same on every device. Every Papeliz account comes with **Free**; **Standard**, **Plus** and **Pro** are paid plans. You choose and change your plan on the gear’s **Sync** page, under **Plans**.',
         ),
         helpBulletList([
-          'Storage counts every file Sync keeps, old versions included. See [[sync-old-versions]].',
+          'Storage counts everything Sync keeps for you, including earlier versions of your files. See [[sync-old-versions]].',
           'Devices are the devices syncing at the same time.',
           'Version history is how long old versions are kept. An attachment is every file that isn’t a note: pictures, PDFs and everything else.',
           'Every plan offers **Standard** and **End-to-end** encryption, chosen vault by vault.',
