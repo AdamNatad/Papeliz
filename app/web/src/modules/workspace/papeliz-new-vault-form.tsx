@@ -246,8 +246,9 @@ function PapelizNewVaultFormPartHeading({ newVaultFormPartHeadingId, children, n
 // One choice as a tile: an icon tile, the title, a line under it, and the radio at the right edge. The
 // two web places and the two kinds of encryption use it, side by side. Choosing one cross-fades its
 // border, ground and icon tile over 180 ms while the one left behind fades back, and the radio's dot
-// grows from its centre; a press sinks the tile slightly, and a hover tints its border and icon tile.
-// With reduced motion it all changes at once (papeliz-webapp.css), and a press doesn't sink it.
+// grows from its centre. A hover tints its border and icon tile; a press deepens that tint over 100 ms.
+// Nothing about the tile moves or changes size. With reduced motion it all changes at once
+// (papeliz-webapp.css).
 function PapelizNewVaultChoiceTile({
   choiceTileGroupName,
   choiceTileValue,
@@ -273,13 +274,13 @@ function PapelizNewVaultChoiceTile({
   return (
     <label
       className={joinPapelizClassNames(
-        'group/papeliz-new-vault-choice-tile flex items-start gap-2.5 rounded-xl border px-2.5 py-2 transition-[background-color,border-color,transform] duration-[180ms] ease-out',
+        'group/papeliz-new-vault-choice-tile flex items-start gap-2.5 rounded-xl border px-2.5 py-2 transition-[background-color,border-color] duration-[180ms] ease-out',
         isChoiceTileChosen
-          ? 'cursor-pointer border-papeliz-blue-line bg-papeliz-blue-soft'
+          ? 'cursor-pointer border-papeliz-blue-line bg-papeliz-blue-soft active:bg-papeliz-blue-soft-hover'
           : isChoiceTileOff
             ? 'cursor-not-allowed border-papeliz-line bg-papeliz-surface-soft'
-            : 'cursor-pointer border-papeliz-line bg-papeliz-surface hover:border-papeliz-blue-line/60 hover:bg-papeliz-hover',
-        !isChoiceTileOff && 'active:scale-[0.98] motion-reduce:active:scale-100',
+            : 'cursor-pointer border-papeliz-line bg-papeliz-surface hover:border-papeliz-blue-line/60 hover:bg-papeliz-hover active:border-papeliz-blue-line active:bg-papeliz-press',
+        !isChoiceTileOff && 'active:duration-100',
       )}
     >
       <span

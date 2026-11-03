@@ -135,9 +135,22 @@ test('choosing End-to-end opens its passphrase with motion, and reduced motion c
   expect(await encryptionPart.locator('label').first().evaluate((tileElement) => getComputedStyle(tileElement).transitionDuration)).toContain('0.18s')
   expect(await passphrasePart.evaluate((partElement) => getComputedStyle(partElement).transitionDuration)).toContain('0.22s')
 
-  // Choosing End-to-end: the part grows from nothing, the focus goes to its first field, and the radio's
-  // dot grows to full size.
-  await encryptionPart.getByRole('radio', { name: /^End-to-end/ }).check()
+  // A held press only deepens the tile's tint, over 100 ms: it doesn't shrink or move.
+  const endToEndTile = encryptionPart.locator('label').filter({ hasText: /^End-to-end/ })
+  const endToEndTileBox = (await endToEndTile.boundingBox())!
+  await page.mouse.move(endToEndTileBox.x + endToEndTileBox.width / 2, endToEndTileBox.y + endToEndTileBox.height / 2)
+  await page.mouse.down()
+  const pressedTileReading = await endToEndTile.evaluate((tileElement) => ({
+    tileTransform: getComputedStyle(tileElement).transform,
+    tileTransitionDuration: getComputedStyle(tileElement).transitionDuration,
+    tileWidth: tileElement.getBoundingClientRect().width,
+  }))
+  expect(pressedTileReading).toEqual({ tileTransform: 'none', tileTransitionDuration: '0.1s', tileWidth: endToEndTileBox.width })
+  await page.mouse.up()
+
+  // Choosing End-to-end (the press above chose it): the part grows from nothing, the focus goes to its
+  // first field, and the radio's dot grows to full size.
+  await expect(encryptionPart.getByRole('radio', { name: /^End-to-end/ })).toBeChecked()
   await expect(encryptionPart.getByLabel('Vault passphrase')).toBeFocused()
   await expect.poll(readPassphrasePartHeight).toBeGreaterThan(100)
   await expect
