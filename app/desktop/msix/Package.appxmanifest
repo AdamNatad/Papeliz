@@ -27,7 +27,7 @@
     <DisplayName>Papeliz</DisplayName>
     <PublisherDisplayName>Placeholder publisher display name from Partner Center</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
-    <Description>A Markdown Editor with an AI Assistant</Description>
+    <Description>A Markdown Editor and viewer with a built-in AI Assistant</Description>
   </Properties>
 
   <Dependencies>
@@ -46,7 +46,7 @@
       EntryPoint="Windows.FullTrustApplication">
       <uap:VisualElements
         DisplayName="Papeliz"
-        Description="A Markdown Editor with an AI Assistant"
+        Description="A Markdown Editor and viewer with a built-in AI Assistant"
         BackgroundColor="transparent"
         Square150x150Logo="Assets\Square150x150Logo.png"
         Square44x44Logo="Assets\Square44x44Logo.png">
