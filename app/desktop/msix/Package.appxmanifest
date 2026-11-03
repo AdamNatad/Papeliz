@@ -57,5 +57,9 @@
 
   <Capabilities>
     <rescap:Capability Name="runFullTrust" />
+    <!-- The assistant's Record, to transcribe speech. Windows lists Papeliz under Settings, Privacy
+         and security, Microphone, where it can be turned off. Every DeviceCapability goes after
+         the Capability elements. No camera or location. -->
+    <DeviceCapability Name="microphone" />
   </Capabilities>
 </Package>

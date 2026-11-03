@@ -6,10 +6,11 @@ mod papeliz_desktop_app_distribution;
 mod papeliz_desktop_save_files;
 mod papeliz_desktop_snap_layouts;
 mod papeliz_desktop_vault_folders;
+mod papeliz_desktop_webview_permission_requests;
 
 use papeliz_desktop_app_distribution::{detect_papeliz_desktop_app_distribution, PapelizDesktopAppDistribution};
 use tauri::webview::NewWindowResponse;
-use tauri::{AppHandle, Manager, Url, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Manager, Runtime, Url, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_opener::OpenerExt;
 
 const PAPELIZ_DESKTOP_MAIN_WINDOW_LABEL: &str = "main";
@@ -76,6 +77,8 @@ fn create_papeliz_desktop_main_window(app_handle: &AppHandle) -> tauri::Result<(
     .use_https_scheme(true)
     // The page takes files dropped from Windows itself (the Assistant's composer).
     .disable_drag_drop_handler()
+    // The microphone for Papeliz's own page only; the camera, location and the rest stay refused.
+    .on_permission_request(papeliz_desktop_webview_permission_requests::answer_papeliz_desktop_webview_permission_request)
     // Links that leave Papeliz open in the person's own browser, never in a Papeliz window.
     .on_navigation(move |navigation_url| {
         if is_papeliz_desktop_app_url(&navigation_app_handle, navigation_url) {
@@ -113,6 +116,11 @@ fn is_papeliz_desktop_app_url(app_handle: &AppHandle, candidate_url: &Url) -> bo
         _ => {}
     }
 
+    is_papeliz_desktop_app_origin(app_handle, candidate_url)
+}
+
+// Papeliz's own page: the built app at https://tauri.localhost, or the dev server during development.
+fn is_papeliz_desktop_app_origin<R: Runtime>(app_handle: &AppHandle<R>, candidate_url: &Url) -> bool {
     if candidate_url.scheme() == "https" && candidate_url.host_str() == Some(PAPELIZ_DESKTOP_APP_HOST) {
         return true;
     }
