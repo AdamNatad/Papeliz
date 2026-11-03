@@ -20,6 +20,10 @@ export const papelizSiteFeatureGroups: PapelizSiteFeatureGroup[] = [
     papelizSiteFeatureGroupSummary: 'A vault is just a folder of Markdown files. Papeliz opens it where it is and writes back to it.',
     papelizSiteFeatureGroupPoints: [
       { papelizSiteFeaturePointTitle: 'Plain .md files', papelizSiteFeaturePointBody: 'No database and no special format. Your notes open in any other Markdown app too.' },
+      {
+        papelizSiteFeaturePointTitle: 'End-to-end vaults',
+        papelizSiteFeaturePointBody: 'Or choose End-to-end at New Vault: every file is encrypted on your device with a passphrase only you know. Forget it, and the vault can’t be opened.',
+      },
       { papelizSiteFeaturePointTitle: 'Folder Storage', papelizSiteFeaturePointBody: 'Pick a folder in Chrome or Edge. Papeliz remembers it and asks again for access when you come back.' },
       { papelizSiteFeaturePointTitle: 'Browser Storage', papelizSiteFeaturePointBody: 'A vault kept in the browser’s own storage, in every browser, phones included. Download a backup any time.' },
       { papelizSiteFeaturePointTitle: 'A sample vault', papelizSiteFeaturePointBody: 'Try Papeliz on a set of linked example notes before you open your own.' },
@@ -126,14 +130,20 @@ export const papelizSiteFeatureGroups: PapelizSiteFeatureGroup[] = [
         papelizSiteFeaturePointTitle: 'Ask, Plan and Write',
         papelizSiteFeaturePointBody: 'Ask answers from your notes and never changes them. Plan turns an idea into steps. Write edits, adds and deletes notes, and you review each change.',
       },
+      {
+        papelizSiteFeaturePointTitle: 'Plan, then Build',
+        papelizSiteFeaturePointBody: 'Plan asks what it needs, then writes steps you can edit. Build saves the plan as a note and carries it out step by step, each step’s changes for you to review.',
+      },
       { papelizSiteFeaturePointTitle: 'Answers that cite your notes', papelizSiteFeaturePointBody: 'Ask about a note, a selection or the whole vault. Answers link to the notes they draw on.' },
-      { papelizSiteFeaturePointTitle: 'Edits as diffs', papelizSiteFeaturePointBody: 'Every change the assistant proposes shows as a diff. Accept writes the file; Reject drops it.' },
+      {
+        papelizSiteFeaturePointTitle: 'Edits as diffs',
+        papelizSiteFeaturePointBody: 'Every change the assistant proposes shows as a diff, link and tag suggestions across many notes too. Accept writes the file; Reject drops it.',
+      },
       { papelizSiteFeaturePointTitle: 'Inline edits', papelizSiteFeaturePointBody: 'Select text for Shorter, Rewrite, Fix Grammar or Translate, right where you are writing.' },
       {
         papelizSiteFeaturePointTitle: 'Pictures and speech',
         papelizSiteFeaturePointBody: 'With your provider’s image and speech models, Imagine makes a picture and Transcribe turns speech into text, in the chat or in your note, and Describe Picture and Edit Picture work on a note’s pictures. Remove C2PA cleans a picture before it’s saved.',
       },
-      { papelizSiteFeaturePointTitle: 'Links and tags across notes', papelizSiteFeaturePointBody: 'Ask for link and tag suggestions over many notes, then review each change.' },
       { papelizSiteFeaturePointTitle: 'Files and pictures', papelizSiteFeaturePointBody: 'Add files and pictures to a message. A picture from another site in an answer loads only when you press Show.' },
       { papelizSiteFeaturePointTitle: 'Sessions and Usage', papelizSiteFeaturePointBody: 'Every chat is saved in the vault as a note. Usage shows the tokens and cost of each model.' },
     ],

@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { PapelizLegalDocument, PapelizLegalDocumentSection } from '@/components/legal/papeliz-legal-document'
 import { PapelizLegalWhenAccountsOpenBlock } from '@/components/legal/papeliz-legal-sync-draft'
+import { papelizSiteHelpUrl } from '@/lib/papeliz-site-config'
 import { createPapelizSitePageMetadata } from '@/lib/papeliz-site-seo'
 
 export const metadata = createPapelizSitePageMetadata({
@@ -21,6 +22,20 @@ export default function PapelizSitePrivacyPage() {
           Your notes stay on your device: in the folder you open on your own disk, or in your browser’s
           own storage for a vault kept in the browser. Papeliz reads and writes them in your browser.
           Nothing is uploaded to Papeliz unless you sync that vault with Papeliz Sync.
+        </p>
+        <p>
+          A vault can also be End-to-end: Papeliz encrypts its files on your device with a passphrase only you
+          know, which never leaves your device.
+          {papelizSiteHelpUrl && (
+            <>
+              {' '}
+              See{' '}
+              <Link href={`${papelizSiteHelpUrl}end-to-end-vaults/`} className="font-medium text-papeliz-blue hover:underline">
+                End-to-end vaults
+              </Link>
+              .
+            </>
+          )}
         </p>
       </PapelizLegalDocumentSection>
 
