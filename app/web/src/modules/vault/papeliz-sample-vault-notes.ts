@@ -1,7 +1,22 @@
+import { isPapelizDesktopApp } from 'virtual:papeliz-desktop-platform-availability'
 import type { PapelizInMemoryVaultNote } from './papeliz-in-memory-vault-adapter'
 
 export const papelizSampleVaultDisplayName = 'Sample vault'
 export const papelizSampleVaultFirstNoteRelativePath = 'Start here.md'
+
+// The sample notes' words about where the vault lives and where Close Vault leads: a browser tab and
+// the start page on the web; memory and the start screen in the desktop app, which has no tab to reload.
+const papelizSampleVaultPlaceWords = isPapelizDesktopApp
+  ? {
+      sampleVaultKeptInMemoryWhileWords: 'while Papeliz is open',
+      sampleVaultLivesOnlySentences: 'This sample vault lives only in memory. Close it and it starts fresh.',
+      papelizStartPlaceName: 'start screen',
+    }
+  : {
+      sampleVaultKeptInMemoryWhileWords: 'while this tab is open',
+      sampleVaultLivesOnlySentences: 'This sample vault lives only in this tab. Reload the page and it starts fresh.',
+      papelizStartPlaceName: 'start page',
+    }
 
 // The bundled sample vault: a few short, linked notes that show what Papeliz does. It opens in
 // memory, so trying Papeliz needs no folder and changes nothing on disk.
@@ -14,7 +29,7 @@ created: 2026-10-27
 ---
 # Start here
 
-Welcome to the sample vault. Every note here is a plain Markdown file, kept in memory while this tab is open, so change, rename or delete anything you like.
+Welcome to the sample vault. Every note here is a plain Markdown file, kept in memory ${papelizSampleVaultPlaceWords.sampleVaultKeptInMemoryWhileWords}, so change, rename or delete anything you like.
 
 ## Try these
 
@@ -25,7 +40,7 @@ Welcome to the sample vault. Every note here is a plain Markdown file, kept in m
 - [ ] Rename this note from the file list, or make a new one with the **+** next to the tabs.
 
 > [!tip] Your own folder
-> When you're ready, choose **Close Vault** in the gear menu at the top right to go back to the start page, then open a folder of \`.md\` files. Papeliz edits them right where they are.
+> When you're ready, choose **Close Vault** in the gear menu at the top right to go back to the ${papelizSampleVaultPlaceWords.papelizStartPlaceName}, then open a folder of \`.md\` files. Papeliz edits them right where they are.
 
 Read on: [[Writing in MD View]], [[Writing in MD Code]], [[Callouts]] and [[Your files stay yours]].
 `,
@@ -162,7 +177,7 @@ tags: [guide, files]
 - Your notes are plain \`.md\` files in a folder you choose. Papeliz has no server and no accounts; nothing leaves your device.
 - Deleting a note moves it into the vault's \`.trash\` folder. Nothing is erased.
 - Papeliz never writes inside hidden folders (names that start with a dot, such as \`.git\`), so a folder another app also uses keeps working there.
-- This sample vault lives only in this tab. Reload the page and it starts fresh.
+- ${papelizSampleVaultPlaceWords.sampleVaultLivesOnlySentences}
 
 See also [[Start here]].
 `,

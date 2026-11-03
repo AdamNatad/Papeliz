@@ -1,3 +1,4 @@
+import { isPapelizDesktopApp } from 'virtual:papeliz-desktop-platform-availability'
 import { fetchFromPapelizProviderAddress } from './papeliz-assistant-provider-fetch'
 import { redactPapelizAssistantProviderErrorText } from './papeliz-assistant-provider-error-redaction'
 
@@ -7,6 +8,10 @@ import { redactPapelizAssistantProviderErrorText } from './papeliz-assistant-pro
 // error the client throws is cleaned of it (papeliz-assistant-provider-error-redaction.ts).
 // Each answer also says how many tokens it used: the provider's own count when it gives one, or an
 // estimate (marked as one) when it does not.
+
+// Who makes the calls, in the unreachable provider's message: a browser page on the web, Papeliz itself
+// in the desktop app.
+const papelizProviderUnreachableCallerName = isPapelizDesktopApp ? 'Papeliz' : 'a browser'
 
 export interface PapelizAssistantProviderConnection {
   providerBaseUrl: string
@@ -153,7 +158,7 @@ async function sendProviderRequest(
   } catch (providerFetchError) {
     if (providerFetchError instanceof DOMException && providerFetchError.name === 'AbortError') throw providerFetchError
     throw new PapelizAssistantProviderError(
-      `Could not reach ${describeProviderHost(providerConnection.providerBaseUrl)}. Check the base URL and your connection, and that the provider accepts calls from a browser.`,
+      `Could not reach ${describeProviderHost(providerConnection.providerBaseUrl)}. Check the base URL and your connection, and that the provider accepts calls from ${papelizProviderUnreachableCallerName}.`,
       null,
     )
   }

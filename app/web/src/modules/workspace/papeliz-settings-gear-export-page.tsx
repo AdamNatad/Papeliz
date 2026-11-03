@@ -1,5 +1,6 @@
 import { ChevronDown, ChevronRight, Download, FilePen, FileText, Folder, Globe, LayoutTemplate, LoaderCircle, Printer, Search, Settings, X } from 'lucide-react'
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { isPapelizDesktopApp } from 'virtual:papeliz-desktop-platform-availability'
 import {
   choosePapelizExportDefaultPageSize,
   isPapelizExportCustomPageSideInRange,
@@ -51,6 +52,10 @@ import { usePapelizWorkspaceStore } from './papeliz-workspace-store'
 // someone exports with it.
 
 type PapelizSettingsGearExportFormat = 'word' | 'pdf' | 'html' | 'template'
+
+// How the export reaches the person, in the summary's words: the browser downloads it, the desktop app
+// saves it where they pick.
+const papelizSettingsGearExportDeliveryVerb = isPapelizDesktopApp ? { oneNoteVerb: 'saves', severalNotesVerb: 'save' } : { oneNoteVerb: 'downloads', severalNotesVerb: 'download' }
 
 interface PapelizSettingsGearExportFormatRow {
   exportFormat: PapelizSettingsGearExportFormat
@@ -631,10 +636,10 @@ export function PapelizSettingsGearExportPage() {
     tickedExportNoteCount === 0
       ? 'No notes ticked.'
       : tickedExportNoteCount === 1
-        ? `1 note ticked. It downloads as one ${papelizSettingsGearExportFormatOneNoteFileExtensions[chosenExportFormat]} file.`
+        ? `1 note ticked. It ${papelizSettingsGearExportDeliveryVerb.oneNoteVerb} as one ${papelizSettingsGearExportFormatOneNoteFileExtensions[chosenExportFormat]} file.`
         : isEveryExportNoteTicked
-          ? `Every note in “${openVault?.papelizVaultDisplayName ?? 'this vault'}”. They download as one .zip, folders kept.`
-          : `${tickedExportNoteCount} notes ticked. They download as one .zip, folders kept.`
+          ? `Every note in “${openVault?.papelizVaultDisplayName ?? 'this vault'}”. They ${papelizSettingsGearExportDeliveryVerb.severalNotesVerb} as one .zip, folders kept.`
+          : `${tickedExportNoteCount} notes ticked. They ${papelizSettingsGearExportDeliveryVerb.severalNotesVerb} as one .zip, folders kept.`
 
   const isExportRunning = exportRunState.exportRunKind === 'running'
   const isChosenExportFormatReady = chosenExportFormatRow?.isExportFormatReady === true

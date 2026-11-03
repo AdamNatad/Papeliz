@@ -1,5 +1,6 @@
 import { Lock, Plus, Settings } from 'lucide-react'
 import { useId, useState } from 'react'
+import { isPapelizDesktopApp } from 'virtual:papeliz-desktop-platform-availability'
 import { PapelizIconButton, PapelizPillButton } from '../ui/papeliz-buttons'
 import {
   describePapelizProviderHost,
@@ -8,6 +9,12 @@ import {
 } from './papeliz-assistant-provider-editor-dialog'
 import { findPapelizAssistantProviderPreset } from './papeliz-assistant-provider-presets'
 import { listPapelizEnabledProviderModelNames, listPapelizSavedAssistantProviderIds, usePapelizAssistantProviderSettingsStore } from './papeliz-assistant-provider-settings-store'
+
+// Where the assistant's calls start and the keys stay, in the page's words: this browser on the web,
+// this computer in the desktop app.
+const papelizAssistantProviderKeyPlaceWords = isPapelizDesktopApp
+  ? { assistantCallsFromPlaceName: 'this computer', assistantProviderKeyStaysPlaceWords: 'on this computer' }
+  : { assistantCallsFromPlaceName: 'this browser', assistantProviderKeyStaysPlaceWords: 'in this browser' }
 
 // Settings › AI Provider: the saved providers, all in use at once, each with the models switched on
 // for it. A row per provider: its name, where its key goes and how many of its models are on, and the
@@ -28,7 +35,8 @@ export function PapelizAssistantProviderSettingsPage() {
       </h3>
       {savedProviderIds.length === 0 ? (
         <p className="mt-1.5 text-[12.5px] leading-snug text-papeliz-ink-muted">
-          No providers yet. Add one with your own API key: the assistant talks straight from this browser to that provider.
+          No providers yet. Add one with your own API key: the assistant talks straight from {papelizAssistantProviderKeyPlaceWords.assistantCallsFromPlaceName} to
+          that provider.
         </p>
       ) : (
         <ul aria-labelledby={savedProvidersHeadingId} className="mt-2 divide-y divide-papeliz-line overflow-hidden rounded-2xl border border-papeliz-line">
@@ -69,7 +77,10 @@ export function PapelizAssistantProviderSettingsPage() {
       </PapelizPillButton>
       <p className="mt-3.5 flex items-start gap-2 rounded-2xl bg-papeliz-surface-soft px-4 py-2.5 text-[12.5px] leading-snug text-papeliz-ink-muted">
         <Lock className="mt-0.5 size-3.5 flex-none" aria-hidden="true" />
-        <span>Each key stays in this browser and goes only to the address under its provider’s name. The model chip in the assistant picks the model for each message.</span>
+        <span>
+          Each key stays {papelizAssistantProviderKeyPlaceWords.assistantProviderKeyStaysPlaceWords} and goes only to the address under its provider’s name. The
+          model chip in the assistant picks the model for each message.
+        </span>
       </p>
       {providerEditorRequest !== null && (
         <PapelizAssistantProviderEditorDialog providerEditorRequest={providerEditorRequest} onProviderEditorClose={() => setProviderEditorRequest(null)} />

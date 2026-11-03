@@ -1,4 +1,5 @@
 import { AppWindow, FolderOpen, Minus, Plus } from 'lucide-react'
+import { isPapelizDesktopApp } from 'virtual:papeliz-desktop-platform-availability'
 import { useDeferredValue, useMemo, useState } from 'react'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { PapelizPopoverMenu, type PapelizPopoverMenuPosition } from '../ui/papeliz-popover-menu'
@@ -37,9 +38,11 @@ function describeNoteSaveState(noteSaveState: PapelizNoteSaveState, papelizVault
   if (noteSaveState === 'unsaved') return 'Unsaved changes'
   if (noteSaveState === 'save-failed') return 'Not saved'
   if (noteSaveState === 'save-conflict') return isVaultNoteDeletedElsewhere ? 'Moved or deleted elsewhere' : 'Changed elsewhere too'
-  // The sample vault lives in memory: its notes last until the tab is reloaded or closed.
+  // The sample vault lives in memory: its notes last until the tab is reloaded or closed, or, in the
+  // desktop app, until the vault is closed.
   if (papelizVaultKind === 'folder-on-disk') return 'Saved to disk'
-  return papelizVaultKind === 'browser-vault-in-opfs' ? 'Saved in browser' : 'Kept until reload'
+  if (papelizVaultKind === 'browser-vault-in-opfs') return 'Saved in browser'
+  return isPapelizDesktopApp ? 'Kept until closed' : 'Kept until reload'
 }
 
 function describeVaultNoteEditingLock(vaultNoteEditingLock: PapelizVaultNoteEditingLock | null, vaultNoteRelativePath: string | null): string {
@@ -148,7 +151,13 @@ export function PapelizStatusBar() {
       <span
         className="flex min-w-0 items-center gap-1.5"
         title={
-          openVaultKind === 'folder-on-disk' ? 'A folder on this device' : openVaultKind === 'browser-vault-in-opfs' ? 'Kept in this browser' : 'Kept in this browser tab only'
+          openVaultKind === 'folder-on-disk'
+            ? 'A folder on this device'
+            : openVaultKind === 'browser-vault-in-opfs'
+              ? 'Kept in this browser'
+              : isPapelizDesktopApp
+                ? 'Kept in memory only'
+                : 'Kept in this browser tab only'
         }
       >
         {openVaultKind === 'browser-vault-in-opfs' ? (
@@ -161,7 +170,11 @@ export function PapelizStatusBar() {
         {isSampleVaultInMemory && (
           <span
             className="flex-none rounded-full bg-white/20 px-1.5 text-[11px] leading-[17px] font-semibold text-white"
-            title="The sample vault lives only in this tab. Reloading or closing the tab starts it fresh; open a folder to keep your notes."
+            title={
+              isPapelizDesktopApp
+                ? 'The sample vault lives in memory. Closing it starts it fresh; open a folder to keep your notes.'
+                : 'The sample vault lives only in this tab. Reloading or closing the tab starts it fresh; open a folder to keep your notes.'
+            }
           >
             Temporary
           </span>

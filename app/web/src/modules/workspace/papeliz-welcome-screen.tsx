@@ -893,9 +893,11 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
         ? recentVaultDeleteRequest.recentVault.papelizVaultDisplayName
         : String(recentVaultDeleteRequest.recentVaults.length)
   const isVaultDeleteConfirmationTyped = recentVaultDeleteRequest !== null && typedVaultDeleteConfirmation.trim() === expectedVaultDeleteConfirmation
-  // A browser vault can always be deleted, and so can a folder by path (Papeliz for Windows' native
-  // side erases it); a folder opened in the browser only where the browser can erase folders.
-  const canDeleteRecentVault = (recentVault: PapelizStartScreenRecentVault) => recentVault.papelizRecentVaultKind !== 'folder-on-disk' || isVaultFolderDeleteSupported()
+  // A browser vault can always be deleted, and so can any folder in the desktop app (Papeliz for
+  // Windows' native side erases it by its path); a folder opened in the browser only where the browser
+  // can erase folders.
+  const canDeleteRecentVault = (recentVault: PapelizStartScreenRecentVault) =>
+    recentVault.papelizRecentVaultKind !== 'folder-on-disk' || isPapelizDesktopApp || isVaultFolderDeleteSupported()
   const canDeleteEveryHiddenRecentVault = hiddenRecentVaults.every(canDeleteRecentVault)
   const isFolderVaultListed = listedRecentVaults.some((recentVault) => recentVault.papelizRecentVaultKind !== 'browser-vault-in-opfs')
   const isBrowserVaultListed = listedRecentVaults.some((recentVault) => recentVault.papelizRecentVaultKind === 'browser-vault-in-opfs')

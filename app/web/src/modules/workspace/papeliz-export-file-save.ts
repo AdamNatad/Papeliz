@@ -1,3 +1,4 @@
+import { isPapelizDesktopApp } from 'virtual:papeliz-desktop-platform-availability'
 import type { PapelizDesktopPlatform } from '../desktop/papeliz-desktop-platform-contract'
 import { usePapelizDesktopPlatformStore } from '../desktop/papeliz-desktop-platform-store'
 import { describePapelizFailureCode } from '../vault/papeliz-failure-code-words'
@@ -55,9 +56,14 @@ export type PapelizExportFileSaveOutcome = 'saved-to-chosen-file' | 'downloaded'
 
 // The sentence for a failed export. An export reads the vault and writes one new file, so the vault
 // folder's sentences ("this folder", "Recent Vaults") would point the wrong way; these name the export.
+// In the desktop app the refusal is Windows', for the folder picked in its save dialog.
 export function describePapelizExportErrorSentence(exportError: unknown): string {
   const exportFailureCode = describePapelizVaultError(exportError)
-  if (exportFailureCode === 'No Permission') return 'The browser didn’t let Papeliz finish the export. Try again.'
+  if (exportFailureCode === 'No Permission') {
+    return isPapelizDesktopApp
+      ? 'Windows didn’t let Papeliz save there. Pick another folder, then try again.'
+      : 'The browser didn’t let Papeliz finish the export. Try again.'
+  }
   if (exportFailureCode === 'File Not Found') return 'A note was moved or deleted while it was exported. Try again.'
   return describePapelizFailureCode(exportFailureCode)
 }

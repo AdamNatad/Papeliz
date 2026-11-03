@@ -1,3 +1,4 @@
+import { isPapelizDesktopApp } from 'virtual:papeliz-desktop-platform-availability'
 import { PapelizImportZipError } from '../export-zip/papeliz-import-zip-file-reader'
 import { describePapelizVaultError } from './papeliz-vault-adapter'
 
@@ -16,7 +17,12 @@ export interface PapelizFailureCodeContext {
   failedEntryAction?: 'name' | 'move'
 }
 
-export const papelizUnknownFailureSentence = 'Something went wrong. Try again, and reload Papeliz if it keeps failing.'
+// The desktop app is restarted, not reloaded, and has no tabs; folder permission there is Windows', not
+// the browser's, so opening the vault again doesn't help.
+export const papelizUnknownFailureSentence = isPapelizDesktopApp
+  ? 'Something went wrong. Try again, and restart Papeliz if it keeps failing.'
+  : 'Something went wrong. Try again, and reload Papeliz if it keeps failing.'
+const papelizElsewhereChangeWords = isPapelizDesktopApp ? 'in another app' : 'in another tab or app'
 
 function describeNameTakenFailure({ failedEntryName, failedEntryKind, failedEntryAction }: PapelizFailureCodeContext): string {
   const whatToDo = failedEntryAction === 'move' ? 'Rename one of them first.' : 'Pick another name.'
@@ -39,7 +45,9 @@ export function describePapelizFailureCode(failureCode: string, failureCodeConte
   switch (failureCode) {
     // The disk, the folder and the browser.
     case 'No Permission':
-      return 'Papeliz may no longer change this folder. Close the vault and open it again from Recent Vaults to allow it.'
+      return isPapelizDesktopApp
+        ? 'Papeliz can’t change this folder. Check it isn’t read-only, then try again.'
+        : 'Papeliz may no longer change this folder. Close the vault and open it again from Recent Vaults to allow it.'
     case 'Permission Not Given':
       return 'Papeliz needs your permission to change this folder. Try again, and allow it when the browser asks.'
     case 'File Not Found':
@@ -71,11 +79,11 @@ export function describePapelizFailureCode(failureCode: string, failureCodeConte
     case 'Open In Another Tab':
       return 'It’s open in another Papeliz tab. Close it there, then try again.'
     case 'Not In Vault':
-      return 'It was moved or deleted in another tab or app.'
+      return `It was moved or deleted ${papelizElsewhereChangeWords}.`
     case 'Outside Vault':
       return 'That place is outside the vault’s folder, and Papeliz only changes what is inside it.'
     case 'Not In Trash':
-      return 'It’s no longer in the trash. It was restored or deleted in another tab or app.'
+      return `It’s no longer in the trash. It was restored or deleted ${papelizElsewhereChangeWords}.`
     case 'Note Not Found':
       return 'No note in this vault has that name. Check the link.'
     case 'Into Itself':
@@ -95,7 +103,9 @@ export function describePapelizFailureCode(failureCode: string, failureCodeConte
     case 'Not Supported Yet':
       return 'Papeliz can’t do this here yet.'
     case 'Unknown Settings File':
-      return 'Papeliz doesn’t know that settings file. Reload Papeliz, then try again.'
+      return isPapelizDesktopApp
+        ? 'Papeliz doesn’t know that settings file. Restart Papeliz, then try again.'
+        : 'Papeliz doesn’t know that settings file. Reload Papeliz, then try again.'
     case 'Import Stopped':
       return 'The import was stopped before it finished.'
     case 'Text File Over 5 MB':
@@ -130,8 +140,11 @@ export function describePapelizFailureCode(failureCode: string, failureCodeConte
     // Import from Files, Zip or Template, in an open vault.
     case 'Too Many Files':
       return 'Papeliz imports up to 20,000 files at a time, and this is more. Import it in parts.'
+    // In the desktop app no total applies, only each file's size (papeliz-vault-folder-import.ts).
     case 'Import Too Large':
-      return 'Papeliz imports up to 2 GB at a time, and this is more. Import it in parts.'
+      return isPapelizDesktopApp
+        ? 'Papeliz imports files up to 1 GB each, and one here is bigger. Import the others without it.'
+        : 'Papeliz imports up to 2 GB at a time, and this is more. Import it in parts.'
 
     // A file added to an AI Assistant chat.
     case 'Picture Type Not Supported':

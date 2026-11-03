@@ -1,3 +1,4 @@
+import { isPapelizDesktopApp } from 'virtual:papeliz-desktop-platform-availability'
 import { normalizePapelizImportZipEntryPath, readPapelizImportZipFile } from '../export-zip/papeliz-import-zip-file-reader'
 import type { PapelizImportedTemplateFolderSource } from '../template-gallery/papeliz-template-gallery-imported-folders'
 import { findPapelizTemplatePictureFormatByName, stripPapelizTemplatePictureMetadata } from '../template-gallery/papeliz-template-gallery-picture-metadata'
@@ -21,7 +22,8 @@ import {
 //   and `.trash/`, which mean something only at a vault's top;
 // - PNG, JPEG and WebP pictures lose their metadata (a picture that doesn't read as its type comes in
 //   as it is);
-// - at most 20,000 files and 2 GB come in at once.
+// - at most 20,000 files come in at once, and on the web at most 2 GB; in the desktop app, which
+//   writes the files one at a time, no total applies, only 1 GB for each file.
 
 export interface PapelizVaultImportFile {
   // Inside the new vault, or the new folder: "Ideas/Offline first.md".
@@ -63,7 +65,12 @@ export type PapelizVaultFolderImportResult =
   | { vaultFolderImportOutcome: 'failed'; vaultFolderImportFailureMessage: string }
 
 export const papelizVaultFolderImportMostFileCount = 20_000
-export const papelizVaultFolderImportMostTotalByteCount = 2 * 1024 * 1024 * 1024
+// The most an import brings in all: 2 GB on the web. None in the desktop app, whose native side
+// writes the files one at a time, so the total doesn't matter there.
+export const papelizVaultFolderImportMostTotalByteCount = isPapelizDesktopApp ? Number.POSITIVE_INFINITY : 2 * 1024 * 1024 * 1024
+// The biggest one file an import brings: 1 GB in the desktop app, so a single native write stays a
+// reasonable size. None of its own on the web, where the total's 2 GB already bounds it.
+export const papelizVaultFolderImportMostFileByteCount = isPapelizDesktopApp ? 1024 * 1024 * 1024 : Number.POSITIVE_INFINITY
 // Loose files, picked without a folder, come in under this name.
 export const papelizImportedFilesVaultFolderName = 'Imported Files'
 
@@ -114,7 +121,8 @@ function stripImportedPictureMetadata(vaultImportFile: PapelizVaultImportFile): 
 }
 
 // Leaves out what an open vault never takes, checks the limits, and strips pictures as they're read.
-// Fails with "Too Many Files" or "Import Too Large".
+// Fails with "Too Many Files" or "Import Too Large" (too much in all on the web, one file too big in
+// the desktop app).
 export function planPapelizVaultFolderImport(
   suggestedVaultFolderName: string,
   rawVaultImportFiles: readonly PapelizVaultImportFile[],
@@ -139,6 +147,9 @@ export function planPapelizVaultFolderImport(
   const importTotalByteCount = importedFiles.reduce((totalByteCount, importedFile) => totalByteCount + importedFile.importFileByteCount, 0)
   if (importedFiles.length > papelizVaultFolderImportMostFileCount) throw new PapelizVaultOperationError('Too Many Files')
   if (importTotalByteCount > papelizVaultFolderImportMostTotalByteCount) throw new PapelizVaultOperationError('Import Too Large')
+  if (importedFiles.some((importedFile) => importedFile.importFileByteCount > papelizVaultFolderImportMostFileByteCount)) {
+    throw new PapelizVaultOperationError('Import Too Large')
+  }
   return {
     suggestedVaultFolderName: makePapelizImportVaultFolderName(suggestedVaultFolderName),
     vaultFolderImportFiles,

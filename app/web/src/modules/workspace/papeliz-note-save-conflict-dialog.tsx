@@ -1,12 +1,16 @@
 import { FileQuestion, GitMerge } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { isPapelizDesktopApp } from 'virtual:papeliz-desktop-platform-availability'
 import { PapelizPillButton } from '../ui/papeliz-buttons'
 import { PapelizSlidingChoiceGroup } from '../ui/papeliz-sliding-choice-group'
 import type { PapelizVaultNoteMergeChoice } from '../vault/papeliz-vault-note-merge'
 import { getVaultNoteTitle } from '../vault/papeliz-vault-relative-paths'
 import type { PapelizVaultNoteSaveConflict } from './papeliz-workspace-store'
 import { usePapelizWorkspaceStore } from './papeliz-workspace-store'
+
+// Who else changed the note, in the dialog's words: the desktop app has no other tabs.
+const papelizNoteSaveConflictElsewhereName = isPapelizDesktopApp ? 'Another app' : 'Another tab or app'
 
 // A clash with another device through Papeliz Sync: the dialog names that device ("On Phone"), and
 // Save hands the choices to Sync instead of saving this tab's note.
@@ -83,9 +87,9 @@ export function PapelizNoteSaveConflictDialog({ loadedNoteSessionId, vaultNoteSa
           </h2>
           <p className="text-sm text-papeliz-ink-muted">
             {isVaultNoteDeletedElsewhere
-              ? 'Another tab or app moved this note or put it in the trash while you had unsaved changes. Keep your copy to save it here again, or close it and let your changes go.'
+              ? `${papelizNoteSaveConflictElsewhereName} moved this note or put it in the trash while you had unsaved changes. Keep your copy to save it here again, or close it and let your changes go.`
               : otherSyncDeviceName === null
-                ? 'Another tab or app saved this note while you were editing it. Papeliz combined the changes that don’t overlap. Where both changed the same lines, choose what to keep.'
+                ? `${papelizNoteSaveConflictElsewhereName} saved this note while you were editing it. Papeliz combined the changes that don’t overlap. Where both changed the same lines, choose what to keep.`
                 : `Papeliz combined the changes that don’t overlap. Where ${otherSyncDeviceName} and this device changed the same lines, choose what to keep.`}
           </p>
         </div>

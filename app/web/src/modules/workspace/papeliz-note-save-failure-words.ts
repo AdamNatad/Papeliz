@@ -1,3 +1,4 @@
+import { isPapelizDesktopApp } from 'virtual:papeliz-desktop-platform-availability'
 import { describePapelizFailureCode, papelizUnknownFailureSentence } from '../vault/papeliz-failure-code-words'
 
 // A failed save in plain words: a few words for the status bar and the tab, and what to do, for the
@@ -20,8 +21,10 @@ export function describePapelizNoteSaveFailure(noteSaveErrorCode: string | null)
     case 'No Permission':
       return {
         noteSaveFailureShortReason: 'No permission',
-        noteSaveFailureAdvice:
-          'Papeliz may no longer write to this folder. Copy your changes somewhere safe, then close the vault and open it again from Recent Vaults to allow it.',
+        // In the desktop app the folder's permission is Windows', so opening the vault again doesn't help.
+        noteSaveFailureAdvice: isPapelizDesktopApp
+          ? 'Papeliz may no longer write to this folder. Copy your changes somewhere safe, check the folder isn’t read-only, then press Try Again.'
+          : 'Papeliz may no longer write to this folder. Copy your changes somewhere safe, then close the vault and open it again from Recent Vaults to allow it.',
       }
     case 'File Not Found':
       return {

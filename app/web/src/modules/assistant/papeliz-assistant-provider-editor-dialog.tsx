@@ -1,5 +1,6 @@
 import { Check, ChevronDown, ChevronRight, CircleAlert, CircleCheck, ExternalLink, Eye, EyeOff, LoaderCircle, Lock, PlugZap, RefreshCw, Search, X } from 'lucide-react'
 import { Fragment, useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { isPapelizDesktopApp } from 'virtual:papeliz-desktop-platform-availability'
 import { PapelizIconButton, PapelizPillButton } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { PapelizConfirmDialog } from '../ui/papeliz-confirm-dialog'
@@ -27,6 +28,12 @@ import {
   type PapelizAssistantProviderSettingsRecord,
 } from './papeliz-assistant-provider-settings-store'
 import { listPapelizProviderModelNames, testPapelizProviderConnection } from './papeliz-openai-compatible-client'
+
+// Where a provider's key is kept and erased from, in the modal's words: this browser on the web; this
+// computer, and Papeliz itself, in the desktop app.
+const papelizAssistantProviderKeyKeptPlaceWords = isPapelizDesktopApp
+  ? { providerKeyKeptPlaceWords: 'on this computer', providerKeyErasedPlaceName: 'Papeliz' }
+  : { providerKeyKeptPlaceWords: 'in this browser', providerKeyErasedPlaceName: 'this browser' }
 
 // What the provider modal opens for: Add Provider, or one saved provider's gear.
 export type PapelizAssistantProviderEditorRequest = { providerEditorKind: 'add' } | { providerEditorKind: 'edit'; papelizAssistantProviderId: string }
@@ -785,8 +792,8 @@ function PapelizAssistantProviderSettingsForm({
         <p role="note" aria-label="Where your key goes" className="mt-2 flex items-start gap-1.5 text-[12.5px] leading-snug text-papeliz-ink-muted">
           <Lock className="mt-0.5 size-3.5 flex-none" aria-hidden="true" />
           <span>
-            Kept only in this browser and sent only to <span className="font-mono text-papeliz-ink">{providerHost}</span>, with your messages and the notes the assistant
-            reads.
+            Kept only {papelizAssistantProviderKeyKeptPlaceWords.providerKeyKeptPlaceWords} and sent only to{' '}
+            <span className="font-mono text-papeliz-ink">{providerHost}</span>, with your messages and the notes the assistant reads.
           </span>
         </p>
 
@@ -1050,7 +1057,10 @@ function PapelizAssistantProviderSettingsForm({
           <PapelizConfirmDialog
             confirmDialogTitle={`Remove ${providerPreset.providerPresetDisplayName}?`}
             confirmDialogBody={
-              <p>Its API key and its models are erased from this browser, and the assistant stops offering them. Your chats, notes and Usage stay as they are.</p>
+              <p>
+                Its API key and its models are erased from {papelizAssistantProviderKeyKeptPlaceWords.providerKeyErasedPlaceName}, and the assistant stops offering
+                them. Your chats, notes and Usage stay as they are.
+              </p>
             }
             confirmButtonLabel="Remove Provider"
             isConfirmActionDangerous

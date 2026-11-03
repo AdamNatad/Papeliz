@@ -1,5 +1,6 @@
 import { BookOpenText, Check, CircleAlert, FilePen, FileSearch, FileText, Link2, List, ListChecks, PenLine, Search, Tags, WandSparkles } from 'lucide-react'
 import { useEffect, useRef, type ReactNode } from 'react'
+import { isPapelizDesktopApp } from 'virtual:papeliz-desktop-platform-availability'
 import { PapelizPillButton } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { getVaultNoteTitle } from '../vault/papeliz-vault-relative-paths'
@@ -247,7 +248,11 @@ export function PapelizAssistantChatView() {
             <WandSparkles className="size-[18px]" aria-hidden="true" />
           </span>
           <h3 className="text-[17px] font-semibold">Set up the AI Assistant</h3>
-          <p className="text-sm text-papeliz-ink-muted">Runs on your own API key, sent straight from this browser to the provider you pick.</p>
+          <p className="text-sm text-papeliz-ink-muted">
+            {isPapelizDesktopApp
+              ? 'Runs on your own API key, sent straight from this computer to the provider you pick.'
+              : 'Runs on your own API key, sent straight from this browser to the provider you pick.'}
+          </p>
           {/* Half set up: what is still missing ("Add your OpenAI API key."). */}
           {activeProviderConnection.providerSetupProblem !== papelizAssistantProviderNotChosenProblem && (
             <p className="text-[13px] font-medium text-papeliz-ink">{activeProviderConnection.providerSetupProblem}</p>

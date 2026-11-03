@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { isPapelizDesktopApp } from 'virtual:papeliz-desktop-platform-availability'
 import { movePapelizEarlierChatSessionsIntoChatSessionsFolder } from '../assistant/papeliz-assistant-chat-session-folder-move'
 import { usePapelizAssistantConversationStore } from '../assistant/papeliz-assistant-conversation-store'
 import { PapelizAssistantPanel } from '../assistant/papeliz-assistant-panel'
@@ -33,6 +34,12 @@ import {
 } from './papeliz-workspace-panel-widths-store'
 import { PapelizWorkspaceTopbar } from './papeliz-workspace-topbar'
 import { usePapelizWorkspaceStore, type PapelizWorkspaceSidePanel } from './papeliz-workspace-store'
+
+// Where Close Vault leads, in the Close dialog's words: the web app's start page, the desktop app's
+// start screen.
+const papelizCloseVaultStartPlaceName = isPapelizDesktopApp ? 'start screen' : 'start page'
+// Where the sample vault lives, in the Close dialog's words: a browser tab, or the desktop app's memory.
+const papelizCloseVaultSampleVaultPlaceWords = isPapelizDesktopApp ? 'in memory' : 'in this browser tab'
 
 function focusNoteEditorTextSoon(): void {
   requestAnimationFrame(() => document.querySelector<HTMLElement>('.papeliz-note-editor .cm-content')?.focus())
@@ -221,14 +228,17 @@ export function PapelizWorkspace() {
           confirmDialogTitle={`Close “${openVault.papelizVaultDisplayName}”?`}
           confirmDialogBody={
             openVault.papelizVaultAdapter.papelizVaultKind === 'folder-on-disk' ? (
-              <p>Your notes are saved and stay in the folder. You go back to the start page, where you can open it again.</p>
+              <p>Your notes are saved and stay in the folder. You go back to the {papelizCloseVaultStartPlaceName}, where you can open it again.</p>
             ) : openVault.papelizVaultAdapter.papelizVaultKind === 'browser-vault-in-opfs' ? (
               <>
-                <p>Your notes are saved and stay in this browser. You go back to the start page, where you can open it again.</p>
+                <p>Your notes are saved and stay in this browser. You go back to the {papelizCloseVaultStartPlaceName}, where you can open it again.</p>
                 <PapelizBrowserVaultChangesSinceBackupLine />
               </>
             ) : (
-              <p>This vault lives only in this browser tab, so changes to its notes are lost when it closes. You go back to the start page.</p>
+              <p>
+                This vault lives only {papelizCloseVaultSampleVaultPlaceWords}, so changes to its notes are lost when it closes. You go back to the{' '}
+                {papelizCloseVaultStartPlaceName}.
+              </p>
             )
           }
           confirmButtonLabel="Close Vault"
