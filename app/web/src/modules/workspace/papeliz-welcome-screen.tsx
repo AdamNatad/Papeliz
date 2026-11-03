@@ -941,13 +941,14 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
           isPapelizDesktopApp ? 'pr-0' : 'pr-3 sm:pr-5',
         )}
       >
-        {/* The logo goes back to Recent Vaults from any panel. */}
+        {/* The logo goes back to Recent Vaults from any panel. On hover it glows white, with no box behind it,
+            and a press sinks it slightly. */}
         <button
           type="button"
           aria-label="Papeliz, back to Recent Vaults"
           title="Recent Vaults"
           onClick={showRecentVaults}
-          className="-mx-1.5 flex items-center gap-2.5 rounded-lg px-1.5 py-1 transition-colors hover:bg-white/10 focus-visible:outline-white"
+          className="-mx-1.5 flex items-center gap-2.5 rounded-lg px-1.5 py-1 transition-[filter,transform] duration-200 hover:drop-shadow-[0_0_12px_rgb(255_255_255/0.45)] focus-visible:outline-white active:scale-[0.98] motion-reduce:transition-none motion-reduce:active:scale-100"
         >
           <PapelizMark papelizMarkSize={26} papelizMarkTone="on-blue" />
           <span className="text-[15px] font-semibold tracking-[-0.01em]">Papeliz</span>
