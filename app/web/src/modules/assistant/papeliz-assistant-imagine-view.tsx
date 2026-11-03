@@ -1,5 +1,6 @@
 import { FileInput, ImagePlus, Save, Sparkles, Square, Trash2 } from 'lucide-react'
 import { useEffect, useId, useRef, useState, type DragEvent } from 'react'
+import { isPapelizDesktopApp } from 'virtual:papeliz-desktop-platform-availability'
 import { PapelizIconButton, PapelizPillButton } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { PapelizListboxSelect } from '../ui/papeliz-listbox-select'
@@ -278,7 +279,7 @@ export function PapelizAssistantImagineView() {
           </div>
           {chosenMediaModel !== null && (
             <p className="text-[11.5px] leading-snug text-papeliz-ink-subtle">
-              {isGenerating ? 'Making the pictures… ' : ''}Sent from this browser straight to {chosenMediaModel.providerDisplayName} with your key.
+              {isGenerating ? 'Making the pictures… ' : ''}Sent from {isPapelizDesktopApp ? 'this computer' : 'this browser'} straight to {chosenMediaModel.providerDisplayName} with your key.
             </p>
           )}
           {imagineGenerationStage === 'failed' && imagineGenerationProblem !== null && <PapelizAssistantMediaProblemLine>{imagineGenerationProblem}</PapelizAssistantMediaProblemLine>}

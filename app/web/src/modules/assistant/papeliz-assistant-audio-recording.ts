@@ -1,3 +1,5 @@
+import { isPapelizDesktopApp } from 'virtual:papeliz-desktop-platform-availability'
+
 // Transcribe's audio on this device: a recording made with the browser's microphone, which the browser
 // asks permission for only when Record is pressed, and the length of any audio before it is sent. The
 // audio stays in this page's memory; it goes only to the provider that transcribes it, and into the
@@ -5,6 +7,15 @@
 //
 // Providers that hear audio inside a chat take WAV or MP3 only, so a recording or another format is
 // turned into a WAV here first: one channel at 16 kHz, which speech models work at, as 16-bit samples.
+
+// Where the microphone is allowed again once refused: the site's settings in a browser, Windows' own
+// privacy settings in the desktop app.
+const papelizMicrophoneAllowPlaceWords = isPapelizDesktopApp ? 'Windows’ microphone settings (Privacy & security › Microphone)' : 'the browser’s site settings'
+const papelizAudioRecordingUnavailableSentence = isPapelizDesktopApp
+  ? 'Papeliz can’t record audio on this computer. Bring in an audio file instead.'
+  : 'This browser can’t record audio. Bring in an audio file instead.'
+// The Record button's hint: who asks for the microphone the first time.
+export const papelizMicrophoneFirstAskSentence = isPapelizDesktopApp ? 'Papeliz asks for the microphone the first time' : 'The browser asks for the microphone the first time'
 
 export interface PapelizAssistantAudioRecording {
   // When the microphone started, for the timer beside Stop.
@@ -27,7 +38,7 @@ export function isPapelizAudioRecordingAvailable(): boolean {
 function describeMicrophoneRefusal(microphoneError: unknown): string {
   const microphoneErrorName = microphoneError instanceof DOMException ? microphoneError.name : ''
   if (microphoneErrorName === 'NotAllowedError' || microphoneErrorName === 'SecurityError') {
-    return 'The microphone isn’t allowed for Papeliz. Allow it in the browser’s site settings, or bring in an audio file.'
+    return `The microphone isn’t allowed for Papeliz. Allow it in ${papelizMicrophoneAllowPlaceWords}, or bring in an audio file.`
   }
   if (microphoneErrorName === 'NotFoundError' || microphoneErrorName === 'OverconstrainedError') return 'No microphone was found.'
   if (microphoneErrorName === 'NotReadableError') return 'The microphone is in use by another app.'
@@ -36,7 +47,7 @@ function describeMicrophoneRefusal(microphoneError: unknown): string {
 
 // Asks for the microphone (the browser's own prompt, the first time) and starts recording.
 export async function startPapelizAssistantAudioRecording(): Promise<PapelizAssistantAudioRecording> {
-  if (!isPapelizAudioRecordingAvailable()) throw new PapelizAssistantAudioRecordingError('This browser can’t record audio. Bring in an audio file instead.')
+  if (!isPapelizAudioRecordingAvailable()) throw new PapelizAssistantAudioRecordingError(papelizAudioRecordingUnavailableSentence)
   let microphoneStream: MediaStream
   try {
     microphoneStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } })

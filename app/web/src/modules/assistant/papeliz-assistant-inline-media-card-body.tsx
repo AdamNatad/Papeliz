@@ -1,7 +1,7 @@
 import { ArrowUp, Check, FileAudio, ImagePlus, Lock, Mic, Paintbrush, RotateCw, ScanEye, Square } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { PapelizPillButton } from '../ui/papeliz-buttons'
-import { formatPapelizAudioDuration, isPapelizAudioRecordingAvailable } from './papeliz-assistant-audio-recording'
+import { formatPapelizAudioDuration, isPapelizAudioRecordingAvailable, papelizMicrophoneFirstAskSentence } from './papeliz-assistant-audio-recording'
 import { describePapelizRemovedImageMetadata } from './papeliz-assistant-image-metadata-strip'
 import { usePapelizImagineStore } from './papeliz-assistant-imagine-store'
 import { usePapelizInlineEditStore } from './papeliz-assistant-inline-edit-store'
@@ -177,7 +177,7 @@ export function PapelizAssistantInlineMediaCardBody() {
                 pillButtonVariant="primary"
                 pillButtonSize="small"
                 disabled={!isPapelizAudioRecordingAvailable() || inlineMediaStage === 'working'}
-                title="The browser asks for the microphone the first time"
+                title={papelizMicrophoneFirstAskSentence}
                 onClick={() => void startInlineRecording()}
               >
                 <Mic className="size-3.5" aria-hidden="true" /> Record

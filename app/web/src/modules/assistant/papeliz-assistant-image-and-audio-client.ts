@@ -1,3 +1,4 @@
+import { isPapelizDesktopApp } from 'virtual:papeliz-desktop-platform-availability'
 import { PapelizAssistantProviderError, buildPapelizProviderUrl, type PapelizAssistantProviderConnection } from './papeliz-openai-compatible-client'
 import { redactPapelizAssistantProviderErrorText } from './papeliz-assistant-provider-error-redaction'
 
@@ -19,6 +20,11 @@ import { redactPapelizAssistantProviderErrorText } from './papeliz-assistant-pro
 export type PapelizTranscriptionApiShape = 'audio-transcriptions-endpoint' | 'meta-asr-transcribe-endpoint' | 'chat-completions-audio-input'
 
 type PapelizMediaFetchFunction = (requestUrl: string, requestInit: RequestInit) => Promise<Response>
+
+// Who makes the calls, in the messages about a provider or a picture link out of reach: a browser
+// page on the web, Papeliz itself in the desktop app.
+const papelizMediaCallerName = isPapelizDesktopApp ? 'Papeliz' : 'a browser'
+const papelizMediaDownloaderName = isPapelizDesktopApp ? 'Papeliz' : 'this page'
 
 export interface PapelizAssistantImageGenerationRequest {
   providerConnection: PapelizAssistantProviderConnection
@@ -118,7 +124,7 @@ async function sendMediaProviderRequest(
   } catch (providerFetchError) {
     if (providerFetchError instanceof DOMException && providerFetchError.name === 'AbortError') throw providerFetchError
     throw new PapelizAssistantProviderError(
-      `Could not reach ${describeProviderHost(providerConnection.providerBaseUrl)}. Check the base URL and your connection, and that the provider accepts calls from a browser.`,
+      `Could not reach ${describeProviderHost(providerConnection.providerBaseUrl)}. Check the base URL and your connection, and that the provider accepts calls from ${papelizMediaCallerName}.`,
       null,
     )
   }
@@ -211,7 +217,7 @@ async function readGeneratedImageSource(imageSourceText: string, fetchFunction: 
     imageResponse = await fetchFunction(imageSourceText, { method: 'GET', credentials: 'omit', ...(abortSignal === undefined ? {} : { signal: abortSignal }) })
   } catch (imageFetchError) {
     if (imageFetchError instanceof DOMException && imageFetchError.name === 'AbortError') throw imageFetchError
-    throw new PapelizAssistantProviderError(`The picture is at ${describeProviderHost(imageSourceText)}, which doesn’t let this page download it.`, null)
+    throw new PapelizAssistantProviderError(`The picture is at ${describeProviderHost(imageSourceText)}, which doesn’t let ${papelizMediaDownloaderName} download it.`, null)
   }
   if (!imageResponse.ok) throw new PapelizAssistantProviderError(`The picture’s link answered with an error (${imageResponse.status}).`, imageResponse.status)
   return buildGeneratedImageBlob(new Uint8Array(await imageResponse.arrayBuffer()))
