@@ -190,6 +190,19 @@ function expectPictureCleaned(savedPictureBytes: Buffer): void {
   expect(savedPictureBytes.includes(Buffer.from('tEXt', 'latin1'))).toBe(false)
 }
 
+// Scrolls the note by its own scrolling box, the first one around the editor that has room to scroll,
+// as reading on would.
+async function scrollNoteBy(page: Page, scrolledPixels: number): Promise<void> {
+  await page
+    .locator('.cm-content')
+    .first()
+    .evaluate((noteContentElement, pixelsToScroll) => {
+      let noteScrollingElement = noteContentElement.parentElement
+      while (noteScrollingElement !== null && noteScrollingElement.scrollHeight <= noteScrollingElement.clientHeight) noteScrollingElement = noteScrollingElement.parentElement
+      noteScrollingElement?.scrollBy(0, pixelsToScroll)
+    }, scrolledPixels)
+}
+
 // In MD Code: selects the whole line holding `lineText`, then opens Edit with Assistant (Ctrl+K).
 async function openInlineCardOnLine(page: Page, lineText: string): Promise<Locator> {
   await page.locator('.cm-line', { hasText: lineText }).first().click()
@@ -307,12 +320,13 @@ test('the Imagine tab is a thread: an example fills the box, Enter sends, and th
   expect(refusedOutsideRequestUrls).toEqual([])
 })
 
-// OpenAI, added from Draw's picture model menu (Models for Each Task opens Settings › AI Provider) as
-// a second provider, its base URL changed to the provider the test plays.
+// OpenAI, added from Draw's picture model menu (Models for Each Task opens Settings › AI Provider at
+// that section) as a second provider, its base URL changed to the provider the test plays.
 async function addTestOpenAiProviderFromDraw(page: Page, assistantPanel: Locator): Promise<void> {
   await assistantPanel.getByRole('button', { name: /^Picture model: / }).click()
   await page.getByRole('menu', { name: 'Picture Model' }).getByRole('menuitem', { name: 'Models for Each Task' }).click()
   const settingsPanel = page.getByRole('dialog', { name: 'Settings' })
+  await expect(settingsPanel.getByRole('region', { name: 'Models for Each Task' })).toBeInViewport()
   await settingsPanel.getByRole('button', { name: 'Add Provider', exact: true }).click()
   const addProviderDialog = page.getByRole('dialog', { name: 'Add Provider' })
   await addProviderDialog.getByRole('button', { name: /^Provider / }).click()
@@ -748,7 +762,11 @@ test('the note’s right-click menu offers Imagine Here and Transcribe Here, and
   await expect(inlineCard).toBeHidden()
   await expect(page.locator('.cm-line', { hasText: `![${testPictureAltText}](Attachments/imagine-` })).toHaveCount(1)
 
-  // Transcribe Here, at the clicked line.
+  // Transcribe Here, at the clicked line. The note is scrolled down first, so the right-click brings
+  // the line back into view just before the menu opens; that scroll's event, which comes a frame
+  // later, must not close the menu.
+  await scrollNoteBy(page, 600)
+  await expect(page.locator('.cm-line', { hasText: '# Start here' }).first()).not.toBeInViewport()
   await page.locator('.cm-line', { hasText: '# Start here' }).first().click({ button: 'right' })
   await noteActionsMenu.getByRole('menuitem', { name: 'Transcribe Here' }).click()
   await expect(inlineCard).toHaveAttribute('aria-label', 'Transcribe speech here')
@@ -765,6 +783,13 @@ test('the note’s right-click menu offers Imagine Here and Transcribe Here, and
   await expect(inlineCard.locator('.papeliz-text-diff')).toContainText(`![${testPictureAltText}](Attachments/imagine-`)
   await inlineCard.getByRole('button', { name: 'Reject' }).click()
   await expect(inlineCard).toBeHidden()
+
+  // Scrolling the note while the menu is open still closes it.
+  await scrollNoteBy(page, -10_000)
+  await page.locator('.cm-line', { hasText: 'Try these' }).first().click({ button: 'right' })
+  await expect(noteActionsMenu).toBeVisible()
+  await scrollNoteBy(page, 200)
+  await expect(noteActionsMenu).toBeHidden()
   expect(refusedOutsideRequestUrls).toEqual([])
 })
 

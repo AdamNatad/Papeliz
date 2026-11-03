@@ -314,9 +314,27 @@ export function PapelizNoteContextMenu({
       if (!noteContextMenuRef.current?.contains(pointerEvent.target as Node)) onNoteContextMenuCloseRef.current()
     }
     const closeOnWindowChange = () => onNoteContextMenuCloseRef.current()
+    // Where the note and the boxes around it were scrolled to as the menu opened. A scroll's event
+    // comes a frame after the scroll, so one that ended just before the right-click (the line brought
+    // into view first) arrives after the menu opened; it moved nothing since, so it doesn't count.
+    const scrollPositionsAtMenuOpen = new Map<Element, { scrollTop: number; scrollLeft: number }>()
+    for (let scrollingElement: Element | null = noteEditorView.scrollDOM; scrollingElement !== null; scrollingElement = scrollingElement.parentElement) {
+      scrollPositionsAtMenuOpen.set(scrollingElement, { scrollTop: scrollingElement.scrollTop, scrollLeft: scrollingElement.scrollLeft })
+    }
     // The note scrolling closes the menu; the menu scrolling itself (on a short screen) does not.
     const closeOnScrollOutside = (scrollEvent: Event) => {
-      if (!noteContextMenuRef.current?.contains(scrollEvent.target as Node)) onNoteContextMenuCloseRef.current()
+      if (noteContextMenuRef.current?.contains(scrollEvent.target as Node)) return
+      const scrolledElement = scrollEvent.target instanceof Document ? scrollEvent.target.scrollingElement : scrollEvent.target
+      const scrollPositionAtMenuOpen = scrolledElement instanceof Element ? scrollPositionsAtMenuOpen.get(scrolledElement) : undefined
+      if (
+        scrolledElement instanceof Element &&
+        scrollPositionAtMenuOpen !== undefined &&
+        scrolledElement.scrollTop === scrollPositionAtMenuOpen.scrollTop &&
+        scrolledElement.scrollLeft === scrollPositionAtMenuOpen.scrollLeft
+      ) {
+        return
+      }
+      onNoteContextMenuCloseRef.current()
     }
     document.addEventListener('pointerdown', closeOnOutsidePointer, true)
     document.addEventListener('scroll', closeOnScrollOutside, true)
@@ -328,7 +346,7 @@ export function PapelizNoteContextMenu({
       stopWatchingWindowWidth()
       window.removeEventListener('blur', closeOnWindowChange)
     }
-  }, [])
+  }, [noteEditorView])
 
   // Runs a menu action, then gives the note its cursor back.
   const runInNote = (noteAction: () => void) => () => {

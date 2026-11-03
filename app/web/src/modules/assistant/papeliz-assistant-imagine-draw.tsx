@@ -134,6 +134,7 @@ function PapelizImagineDrawBox({
   const sendImaginePrompt = usePapelizImagineStore((imagineState) => imagineState.sendImaginePrompt)
   const stopImagineGeneration = usePapelizImagineStore((imagineState) => imagineState.stopImagineGeneration)
   const requestAssistantProviderSettingsPage = usePapelizAssistantPanelUiStore((panelUiState) => panelUiState.requestAssistantProviderSettingsPage)
+  const requestAssistantModelsForEachTaskSection = usePapelizAssistantPanelUiStore((panelUiState) => panelUiState.requestAssistantModelsForEachTaskSection)
   const [isOtherImageModelFormOpen, setIsOtherImageModelFormOpen] = useState(false)
   const pictureFileInputRef = useRef<HTMLInputElement>(null)
   // The spoken words join the prompt, and the prompt takes focus with the caret after them.
@@ -182,9 +183,13 @@ function PapelizImagineDrawBox({
         void chooseAssistantMediaModel('image-generation', { papelizAssistantProviderId: offeredMediaModel.papelizAssistantProviderId, providerModelName: offeredMediaModel.providerModelName }),
     })),
     { menuItemKey: 'other-model', menuItemLabel: 'Other Model', MenuItemIcon: TextCursorInput, menuItemGroupHeading: 'Settings', onMenuItemSelect: () => setIsOtherImageModelFormOpen(true) },
-    // Opens Settings › AI Provider, where Models for Each Task sits under the saved providers. It opens
-    // at the top of the page: scrolling to the section needs the panel's own request for it.
-    { menuItemKey: 'models-for-each-task', menuItemLabel: 'Models for Each Task', MenuItemIcon: SlidersHorizontal, onMenuItemSelect: () => requestAssistantProviderSettingsPage() },
+    // Opens Settings › AI Provider scrolled to Models for Each Task, under the saved providers.
+    {
+      menuItemKey: 'models-for-each-task',
+      menuItemLabel: 'Models for Each Task',
+      MenuItemIcon: SlidersHorizontal,
+      onMenuItemSelect: () => requestAssistantModelsForEachTaskSection(),
+    },
   ]
   // Each shape as its ratio beside an outline drawn in it, then how many pictures, under a line.
   const aspectRatioAndCountMenuItems: PapelizPopoverMenuItem[] = [
