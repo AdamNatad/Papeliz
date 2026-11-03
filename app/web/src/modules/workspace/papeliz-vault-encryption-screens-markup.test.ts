@@ -48,7 +48,9 @@ describe('New Vault’s Encryption part', () => {
     expect(endToEndPartMarkup).toContain('>Vault passphrase</label>')
     expect(endToEndPartMarkup).toContain('>Type it again</label>')
     expect(endToEndPartMarkup).toContain('At least 12 characters.')
-    expect(endToEndPartMarkup).toContain('Papeliz can’t recover this passphrase. Forget it and these notes can’t be opened.')
+    expect(endToEndPartMarkup).toContain(
+      'Keep your passphrase safe, as neither Papeliz nor any third party can reset or recover it. If you lose or forget it, your encrypted data may become permanently inaccessible. Your passphrase works exclusively across Papeliz Apps.',
+    )
   })
 })
 
@@ -129,7 +131,7 @@ describe('Settings › Vault › Encryption’s dialogs', () => {
     expect(toEndToEndDialogMarkup).toContain('Papeliz encrypts all 3,210 files in this vault on this device')
     expect(toEndToEndDialogMarkup).toContain('>Vault passphrase</label>')
     expect(toEndToEndDialogMarkup).toContain('>Type it again</label>')
-    expect(toEndToEndDialogMarkup).toContain('Papeliz can’t recover this passphrase.')
+    expect(toEndToEndDialogMarkup).toContain('neither Papeliz nor any third party can reset or recover it.')
     expect(toEndToEndDialogMarkup).toContain('Copies made before stay readable')
     expect(toEndToEndDialogMarkup).toMatch(/disabled=""[^>]*>Encrypt 3,210 Files<\/button>/)
   })

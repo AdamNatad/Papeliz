@@ -19,7 +19,7 @@ export const papelizNewEndToEndVaultPassphraseFieldLabel = 'Vault passphrase'
 
 // Under a new passphrase: there's no way back without it.
 export const papelizEndToEndVaultPassphraseNotRecoverableLine =
-  'Papeliz can’t recover this passphrase. Forget it and these notes can’t be opened. Other apps can’t read them either: only Papeliz, with the passphrase.'
+  'Keep your passphrase safe, as neither Papeliz nor any third party can reset or recover it. If you lose or forget it, your encrypted data may become permanently inaccessible. Your passphrase works exclusively across Papeliz Apps.'
 
 // New Vault's "Sync This Vault": a Standard vault uploads encrypted with a key Papeliz keeps; Sync
 // doesn't carry an End-to-end vault yet.

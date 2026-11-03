@@ -359,7 +359,7 @@ export function PapelizVaultEncryptionChangeDialog({ changedOpenVault, vaultEncr
 
 function PapelizVaultEncryptionChangeWarning({ children }: { children: ReactNode }) {
   return (
-    <p className="flex items-start gap-2 rounded-xl bg-papeliz-warning px-3 py-2.5 text-[12.5px] leading-[1.45] text-papeliz-warning-ink">
+    <p className="flex items-start gap-2 rounded-xl bg-papeliz-warning px-3 py-2.5 text-[12.5px] leading-[1.45] text-pretty text-papeliz-warning-ink">
       <TriangleAlert className="mt-0.5 size-[15px] flex-none" aria-hidden="true" />
       <span>{children}</span>
     </p>

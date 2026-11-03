@@ -34,7 +34,7 @@ async function makeEndToEndBrowserVault(page: Page, endToEndVaultName: string) {
   await newVaultForm.getByLabel('Vault Name').fill(endToEndVaultName)
   await newVaultForm.getByRole('radio', { name: /^End-to-end/ }).check()
   await expect(newVaultForm.getByLabel('Vault passphrase')).toBeFocused()
-  await expect(newVaultForm).toContainText('Papeliz can’t recover this passphrase.')
+  await expect(newVaultForm).toContainText('neither Papeliz nor any third party can reset or recover it.')
   await expect(createVaultButton).toBeDisabled()
   await newVaultForm.getByLabel('Vault passphrase').fill(testVaultPassphrase)
   await newVaultForm.getByLabel('Type it again').fill('maple river cloud')
