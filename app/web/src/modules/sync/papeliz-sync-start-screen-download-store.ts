@@ -131,7 +131,7 @@ export async function openPapelizSyncDownloadedVaultFromClick(papelizVaultId: st
   const openVaultResult = await reopenPapelizRecentVault(downloadedRecentVault)
   if (openVaultResult.openVaultOutcome === 'failed') showWorkspaceNotice('error', openVaultResult.openVaultFailureMessage)
   if (openVaultResult.openVaultOutcome !== 'opened') return
-  await openVaultInWorkspace(openVaultResult.papelizOpenVault, { firstVaultNoteRelativePathToOpen: null, firstNoteViewMode: 'md-code', expandAllTopLevelFolders: false })
+  await openVaultInWorkspace(openVaultResult.papelizOpenVault, { firstVaultNoteRelativePathToOpen: null, firstNoteViewMode: 'md-view', expandAllTopLevelFolders: false })
 }
 
 async function finishSyncStartScreenDownload(papelizVaultId: string): Promise<void> {

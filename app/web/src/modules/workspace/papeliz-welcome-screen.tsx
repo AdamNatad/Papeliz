@@ -601,7 +601,7 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
     }
     await openVaultInWorkspace(openVaultResult.papelizOpenVault, {
       firstVaultNoteRelativePathToOpen: null,
-      firstNoteViewMode: 'md-code',
+      firstNoteViewMode: 'md-view',
       expandAllTopLevelFolders: false,
     })
     if (!isNewVault) return
@@ -651,7 +651,7 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
   const openUnlockedEndToEndVault = async (unlockedOpenVault: PapelizOpenVault) => {
     setEndToEndVaultUnlockRequest(null)
     reloadRecentVaults()
-    await openVaultInWorkspace(unlockedOpenVault, { firstVaultNoteRelativePathToOpen: null, firstNoteViewMode: 'md-code', expandAllTopLevelFolders: false })
+    await openVaultInWorkspace(unlockedOpenVault, { firstVaultNoteRelativePathToOpen: null, firstNoteViewMode: 'md-view', expandAllTopLevelFolders: false })
   }
 
   const cancelEndToEndVaultUnlock = () => setEndToEndVaultUnlockRequest(null)

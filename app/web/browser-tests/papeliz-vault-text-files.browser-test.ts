@@ -63,9 +63,8 @@ test('a browser vault opens a JSON file and a .gitignore in MD Code only, and ke
   await expect(fileList.getByText('settings.json', { exact: true })).toBeVisible()
   await expect(fileList.getByText('.gitignore', { exact: true })).toHaveCount(0)
 
-  // MD View picked for notes; a JSON file still opens in MD Code, with MD View greyed out.
+  // Notes open in MD View; a JSON file still opens in MD Code, with MD View greyed out.
   await fileList.getByText('Start', { exact: true }).click()
-  await findNoteViewButton(page, 'MD View').click()
   await expect(findNoteViewButton(page, 'MD View')).toHaveAttribute('aria-pressed', 'true')
   await fileList.getByText('settings.json', { exact: true }).click()
   await expect(findNoteViewButton(page, 'MD Code')).toHaveAttribute('aria-pressed', 'true')

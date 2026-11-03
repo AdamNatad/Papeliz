@@ -83,6 +83,8 @@ test('a new browser vault keeps its notes across a reload', async ({ page }) => 
   await expect(newVaultForm.getByRole('button', { name: 'Create Vault' })).toBeDisabled()
   await newVaultNameField.fill('Field Notes')
   await newVaultForm.getByRole('button', { name: 'Create Vault' }).click()
+  // A new vault opens in MD View, and its first note is written there.
+  await expect(page.getByRole('group', { name: 'Note view' }).getByRole('button', { name: 'MD View' })).toHaveAttribute('aria-pressed', 'true')
   // The first note starts with its name ready to type.
   await page.waitForFunction(() => document.activeElement instanceof HTMLInputElement)
   await page.keyboard.press('Control+a')
@@ -90,6 +92,8 @@ test('a new browser vault keeps its notes across a reload', async ({ page }) => 
   await page.keyboard.press('Enter')
   await page.locator('.cm-content').click()
   await page.keyboard.type('# Garden\n\nKale and beans.')
+  // Off the cursor's line, the heading shows drawn, without its `#`.
+  await expect(page.locator('.papeliz-md-view .cm-line.cm-papeliz-md-view-heading-1')).toHaveText('Garden')
   await expect(page.locator('footer')).toContainText('Saved in browser')
   await page.reload()
   await expect(page.getByRole('button', { name: /Field Notes/ }).first()).toContainText('Browser Storage')

@@ -1240,7 +1240,8 @@ export const usePapelizWorkspaceStore = create<PapelizWorkspaceState>()((setWork
     openNoteTabRelativePaths: [],
     activeVaultNoteRelativePath: null,
     loadedVaultNotesByRelativePath: {},
-    noteViewMode: 'md-code',
+    // A vault opens in MD View; MD Code is a press away, and stays chosen while the vault is open.
+    noteViewMode: 'md-view',
     lockedVaultEntryRelativePaths: [],
     vaultEntryLooks: {},
     isWholeVaultEditingLocked: false,
