@@ -1,5 +1,6 @@
 import { CircleAlert, Info, X } from 'lucide-react'
 import { useEffect } from 'react'
+import { PapelizDesktopAppUpdateToast } from '../desktop/papeliz-desktop-app-update-parts'
 import { PapelizIconButton, PapelizPillButton } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { usePapelizWorkspaceStore } from './papeliz-workspace-store'
@@ -33,9 +34,11 @@ export function PapelizWorkspaceNotice({ dockedAssistantPanelWidth = null }: Pap
   return (
     <div
       aria-live="polite"
-      className="pointer-events-none fixed bottom-10 z-40 flex justify-end pl-4 max-sm:left-4 max-sm:pl-0"
+      className="pointer-events-none fixed bottom-10 z-40 flex flex-col items-end gap-2 pl-4 max-sm:left-4 max-sm:pl-0"
       style={{ right: dockedAssistantPanelWidth === null ? 16 : `calc(min(${dockedAssistantPanelWidth}px, 45vw) + 16px)` }}
     >
+      {/* Papeliz for Windows: a newer version ready, above the notices, until it is pressed or closed. */}
+      <PapelizDesktopAppUpdateToast />
       {workspaceNotice !== null && (
         <div
           key={workspaceNotice.workspaceNoticeId}

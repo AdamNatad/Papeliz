@@ -1,6 +1,13 @@
-import { Accessibility, ChevronLeft, ChevronRight, FolderX, RefreshCw, Settings, User, WandSparkles, type LucideIcon } from 'lucide-react'
+import { Accessibility, ChevronLeft, ChevronRight, CircleArrowDown, FolderX, RefreshCw, Settings, User, WandSparkles, type LucideIcon } from 'lucide-react'
 import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import {
+  PapelizDesktopAppUpdateGearDot,
+  PapelizDesktopAppUpdatesPage,
+  useIsPapelizDesktopAppSelfUpdating,
+  usePapelizReadyDesktopAppUpdateVersion,
+} from '../desktop/papeliz-desktop-app-update-parts'
+import { usePapelizDesktopAppUpdateStore } from '../desktop/papeliz-desktop-app-update-store'
 import { usePapelizAssistantPanelUiStore } from '../assistant/papeliz-assistant-panel-ui-store'
 import { takePapelizSyncPlanPickFromAddress, usePapelizSyncSettingsGearRequestStore } from '../sync/papeliz-sync-settings-gear-request-store'
 import { PapelizIconButton } from '../ui/papeliz-buttons'
@@ -15,7 +22,7 @@ import {
 import { PapelizTopbarFrostedSquareButton } from './papeliz-topbar-frosted-square-button'
 import { usePapelizWorkspaceStore } from './papeliz-workspace-store'
 
-type PapelizSettingsGearPage = 'account' | 'sync' | 'settings' | 'accessibility' | 'ai-assistant'
+type PapelizSettingsGearPage = 'account' | 'sync' | 'settings' | 'accessibility' | 'ai-assistant' | 'desktop-updates'
 
 // Settings › AI Provider, loaded when it is opened, so the start page's gear carries none of it.
 const PapelizAssistantProviderSettingsPage = lazy(() =>
@@ -30,6 +37,7 @@ const papelizSettingsGearPageChoices: Record<PapelizSettingsGearPage, { settings
   settings: { settingsGearPageLabel: 'Settings', SettingsGearPageIcon: Settings },
   accessibility: { settingsGearPageLabel: 'Accessibility', SettingsGearPageIcon: Accessibility },
   'ai-assistant': { settingsGearPageLabel: 'AI Provider', SettingsGearPageIcon: WandSparkles },
+  'desktop-updates': { settingsGearPageLabel: 'Updates', SettingsGearPageIcon: CircleArrowDown },
 }
 
 // The list's groups, split by lines: Account | Sync, Settings | Accessibility, AI Provider (then Close
@@ -41,6 +49,13 @@ const papelizSettingsGearWorkspacePageGroups: ReadonlyArray<ReadonlyArray<Papeli
   ['accessibility', 'ai-assistant'],
 ]
 const papelizSettingsGearStartPagePageGroups: ReadonlyArray<ReadonlyArray<PapelizSettingsGearPage>> = [['account'], ['sync'], ['accessibility']]
+
+// A direct download of Papeliz for Windows also lists Updates, after the last group's rows.
+function addPapelizDesktopAppUpdatesPage(settingsGearPageGroups: ReadonlyArray<ReadonlyArray<PapelizSettingsGearPage>>): ReadonlyArray<ReadonlyArray<PapelizSettingsGearPage>> {
+  return settingsGearPageGroups.map((settingsGearPageGroup, settingsGearPageGroupIndex) =>
+    settingsGearPageGroupIndex === settingsGearPageGroups.length - 1 ? [...settingsGearPageGroup, 'desktop-updates'] : settingsGearPageGroup,
+  )
+}
 
 const papelizSettingsGearRowClassName =
   'flex h-9 w-full flex-none items-center gap-2.5 rounded-full px-2.5 text-left text-[13px] font-medium whitespace-nowrap transition-colors hover:bg-papeliz-hover focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-papeliz-blue pointer-coarse:h-11'
@@ -79,7 +94,11 @@ export function PapelizSettingsGearButton({ settingsGearPlace }: PapelizSettings
   const [isSettingsGearPageOpenOnPhone, setIsSettingsGearPageOpenOnPhone] = useState(false)
   const settingsGearPanelRef = useRef<HTMLDivElement>(null)
   const settingsGearButtonRef = useRef<HTMLButtonElement>(null)
-  const settingsGearPageGroups = isWorkspaceSettingsGear ? papelizSettingsGearWorkspacePageGroups : papelizSettingsGearStartPagePageGroups
+  const isPapelizDesktopAppSelfUpdating = useIsPapelizDesktopAppSelfUpdating()
+  const readyDesktopAppUpdateVersion = usePapelizReadyDesktopAppUpdateVersion()
+  const installReadyDesktopAppUpdate = usePapelizDesktopAppUpdateStore((desktopAppUpdateState) => desktopAppUpdateState.installReadyDesktopAppUpdate)
+  const placeSettingsGearPageGroups = isWorkspaceSettingsGear ? papelizSettingsGearWorkspacePageGroups : papelizSettingsGearStartPagePageGroups
+  const settingsGearPageGroups = isPapelizDesktopAppSelfUpdating ? addPapelizDesktopAppUpdatesPage(placeSettingsGearPageGroups) : placeSettingsGearPageGroups
   const isSettingsGearPanelOpen = settingsGearPanelAnchor !== null
 
   const closeSettingsGearPanel = () => setSettingsGearPanelAnchor(null)
@@ -161,6 +180,7 @@ export function PapelizSettingsGearButton({ settingsGearPlace }: PapelizSettings
   const renderSettingsGearPage = (): ReactNode => {
     if (chosenSettingsGearPage === 'account' || chosenSettingsGearPage === 'sync') return <PapelizSettingsGearTeaserPage settingsGearTeaser={chosenSettingsGearPage} />
     if (chosenSettingsGearPage === 'settings') return <PapelizSettingsGearSettingsPage />
+    if (chosenSettingsGearPage === 'desktop-updates') return <PapelizDesktopAppUpdatesPage />
     if (chosenSettingsGearPage === 'ai-assistant') {
       return (
         <Suspense fallback={null}>
@@ -173,6 +193,17 @@ export function PapelizSettingsGearButton({ settingsGearPlace }: PapelizSettings
 
   const settingsGearList = (
     <nav aria-label="Settings" className="flex min-h-0 flex-1 flex-col gap-0.5">
+      {/* Papeliz for Windows: a newer version ready, first in the list, installed and restarted into. */}
+      {readyDesktopAppUpdateVersion !== null && (
+        <button
+          type="button"
+          onClick={() => void installReadyDesktopAppUpdate()}
+          className={joinPapelizClassNames(papelizSettingsGearRowClassName, 'mb-1 bg-papeliz-chosen-row-ground text-papeliz-chosen-row-ink hover:bg-papeliz-chosen-row-ground')}
+        >
+          <CircleArrowDown className="size-4 flex-none text-papeliz-chosen-row-ink" aria-hidden="true" />
+          <span className="min-w-0 flex-1 truncate">Update to {readyDesktopAppUpdateVersion}</span>
+        </button>
+      )}
       {settingsGearPageGroups.map((settingsGearPageGroup, settingsGearPageGroupIndex) => (
         <div key={settingsGearPageGroup.join('-')} className="flex flex-col gap-0.5">
           {settingsGearPageGroupIndex > 0 && <PapelizSettingsGearListLine />}
@@ -244,7 +275,10 @@ export function PapelizSettingsGearButton({ settingsGearPlace }: PapelizSettings
           setSettingsGearPanelAnchor(measureSettingsGearPanelAnchor(clickEvent.currentTarget))
         }}
       >
-        <Settings className="size-[17px]" aria-hidden="true" />
+        <span className="relative">
+          <Settings className="size-[17px]" aria-hidden="true" />
+          <PapelizDesktopAppUpdateGearDot />
+        </span>
       </PapelizTopbarFrostedSquareButton>
       {settingsGearPanelAnchor !== null &&
         createPortal(

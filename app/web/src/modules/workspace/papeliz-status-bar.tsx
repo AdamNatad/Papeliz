@@ -1,6 +1,7 @@
 import { AppWindow, FolderOpen, Minus, Plus } from 'lucide-react'
 import { isPapelizDesktopApp } from 'virtual:papeliz-desktop-platform-availability'
 import { useDeferredValue, useMemo, useState } from 'react'
+import { PapelizDesktopAppUpdateStatusBarLine } from '../desktop/papeliz-desktop-app-update-parts'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { PapelizPopoverMenu, type PapelizPopoverMenuPosition } from '../ui/papeliz-popover-menu'
 import type { PapelizVaultKind } from '../vault/papeliz-vault-adapter'
@@ -189,6 +190,8 @@ export function PapelizStatusBar() {
         )}
       </span>
       <span className="ml-auto flex flex-none items-center gap-4">
+        {/* Papeliz for Windows: a newer version ready, pressed to restart into it. */}
+        <PapelizDesktopAppUpdateStatusBarLine />
         {openVaultKind === 'browser-vault-in-opfs' && <PapelizBrowserVaultBackupStatus papelizVaultId={openVault.papelizVaultId} />}
         {isNoteReady && activeVaultNoteRelativePath !== null && (
           <>

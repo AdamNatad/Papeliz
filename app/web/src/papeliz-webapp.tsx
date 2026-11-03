@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect } from 'react'
 import { loadPapelizDesktopPlatformOnce } from './modules/desktop/papeliz-desktop-platform-store'
+import { usePapelizDesktopAppUpdateStore } from './modules/desktop/papeliz-desktop-app-update-store'
 import { sendPapelizDesktopExternalLinksToSystemBrowser } from './modules/desktop/papeliz-desktop-external-links'
 import { PapelizWelcomeScreen } from './modules/workspace/papeliz-welcome-screen'
 import { hasUnsavedPapelizVaultNotes, usePapelizWorkspaceStore } from './modules/workspace/papeliz-workspace-store'
@@ -31,6 +32,9 @@ export function PapelizWebapp() {
           await usePapelizWorkspaceStore.getState().saveAllVaultNotesNow()
           if (hasUnsavedPapelizVaultNotes()) throw new Error('A note isn’t saved yet, so the window stays open.')
         })
+        // A direct download looks for a newer version once, unless that's switched off in Updates.
+        const { isDesktopAppUpdateCheckAtStartOn, checkForDesktopAppUpdateNow } = usePapelizDesktopAppUpdateStore.getState()
+        if (isDesktopAppUpdateCheckAtStartOn) void checkForDesktopAppUpdateNow(papelizDesktopPlatform)
       })
       .catch(() => null)
     return () => {
