@@ -25,7 +25,7 @@
     "homepage": "https://papeliz.com",
     "license": "MIT",
     "category": "Productivity",
-    "shortDescription": "A Markdown Editor and viewer with a built-in AI Assistant",
+    "shortDescription": "Papeliz is a Free, Open-Source Markdown Editor for your Personal Knowledge Base, with a built-in AI Assistant and Workflow Templates for Coding and AI Agents.",
     "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
     "android": {
       "minSdkVersion": 24
