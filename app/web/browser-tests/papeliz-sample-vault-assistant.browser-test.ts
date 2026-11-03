@@ -149,7 +149,7 @@ async function setUpTestProvider(page: Page): Promise<void> {
   await expect(addCustomDialog.getByText(`Connected. ${testProviderModelName} answered`, { exact: false })).toBeVisible()
   await addCustomDialog.getByRole('button', { name: 'Add Provider', exact: true }).click()
   await expect(addCustomDialog).toBeHidden()
-  await expect(settingsPanel.getByRole('listitem').filter({ hasText: 'Custom' })).toContainText('1 model on')
+  await expect(settingsPanel.getByRole('list', { name: 'Saved Providers' }).getByRole('listitem').filter({ hasText: 'Custom' })).toContainText('1 model on')
   await page.keyboard.press('Escape')
   await expect(settingsPanel).toBeHidden()
 }
@@ -311,8 +311,8 @@ test('two providers each keep their own key, and the model chip sends each messa
   await expect(addLmStudioDialog).toBeHidden()
   expect(secondTestProviderConnectionTestAuthorizations).toEqual([`Bearer ${secondTestProviderApiKey}`])
   // Where each key goes: its own provider's address, under its name.
-  await expect(settingsPanel.getByRole('listitem').filter({ hasText: 'Custom' })).toContainText('papeliz-test-provider.invalid')
-  await expect(settingsPanel.getByRole('listitem').filter({ hasText: 'LM Studio Local' })).toContainText('localhost:1234 · 1 model on')
+  await expect(settingsPanel.getByRole('list', { name: 'Saved Providers' }).getByRole('listitem').filter({ hasText: 'Custom' })).toContainText('papeliz-test-provider.invalid')
+  await expect(settingsPanel.getByRole('list', { name: 'Saved Providers' }).getByRole('listitem').filter({ hasText: 'LM Studio Local' })).toContainText('localhost:1234 · 1 model on')
   await page.keyboard.press('Escape')
   await expect(settingsPanel).toBeHidden()
 
@@ -356,7 +356,7 @@ test('two providers each keep their own key, and the model chip sends each messa
   await lmStudioDialog.getByRole('button', { name: 'Remove Provider', exact: true }).click()
   await removeProviderDialog.getByRole('button', { name: 'Remove Provider', exact: true }).click()
   await expect(lmStudioDialog).toBeHidden()
-  await expect(settingsPanel.getByRole('listitem').filter({ hasText: 'LM Studio Local' })).toHaveCount(0)
+  await expect(settingsPanel.getByRole('list', { name: 'Saved Providers' }).getByRole('listitem').filter({ hasText: 'LM Studio Local' })).toHaveCount(0)
   await page.keyboard.press('Escape')
   await page.getByRole('button', { name: `Model: ${testProviderModelName}` }).click()
   await expect(page.getByRole('menu', { name: 'Model' }).getByRole('menuitemradio')).toHaveCount(1)

@@ -11,6 +11,7 @@ import {
   SignalHigh,
   SignalLow,
   SignalMedium,
+  SlidersHorizontal,
   Square,
   TextSelect,
   WandSparkles,
@@ -125,6 +126,7 @@ export function PapelizAssistantComposer({ composerPlacement }: PapelizAssistant
   const [isFileDraggedOverComposer, setIsFileDraggedOverComposer] = useState(false)
   const composerFocusRequestCount = usePapelizAssistantPanelUiStore((panelUiState) => panelUiState.composerFocusRequestCount)
   const requestAssistantProviderSettingsPage = usePapelizAssistantPanelUiStore((panelUiState) => panelUiState.requestAssistantProviderSettingsPage)
+  const requestAssistantModelsForEachTaskSection = usePapelizAssistantPanelUiStore((panelUiState) => panelUiState.requestAssistantModelsForEachTaskSection)
 
   const audioFileInputRef = useRef<HTMLInputElement>(null)
   // After the words land, the box takes focus with the caret after them, ready to send.
@@ -177,9 +179,10 @@ export function PapelizAssistantComposer({ composerPlacement }: PapelizAssistant
 
   const openComposerChipMenuBelow = (composerChipMenuKind: PapelizComposerChipMenu['composerChipMenuKind'], clickEvent: MouseEvent<HTMLButtonElement>) => {
     const chipRect = clickEvent.currentTarget.getBoundingClientRect()
-    // The menu opens above the chip; the popover keeps it inside the window.
+    // The menu opens above the chip; the popover keeps it inside the window. Its Settings group holds
+    // two rows.
     const modelMenuHeight =
-      (enabledProviderModelGroups.reduce((modelRowCount, enabledProviderModelGroup) => modelRowCount + enabledProviderModelGroup.enabledProviderModelNames.length, 0) + 1) *
+      (enabledProviderModelGroups.reduce((modelRowCount, enabledProviderModelGroup) => modelRowCount + enabledProviderModelGroup.enabledProviderModelNames.length, 0) + 2) *
         papelizComposerChipMenuRowHeight +
       (enabledProviderModelGroups.length + 1) * papelizComposerChipMenuGroupHeadingHeight +
       papelizComposerChipMenuFrameHeight
@@ -216,6 +219,13 @@ export function PapelizAssistantComposer({ composerPlacement }: PapelizAssistant
             MenuItemIcon: Settings,
             menuItemGroupHeading: 'Settings',
             onMenuItemSelect: () => requestAssistantProviderSettingsPage(),
+          },
+          // Settings › AI Provider, scrolled to the models each task uses (this chip's is Chat's).
+          {
+            menuItemKey: 'models-for-each-task',
+            menuItemLabel: 'Models for Each Task',
+            MenuItemIcon: SlidersHorizontal,
+            onMenuItemSelect: () => requestAssistantModelsForEachTaskSection(),
           },
         ]
       : openComposerChipMenu?.composerChipMenuKind === 'effort'

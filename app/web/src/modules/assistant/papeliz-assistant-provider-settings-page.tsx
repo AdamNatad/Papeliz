@@ -7,6 +7,7 @@ import {
   PapelizAssistantProviderEditorDialog,
   type PapelizAssistantProviderEditorRequest,
 } from './papeliz-assistant-provider-editor-dialog'
+import { PapelizAssistantModelsForEachTaskSection } from './papeliz-assistant-models-for-each-task-section'
 import { findPapelizAssistantProviderPreset } from './papeliz-assistant-provider-presets'
 import { listPapelizEnabledProviderModelNames, listPapelizSavedAssistantProviderIds, usePapelizAssistantProviderSettingsStore } from './papeliz-assistant-provider-settings-store'
 
@@ -20,8 +21,8 @@ const papelizAssistantProviderKeyPlaceWords = isPapelizDesktopApp
 // for it. A row per provider: its name, where its key goes and how many of its models are on, and the
 // gear that opens its modal with the key, the models and Advanced. Add Provider opens one modal: a
 // Provider dropdown over the chosen provider's key, test and models. A provider is saved only once its
-// test passes (papeliz-assistant-provider-editor-dialog.tsx), and the model chip in the assistant picks
-// among every model switched on.
+// test passes (papeliz-assistant-provider-editor-dialog.tsx). Under them, once there is one, Models for
+// Each Task says which model chats, transcribes, draws and describes pictures, and changes each.
 export function PapelizAssistantProviderSettingsPage() {
   const savedProvidersHeadingId = useId()
   const providerSettingsByProviderId = usePapelizAssistantProviderSettingsStore((settingsState) => settingsState.providerSettingsByProviderId)
@@ -75,11 +76,11 @@ export function PapelizAssistantProviderSettingsPage() {
         <Plus className="size-3.5" aria-hidden="true" />
         Add Provider
       </PapelizPillButton>
+      {savedProviderIds.length > 0 && <PapelizAssistantModelsForEachTaskSection onAddProvider={() => setProviderEditorRequest({ providerEditorKind: 'add' })} />}
       <p className="mt-3.5 flex items-start gap-2 rounded-2xl bg-papeliz-surface-soft px-4 py-2.5 text-[12.5px] leading-snug text-papeliz-ink-muted">
         <Lock className="mt-0.5 size-3.5 flex-none" aria-hidden="true" />
         <span>
-          Each key stays {papelizAssistantProviderKeyPlaceWords.assistantProviderKeyStaysPlaceWords} and goes only to the address under its provider’s name. The
-          model chip in the assistant picks the model for each message.
+          Each key stays {papelizAssistantProviderKeyPlaceWords.assistantProviderKeyStaysPlaceWords} and goes only to the address under its provider’s name.
         </span>
       </p>
       {providerEditorRequest !== null && (

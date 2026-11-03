@@ -73,3 +73,17 @@ describe('a menu with no turned-off item', () => {
     expect(menuEventOrder).toEqual(['menu closed', 'item ran'])
   })
 })
+
+describe('a menu item with a second line', () => {
+  it('shows the quieter line under its label, and an item without one stays one line tall', () => {
+    const renderMenuItemButton = (menuItem: PapelizPopoverMenuItem) =>
+      renderToStaticMarkup(createElement(PapelizPopoverMenuItemButton, { menuItem, setMenuItemButtonElement: () => undefined, onMenuItemButtonClick: () => undefined }))
+    const automaticMarkup = renderMenuItemButton({ ...makeTestPopoverMenuItem('Automatic'), isMenuItemChecked: true, menuItemDetailText: 'muse-voice-transcribe-1.0 now' })
+    expect(automaticMarkup).toContain('role="menuitemradio"')
+    expect(automaticMarkup).toMatch(/>Automatic<\/span><span class="[^"]*text-papeliz-ink-subtle[^"]*">muse-voice-transcribe-1\.0 now<\/span>/)
+    expect(automaticMarkup).toContain('min-h-11')
+    const plainMarkup = renderMenuItemButton(makeTestPopoverMenuItem('Other Model'))
+    expect(plainMarkup).toContain('h-9')
+    expect(plainMarkup).not.toContain('min-h-11')
+  })
+})

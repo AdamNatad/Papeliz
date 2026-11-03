@@ -155,9 +155,14 @@ export function PapelizSettingsGearButton({ settingsGearPlace }: PapelizSettings
 
   useEffect(() => {
     if (!isSettingsGearPanelOpen) return
+    // A menu opened from the panel (a row of Models for Each Task) sits on the page, outside it: a press
+    // there is the panel's own.
     const closeOnOutsidePointer = (pointerEvent: PointerEvent) => {
       const pointerTarget = pointerEvent.target as Node
-      if (!settingsGearPanelRef.current?.contains(pointerTarget) && !settingsGearButtonRef.current?.contains(pointerTarget)) setSettingsGearPanelAnchor(null)
+      const isPointerInOpenMenu = pointerTarget instanceof Element && pointerTarget.closest('[role="menu"]') !== null
+      if (!settingsGearPanelRef.current?.contains(pointerTarget) && !settingsGearButtonRef.current?.contains(pointerTarget) && !isPointerInOpenMenu) {
+        setSettingsGearPanelAnchor(null)
+      }
     }
     const closeOnEscape = (keyboardEvent: KeyboardEvent) => {
       if (keyboardEvent.key !== 'Escape' || keyboardEvent.defaultPrevented) return

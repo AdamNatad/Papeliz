@@ -15,6 +15,8 @@ export interface PapelizPopoverMenuItem {
   isMenuItemChecked?: boolean
   // Starts a new group under this heading, with a line above it unless it opens the menu.
   menuItemGroupHeading?: string
+  // A quieter second line under the label ("muse-voice-transcribe-1.0 now", "Typed").
+  menuItemDetailText?: string
   onMenuItemSelect: () => void
 }
 
@@ -113,13 +115,21 @@ export function PapelizPopoverMenuItemButton({ menuItem, setMenuItemButtonElemen
       tabIndex={-1}
       onClick={onMenuItemButtonClick}
       className={joinPapelizClassNames(
-        'flex h-9 w-full items-center gap-2.5 rounded-full px-3 text-left text-sm font-medium text-papeliz-ink hover:bg-papeliz-hover focus-visible:bg-papeliz-hover focus-visible:outline-none',
+        'flex w-full items-center gap-2.5 px-3 text-left text-sm font-medium text-papeliz-ink hover:bg-papeliz-hover focus-visible:bg-papeliz-hover focus-visible:outline-none',
+        menuItem.menuItemDetailText === undefined ? 'h-9 rounded-full' : 'min-h-11 rounded-2xl py-1',
         menuItem.isDangerousMenuItem && 'text-papeliz-diff-removed-ink',
         menuItem.isMenuItemDisabled === true && 'cursor-default text-papeliz-ink-subtle opacity-60 hover:bg-transparent',
       )}
     >
       {menuItem.MenuItemIcon !== undefined && <menuItem.MenuItemIcon className="size-4 flex-none opacity-80" aria-hidden="true" />}
-      {menuItem.menuItemLabel}
+      {menuItem.menuItemDetailText === undefined ? (
+        menuItem.menuItemLabel
+      ) : (
+        <span className="flex min-w-0 flex-col leading-tight">
+          <span className="truncate">{menuItem.menuItemLabel}</span>
+          <span className="truncate text-[11.5px] font-normal text-papeliz-ink-subtle">{menuItem.menuItemDetailText}</span>
+        </span>
+      )}
       {menuItem.isMenuItemChecked === true && <Check className="ml-auto size-4 flex-none text-papeliz-blue" aria-hidden="true" />}
     </button>
   )

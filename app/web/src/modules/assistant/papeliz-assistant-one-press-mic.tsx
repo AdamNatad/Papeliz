@@ -4,6 +4,7 @@ import { useStore } from 'zustand'
 import { PapelizIconButton } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { formatPapelizAudioDuration, papelizMicrophoneFirstAskSentence } from './papeliz-assistant-audio-recording'
+import { usePapelizAssistantMediaModelInUse } from './papeliz-assistant-media-parts'
 import { createPapelizOnePressMicController, type PapelizOnePressMicFixStep, type PapelizOnePressMicStore } from './papeliz-assistant-one-press-mic-controller'
 
 // The one-press mic's parts, shared by every box where you write to the assistant: the mic, the row
@@ -56,14 +57,34 @@ interface PapelizOnePressMicButtonProps {
   onMicPressInstead?: () => void
 }
 
+// The mic's hover: how it works, which model transcribes (Models for Each Task's Transcribe, or what
+// Automatic uses now), and the browser's first question.
+export function describePapelizOnePressMicTitle(transcriptionModelInUse: { providerModelName: string; providerDisplayName: string } | null): string {
+  const transcriptionModelSentence =
+    transcriptionModelInUse === null ? '' : ` Transcribes with ${transcriptionModelInUse.providerModelName}, on ${transcriptionModelInUse.providerDisplayName}.`
+  return `Speak: press to record, press again to stop.${transcriptionModelSentence} ${papelizMicrophoneFirstAskSentence}.`
+}
+
+// The recorder row's words while it transcribes: the step, then the model it uses ("Transcribing ·
+// muse-voice-transcribe-1.0", "Part 2 of 3 · whisper-large-v3-turbo"). The provider is in the mic's
+// hover, so "Transcribing with Groq…" reads as "Transcribing" here.
+export function describePapelizOnePressMicTranscribingWords(transcribingProgressText: string | null, transcriptionModelName: string | null): string {
+  const transcribingStepWords = (transcribingProgressText ?? 'Transcribing…')
+    .replace(/…$/, '')
+    .replace(/^Transcribing with .+$/, 'Transcribing')
+    .replace(/^Transcribing part /, 'Part ')
+  return transcriptionModelName === null ? `${transcribingStepWords}…` : `${transcribingStepWords} · ${transcriptionModelName}`
+}
+
 export function PapelizOnePressMicButton({ onePressMicStore, isMicDisabled = false, onMicPressInstead }: PapelizOnePressMicButtonProps) {
   const isMicStarting = useStore(onePressMicStore, (onePressMicState) => onePressMicState.onePressMicStage === 'starting')
+  const transcriptionModelInUse = usePapelizAssistantMediaModelInUse('transcription')
   return (
     <button
       type="button"
       aria-label="Speak"
       aria-busy={isMicStarting ? true : undefined}
-      title={`Speak: press to record, press again to stop. ${papelizMicrophoneFirstAskSentence}.`}
+      title={describePapelizOnePressMicTitle(transcriptionModelInUse)}
       disabled={isMicDisabled || isMicStarting}
       onClick={() => (onMicPressInstead === undefined ? void onePressMicStore.getState().pressOnePressMic() : onMicPressInstead())}
       className={joinPapelizClassNames(
@@ -131,12 +152,13 @@ interface PapelizOnePressMicRecorderRowProps {
 }
 
 // The box's row while the mic records or transcribes: × where the row starts, the level line and the
-// timer (or "Transcribing…"), then ✓ (or the busy circle) where the mic was. ✓ takes focus, so Enter
+// timer (or "Transcribing · <model>"), then ✓ (or the busy circle) where the mic was. ✓ takes focus, so Enter
 // finishes; Esc throws the recording away.
 export function PapelizOnePressMicRecorderRow({ onePressMicStore, trailingControls }: PapelizOnePressMicRecorderRowProps) {
   const onePressMicStage = useStore(onePressMicStore, (onePressMicState) => onePressMicState.onePressMicStage)
   const recordingStartedAtMilliseconds = useStore(onePressMicStore, (onePressMicState) => onePressMicState.recordingStartedAtMilliseconds)
   const transcribingProgressText = useStore(onePressMicStore, (onePressMicState) => onePressMicState.transcribingProgressText)
+  const transcriptionModelInUse = usePapelizAssistantMediaModelInUse('transcription')
   const doneButtonRef = useRef<HTMLButtonElement>(null)
   const isRecording = onePressMicStage === 'recording'
   useEffect(() => {
@@ -175,7 +197,7 @@ export function PapelizOnePressMicRecorderRow({ onePressMicStore, trailingContro
       ) : (
         <>
           <span className="min-w-0 flex-1 truncate px-1.5 text-[12.5px] text-papeliz-ink-muted" aria-live="polite">
-            {transcribingProgressText ?? 'Transcribing…'}
+            {describePapelizOnePressMicTranscribingWords(transcribingProgressText, transcriptionModelInUse?.providerModelName ?? null)}
           </span>
           <span className={joinPapelizClassNames(papelizOnePressMicRoundClassName, 'text-papeliz-blue')} aria-hidden="true">
             <LoaderCircle className="size-4 animate-spin motion-reduce:animate-none" />
