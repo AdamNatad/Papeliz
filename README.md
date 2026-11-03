@@ -26,9 +26,10 @@
   <a href="https://papeliz.com/adam-natad/">Adam Natad</a> built the MVP in under 24 hours.
 </p>
 
-Papeliz is a free, open-source Markdown Editor and AI note-taking app for your personal knowledge
-base. Write, organize and link your notes in MD Code and MD View, with a built-in AI Assistant that
-runs on your own API key. No account, and no Papeliz server in between.
+Papeliz is a Free, Open-Source Markdown Editor for building your Personal Knowledge Base, with a
+built-in AI Assistant that works with your Preferred AI Provider, as well as the ability to create
+and import Workflow Templates for Coding and AI Agents. Write, organize and link your notes in MD
+Code and MD View. No account, and no Papeliz server in between.
 
 Available on the web, Windows, macOS, Linux, Android, iOS and HarmonyOS.
 

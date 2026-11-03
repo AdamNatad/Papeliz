@@ -28,7 +28,7 @@ export const papelizSiteRoadmapMilestones: PapelizSiteRoadmapMilestone[] = [
     papelizSiteRoadmapMilestoneTitle: 'Papeliz',
     papelizSiteRoadmapMilestoneStatus: 'done',
     papelizSiteRoadmapMilestoneSummary:
-      'A free, open-source Markdown Editor and AI-powered note-taking app for building your personal knowledge base.',
+      'A Free, Open-Source Markdown Editor for your Personal Knowledge Base, with a built-in AI Assistant and Workflow Templates for Coding and AI Agents.',
     papelizSiteRoadmapMilestoneSteps: [
       {
         papelizSiteRoadmapStepTitle: 'Editor and vault',

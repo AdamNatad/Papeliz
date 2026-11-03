@@ -5,9 +5,9 @@ export const papelizSiteName = 'Papeliz'
 
 // The one description for search and link previews; app/web/index.html carries the same text.
 export const papelizSiteDescription =
-  'Papeliz is a free, open-source, cross-platform Markdown Editor and AI-powered note-taking app for building your personal knowledge base. Create, edit, organize, and connect your notes and ideas with a built-in AI Assistant that runs on your own API key. Available on the web, Windows, macOS, Linux, Android, iOS, and HarmonyOS.'
+  'Papeliz is a Free, Open-Source Markdown Editor for your Personal Knowledge Base, with a built-in AI Assistant and Workflow Templates for Coding and AI Agents.'
 
-// Every platform the description names, for search engines' structured data.
+// Every platform Papeliz runs on, for search engines' structured data.
 export const papelizSitePlatformNames = ['Web browser', 'Windows', 'macOS', 'Linux', 'Android', 'iOS', 'HarmonyOS']
 
 // The public origin. The sitemap, robots file, canonical links, link-preview banner and structured

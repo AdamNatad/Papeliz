@@ -44,8 +44,10 @@ export default function PapelizSiteAboutPage() {
     <>
       <PapelizSitePageIntro papelizSitePageHeading="A quiet place to write, and an assistant that respects it">
         <p>
-          Papeliz is a Markdown Editor and AI-powered note-taking app for building your personal knowledge
-          base. It works on a folder of notes you already own, with a built-in AI Assistant.
+          Papeliz is a Free, Open-Source Markdown Editor for building your Personal Knowledge Base, with a
+          built-in AI Assistant that works with your Preferred AI Provider, as well as the ability to create
+          and import Workflow Templates for Coding and AI Agents. It works on a folder of notes you already
+          own.
         </p>
       </PapelizSitePageIntro>
 

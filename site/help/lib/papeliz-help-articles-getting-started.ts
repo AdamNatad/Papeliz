@@ -4,7 +4,7 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
   {
     papelizHelpArticleSlug: 'what-is-papeliz',
     articleTitle: 'What Papeliz is',
-    articleSummary: 'A Markdown Editor and AI-powered note-taking app for building your personal knowledge base, with an assistant on your own API key.',
+    articleSummary: 'Papeliz is a Free, Open-Source Markdown Editor for building your Personal Knowledge Base, with a built-in AI Assistant that works with your Preferred AI Provider, as well as the ability to create and import Workflow Templates for Coding and AI Agents.',
     papelizHelpGroupSlug: 'getting-started',
     papelizHelpArticleAvailability: 'available',
     articleSections: [
