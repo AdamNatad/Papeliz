@@ -417,8 +417,14 @@ export function createPapelizDocxExportPagePictureTools(): PapelizDocxExportPict
   }
 }
 
+// A picture's `width` or `height` in whole pixels, or null when it has none.
+function readRequestedPictureSizePixels(pictureSizeText: string | null): number | null {
+  const pictureSizePixels = Number(pictureSizeText)
+  return pictureSizeText !== null && Number.isInteger(pictureSizePixels) && pictureSizePixels > 0 ? pictureSizePixels : null
+}
+
 type PapelizDocxExportPictureRequest =
-  | { pictureRequestKind: 'web'; pictureWebAddress: string; pictureAltText: string }
+  | { pictureRequestKind: 'web'; pictureWebAddress: string; pictureAltText: string; requestedPixelWidth: number | null; requestedPixelHeight: number | null }
   | {
       pictureRequestKind: 'vault'
       vaultFileRelativePath: string
@@ -443,12 +449,15 @@ function listDocxExportPictureRequests(notePicturesOptions: PapelizDocxExportNot
       const pictureSource = getHastStringProperty(hastElement, 'src')
       const pictureAltText = getHastStringProperty(hastElement, 'alt') ?? ''
       if (pictureSource === null) return
+      // `![alt|300](…)`'s width and height, which MD View's tree carries on the picture.
+      const requestedPixelWidth = readRequestedPictureSizePixels(getHastStringProperty(hastElement, 'width'))
+      const requestedPixelHeight = readRequestedPictureSizePixels(getHastStringProperty(hastElement, 'height'))
       if (/^https:/i.test(pictureSource)) {
-        pictureRequestsByElement.set(hastElement, { pictureRequestKind: 'web', pictureWebAddress: pictureSource, pictureAltText })
+        pictureRequestsByElement.set(hastElement, { pictureRequestKind: 'web', pictureWebAddress: pictureSource, pictureAltText, requestedPixelWidth, requestedPixelHeight })
         return
       }
       const vaultFileRelativePath = findVaultPicture(decodeLinkHrefPart(pictureSource.replace(/[?#].*$/, '')))
-      if (vaultFileRelativePath !== null) pictureRequestsByElement.set(hastElement, { pictureRequestKind: 'vault', vaultFileRelativePath, pictureAltText, requestedPixelWidth: null, requestedPixelHeight: null })
+      if (vaultFileRelativePath !== null) pictureRequestsByElement.set(hastElement, { pictureRequestKind: 'vault', vaultFileRelativePath, pictureAltText, requestedPixelWidth, requestedPixelHeight })
       return
     }
     if (hastElement.tagName === 'a' && getHastStringProperty(hastElement, 'dataPapelizWikilinkEmbed') === 'true') {
@@ -524,8 +533,7 @@ export async function preparePapelizDocxExportNotePictures(notePicturesOptions: 
     const pictureMediaType = isWebPicture
       ? (pictureBlob?.type.split(';')[0]?.trim().toLowerCase() ?? '')
       : (getPapelizHtmlExportPictureMediaType(pictureRequest.vaultFileRelativePath) ?? '')
-    const requestedPixelWidth = isWebPicture ? null : pictureRequest.requestedPixelWidth
-    const requestedPixelHeight = isWebPicture ? null : pictureRequest.requestedPixelHeight
+    const { requestedPixelWidth, requestedPixelHeight } = pictureRequest
     const rewrittenPicture =
       pictureBlob === null
         ? null

@@ -17,6 +17,7 @@ import {
   remarkPapelizCallouts,
 } from './papeliz-remark-callouts'
 import { escapePapelizWikilinkPipesInTableRows } from './papeliz-md-view-table-model'
+import { remarkPapelizPictureWidths } from './papeliz-remark-picture-widths'
 import { papelizMdViewTagClassName, remarkPapelizTags } from './papeliz-remark-tags'
 import { papelizMdViewStyledTextClassName, remarkPapelizTextStyles } from './papeliz-remark-text-styles'
 import { remarkPapelizUnderlines } from './papeliz-remark-underlines'
@@ -110,6 +111,7 @@ export function renderPapelizMdViewNote(vaultNoteText: string, renderOptions: Pa
     .use(remarkPapelizCallouts)
     .use(remarkPapelizTextStyles)
     .use(remarkPapelizUnderlines)
+    .use(remarkPapelizPictureWidths)
     .use(remarkRehype)
     .use(rehypeSanitize, papelizMdViewSanitizeSchema)
     .use(rehypePapelizColorStyles)

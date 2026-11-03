@@ -1,7 +1,12 @@
 import { GFM, parser as papelizMarkdownBaseParser } from '@lezer/markdown'
 import { describe, expect, it } from 'vitest'
 import { papelizNoteEditorFrontmatterSyntax, papelizNoteEditorWikilinkSyntax } from '../note-editor/papeliz-note-editor-markdown-syntax'
-import { readPapelizMdViewImageSyntax, readPapelizMdViewLoneYouTubeLinkSyntax, readPapelizMdViewWikilinkEmbedSyntax } from './papeliz-md-view-media-syntax'
+import {
+  describePapelizMdViewPictureWidthChange,
+  readPapelizMdViewImageSyntax,
+  readPapelizMdViewLoneYouTubeLinkSyntax,
+  readPapelizMdViewWikilinkEmbedSyntax,
+} from './papeliz-md-view-media-syntax'
 
 // The note editor's Markdown, as far as pictures and links go.
 const papelizTestMarkdownParser = papelizMarkdownBaseParser.configure([GFM, papelizNoteEditorFrontmatterSyntax, papelizNoteEditorWikilinkSyntax])
@@ -27,7 +32,24 @@ describe('pictures in the editable MD View', () => {
       mdViewMediaSource: { mediaSourceKind: 'vault-picture', vaultMediaReference: 'pictures/plan.png' },
       mediaAlternativeText: 'Garden plan',
       mediaTitle: 'Spring beds',
+      mediaWidthPixels: null,
+      mediaHeightPixels: null,
     })
+  })
+
+  it('reads a width after the description’s last bar, and a height with it', () => {
+    const { foundSyntaxNodes, readNoteText } = findSyntaxNodes('![Garden plan|300](pictures/plan.png) ![|120x80](https://pictures.example.com/a.png) ![A|B](b.png)', 'Image')
+    expect(foundSyntaxNodes.map((imageNode) => readPapelizMdViewImageSyntax(imageNode, readNoteText))).toEqual([
+      { mdViewMediaSource: { mediaSourceKind: 'vault-picture', vaultMediaReference: 'pictures/plan.png' }, mediaAlternativeText: 'Garden plan', mediaTitle: null, mediaWidthPixels: 300, mediaHeightPixels: null },
+      {
+        mdViewMediaSource: { mediaSourceKind: 'web-picture', webMediaUrl: 'https://pictures.example.com/a.png' },
+        mediaAlternativeText: '',
+        mediaTitle: null,
+        mediaWidthPixels: 120,
+        mediaHeightPixels: 80,
+      },
+      { mdViewMediaSource: { mediaSourceKind: 'vault-picture', vaultMediaReference: 'b.png' }, mediaAlternativeText: 'A|B', mediaTitle: null, mediaWidthPixels: null, mediaHeightPixels: null },
+    ])
   })
 
   it('reads the picture inside a link, as P1-Workflow’s README starts', () => {
@@ -40,6 +62,8 @@ describe('pictures in the editable MD View', () => {
       mdViewMediaSource: { mediaSourceKind: 'vault-picture', vaultMediaReference: 'p1-workflow-social-preview.png' },
       mediaAlternativeText: 'P1-Workflow: your personal knowledge base.',
       mediaTitle: null,
+      mediaWidthPixels: null,
+      mediaHeightPixels: null,
     })
     // The link's own address is its direct child, not the picture's.
     const linkUrlNode = linkNodes[0]!.getChild('URL')
@@ -67,6 +91,39 @@ describe('pictures in the editable MD View', () => {
       { mediaSourceKind: 'not-shown' },
       null,
     ])
+  })
+})
+
+describe('a resized picture’s width, written into its Markdown', () => {
+  // The note after the one edit that gives its first picture this width (or takes it away).
+  function writePictureWidth(vaultNoteText: string, pictureWidthPixels: number | null): string | null {
+    const { foundSyntaxNodes, readNoteText } = findSyntaxNodes(vaultNoteText, 'Image')
+    const pictureWidthChange = describePapelizMdViewPictureWidthChange(foundSyntaxNodes[0]!, readNoteText, pictureWidthPixels)
+    if (pictureWidthChange === null) return null
+    return vaultNoteText.slice(0, pictureWidthChange.from) + pictureWidthChange.insert + vaultNoteText.slice(pictureWidthChange.to)
+  }
+
+  it('writes the width after a picture link’s description, replacing any size there, and takes it away', () => {
+    expect(writePictureWidth('Before ![Garden plan](plan.png "Spring") after', 300)).toBe('Before ![Garden plan|300](plan.png "Spring") after')
+    expect(writePictureWidth('![Garden plan|120x80](https://pictures.example.com/a.png)', 300)).toBe('![Garden plan|300](https://pictures.example.com/a.png)')
+    expect(writePictureWidth('![](plan.png)', 48)).toBe('![|48](plan.png)')
+    expect(writePictureWidth('![Garden plan|300](plan.png)', null)).toBe('![Garden plan](plan.png)')
+    expect(writePictureWidth('[![Dot|40](dot.png)](https://papeliz.com/)', 200)).toBe('[![Dot|200](dot.png)](https://papeliz.com/)')
+  })
+
+  it('writes the width inside an embed, after its description when it has one, and takes it away', () => {
+    expect(writePictureWidth('![[dot.png]]', 300)).toBe('![[dot.png|300]]')
+    expect(writePictureWidth('![[Pictures/dot.png|40]]', 300)).toBe('![[Pictures/dot.png|300]]')
+    expect(writePictureWidth('![[dot.png|The dot]]', 300)).toBe('![[dot.png|The dot|300]]')
+    expect(writePictureWidth('![[dot.png|The dot|300x200]]', null)).toBe('![[dot.png|The dot]]')
+    expect(writePictureWidth('![[dot.png|300]]', null)).toBe('![[dot.png]]')
+  })
+
+  it('makes no edit when the width is already written, or for a reference picture', () => {
+    expect(writePictureWidth('![Garden plan|300](plan.png)', 300)).toBeNull()
+    expect(writePictureWidth('![[dot.png|300]]', 300)).toBeNull()
+    expect(writePictureWidth('![[dot.png]]', null)).toBeNull()
+    expect(writePictureWidth('![z][ref]\n\n[ref]: plan.png', 300)).toBeNull()
   })
 })
 

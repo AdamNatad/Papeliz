@@ -3,6 +3,7 @@ import {
   buildPapelizYouTubeNoCookieEmbedUrl,
   buildPapelizYouTubeWatchUrl,
   getPapelizMdViewVaultMediaType,
+  readPapelizMdViewImageAltTextSize,
   readPapelizMdViewMediaSource,
   readPapelizMdViewVaultMediaSource,
   readPapelizMdViewWikilinkEmbedLabel,
@@ -130,5 +131,19 @@ describe('`![[embed]]` targets and labels', () => {
     expect(readPapelizMdViewWikilinkEmbedLabel('300x200')).toEqual({ mediaAlternativeText: null, mediaWidthPixels: 300, mediaHeightPixels: 200 })
     expect(readPapelizMdViewWikilinkEmbedLabel('The garden plan')).toEqual({ mediaAlternativeText: 'The garden plan', mediaWidthPixels: null, mediaHeightPixels: null })
     expect(readPapelizMdViewWikilinkEmbedLabel('99999')).toMatchObject({ mediaAlternativeText: '99999', mediaWidthPixels: null })
+    // A description may end with its own size.
+    expect(readPapelizMdViewWikilinkEmbedLabel('The garden plan|300')).toEqual({ mediaAlternativeText: 'The garden plan', mediaWidthPixels: 300, mediaHeightPixels: null })
+    expect(readPapelizMdViewWikilinkEmbedLabel('The garden plan|300x200')).toEqual({ mediaAlternativeText: 'The garden plan', mediaWidthPixels: 300, mediaHeightPixels: 200 })
+  })
+})
+
+describe('a picture link’s size', () => {
+  it('reads a size after the description’s last `|`, and leaves any other description whole', () => {
+    expect(readPapelizMdViewImageAltTextSize('Garden plan|300')).toEqual({ mediaAlternativeText: 'Garden plan', mediaWidthPixels: 300, mediaHeightPixels: null })
+    expect(readPapelizMdViewImageAltTextSize('|120x80')).toEqual({ mediaAlternativeText: '', mediaWidthPixels: 120, mediaHeightPixels: 80 })
+    expect(readPapelizMdViewImageAltTextSize('Before | after|64')).toEqual({ mediaAlternativeText: 'Before | after', mediaWidthPixels: 64, mediaHeightPixels: null })
+    expect(readPapelizMdViewImageAltTextSize('Garden plan')).toEqual({ mediaAlternativeText: 'Garden plan', mediaWidthPixels: null, mediaHeightPixels: null })
+    expect(readPapelizMdViewImageAltTextSize('300')).toEqual({ mediaAlternativeText: '300', mediaWidthPixels: null, mediaHeightPixels: null })
+    expect(readPapelizMdViewImageAltTextSize('Too wide|12345')).toEqual({ mediaAlternativeText: 'Too wide|12345', mediaWidthPixels: null, mediaHeightPixels: null })
   })
 })

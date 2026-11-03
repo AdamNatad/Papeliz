@@ -120,17 +120,45 @@ export function readPapelizMdViewVaultMediaSource(vaultMediaReference: string): 
 }
 
 // `![[plan.png|300]]` and `![[plan.png|300x200]]` set the width (and height) in pixels, as most
-// Markdown vault apps read them; any other text after the `|` is the picture's description.
+// Markdown vault apps read them; any other text after the `|` is the picture's description, which
+// may end with its own size too (`![[plan.png|The plan|300]]`).
 export interface PapelizMdViewWikilinkEmbedLabel {
   mediaAlternativeText: string | null
   mediaWidthPixels: number | null
   mediaHeightPixels: number | null
 }
 
+// "300" or "300x200": a size in whole pixels, 1 to 9999 each.
+const papelizMdViewMediaSizePattern = /^(\d{1,4})(?:x(\d{1,4}))?$/
+// A description ending in a size: "The plan|300".
+const papelizMdViewDescribedMediaSizePattern = /^(.*)\|(\d{1,4})(?:x(\d{1,4}))?$/s
+
+function readMediaSizePixels(mediaWidthText: string, mediaHeightText: string | undefined): { mediaWidthPixels: number | null; mediaHeightPixels: number | null } {
+  const mediaWidthPixels = Number(mediaWidthText)
+  const mediaHeightPixels = mediaHeightText === undefined ? null : Number(mediaHeightText)
+  return { mediaWidthPixels: mediaWidthPixels > 0 ? mediaWidthPixels : null, mediaHeightPixels: mediaHeightPixels !== null && mediaHeightPixels > 0 ? mediaHeightPixels : null }
+}
+
 export function readPapelizMdViewWikilinkEmbedLabel(wikilinkLabel: string | null): PapelizMdViewWikilinkEmbedLabel {
-  const mediaSizeMatch = wikilinkLabel === null ? null : /^(\d{1,4})(?:x(\d{1,4}))?$/.exec(wikilinkLabel.trim())
-  if (mediaSizeMatch === null) return { mediaAlternativeText: wikilinkLabel, mediaWidthPixels: null, mediaHeightPixels: null }
-  const mediaWidthPixels = Number(mediaSizeMatch[1])
-  const mediaHeightPixels = mediaSizeMatch[2] === undefined ? null : Number(mediaSizeMatch[2])
-  return { mediaAlternativeText: null, mediaWidthPixels: mediaWidthPixels > 0 ? mediaWidthPixels : null, mediaHeightPixels: mediaHeightPixels !== null && mediaHeightPixels > 0 ? mediaHeightPixels : null }
+  if (wikilinkLabel === null) return { mediaAlternativeText: null, mediaWidthPixels: null, mediaHeightPixels: null }
+  const mediaSizeMatch = papelizMdViewMediaSizePattern.exec(wikilinkLabel.trim())
+  if (mediaSizeMatch !== null) return { mediaAlternativeText: null, ...readMediaSizePixels(mediaSizeMatch[1] ?? '', mediaSizeMatch[2]) }
+  const describedMediaSizeMatch = papelizMdViewDescribedMediaSizePattern.exec(wikilinkLabel.trim())
+  if (describedMediaSizeMatch === null) return { mediaAlternativeText: wikilinkLabel, mediaWidthPixels: null, mediaHeightPixels: null }
+  const mediaDescription = (describedMediaSizeMatch[1] ?? '').trim()
+  return { mediaAlternativeText: mediaDescription.length > 0 ? mediaDescription : null, ...readMediaSizePixels(describedMediaSizeMatch[2] ?? '', describedMediaSizeMatch[3]) }
+}
+
+// `![Garden plan|300](plan.png)` and `![|300x200](plan.png)`: a size after the last `|` of a picture's
+// description, as other Markdown apps read it. A description with no `|` size is all description.
+export interface PapelizMdViewImageAltTextSize {
+  mediaAlternativeText: string
+  mediaWidthPixels: number | null
+  mediaHeightPixels: number | null
+}
+
+export function readPapelizMdViewImageAltTextSize(imageAltText: string): PapelizMdViewImageAltTextSize {
+  const describedMediaSizeMatch = papelizMdViewDescribedMediaSizePattern.exec(imageAltText)
+  if (describedMediaSizeMatch === null) return { mediaAlternativeText: imageAltText, mediaWidthPixels: null, mediaHeightPixels: null }
+  return { mediaAlternativeText: (describedMediaSizeMatch[1] ?? '').trim(), ...readMediaSizePixels(describedMediaSizeMatch[2] ?? '', describedMediaSizeMatch[3]) }
 }

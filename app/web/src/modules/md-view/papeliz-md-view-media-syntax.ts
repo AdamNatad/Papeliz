@@ -1,16 +1,18 @@
 import type { syntaxTree } from '@codemirror/language'
 import { parsePapelizWikilinkInnerText } from '../links/papeliz-wikilink-targets'
 import {
+  readPapelizMdViewImageAltTextSize,
   readPapelizMdViewMediaSource,
   readPapelizMdViewVaultMediaSource,
   readPapelizMdViewWikilinkEmbedLabel,
   readPapelizYouTubeVideoId,
   type PapelizMdViewMediaSource,
 } from './papeliz-md-view-media-sources'
+import { writePapelizMdViewImageAltTextWidth, writePapelizMdViewWikilinkEmbedInnerTextWidth } from './papeliz-md-view-picture-width'
 
 // What the editable MD View reads from the note's Markdown to draw its pictures and videos: a
-// picture's address, description and title, a `![[picture.png]]` embed, and a YouTube link alone on
-// its line.
+// picture's address, description, title and width, a `![[picture.png]]` embed, and a YouTube link
+// alone on its line. Also where a new width goes when a picture is resized.
 
 type PapelizMdViewSyntaxNode = ReturnType<ReturnType<typeof syntaxTree>['resolveInner']>
 
@@ -18,19 +20,27 @@ export interface PapelizMdViewImageSyntax {
   mdViewMediaSource: PapelizMdViewMediaSource
   mediaAlternativeText: string
   mediaTitle: string | null
+  mediaWidthPixels: number | null
+  mediaHeightPixels: number | null
 }
 
-// `![description](address "title")`, or null when it isn't a whole picture (`![description][ref]`).
-export function readPapelizMdViewImageSyntax(imageNode: PapelizMdViewSyntaxNode, readNoteText: (textFrom: number, textTo: number) => string): PapelizMdViewImageSyntax | null {
+// Where a picture's description sits: between `![` and `]`.
+function findImageAltTextRange(imageNode: PapelizMdViewSyntaxNode): { imageAltTextFrom: number; imageAltTextTo: number } | null {
   const imageMarkNodes = imageNode.getChildren('LinkMark')
+  const imageAltTextFrom = imageMarkNodes[0]?.to
+  const imageAltTextTo = imageMarkNodes[1]?.from
+  return imageAltTextFrom === undefined || imageAltTextTo === undefined ? null : { imageAltTextFrom, imageAltTextTo }
+}
+
+// `![description|300](address "title")`, or null when it isn't a whole picture (`![description][ref]`).
+export function readPapelizMdViewImageSyntax(imageNode: PapelizMdViewSyntaxNode, readNoteText: (textFrom: number, textTo: number) => string): PapelizMdViewImageSyntax | null {
   const imageUrlNode = imageNode.getChild('URL')
-  const imageAlternativeTextFrom = imageMarkNodes[0]?.to
-  const imageAlternativeTextTo = imageMarkNodes[1]?.from
-  if (imageUrlNode === null || imageAlternativeTextFrom === undefined || imageAlternativeTextTo === undefined) return null
+  const imageAltTextRange = findImageAltTextRange(imageNode)
+  if (imageUrlNode === null || imageAltTextRange === null) return null
   const imageTitleNode = imageNode.getChild('LinkTitle')
   return {
     mdViewMediaSource: readPapelizMdViewMediaSource(readNoteText(imageUrlNode.from, imageUrlNode.to)),
-    mediaAlternativeText: readNoteText(imageAlternativeTextFrom, imageAlternativeTextTo),
+    ...readPapelizMdViewImageAltTextSize(readNoteText(imageAltTextRange.imageAltTextFrom, imageAltTextRange.imageAltTextTo)),
     mediaTitle: imageTitleNode === null ? null : readNoteText(imageTitleNode.from + 1, imageTitleNode.to - 1),
   }
 }
@@ -59,6 +69,34 @@ export function readPapelizMdViewWikilinkEmbedSyntax(imageText: string): Papeliz
     mediaWidthPixels: wikilinkEmbedLabel.mediaWidthPixels,
     mediaHeightPixels: wikilinkEmbedLabel.mediaHeightPixels,
   }
+}
+
+export interface PapelizMdViewPictureWidthChange {
+  from: number
+  to: number
+  insert: string
+}
+
+// The one edit that gives a picture a new width, or takes its width away (null): the text inside
+// `![[ ]]`, or the description of `![description](address)`. Null when the text already says it, or
+// when the node isn't a picture with a place for a width.
+export function describePapelizMdViewPictureWidthChange(
+  imageNode: PapelizMdViewSyntaxNode,
+  readNoteText: (textFrom: number, textTo: number) => string,
+  pictureWidthPixels: number | null,
+): PapelizMdViewPictureWidthChange | null {
+  const wikilinkEmbedMatch = papelizMdViewWikilinkEmbedPattern.exec(readNoteText(imageNode.from, imageNode.to))
+  let pictureWidthChange: PapelizMdViewPictureWidthChange
+  if (wikilinkEmbedMatch !== null) {
+    // Inside `![[` and `]]`.
+    pictureWidthChange = { from: imageNode.from + 3, to: imageNode.to - 2, insert: writePapelizMdViewWikilinkEmbedInnerTextWidth(wikilinkEmbedMatch[1] ?? '', pictureWidthPixels) }
+  } else {
+    const imageAltTextRange = findImageAltTextRange(imageNode)
+    if (imageAltTextRange === null || imageNode.getChild('URL') === null) return null
+    const { imageAltTextFrom, imageAltTextTo } = imageAltTextRange
+    pictureWidthChange = { from: imageAltTextFrom, to: imageAltTextTo, insert: writePapelizMdViewImageAltTextWidth(readNoteText(imageAltTextFrom, imageAltTextTo), pictureWidthPixels) }
+  }
+  return readNoteText(pictureWidthChange.from, pictureWidthChange.to) === pictureWidthChange.insert ? null : pictureWidthChange
 }
 
 export interface PapelizMdViewLoneYouTubeLinkSyntax {

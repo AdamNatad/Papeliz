@@ -1,3 +1,4 @@
+import { isolateHistory } from '@codemirror/commands'
 import { HighlightStyle, syntaxHighlighting, syntaxTree } from '@codemirror/language'
 import { Prec, StateEffect, StateField, type EditorState, type Extension, type Range } from '@codemirror/state'
 import { Decoration, EditorView, keymap, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from '@codemirror/view'
@@ -15,7 +16,13 @@ import { PapelizNoteFrontmatterPropertyChips } from './papeliz-note-frontmatter-
 import { readPapelizNoteFrontmatterProperties, type PapelizNoteFrontmatterProperty } from './papeliz-note-frontmatter-properties'
 import { PapelizMdViewMedia } from './papeliz-md-view-media'
 import type { PapelizMdViewMediaSource } from './papeliz-md-view-media-sources'
-import { readPapelizMdViewImageSyntax, readPapelizMdViewLoneYouTubeLinkSyntax, readPapelizMdViewWikilinkEmbedSyntax } from './papeliz-md-view-media-syntax'
+import {
+  describePapelizMdViewPictureWidthChange,
+  readPapelizMdViewImageSyntax,
+  readPapelizMdViewLoneYouTubeLinkSyntax,
+  readPapelizMdViewWikilinkEmbedSyntax,
+} from './papeliz-md-view-media-syntax'
+import { PapelizMdViewResizablePicture } from './papeliz-md-view-resizable-picture'
 import { readPapelizMdViewActiveVaultNoteRelativePath } from './papeliz-md-view-vault-media-files'
 import { mountPapelizMermaidDiagram, unmountPapelizMermaidDiagram } from './papeliz-md-view-mermaid-diagrams'
 import { findPapelizMdViewRenderedBlocks } from './papeliz-md-view-rendered-blocks'
@@ -220,16 +227,82 @@ interface PapelizMdViewMediaWidgetContent {
   mediaLinkHref: string | null
 }
 
-const papelizMdViewMediaRootsByWidgetElement = new WeakMap<HTMLElement, ReactRoot>()
+// What a drawn widget keeps: its React root, what it shows, and the calls it hands its picture,
+// kept the same while the widget lives so a new width never reads the vault file again.
+interface PapelizMdViewMediaWidgetMount {
+  mediaRoot: ReactRoot
+  mountedMediaWidgetContent: PapelizMdViewMediaWidgetContent
+  requestMediaWidgetMeasure: () => void
+  measureNoteColumnWidthPixels: () => number
+  commitPictureWidth: (pictureWidthPixels: number, isPictureWidthDragged: boolean) => void
+}
+
+const papelizMdViewMediaMountsByWidgetElement = new WeakMap<HTMLElement, PapelizMdViewMediaWidgetMount>()
 
 function isPapelizMdViewMediaShownAsBlock(mdViewMediaSource: PapelizMdViewMediaSource): boolean {
   return mdViewMediaSource.mediaSourceKind === 'youtube-video' || mdViewMediaSource.mediaSourceKind === 'web-video' || mdViewMediaSource.mediaSourceKind === 'vault-video'
 }
 
+function isPapelizMdViewMediaResizablePicture(mdViewMediaSource: PapelizMdViewMediaSource): boolean {
+  return mdViewMediaSource.mediaSourceKind === 'web-picture' || mdViewMediaSource.mediaSourceKind === 'vault-picture'
+}
+
+// The same picture or video, from the same place: only its description or size may differ.
+function isSameMediaWidgetSource(mountedMediaWidgetContent: PapelizMdViewMediaWidgetContent, nextMediaWidgetContent: PapelizMdViewMediaWidgetContent): boolean {
+  return (
+    JSON.stringify(mountedMediaWidgetContent.mdViewMediaSource) === JSON.stringify(nextMediaWidgetContent.mdViewMediaSource) &&
+    mountedMediaWidgetContent.fromVaultNoteRelativePath === nextMediaWidgetContent.fromVaultNoteRelativePath &&
+    mountedMediaWidgetContent.mediaLinkHref === nextMediaWidgetContent.mediaLinkHref
+  )
+}
+
+// The width a picture may grow to: its line's, inside the line's padding.
+function measurePapelizMdViewNoteColumnWidthPixels(mediaWidgetElement: HTMLElement, editorView: EditorView): number {
+  const mediaLineElement = mediaWidgetElement.closest('.cm-line')
+  if (!(mediaLineElement instanceof HTMLElement)) return editorView.contentDOM.clientWidth
+  const mediaLineStyle = getComputedStyle(mediaLineElement)
+  return mediaLineElement.clientWidth - (parseFloat(mediaLineStyle.paddingLeft) || 0) - (parseFloat(mediaLineStyle.paddingRight) || 0)
+}
+
+// Writes a resized picture's width into its Markdown, found from where its widget is drawn. A drag
+// is one step to undo; key presses close together undo together.
+function commitPapelizMdViewPictureWidth(editorView: EditorView, mediaWidgetElement: HTMLElement, pictureWidthPixels: number, isPictureWidthDragged: boolean): void {
+  const editorState = editorView.state
+  const imagePosition = editorView.posAtDOM(mediaWidgetElement)
+  for (let syntaxNode: PapelizMdViewSyntaxNode | null = syntaxTree(editorState).resolveInner(imagePosition, 1); syntaxNode !== null; syntaxNode = syntaxNode.parent) {
+    if (syntaxNode.name !== 'Image' || syntaxNode.from !== imagePosition) continue
+    const pictureWidthChange = describePapelizMdViewPictureWidthChange(syntaxNode, (textFrom, textTo) => editorState.sliceDoc(textFrom, textTo), pictureWidthPixels)
+    if (pictureWidthChange === null) return
+    editorView.dispatch({
+      changes: pictureWidthChange,
+      userEvent: 'input.picture-width',
+      annotations: isPictureWidthDragged ? isolateHistory.of('full') : undefined,
+    })
+    return
+  }
+}
+
+function renderPapelizMdViewMediaWidgetContent(mediaWidgetMount: PapelizMdViewMediaWidgetMount): void {
+  const { mediaLinkHref: _mediaLinkHref, ...mediaProps } = mediaWidgetMount.mountedMediaWidgetContent
+  if (!isPapelizMdViewMediaResizablePicture(mediaProps.mdViewMediaSource)) {
+    mediaWidgetMount.mediaRoot.render(createElement(PapelizMdViewMedia, { ...mediaProps, onMediaSizeChange: mediaWidgetMount.requestMediaWidgetMeasure }))
+    return
+  }
+  mediaWidgetMount.mediaRoot.render(
+    createElement(PapelizMdViewResizablePicture, {
+      ...mediaProps,
+      onMediaSizeChange: mediaWidgetMount.requestMediaWidgetMeasure,
+      measureNoteColumnWidthPixels: mediaWidgetMount.measureNoteColumnWidthPixels,
+      onPictureWidthCommit: mediaWidgetMount.commitPictureWidth,
+    }),
+  )
+}
+
 // A picture, video or YouTube poster in place of its Markdown, drawn by the same component as the
 // locked page (papeliz-md-view-media.tsx). A plain click puts the cursor there, which shows the
 // Markdown to edit; a video's controls and the YouTube poster take their own clicks; Ctrl+click on
-// a picture inside a web link opens the link.
+// a picture inside a web link opens the link. A picture has a handle to resize it
+// (papeliz-md-view-resizable-picture.tsx), whose presses never move the cursor.
 class PapelizMdViewMediaWidget extends WidgetType {
   constructor(readonly mediaWidgetContent: PapelizMdViewMediaWidgetContent) {
     super()
@@ -240,9 +313,13 @@ class PapelizMdViewMediaWidget extends WidgetType {
   }
 
   toDOM(editorView: EditorView): HTMLElement {
-    const { mediaLinkHref, ...mediaProps } = this.mediaWidgetContent
+    const { mediaLinkHref, mdViewMediaSource } = this.mediaWidgetContent
     const mediaWidgetElement = document.createElement('span')
-    mediaWidgetElement.className = isPapelizMdViewMediaShownAsBlock(mediaProps.mdViewMediaSource) ? 'cm-papeliz-md-view-media cm-papeliz-md-view-media-block' : 'cm-papeliz-md-view-media'
+    mediaWidgetElement.className = isPapelizMdViewMediaShownAsBlock(mdViewMediaSource)
+      ? 'cm-papeliz-md-view-media cm-papeliz-md-view-media-block'
+      : isPapelizMdViewMediaResizablePicture(mdViewMediaSource)
+        ? 'cm-papeliz-md-view-media cm-papeliz-md-view-media-resizable'
+        : 'cm-papeliz-md-view-media'
     if (mediaLinkHref !== null) {
       mediaWidgetElement.dataset['papelizLinkHref'] = mediaLinkHref
       mediaWidgetElement.title = `${mediaLinkHref} (Ctrl+click to open)`
@@ -252,22 +329,40 @@ class PapelizMdViewMediaWidget extends WidgetType {
       if (mediaLinkHref !== null && (mouseDownEvent.ctrlKey || mouseDownEvent.metaKey)) mouseDownEvent.preventDefault()
     })
     mediaWidgetElement.addEventListener('click', (clickEvent) => openPapelizMdViewWebLinkOnModifiedClick(clickEvent))
-    const mediaRoot = createRoot(mediaWidgetElement)
-    papelizMdViewMediaRootsByWidgetElement.set(mediaWidgetElement, mediaRoot)
-    // A picture that loads is taller than its placeholder: the editor measures it again.
-    mediaRoot.render(createElement(PapelizMdViewMedia, { ...mediaProps, onMediaSizeChange: () => editorView.requestMeasure() }))
+    const mediaWidgetMount: PapelizMdViewMediaWidgetMount = {
+      mediaRoot: createRoot(mediaWidgetElement),
+      mountedMediaWidgetContent: this.mediaWidgetContent,
+      // A picture that loads is taller than its placeholder: the editor measures it again.
+      requestMediaWidgetMeasure: () => editorView.requestMeasure(),
+      measureNoteColumnWidthPixels: () => measurePapelizMdViewNoteColumnWidthPixels(mediaWidgetElement, editorView),
+      commitPictureWidth: (pictureWidthPixels, isPictureWidthDragged) => commitPapelizMdViewPictureWidth(editorView, mediaWidgetElement, pictureWidthPixels, isPictureWidthDragged),
+    }
+    papelizMdViewMediaMountsByWidgetElement.set(mediaWidgetElement, mediaWidgetMount)
+    renderPapelizMdViewMediaWidgetContent(mediaWidgetMount)
     return mediaWidgetElement
+  }
+
+  // A new width or description for the same picture is drawn in place, so the picture isn't read
+  // again and its handle keeps the keyboard's focus.
+  override updateDOM(mediaWidgetElement: HTMLElement): boolean {
+    const mediaWidgetMount = papelizMdViewMediaMountsByWidgetElement.get(mediaWidgetElement)
+    if (mediaWidgetMount === undefined || !isSameMediaWidgetSource(mediaWidgetMount.mountedMediaWidgetContent, this.mediaWidgetContent)) return false
+    mediaWidgetMount.mountedMediaWidgetContent = this.mediaWidgetContent
+    renderPapelizMdViewMediaWidgetContent(mediaWidgetMount)
+    return true
   }
 
   override destroy(mediaWidgetElement: HTMLElement): void {
     // Unmounted after CodeMirror's update, never during a React render. Unmounting lets go of the
     // vault file's URL.
-    const finishedMediaRoot = papelizMdViewMediaRootsByWidgetElement.get(mediaWidgetElement)
-    papelizMdViewMediaRootsByWidgetElement.delete(mediaWidgetElement)
-    queueMicrotask(() => finishedMediaRoot?.unmount())
+    const finishedMediaWidgetMount = papelizMdViewMediaMountsByWidgetElement.get(mediaWidgetElement)
+    papelizMdViewMediaMountsByWidgetElement.delete(mediaWidgetElement)
+    queueMicrotask(() => finishedMediaWidgetMount?.mediaRoot.unmount())
   }
 
   override ignoreEvent(widgetEvent: Event): boolean {
+    // The resize handle's presses are its own; a key it doesn't use (Ctrl+Z) still reaches the note.
+    if (widgetEvent.target instanceof Element && widgetEvent.target.closest('.papeliz-md-view-picture-resize-handle') !== null) return !(widgetEvent instanceof KeyboardEvent)
     if (widgetEvent.target instanceof Element && widgetEvent.target.closest('video, iframe, button, a') !== null) return true
     return this.mediaWidgetContent.mediaLinkHref !== null && widgetEvent instanceof MouseEvent && (widgetEvent.ctrlKey || widgetEvent.metaKey)
   }
@@ -743,7 +838,7 @@ function buildPapelizMdViewDecorations(editorView: EditorView, wikilinkHandlers:
               replaceWithWidget(
                 linkImageNode.from,
                 linkImageNode.to,
-                new PapelizMdViewMediaWidget({ ...linkImage, mediaWidthPixels: null, mediaHeightPixels: null, fromVaultNoteRelativePath: activeVaultNoteRelativePath, mediaLinkHref: linkWebHref }),
+                new PapelizMdViewMediaWidget({ ...linkImage, fromVaultNoteRelativePath: activeVaultNoteRelativePath, mediaLinkHref: linkWebHref }),
               )
               linkTextFrom = linkImageNode.to
             }
@@ -773,7 +868,7 @@ function buildPapelizMdViewDecorations(editorView: EditorView, wikilinkHandlers:
           replaceWithWidget(
             nodeFrom,
             nodeTo,
-            new PapelizMdViewMediaWidget({ ...shownImage, mediaWidthPixels: null, mediaHeightPixels: null, fromVaultNoteRelativePath: activeVaultNoteRelativePath, mediaLinkHref: null }),
+            new PapelizMdViewMediaWidget({ ...shownImage, fromVaultNoteRelativePath: activeVaultNoteRelativePath, mediaLinkHref: null }),
           )
           return false
         }

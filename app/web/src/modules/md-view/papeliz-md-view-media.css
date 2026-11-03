@@ -163,3 +163,109 @@
   width: 100%;
   vertical-align: top;
 }
+
+/* A picture's resize handle, in its lower right corner (papeliz-md-view-resizable-picture.tsx): shown
+   on hover, on focus and while dragged, with a ring around the picture. There is no handle while a
+   vault file is read or when the picture isn't there. On a touch screen the handle always shows. */
+.papeliz-md-view .cm-papeliz-md-view-media-resizable {
+  position: relative;
+}
+
+.papeliz-md-view .papeliz-md-view-picture-resize-handle {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  box-sizing: border-box;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--color-papeliz-blue);
+  border-radius: 5px;
+  background: var(--color-papeliz-surface);
+  /* A light edge and a shadow, so the handle shows on a dark or a blue picture too. */
+  box-shadow:
+    0 0 0 1px var(--color-papeliz-surface),
+    0 1px 4px rgb(0 0 0 / 0.35);
+  cursor: nwse-resize;
+  opacity: 0;
+  touch-action: none;
+  transition: opacity 120ms ease-out;
+}
+
+/* A larger place to press than the square it shows. */
+.papeliz-md-view .papeliz-md-view-picture-resize-handle::before {
+  position: absolute;
+  inset: -8px;
+  content: '';
+}
+
+/* On a small picture the handle sits beside its lower right corner, and its larger place to press
+   stops short of the picture, so the picture's own clicks still reach it. */
+.papeliz-md-view .papeliz-md-view-picture-resize-handle[data-papeliz-picture-resize-handle-outside] {
+  right: auto;
+  bottom: 0;
+  left: calc(100% + 4px);
+}
+
+.papeliz-md-view .papeliz-md-view-picture-resize-handle[data-papeliz-picture-resize-handle-outside]::before {
+  inset: -8px -8px -8px -3px;
+}
+
+.papeliz-md-view .papeliz-md-view-picture-resize-handle[data-papeliz-picture-resize-handle-outside] + .papeliz-md-view-picture-resize-width {
+  right: auto;
+  bottom: 22px;
+  left: calc(100% + 4px);
+}
+
+.papeliz-md-view .cm-papeliz-md-view-media-resizable:hover .papeliz-md-view-picture-resize-handle,
+.papeliz-md-view .papeliz-md-view-picture-resize-handle:focus-visible,
+.papeliz-md-view .papeliz-md-view-picture-resize-handle[data-papeliz-picture-dragged] {
+  opacity: 1;
+}
+
+/* The keyboard's ring, light then blue, which shows on any picture. */
+.papeliz-md-view .papeliz-md-view-picture-resize-handle:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px var(--color-papeliz-surface),
+    0 0 0 4px var(--color-papeliz-blue);
+}
+
+.papeliz-md-view .cm-papeliz-md-view-media-resizable:hover .papeliz-md-view-picture,
+.papeliz-md-view .cm-papeliz-md-view-media-resizable:has(.papeliz-md-view-picture-resize-handle:focus-visible) .papeliz-md-view-picture,
+.papeliz-md-view .cm-papeliz-md-view-media-resizable:has([data-papeliz-picture-dragged]) .papeliz-md-view-picture {
+  outline: 2px solid var(--color-papeliz-blue-line);
+  outline-offset: 2px;
+}
+
+.papeliz-md-view .cm-papeliz-md-view-media-resizable:not(:has(img.papeliz-md-view-picture)) .papeliz-md-view-picture-resize-handle {
+  display: none;
+}
+
+/* The width while the handle is dragged. */
+.papeliz-md-view .papeliz-md-view-picture-resize-width {
+  position: absolute;
+  right: 6px;
+  bottom: 28px;
+  padding: 1px 8px;
+  border-radius: 9999px;
+  background: var(--color-papeliz-ink);
+  color: var(--color-papeliz-surface);
+  font-family: var(--font-sans, inherit);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.6;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+@media (hover: none) {
+  .papeliz-md-view .papeliz-md-view-picture-resize-handle {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .papeliz-md-view .papeliz-md-view-picture-resize-handle {
+    transition: none;
+  }
+}

@@ -141,6 +141,16 @@ describe('the MD View pipeline', () => {
     expect(noteFrontmatterText).toBe('tags: [a, b]')
     expect(collectHastText(noteHastRoot)).not.toContain('tags:')
   })
+
+  it('puts a picture link’s `|300` width on the picture, and leaves its description without it', () => {
+    const { renderedElements } = renderTestNote('![Garden plan|300](plan.png) ![|120x80](https://pictures.example.com/a.png) ![A|B](b.png)')
+    const pictureElements = renderedElements.filter((renderedElement) => renderedElement.tagName === 'img')
+    expect(pictureElements.map((pictureElement) => [pictureElement.properties['alt'], pictureElement.properties['width'], pictureElement.properties['height']])).toEqual([
+      ['Garden plan', '300', undefined],
+      ['', '120', '80'],
+      ['A|B', undefined, undefined],
+    ])
+  })
 })
 
 describe('frontmatter properties', () => {

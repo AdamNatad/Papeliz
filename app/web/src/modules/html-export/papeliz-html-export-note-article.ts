@@ -336,8 +336,18 @@ function createPicturePlaceholderHastElement(pictureAltText: string | null, pict
 function preparePicture(hastImageElement: HastElement, nodePlace: PapelizHtmlExportNodePlace, articleOptions: PapelizHtmlExportNoteArticleOptions): PapelizHtmlExportPendingStep | null {
   const pictureSource = getHastStringProperty(hastImageElement, 'src')
   const pictureAltText = getHastStringProperty(hastImageElement, 'alt')
+  // `![alt|300](…)`'s width and height, which MD View's tree carries on the picture.
+  const pictureSizeProperties: HastElement['properties'] = {}
+  for (const pictureSizePropertyName of ['width', 'height']) {
+    const pictureSizeText = getHastStringProperty(hastImageElement, pictureSizePropertyName)
+    if (pictureSizeText !== null) pictureSizeProperties[pictureSizePropertyName] = pictureSizeText
+  }
   if (pictureSource !== null && /^https:/i.test(pictureSource)) {
-    nodePlace.hastParent.children[nodePlace.hastChildIndex] = createHastElement('img', { src: pictureSource, alt: pictureAltText ?? '', loading: 'lazy', referrerPolicy: 'no-referrer' }, [])
+    nodePlace.hastParent.children[nodePlace.hastChildIndex] = createHastElement(
+      'img',
+      { src: pictureSource, alt: pictureAltText ?? '', ...pictureSizeProperties, loading: 'lazy', referrerPolicy: 'no-referrer' },
+      [],
+    )
     return null
   }
   nodePlace.hastParent.children[nodePlace.hastChildIndex] = createPicturePlaceholderHastElement(pictureAltText, pictureSource)
@@ -350,7 +360,7 @@ function preparePicture(hastImageElement: HastElement, nodePlace: PapelizHtmlExp
     const vaultFileSource = await htmlExportVaultFiles.getVaultFileSource(vaultFileRelativePath, isPicture ? 'shown' : 'linked')
     if (vaultFileSource === null) return
     nodePlace.hastParent.children[nodePlace.hastChildIndex] = isPicture
-      ? createHastElement('img', { src: vaultFileSource, alt: pictureAltText ?? '', loading: 'lazy' }, [])
+      ? createHastElement('img', { src: vaultFileSource, alt: pictureAltText ?? '', ...pictureSizeProperties, loading: 'lazy' }, [])
       : createHastElement('a', { href: vaultFileSource }, [createHastText(pictureAltText || getVaultEntryName(vaultFileRelativePath))])
   }
 }

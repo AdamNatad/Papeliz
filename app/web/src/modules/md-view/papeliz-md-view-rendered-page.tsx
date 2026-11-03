@@ -76,6 +76,12 @@ function isExternalLinkHref(linkHref: string): boolean {
   return /^(https?:|mailto:)/i.test(linkHref)
 }
 
+// A picture's `width` or `height` in whole pixels, or null when it has none.
+function readPictureSizePixels(pictureSizeValue: string | number | undefined): number | null {
+  const pictureSizePixels = Number(pictureSizeValue)
+  return pictureSizeValue !== undefined && Number.isInteger(pictureSizePixels) && pictureSizePixels > 0 ? pictureSizePixels : null
+}
+
 function collectHastElementText(hastElement: HastElement): string {
   return hastElement.children.map((hastChild) => (hastChild.type === 'text' ? hastChild.value : hastChild.type === 'element' ? collectHastElementText(hastChild) : '')).join('')
 }
@@ -244,21 +250,24 @@ export function renderPapelizMdViewHastToReact(
       }
       return <span {...spanProps}>{children}</span>
     },
-    img: ({ node: _hastImageElement, src, alt, title }: ComponentProps<'img'> & { node?: HastElement }) => {
+    img: ({ node: _hastImageElement, src, alt, title, width, height }: ComponentProps<'img'> & { node?: HastElement }) => {
+      // `![description|300](…)`'s width, put on the picture by remarkPapelizPictureWidths.
+      const pictureWidthPixels = readPictureSizePixels(width)
+      const pictureHeightPixels = readPictureSizePixels(height)
       if (mdViewMediaOptions !== null) {
         return (
           <PapelizMdViewMedia
             mdViewMediaSource={readPapelizMdViewMediaSource(typeof src === 'string' ? src : '')}
             mediaAlternativeText={alt ?? ''}
             mediaTitle={title ?? null}
-            mediaWidthPixels={null}
-            mediaHeightPixels={null}
+            mediaWidthPixels={pictureWidthPixels}
+            mediaHeightPixels={pictureHeightPixels}
             fromVaultNoteRelativePath={mdViewMediaOptions.fromVaultNoteRelativePath}
           />
         )
       }
       if (typeof src === 'string' && /^https:/i.test(src)) {
-        return <img src={src} alt={alt ?? ''} loading="lazy" referrerPolicy="no-referrer" />
+        return <img src={src} alt={alt ?? ''} width={pictureWidthPixels ?? undefined} height={pictureHeightPixels ?? undefined} loading="lazy" referrerPolicy="no-referrer" />
       }
       return <span className="papeliz-md-view-image-placeholder">Image: {alt || src || 'untitled'}</span>
     },
