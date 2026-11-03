@@ -1,10 +1,11 @@
 import { expect, test, type Page, type Route } from '@playwright/test'
 
 // Plan mode in a real browser, against a provider the test plays: in the sample vault, ask for a plan,
-// change it on its card (a step's words, its order, a step ticked as done), Build it, review the first
-// step's change, Stop the second step while it runs, Continue it, and see the plan built, its note in
-// Plans/ ticked. Every provider call is answered here, and any other request off this computer is
-// refused, so no real key or outside network is used.
+// change it on its card opened to full height (a step's words, its order, a step ticked as done), Build
+// it, review the first step's change, Stop the second step while it runs, Continue it, and see the plan
+// built, its note in Plans/ ticked. On the way: Plan's hint, the box's words following the plan, the dot
+// on Notes while a build waits, and Focus mode's mode chip. Every provider call is answered here, and any
+// other request off this computer is refused, so no real key or outside network is used.
 
 const testProviderBaseUrl = 'https://papeliz-test-provider.invalid/v1'
 const testProviderApiKey = 'papeliz-test-key-not-a-real-key'
@@ -151,6 +152,8 @@ test('Plan writes a plan that is changed on its card, then Build reviews each st
   await setUpTestProvider(page)
 
   await page.getByRole('radio', { name: 'Plan' }).click()
+  const planModeHint = page.getByText('Asks what it needs, then writes steps you can edit. Nothing changes until you press Build.')
+  await expect(planModeHint).toBeVisible()
   await expect(page.getByText('Plans are saved in the Plans folder when you build them.')).toBeVisible()
   const assistantComposer = page.getByRole('textbox', { name: 'Message the assistant' })
   await assistantComposer.fill('Plan a tidy-up of the start note.')
@@ -164,6 +167,12 @@ test('Plan writes a plan that is changed on its card, then Build reviews each st
   await expect(planStepList.getByRole('listitem')).toHaveCount(3)
   await expect(planCard.getByText('Creates')).toBeVisible()
   expect(testProviderChatRequests[0]?.providerRequestToolNames.some((toolName) => toolName.startsWith('propose'))).toBe(false)
+  await expect(assistantComposer).toHaveAttribute('placeholder', 'Ask for a change to the plan')
+
+  // Opened to full height, the card takes the page and the mode switch steps aside.
+  await planCard.getByRole('button', { name: 'Open to Full Height' }).click()
+  await expect(page.getByRole('radio', { name: 'Plan' })).toHaveCount(0)
+  await expect(planModeHint).toBeHidden()
 
   // Change step 3's words, move it up with Alt+Up, and tick the step about Plan Ideas as already done.
   await planCard.getByRole('button', { name: 'Change Step 3' }).click()
@@ -179,6 +188,8 @@ test('Plan writes a plan that is changed on its card, then Build reviews each st
   await planCard.getByRole('checkbox', { name: 'Step 3 Done' }).click()
   await expect(planCard.getByRole('checkbox', { name: 'Step 3 Done' })).toBeChecked()
   await expect(planCard.getByText('Builds 2 of 3 · 1 ticked')).toBeVisible()
+  await planCard.getByRole('button', { name: 'Back to the Conversation' }).click()
+  await expect(page.getByRole('radio', { name: 'Plan' })).toBeVisible()
 
   // Build saves the plan in Plans/, then step 1 proposes its change and waits for review.
   await planCard.getByRole('button', { name: 'Build', exact: true }).click()
@@ -190,6 +201,12 @@ test('Plan writes a plan that is changed on its card, then Build reviews each st
   expect(readLastProviderMessageText(firstStepRequest!)).toContain('- [ ] Link [[Start here]] from the other sample notes.\n- [x] Add a line about [[Plan Ideas]].')
   expect(firstStepRequest?.providerRequestToolNames).toContain('proposeVaultNoteEdit')
   expect(firstStepRequest?.providerRequestToolNames).not.toContain('askUserQuestion')
+  await expect(assistantComposer).toHaveAttribute('placeholder', 'Steer the build, or queue a message')
+  // On Imagine, a dot on the Notes tab says the build waits.
+  await page.getByRole('tab', { name: 'Imagine' }).click()
+  await expect(page.getByRole('tab', { name: 'Notes (a plan is waiting for you)' })).toBeVisible()
+  await page.getByRole('tab', { name: 'Notes (a plan is waiting for you)' }).click()
+  await expect(page.getByRole('tab', { name: 'Notes', exact: true })).toHaveAttribute('aria-selected', 'true')
 
   // Accepting it changes the note and starts step 2, which Stop ends while it runs.
   await planCard.getByRole('button', { name: 'Accept', exact: true }).click()
@@ -205,6 +222,7 @@ test('Plan writes a plan that is changed on its card, then Build reviews each st
   isSecondStepHeld = false
   await planCard.getByRole('button', { name: 'Continue', exact: true }).click()
   await expect(planCard.getByText('Done · 3 of 3')).toBeVisible()
+  await expect(assistantComposer).toHaveAttribute('placeholder', 'Describe what to plan')
   expect(testProviderChatRequests.filter((testProviderChatRequest) => readLastProviderMessageText(testProviderChatRequest).startsWith('Build step 2 of 3'))).toHaveLength(2)
   expect(testProviderChatRequests.filter((testProviderChatRequest) => readLastProviderMessageText(testProviderChatRequest).startsWith('Build step 3'))).toHaveLength(0)
 
@@ -216,5 +234,14 @@ test('Plan writes a plan that is changed on its card, then Build reviews each st
   await expect(noteEditorContent).toContainText('Name the app in Start here. Link Start here from the other sample notes. Add a line about Plan Ideas.')
   await expect(noteEditorContent.getByRole('checkbox', { checked: true })).toHaveCount(3)
   await expect(noteEditorContent.getByRole('checkbox', { checked: false })).toHaveCount(0)
+
+  // Focus mode's box has no switch: a quiet chip shows the mode and changes it.
+  await noteEditorContent.click()
+  await page.keyboard.press('Control+Shift+F')
+  const focusModeChip = page.getByRole('button', { name: 'Mode: Plan' })
+  await expect(focusModeChip).toBeVisible()
+  await focusModeChip.click()
+  await page.getByRole('menu', { name: 'Mode' }).getByRole('menuitemradio', { name: 'Ask' }).click()
+  await expect(page.getByRole('button', { name: 'Mode: Ask' })).toBeVisible()
   expect(refusedOutsideRequestUrls).toEqual([])
 })

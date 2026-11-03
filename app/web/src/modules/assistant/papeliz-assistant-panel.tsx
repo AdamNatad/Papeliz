@@ -5,9 +5,15 @@ import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { PapelizSlidingChoiceGroup } from '../ui/papeliz-sliding-choice-group'
 import { PapelizAssistantChatView } from './papeliz-assistant-chat-view'
 import { PapelizAssistantComposer } from './papeliz-assistant-composer'
-import { usePapelizAssistantConversationStore } from './papeliz-assistant-conversation-store'
+import {
+  isPapelizAssistantPlanChatEntry,
+  selectPapelizAssistantBuildingPlanEntry,
+  usePapelizAssistantConversationStore,
+} from './papeliz-assistant-conversation-store'
 import { PapelizAssistantImagineView } from './papeliz-assistant-imagine-view'
 import { usePapelizAssistantPanelUiStore, type PapelizAssistantPanelTab } from './papeliz-assistant-panel-ui-store'
+import { papelizAssistantPlanModeHintText } from './papeliz-assistant-plan-card'
+import { findPapelizAssistantPlanActiveStep } from './papeliz-assistant-plan-document'
 import { usePapelizAssistantRunOptionsStore, type PapelizAssistantMode } from './papeliz-assistant-run-options-store'
 import { PapelizAssistantSessionsView } from './papeliz-assistant-sessions-view'
 import { PapelizAssistantUsageView } from './papeliz-assistant-usage-view'
@@ -84,7 +90,7 @@ function readAssistantPanelPageTabUnderlineTransition(underlineMotion: PapelizAs
 // The line under the mode switch: what the mode does.
 function describeAssistantModeHint(assistantMode: PapelizAssistantMode, isBypassPermissionOn: boolean): string {
   if (assistantMode === 'ask') return 'Answers from your notes and never changes them.'
-  if (assistantMode === 'plan') return 'Turn an idea into a step-by-step plan. Nothing changes until you press Write It.'
+  if (assistantMode === 'plan') return papelizAssistantPlanModeHintText
   return isBypassPermissionOn ? 'Edits, adds and deletes notes. Bypass permission is on, so changes apply at once.' : 'Edits, adds and deletes notes. You review each change.'
 }
 
@@ -96,6 +102,8 @@ function describeAssistantModeHint(assistantMode: PapelizAssistantMode, isBypass
 // here) open from the header in place of the page, with a way back; the tabs stay, with neither picked,
 // and pressing one leaves them. The open note's Outline and Backlinks are under the file
 // list, as This note. Until a provider is set up, the box under the conversation offers to choose one.
+// While a plan is open to the page's full height the mode switch steps aside, and while a plan builds
+// and Notes isn't the page open, a dot on the Notes tab says so.
 export function PapelizAssistantPanel({ onAssistantPanelClose }: PapelizAssistantPanelProps) {
   const assistantPanelTab = usePapelizAssistantPanelUiStore((panelUiState) => panelUiState.assistantPanelTab)
   const setAssistantPanelTab = usePapelizAssistantPanelUiStore((panelUiState) => panelUiState.setAssistantPanelTab)
@@ -103,6 +111,17 @@ export function PapelizAssistantPanel({ onAssistantPanelClose }: PapelizAssistan
   const assistantMode = usePapelizAssistantRunOptionsStore((runOptionsState) => runOptionsState.assistantMode)
   const setAssistantMode = usePapelizAssistantRunOptionsStore((runOptionsState) => runOptionsState.setAssistantMode)
   const isBypassPermissionOn = usePapelizAssistantRunOptionsStore((runOptionsState) => runOptionsState.assistantChangePermission === 'bypass-permission')
+  const isAssistantPlanOpenToFullHeight = usePapelizAssistantConversationStore(
+    (conversationState) =>
+      conversationState.fullHeightAssistantPlanChatEntryId !== null &&
+      conversationState.chatEntries.some(
+        (chatEntry) => chatEntry.chatEntryId === conversationState.fullHeightAssistantPlanChatEntryId && isPapelizAssistantPlanChatEntry(chatEntry),
+      ),
+  )
+  const buildingPlanEntry = usePapelizAssistantConversationStore(selectPapelizAssistantBuildingPlanEntry)
+  const buildingPlanActiveStepStatus = buildingPlanEntry === null ? null : (findPapelizAssistantPlanActiveStep(buildingPlanEntry.assistantPlanDocument)?.planStepStatus ?? null)
+  // A plan building waits for the user while a step's changes wait for review, or a step failed.
+  const isBuildingPlanWaitingForUser = buildingPlanActiveStepStatus === 'needs-review' || buildingPlanActiveStepStatus === 'failed'
 
   // Sessions and Usage open in place of the page; pressed again, they go back to Notes.
   const toggleAssistantPanelView = (assistantPanelView: PapelizAssistantPanelHeaderView) =>
@@ -236,6 +255,18 @@ export function PapelizAssistantPanel({ onAssistantPanelClose }: PapelizAssistan
                 aria-hidden="true"
               />
               <span className="@max-[15rem]:sr-only">{assistantPanelPageTabLabel}</span>
+              {assistantPanelPageTab === 'chat' && buildingPlanEntry !== null && !isAssistantPanelPageTabChosen && (
+                <span
+                  data-papeliz-assistant-panel-plan-dot=""
+                  title={isBuildingPlanWaitingForUser ? 'A plan is waiting for you' : 'A plan is building'}
+                  className={joinPapelizClassNames(
+                    'absolute top-1.5 -right-1 size-[7px] rounded-full ring-2 ring-papeliz-surface-soft max-md:pointer-coarse:top-2.5',
+                    isBuildingPlanWaitingForUser ? 'bg-papeliz-warning-ink' : 'bg-papeliz-blue',
+                  )}
+                >
+                  <span className="sr-only">{isBuildingPlanWaitingForUser ? '(a plan is waiting for you)' : '(a plan is building)'}</span>
+                </span>
+              )}
             </button>
           )
         })}
@@ -259,7 +290,7 @@ export function PapelizAssistantPanel({ onAssistantPanelClose }: PapelizAssistan
       {/* The modes for your notes: a solid blue sliding switch, so the chosen one stands out in both themes.
           They follow the panel's width: icon and label when wide, the label alone at the default
           width, and the icon alone (the label as its tooltip) when narrow. */}
-      {assistantPanelTab === 'chat' && (
+      {assistantPanelTab === 'chat' && !isAssistantPlanOpenToFullHeight && (
         <div className="@container flex-none px-3.5 pt-2.5">
           <PapelizSlidingChoiceGroup
             slidingChoiceGroupLabel="AI Assistant mode"

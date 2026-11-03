@@ -4,7 +4,10 @@ import {
   CornerDownLeft,
   FileText,
   Library,
+  ListChecks,
   ListPlus,
+  MessageCircleQuestion,
+  PenLine,
   Settings,
   ShieldAlert,
   ShieldCheck,
@@ -25,7 +28,12 @@ import { getVaultNoteTitle } from '../vault/papeliz-vault-relative-paths'
 import { selectActiveVaultMarkdownNoteRelativePath, usePapelizWorkspaceStore } from '../workspace/papeliz-workspace-store'
 import { PapelizAssistantComposerAddMenu, usePapelizComposerOnePressMic } from './papeliz-assistant-composer-media-buttons'
 import { PapelizAssistantContextWindowGauge } from './papeliz-assistant-context-window-gauge'
-import { usePapelizAssistantConversationStore } from './papeliz-assistant-conversation-store'
+import {
+  describePapelizAssistantPlanComposerPlaceholder,
+  selectPapelizAssistantBuildingPlanEntry,
+  selectPapelizAssistantLatestPlanEntry,
+  usePapelizAssistantConversationStore,
+} from './papeliz-assistant-conversation-store'
 import {
   PapelizOnePressMicAudioFileInput,
   PapelizOnePressMicButton,
@@ -44,7 +52,7 @@ import {
   selectActivePapelizAssistantProviderModelName,
   usePapelizAssistantProviderSettingsStore,
 } from './papeliz-assistant-provider-settings-store'
-import { usePapelizAssistantRunOptionsStore, type PapelizAssistantReasoningEffort } from './papeliz-assistant-run-options-store'
+import { usePapelizAssistantRunOptionsStore, type PapelizAssistantMode, type PapelizAssistantReasoningEffort } from './papeliz-assistant-run-options-store'
 
 const papelizAssistantReasoningEffortChoices: ReadonlyArray<{
   assistantReasoningEffort: PapelizAssistantReasoningEffort
@@ -56,13 +64,24 @@ const papelizAssistantReasoningEffortChoices: ReadonlyArray<{
   { assistantReasoningEffort: 'high', reasoningEffortLabel: 'High', ReasoningEffortIcon: SignalHigh },
 ]
 
+// The modes, for Focus mode's box, which has no switch above it: a quiet chip opens them as a menu.
+const papelizAssistantComposerModeChoices: ReadonlyArray<{
+  assistantMode: PapelizAssistantMode
+  assistantModeLabel: string
+  AssistantModeIcon: typeof SignalLow
+}> = [
+  { assistantMode: 'ask', assistantModeLabel: 'Ask', AssistantModeIcon: MessageCircleQuestion },
+  { assistantMode: 'plan', assistantModeLabel: 'Plan', AssistantModeIcon: ListChecks },
+  { assistantMode: 'write', assistantModeLabel: 'Write', AssistantModeIcon: PenLine },
+]
+
 // The quiet text buttons along the bottom of the box; on a touch screen at least 40px each way, for a
 // finger, even when a narrow box shows only the icon.
 const papelizComposerQuietButtonClassName =
   'flex h-7 min-w-0 flex-none items-center gap-1 rounded-lg px-1.5 text-[12.5px] text-papeliz-ink-muted transition-colors hover:bg-papeliz-hover hover:text-papeliz-ink aria-expanded:bg-papeliz-hover pointer-coarse:h-10 pointer-coarse:min-w-10 pointer-coarse:justify-center'
 
 // Which of the composer's chip menus is open, and where.
-type PapelizComposerChipMenu = { composerChipMenuKind: 'model' | 'effort' | 'permission'; composerChipMenuPosition: PapelizPopoverMenuPosition }
+type PapelizComposerChipMenu = { composerChipMenuKind: 'model' | 'effort' | 'permission' | 'mode'; composerChipMenuPosition: PapelizPopoverMenuPosition }
 
 // The popover menu's rows (h-9), a group heading with its line, and its padding, so a menu that opens
 // above its chip can be placed before it is drawn.
@@ -85,7 +104,9 @@ interface PapelizAssistantComposerProps {
 // recorder (papeliz-assistant-one-press-mic.tsx), and the words land after what is typed. Enter
 // sends, Shift+Enter starts a new line. While the assistant answers, Enter steers it (it reads the
 // message before its next step), and Queue keeps the message for when the answer ends. Before a
-// provider is set up the box still shows, with a line to choose one.
+// provider is set up the box still shows, with a line to choose one. In Plan the prompt follows the
+// plan on screen (a change to it, or steering its build), and Focus mode's box carries a quiet mode chip,
+// since Focus mode has no switch.
 export function PapelizAssistantComposer({ composerPlacement }: PapelizAssistantComposerProps) {
   const composerTextAreaRef = useRef<HTMLTextAreaElement>(null)
   const composerDraftText = usePapelizAssistantConversationStore((conversationState) => conversationState.composerDraftText)
@@ -111,6 +132,11 @@ export function PapelizAssistantComposer({ composerPlacement }: PapelizAssistant
     conversationState.chatEntries.some((chatEntry) => chatEntry.chatEntryKind === 'question' && chatEntry.questionAnswerText === null),
   )
   const assistantMode = usePapelizAssistantRunOptionsStore((runOptionsState) => runOptionsState.assistantMode)
+  const setAssistantMode = usePapelizAssistantRunOptionsStore((runOptionsState) => runOptionsState.setAssistantMode)
+  const isAssistantPlanBuilding = usePapelizAssistantConversationStore((conversationState) => selectPapelizAssistantBuildingPlanEntry(conversationState) !== null)
+  const assistantPlanComposerPlaceholder = usePapelizAssistantConversationStore((conversationState) =>
+    describePapelizAssistantPlanComposerPlaceholder(selectPapelizAssistantLatestPlanEntry(conversationState)),
+  )
   const assistantReasoningEffort = usePapelizAssistantRunOptionsStore((runOptionsState) => runOptionsState.assistantReasoningEffort)
   const assistantChangePermission = usePapelizAssistantRunOptionsStore((runOptionsState) => runOptionsState.assistantChangePermission)
   const setAssistantReasoningEffort = usePapelizAssistantRunOptionsStore((runOptionsState) => runOptionsState.setAssistantReasoningEffort)
@@ -176,6 +202,9 @@ export function PapelizAssistantComposer({ composerPlacement }: PapelizAssistant
     papelizAssistantReasoningEffortChoices.find((reasoningEffortChoice) => reasoningEffortChoice.assistantReasoningEffort === assistantReasoningEffort) ??
     papelizAssistantReasoningEffortChoices[1]!
   const ChosenReasoningEffortIcon = chosenReasoningEffortChoice.ReasoningEffortIcon
+  const chosenComposerModeChoice =
+    papelizAssistantComposerModeChoices.find((modeChoice) => modeChoice.assistantMode === assistantMode) ?? papelizAssistantComposerModeChoices[0]!
+  const ChosenComposerModeIcon = chosenComposerModeChoice.AssistantModeIcon
 
   const openComposerChipMenuBelow = (composerChipMenuKind: PapelizComposerChipMenu['composerChipMenuKind'], clickEvent: MouseEvent<HTMLButtonElement>) => {
     const chipRect = clickEvent.currentTarget.getBoundingClientRect()
@@ -228,6 +257,15 @@ export function PapelizAssistantComposer({ composerPlacement }: PapelizAssistant
             onMenuItemSelect: () => requestAssistantModelsForEachTaskSection(),
           },
         ]
+      : openComposerChipMenu?.composerChipMenuKind === 'mode'
+      ? papelizAssistantComposerModeChoices.map((modeChoice, modeChoiceIndex) => ({
+          menuItemKey: modeChoice.assistantMode,
+          menuItemLabel: modeChoice.assistantModeLabel,
+          MenuItemIcon: modeChoice.AssistantModeIcon,
+          isMenuItemChecked: modeChoice.assistantMode === assistantMode,
+          ...(modeChoiceIndex === 0 ? { menuItemGroupHeading: 'Mode' } : {}),
+          onMenuItemSelect: () => setAssistantMode(modeChoice.assistantMode),
+        }))
       : openComposerChipMenu?.composerChipMenuKind === 'effort'
       ? papelizAssistantReasoningEffortChoices.map((reasoningEffortChoice, reasoningEffortChoiceIndex) => ({
           menuItemKey: reasoningEffortChoice.assistantReasoningEffort,
@@ -404,16 +442,18 @@ export function PapelizAssistantComposer({ composerPlacement }: PapelizAssistant
           aria-label="Message the assistant"
           placeholder={
             isAssistantRunning
-              ? 'Steer the answer, or queue a message'
+              ? isAssistantPlanBuilding
+                ? 'Steer the build, or queue a message'
+                : 'Steer the answer, or queue a message'
               : isAssistantQuestionOpen
                 ? 'Pick an answer above, or write your own'
-                : // The prompt follows the mode: only Write changes notes.
+                : // The prompt follows the mode: only Write changes notes. In Plan it follows the plan too.
                   assistantMode === 'write'
                   ? isNoteContextShown
                     ? 'Ask for a change to this note'
                     : 'Ask for a change'
                   : assistantMode === 'plan'
-                    ? 'Describe what to plan'
+                    ? (assistantPlanComposerPlaceholder ?? 'Describe what to plan')
                     : isNoteContextShown
                       ? 'Ask about this note'
                       : 'Ask about your notes'
@@ -471,6 +511,21 @@ export function PapelizAssistantComposer({ composerPlacement }: PapelizAssistant
                 {isNoteContextShown ? <FileText className="size-3.5 flex-none" aria-hidden="true" /> : <Library className="size-3.5 flex-none" aria-hidden="true" />}
                 <span className="hidden truncate @min-[26rem]:inline">{isNoteContextShown ? getVaultNoteTitle(activeVaultMarkdownNoteRelativePath) : 'Whole Vault'}</span>
               </button>
+              {composerPlacement === 'floating' && (
+                <button
+                  type="button"
+                  aria-haspopup="menu"
+                  aria-expanded={openComposerChipMenu?.composerChipMenuKind === 'mode'}
+                  aria-label={`Mode: ${chosenComposerModeChoice.assistantModeLabel}`}
+                  onClick={(clickEvent) => openComposerChipMenuBelow('mode', clickEvent)}
+                  title="Mode: Ask answers, Plan writes steps to build, Write changes notes. Click to change."
+                  className={papelizComposerQuietButtonClassName}
+                >
+                  <ChosenComposerModeIcon className="size-3.5 flex-none" aria-hidden="true" />
+                  <span className="hidden @min-[24rem]:inline">{chosenComposerModeChoice.assistantModeLabel}</span>
+                  <ChevronDown className="size-3 flex-none opacity-70" aria-hidden="true" />
+                </button>
+              )}
               {assistantMode === 'write' && (
                 <button
                   type="button"
@@ -528,7 +583,15 @@ export function PapelizAssistantComposer({ composerPlacement }: PapelizAssistant
         </div>
         {openComposerChipMenu !== null && (
           <PapelizPopoverMenu
-            menuLabel={openComposerChipMenu.composerChipMenuKind === 'model' ? 'Model' : openComposerChipMenu.composerChipMenuKind === 'effort' ? 'Effort' : 'Changes in Write'}
+            menuLabel={
+              openComposerChipMenu.composerChipMenuKind === 'model'
+                ? 'Model'
+                : openComposerChipMenu.composerChipMenuKind === 'effort'
+                  ? 'Effort'
+                  : openComposerChipMenu.composerChipMenuKind === 'mode'
+                    ? 'Mode'
+                    : 'Changes in Write'
+            }
             menuPosition={openComposerChipMenu.composerChipMenuPosition}
             menuItems={composerChipMenuItems}
             onMenuClose={() => setOpenComposerChipMenu(null)}

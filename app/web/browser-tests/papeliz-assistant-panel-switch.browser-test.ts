@@ -20,7 +20,7 @@ test('the Notes and Imagine tabs switch pages, keeping the run mode, and Session
 
   // Plan, on the Notes tab.
   await assistantModeSwitch.getByRole('radio', { name: 'Plan' }).click()
-  await expect(assistantPanel).toContainText('Turn an idea into a step-by-step plan.')
+  await expect(assistantPanel).toContainText('Asks what it needs, then writes steps you can edit.')
 
   // Imagine: its page alone, with no mode switch or back arrow.
   await imagineTab.click()
