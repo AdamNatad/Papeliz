@@ -4,7 +4,7 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
   {
     papelizHelpArticleSlug: 'what-is-papeliz',
     articleTitle: 'What Papeliz is',
-    articleSummary: 'A Markdown Editor with an AI Assistant on your own API key, for building your personal knowledge base.',
+    articleSummary: 'A Markdown Editor and AI-powered note-taking app for building your personal knowledge base, with an assistant on your own API key.',
     papelizHelpGroupSlug: 'getting-started',
     papelizHelpArticleAvailability: 'available',
     articleSections: [

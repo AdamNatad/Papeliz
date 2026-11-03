@@ -94,9 +94,9 @@ export default function PapelizSiteHomePage() {
             </span>
           </h1>
           <p className="mt-6 max-w-2xl text-lg text-papeliz-ink-muted">
-            Create, edit, organize and connect your notes and ideas in plain Markdown, with an AI Assistant
-            that runs on your own API key. Available on the web, Windows, macOS, Linux, Android, iOS and
-            HarmonyOS.
+            Create, edit, organize and connect your notes and ideas in plain Markdown, with a built-in AI
+            Assistant that runs on your own API key. Available on the web, Windows, macOS, Linux, Android,
+            iOS and HarmonyOS.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             <Link
