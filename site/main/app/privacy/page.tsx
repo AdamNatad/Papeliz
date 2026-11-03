@@ -95,8 +95,8 @@ export default function PapelizSitePrivacyPage() {
         </p>
         <p>
           The microphone is used only while you record, after you press Record and your browser asks you.
-          Remove C2PA, which takes content credentials and other hidden details out of a picture before it is
-          saved, runs in your browser: no picture is sent anywhere to be cleaned.
+          Remove Metadata, which takes content credentials and other hidden details out of a picture before it
+          is saved, runs in your browser: no picture is sent anywhere to be cleaned.
         </p>
       </PapelizLegalDocumentSection>
 

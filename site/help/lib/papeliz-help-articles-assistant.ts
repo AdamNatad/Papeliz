@@ -302,6 +302,9 @@ export const papelizHelpAssistantArticles: readonly PapelizHelpArticle[] = [
         helpParagraph(
           '**Imagine**, at the top of the assistant, keeps every picture made or brought in. Make more there, with a prompt, a shape and one to four at a time, then save them to the vault or put them in a note. **Bring In a Picture**, or drop one in, to clean it and save it.',
         ),
+        helpParagraph(
+          'Press a picture, in Imagine or in the chat, to see it large, with **Put in Note** and **Save to Vault** under it. `Esc`, **Close** or a press beside the picture closes it.',
+        ),
         helpParagraph('Saved pictures go in the `Attachments` folder at the top of the vault.'),
       ]),
       helpSection('Which providers', [
@@ -312,9 +315,9 @@ export const papelizHelpAssistantArticles: readonly PapelizHelpArticle[] = [
           'OpenAI, Google Gemini, OpenRouter and Together make pictures too, and they and Groq turn speech into text. **Edit Picture** works with the recommended provider. **Models for Each Task**, on the gear’s **AI Provider** page, picks the model for each, and Imagine, the chat box and Edit with Assistant all use those. See [[bring-your-own-key]].',
         ),
       ]),
-      helpSection('Remove C2PA', [
+      helpSection('Remove Metadata', [
         helpParagraph(
-          'Every picture has **Remove C2PA**, on by default. Before a picture is saved, it takes C2PA content credentials, EXIF, XMP, IPTC, text and comments out of the PNG, JPEG or WebP file, in your browser. The picture itself doesn’t change. Turn it off to keep a picture’s credentials.',
+          'Every picture has **Remove Metadata**, on by default. Before a picture is saved, it takes C2PA content credentials, EXIF (camera, date and location), XMP, IPTC, text chunks and comments out of the PNG, JPEG or WebP file, in your browser. The picture itself doesn’t change. Hover over the switch to see the list. Turn it off to keep a picture’s credentials.',
         ),
         helpNote('Pictures, prompts and audio go straight to your provider, and the microphone is used only while you record. See [[where-your-notes-live]].'),
       ]),
