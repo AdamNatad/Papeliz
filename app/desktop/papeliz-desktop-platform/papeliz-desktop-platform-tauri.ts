@@ -34,6 +34,7 @@ const papelizDesktopRustCommandNames = {
   pickVaultFolder: 'pick_papeliz_desktop_vault_folder',
   rememberVaultFolder: 'remember_papeliz_desktop_vault_folder',
   forgetVaultFolder: 'forget_papeliz_desktop_vault_folder',
+  readNewVaultDefaultParentFolder: 'read_papeliz_desktop_new_vault_default_parent_folder_path',
   pickSaveFilePath: 'pick_papeliz_desktop_save_file_path',
   setMaximizeButtonBounds: 'set_papeliz_desktop_maximize_button_bounds',
 } as const
@@ -264,6 +265,10 @@ export async function loadPapelizDesktopPlatform(): Promise<PapelizDesktopPlatfo
     ),
     forgetDesktopVaultFolderPath: (desktopVaultFolderPath) =>
       invoke(papelizDesktopRustCommandNames.forgetVaultFolder, { vaultFolderPath: desktopVaultFolderPath }),
+    // <Documents>\Papeliz in Windows' own Documents folder, wherever it was moved. Rust lets the app
+    // reach only that folder for this session, as if it were picked, and makes nothing.
+    readDesktopNewVaultDefaultParentFolderPath: () =>
+      invoke<string | null>(papelizDesktopRustCommandNames.readNewVaultDefaultParentFolder),
     // The Save dialog opens from Rust, which then lets the app write that one file and its
     // `.papeliz-saving` sibling for the rest of the session.
     pickDesktopSaveFilePath: (desktopSaveFileRequest) =>

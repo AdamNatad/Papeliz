@@ -2,6 +2,8 @@
 // these folders and what is inside them.
 // - A folder picked in the system's own folder dialog, opened here in Rust, is allowed for this
 //   session.
+// - New Vault's default place, <Documents>\Papeliz, is allowed for this session once the page asks
+//   for its path, as if it were picked. Only that folder: never the rest of Documents.
 // - A vault folder the page asks to remember (the picked folder for Open Vault, or the folder New
 //   Vault made inside the picked one) is allowed again at every start, so a recent vault reopens by
 //   its path. Only a folder inside one picked in this session can be remembered, so a parent picked
@@ -16,6 +18,7 @@ use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_fs::FsExt;
 
 const PAPELIZ_DESKTOP_VAULT_FOLDERS_FILE_NAME: &str = "papeliz-desktop-vault-folders.json";
+const PAPELIZ_DESKTOP_NEW_VAULT_DEFAULT_PARENT_FOLDER_NAME: &str = "Papeliz";
 
 // The folders picked in this session, resolved (no `..`, the disk's own letter case), so a vault folder
 // is remembered only inside one of them.
@@ -113,6 +116,70 @@ pub async fn pick_papeliz_desktop_vault_folder<R: Runtime>(
     Ok(Some(picked_folder_path.to_string_lossy().into_owned()))
 }
 
+// New Vault's default place, inside a Documents folder.
+// - `new_vault_default_parent_folder_path`: as the page shows it and the file calls use it.
+// - `resolved_new_vault_default_parent_folder_path`: resolved like a picked folder, so a vault made
+//   inside is remembered. The Papeliz folder may not exist yet, so its Documents folder is resolved and
+//   the name joined.
+// None when the Documents folder isn't on disk, or when Papeliz there is a link to somewhere else,
+// which the app must not reach in its place.
+#[derive(Debug, PartialEq)]
+struct PapelizDesktopNewVaultDefaultParentFolder {
+    new_vault_default_parent_folder_path: PathBuf,
+    resolved_new_vault_default_parent_folder_path: PathBuf,
+}
+
+fn find_new_vault_default_parent_folder(documents_folder_path: &Path) -> Option<PapelizDesktopNewVaultDefaultParentFolder> {
+    let resolved_documents_folder_path = std::fs::canonicalize(documents_folder_path)
+        .ok()
+        .filter(|resolved_documents_folder_path| resolved_documents_folder_path.is_dir())?;
+    let joined_new_vault_default_parent_folder_path =
+        resolved_documents_folder_path.join(PAPELIZ_DESKTOP_NEW_VAULT_DEFAULT_PARENT_FOLDER_NAME);
+    // An existing folder resolves to the disk's own letter case; a link resolves to where it points.
+    let resolved_new_vault_default_parent_folder_path = match std::fs::canonicalize(&joined_new_vault_default_parent_folder_path) {
+        Ok(resolved_existing_folder_path) => resolved_existing_folder_path,
+        Err(_) => joined_new_vault_default_parent_folder_path,
+    };
+    if resolved_new_vault_default_parent_folder_path.parent() != Some(resolved_documents_folder_path.as_path()) {
+        return None;
+    }
+    Some(PapelizDesktopNewVaultDefaultParentFolder {
+        new_vault_default_parent_folder_path: documents_folder_path.join(PAPELIZ_DESKTOP_NEW_VAULT_DEFAULT_PARENT_FOLDER_NAME),
+        resolved_new_vault_default_parent_folder_path,
+    })
+}
+
+// New Vault's default place: <Documents>\Papeliz, in Windows' own Documents folder (the known folder,
+// wherever it was moved, OneDrive included), or None when there's no Documents folder. From here on,
+// the page reaches that folder for this session, and a vault made inside it can be remembered. Nothing
+// is made here: the page makes Papeliz and the vault folder when Create Vault is pressed.
+#[tauri::command]
+pub fn read_papeliz_desktop_new_vault_default_parent_folder_path<R: Runtime>(
+    app_handle: AppHandle<R>,
+    picked_vault_folders: State<'_, PapelizDesktopPickedVaultFolders>,
+) -> Result<Option<String>, String> {
+    let Some(new_vault_default_parent_folder) = app_handle
+        .path()
+        .document_dir()
+        .ok()
+        .and_then(|documents_folder_path| find_new_vault_default_parent_folder(&documents_folder_path))
+    else {
+        return Ok(None);
+    };
+
+    allow_vault_folder_for_file_calls(&app_handle, &new_vault_default_parent_folder.new_vault_default_parent_folder_path)?;
+    let mut resolved_picked_folder_paths = picked_vault_folders.0.lock().map_err(|error| error.to_string())?;
+    if !resolved_picked_folder_paths.contains(&new_vault_default_parent_folder.resolved_new_vault_default_parent_folder_path) {
+        resolved_picked_folder_paths.push(new_vault_default_parent_folder.resolved_new_vault_default_parent_folder_path);
+    }
+    Ok(Some(
+        new_vault_default_parent_folder
+            .new_vault_default_parent_folder_path
+            .to_string_lossy()
+            .into_owned(),
+    ))
+}
+
 // Remembers a vault folder for every later start. Refused, as a forbidden path, unless the folder is
 // one picked in this session or inside one, or already remembered (so asking again is harmless).
 #[tauri::command]
@@ -180,5 +247,96 @@ mod tests {
             &picked_folder_paths
         ));
         assert!(!is_vault_folder_inside_an_allowed_folder(Path::new(r"C:\Windows"), &[]));
+    }
+
+    // Folders on disk for these tests, under the build's own target folder. They're made once and
+    // reused, and never deleted here.
+    fn vault_folder_test_documents_folder(vault_folder_test_case_name: &str) -> PathBuf {
+        let documents_folder_path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("target")
+            .join("papeliz-desktop-vault-folder-tests")
+            .join(vault_folder_test_case_name)
+            .join("Documents");
+        std::fs::create_dir_all(&documents_folder_path).expect("the test's Documents folder could be made");
+        documents_folder_path
+    }
+
+    #[test]
+    fn the_new_vault_default_parent_is_papeliz_inside_documents_before_it_exists() {
+        let documents_folder_path = vault_folder_test_documents_folder("papeliz-not-made-yet");
+        let new_vault_default_parent_folder =
+            find_new_vault_default_parent_folder(&documents_folder_path).expect("a Documents folder gives a default parent");
+        assert_eq!(new_vault_default_parent_folder.new_vault_default_parent_folder_path, documents_folder_path.join("Papeliz"));
+        assert_eq!(
+            new_vault_default_parent_folder.resolved_new_vault_default_parent_folder_path,
+            std::fs::canonicalize(&documents_folder_path).unwrap().join("Papeliz")
+        );
+        assert!(!new_vault_default_parent_folder.new_vault_default_parent_folder_path.exists(), "nothing is made");
+    }
+
+    #[test]
+    fn an_existing_papeliz_folder_resolves_to_itself() {
+        let documents_folder_path = vault_folder_test_documents_folder("papeliz-already-made");
+        std::fs::create_dir_all(documents_folder_path.join("Papeliz")).unwrap();
+        let new_vault_default_parent_folder = find_new_vault_default_parent_folder(&documents_folder_path).unwrap();
+        assert_eq!(
+            new_vault_default_parent_folder.resolved_new_vault_default_parent_folder_path,
+            std::fs::canonicalize(documents_folder_path.join("Papeliz")).unwrap()
+        );
+    }
+
+    #[test]
+    fn no_documents_folder_gives_no_default_parent() {
+        let missing_documents_folder_path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("target")
+            .join("papeliz-desktop-vault-folder-tests")
+            .join("no-documents-folder-here")
+            .join("Documents");
+        assert_eq!(find_new_vault_default_parent_folder(&missing_documents_folder_path), None);
+    }
+
+    #[test]
+    fn only_the_papeliz_folder_is_reachable_never_the_rest_of_documents() {
+        let documents_folder_path = vault_folder_test_documents_folder("papeliz-scope");
+        let new_vault_default_parent_folder = find_new_vault_default_parent_folder(&documents_folder_path).unwrap();
+        // The one folder the file calls are allowed: Papeliz, directly inside Documents.
+        assert_eq!(
+            new_vault_default_parent_folder.new_vault_default_parent_folder_path.parent(),
+            Some(documents_folder_path.as_path())
+        );
+        assert_ne!(new_vault_default_parent_folder.new_vault_default_parent_folder_path, documents_folder_path);
+
+        let resolved_documents_folder_path = std::fs::canonicalize(&documents_folder_path).unwrap();
+        let resolved_allowed_folder_paths = [new_vault_default_parent_folder.resolved_new_vault_default_parent_folder_path];
+        let is_remembered_inside = |resolved_vault_folder_path: PathBuf| {
+            is_vault_folder_inside_an_allowed_folder(&resolved_vault_folder_path, &resolved_allowed_folder_paths)
+        };
+        assert!(is_remembered_inside(resolved_documents_folder_path.join("Papeliz").join("Garden vault")));
+        assert!(!is_remembered_inside(resolved_documents_folder_path.clone()));
+        assert!(!is_remembered_inside(resolved_documents_folder_path.join("Taxes")));
+        assert!(!is_remembered_inside(resolved_documents_folder_path.join("Papeliz 2")));
+    }
+
+    // A Papeliz that is a link (here a directory junction, which needs no admin) to another folder is
+    // not followed: there's no default parent, and the person picks a place with Browse.
+    #[cfg(windows)]
+    #[test]
+    fn a_papeliz_link_to_another_folder_is_not_followed() {
+        let documents_folder_path = vault_folder_test_documents_folder("papeliz-is-a-link");
+        let elsewhere_folder_path = documents_folder_path.parent().unwrap().join("Elsewhere");
+        std::fs::create_dir_all(&elsewhere_folder_path).unwrap();
+        let papeliz_link_path = documents_folder_path.join("Papeliz");
+        if std::fs::symlink_metadata(&papeliz_link_path).is_err() {
+            let junction_made = std::process::Command::new("cmd")
+                .arg("/C")
+                .arg("mklink")
+                .arg("/J")
+                .arg(&papeliz_link_path)
+                .arg(&elsewhere_folder_path)
+                .output()
+                .expect("cmd could run mklink");
+            assert!(junction_made.status.success(), "the test's junction could be made");
+        }
+        assert_eq!(find_new_vault_default_parent_folder(&documents_folder_path), None);
     }
 }

@@ -44,6 +44,7 @@ pub fn run_papeliz_desktop_app() {
             papeliz_desktop_vault_folders::pick_papeliz_desktop_vault_folder,
             papeliz_desktop_vault_folders::remember_papeliz_desktop_vault_folder,
             papeliz_desktop_vault_folders::forget_papeliz_desktop_vault_folder,
+            papeliz_desktop_vault_folders::read_papeliz_desktop_new_vault_default_parent_folder_path,
             papeliz_desktop_save_files::pick_papeliz_desktop_save_file_path,
             papeliz_desktop_snap_layouts::set_papeliz_desktop_maximize_button_bounds,
         ])
