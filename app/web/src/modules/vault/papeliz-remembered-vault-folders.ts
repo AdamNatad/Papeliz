@@ -11,11 +11,14 @@ import { loadPapelizDesktopPlatformOnce, usePapelizDesktopPlatformStore } from '
 import { deletePapelizRememberedNoteTabs } from './papeliz-remembered-note-tabs'
 import { describePapelizFailureCodeMessage, describePapelizFailureMessage } from './papeliz-failure-code-words'
 import { isPapelizVaultEntryMissingError } from './papeliz-vault-adapter'
+import { choosePapelizFolderVaultDisplayName, type PapelizFolderVaultOwnNameRead } from './papeliz-vault-own-name'
 
 // What every row of `papelizVaultFolderHandles` holds: a folder the user opened, so the welcome
 // screen can offer it again.
 interface PapelizRememberedVaultFolderListing {
   papelizVaultId: string
+  // The vault's own name (papeliz-vault-own-name.ts), or its folder's when it has none. An End-to-end
+  // vault's own name is sealed, so this is the one last seen until it is unlocked again.
   papelizVaultDisplayName: string
   papelizVaultLastOpenedAt: number
   // When the vault was hidden from Recent vaults into the Hidden list; null (or missing, on rows
@@ -85,8 +88,12 @@ export async function listRememberedVaultFolders(): Promise<PapelizRememberedVau
     .sort((firstVaultFolder, secondVaultFolder) => secondVaultFolder.papelizVaultLastOpenedAt - firstVaultFolder.papelizVaultLastOpenedAt)
 }
 
-// Saves the folder (or refreshes its "last opened" time when the same folder was opened before).
-export async function rememberVaultFolder(papelizVaultFolderHandle: FileSystemDirectoryHandle): Promise<PapelizRememberedVaultFolder> {
+// Saves the folder (or refreshes its "last opened" time when the same folder was opened before), with
+// the name it opens with.
+export async function rememberVaultFolder(
+  papelizVaultFolderHandle: FileSystemDirectoryHandle,
+  folderVaultOwnNameRead: PapelizFolderVaultOwnNameRead = { folderVaultOwnNameReadOutcome: 'none' },
+): Promise<PapelizRememberedVaultFolder> {
   const rememberedVaultFolders = await listRememberedVaultFolders().catch(() => [])
   let sameRememberedVaultFolder: PapelizRememberedVaultFolder | undefined
   for (const rememberedVaultFolder of rememberedVaultFolders) {
@@ -98,7 +105,7 @@ export async function rememberVaultFolder(papelizVaultFolderHandle: FileSystemDi
   }
   const updatedRememberedVaultFolder: PapelizRememberedVaultFolder = {
     papelizVaultId: sameRememberedVaultFolder?.papelizVaultId ?? crypto.randomUUID(),
-    papelizVaultDisplayName: papelizVaultFolderHandle.name,
+    papelizVaultDisplayName: choosePapelizFolderVaultDisplayName(folderVaultOwnNameRead, papelizVaultFolderHandle.name, sameRememberedVaultFolder?.papelizVaultDisplayName),
     papelizVaultFolderHandle,
     papelizVaultLastOpenedAt: Date.now(),
     // Opening a folder again takes it off the Hidden list.
@@ -111,7 +118,10 @@ export async function rememberVaultFolder(papelizVaultFolderHandle: FileSystemDi
 }
 
 // The same for a folder opened in Papeliz for Windows, found again by its path.
-export async function rememberDesktopVaultFolderPath(desktopVaultFolderPath: string): Promise<PapelizRememberedDesktopPathVaultFolder> {
+export async function rememberDesktopVaultFolderPath(
+  desktopVaultFolderPath: string,
+  folderVaultOwnNameRead: PapelizFolderVaultOwnNameRead = { folderVaultOwnNameReadOutcome: 'none' },
+): Promise<PapelizRememberedDesktopPathVaultFolder> {
   const rememberedVaultFolders = await listRememberedVaultFolders().catch(() => [])
   const sameRememberedVaultFolder = rememberedVaultFolders.find(
     (rememberedVaultFolder) =>
@@ -120,7 +130,11 @@ export async function rememberDesktopVaultFolderPath(desktopVaultFolderPath: str
   const updatedRememberedVaultFolder: PapelizRememberedDesktopPathVaultFolder = {
     papelizRememberedVaultFolderKind: 'desktop-folder-path',
     papelizVaultId: sameRememberedVaultFolder?.papelizVaultId ?? crypto.randomUUID(),
-    papelizVaultDisplayName: readDesktopVaultFolderName(desktopVaultFolderPath),
+    papelizVaultDisplayName: choosePapelizFolderVaultDisplayName(
+      folderVaultOwnNameRead,
+      readDesktopVaultFolderName(desktopVaultFolderPath),
+      sameRememberedVaultFolder?.papelizVaultDisplayName,
+    ),
     desktopVaultFolderPath,
     papelizVaultLastOpenedAt: Date.now(),
     // Opening a folder again takes it off the Hidden list.
@@ -130,6 +144,23 @@ export async function rememberDesktopVaultFolderPath(desktopVaultFolderPath: str
     await putPapelizBrowserDatabaseRecord(papelizVaultFolderHandlesStoreName, updatedRememberedVaultFolder)
   }
   return updatedRememberedVaultFolder
+}
+
+// The name a remembered folder's vault shows, after it was renamed in Settings or unlocked: its own
+// name, or with none saved (null), its folder's. Recent Vaults shows it from then on. Gives back that
+// name, or null when the vault isn't on the list (a browser vault, or no IndexedDB here).
+export async function renameRememberedVaultFolder(papelizVaultId: string, papelizVaultOwnName: string | null): Promise<string | null> {
+  if (!isPapelizBrowserDatabaseAvailable()) return null
+  const renamedVaultFolder = await readPapelizBrowserDatabaseRecord<PapelizRememberedVaultFolder>(papelizVaultFolderHandlesStoreName, papelizVaultId)
+  if (renamedVaultFolder === undefined) return null
+  const vaultFolderName = isRememberedDesktopPathVaultFolder(renamedVaultFolder)
+    ? readDesktopVaultFolderName(renamedVaultFolder.desktopVaultFolderPath)
+    : renamedVaultFolder.papelizVaultFolderHandle.name
+  const papelizVaultDisplayName = papelizVaultOwnName ?? vaultFolderName
+  if (renamedVaultFolder.papelizVaultDisplayName !== papelizVaultDisplayName) {
+    await putPapelizBrowserDatabaseRecord(papelizVaultFolderHandlesStoreName, { ...renamedVaultFolder, papelizVaultDisplayName })
+  }
+  return papelizVaultDisplayName
 }
 
 // Takes a folder off the list. A folder remembered by path is also let go on the desktop app's native

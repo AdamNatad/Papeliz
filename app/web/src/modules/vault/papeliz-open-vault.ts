@@ -4,7 +4,7 @@ import { describePapelizFailureCodeMessage, describePapelizFailureMessage } from
 import { describePapelizFolderAccessOffReason } from './papeliz-folder-access-support'
 import { PapelizFolderOnDiskVaultAdapter } from './papeliz-folder-on-disk-vault-adapter'
 import { PapelizInMemoryVaultAdapter } from './papeliz-in-memory-vault-adapter'
-import type { PapelizVaultAdapter } from './papeliz-vault-adapter'
+import { PapelizVaultOperationError, type PapelizVaultAdapter } from './papeliz-vault-adapter'
 import {
   ensureVaultFolderPermission,
   isFolderOnDiskVaultSupported,
@@ -12,11 +12,18 @@ import {
   readDesktopVaultFolderName,
   rememberDesktopVaultFolderPath,
   rememberVaultFolder,
+  renameRememberedVaultFolder,
   waitForPapelizDesktopPlatform,
   type PapelizRememberedVaultFolder,
 } from './papeliz-remembered-vault-folders'
 import { papelizSampleVaultDisplayName, papelizSampleVaultNotes } from './papeliz-sample-vault-notes'
 import { findPapelizLockedEndToEndVault, type PapelizLockedEndToEndVault } from './papeliz-vault-encryption'
+import {
+  choosePapelizFolderVaultDisplayName,
+  findPapelizVaultOwnNameProblem,
+  readPapelizFolderVaultOwnNameBeforeUnlock,
+  writePapelizVaultOwnName,
+} from './papeliz-vault-own-name'
 import { describeVaultEntryNameProblem } from './papeliz-vault-relative-paths'
 
 export const papelizSampleVaultId = 'papeliz-sample-vault'
@@ -238,6 +245,9 @@ export async function makeAndOpenNewPapelizFolderVault(newVaultParentFolder: Pap
   if (newFolderVaultFolderResult.newFolderVaultFolderOutcome !== 'ready') {
     return { openVaultOutcome: 'failed', openVaultFailureMessage: describeNewFolderVaultNameTakenMessage(newFolderVaultFolderResult.newFolderVaultFolderOutcome, newVaultName) }
   }
+  // The name is the vault's own as well as its folder's, so it stays when the folder is renamed. Unsaved,
+  // the vault still shows the same name: its folder's.
+  await writePapelizVaultOwnName(new PapelizFolderOnDiskVaultAdapter(newFolderVaultFolderResult.papelizVaultFolderHandle), newVaultName).catch(() => undefined)
   return openPapelizVaultFolderHandle(newFolderVaultFolderResult.papelizVaultFolderHandle)
 }
 
@@ -279,15 +289,30 @@ export async function openPapelizVaultFolderHandle(papelizVaultFolderHandle: Fil
   if (papelizVaultFolderPermission !== 'granted') {
     return { openVaultOutcome: 'failed', openVaultFailureMessage: describePapelizFailureCodeMessage('Couldn’t open the folder', 'Permission Not Given') }
   }
-  const rememberedVaultFolder = await rememberVaultFolder(papelizVaultFolderHandle).catch(() => null)
+  const folderVaultAdapter = new PapelizFolderOnDiskVaultAdapter(papelizVaultFolderHandle)
+  const folderVaultOwnNameRead = await readPapelizFolderVaultOwnNameBeforeUnlock(folderVaultAdapter)
+  const rememberedVaultFolder = await rememberVaultFolder(papelizVaultFolderHandle, folderVaultOwnNameRead).catch(() => null)
   return {
     openVaultOutcome: 'opened',
     papelizOpenVault: {
       papelizVaultId: rememberedVaultFolder?.papelizVaultId ?? crypto.randomUUID(),
-      papelizVaultDisplayName: papelizVaultFolderHandle.name,
-      papelizVaultAdapter: new PapelizFolderOnDiskVaultAdapter(papelizVaultFolderHandle),
+      papelizVaultDisplayName: rememberedVaultFolder?.papelizVaultDisplayName ?? choosePapelizFolderVaultDisplayName(folderVaultOwnNameRead, papelizVaultFolderHandle.name, undefined),
+      papelizVaultAdapter: folderVaultAdapter,
     },
   }
+}
+
+// Settings › Vault's Rename for a folder vault: the name is saved in the vault (sealed with its files
+// when it is End-to-end), and Recent Vaults shows it. The folder on disk keeps its own name. Fails with
+// the name's problem ("Name Empty", ...) or the write's. Gives back the name saved.
+export async function renameOpenPapelizFolderVault(papelizOpenVault: PapelizOpenVault, typedVaultOwnName: string): Promise<string> {
+  if (papelizOpenVault.papelizVaultAdapter.papelizVaultKind !== 'folder-on-disk') throw new PapelizVaultOperationError('Not Supported Yet')
+  const vaultOwnNameProblem = findPapelizVaultOwnNameProblem(typedVaultOwnName)
+  if (vaultOwnNameProblem !== null) throw new PapelizVaultOperationError(vaultOwnNameProblem)
+  const papelizVaultOwnName = typedVaultOwnName.trim()
+  await writePapelizVaultOwnName(papelizOpenVault.papelizVaultAdapter, papelizVaultOwnName)
+  await renameRememberedVaultFolder(papelizOpenVault.papelizVaultId, papelizVaultOwnName).catch(() => null)
+  return papelizVaultOwnName
 }
 
 // Windows' folder picker in Papeliz for Windows: the folder's absolute path, or why there is none. It
@@ -353,6 +378,9 @@ async function makeAndOpenNewPapelizDesktopFolderVault(
   if (newFolderVaultFolderResult.newFolderVaultFolderOutcome !== 'ready') {
     return { openVaultOutcome: 'failed', openVaultFailureMessage: describeNewFolderVaultNameTakenMessage(newFolderVaultFolderResult.newFolderVaultFolderOutcome, newVaultName) }
   }
+  // Saved in the vault as in a browser (makeAndOpenNewPapelizFolderVault).
+  const newDesktopVaultFolderAdapter = createPapelizDesktopFolderVaultAdapter(newFolderVaultFolderResult.desktopVaultFolderPath, papelizDesktopPlatform.desktopFileSystem)
+  await writePapelizVaultOwnName(newDesktopVaultFolderAdapter, newVaultName).catch(() => undefined)
   return openPapelizDesktopVaultFolderPath(newFolderVaultFolderResult.desktopVaultFolderPath, papelizDesktopPlatform, { isDesktopVaultFolderJustPicked: true })
 }
 
@@ -366,6 +394,7 @@ export async function openPapelizDesktopVaultFolderPath(
   papelizDesktopPlatform: PapelizDesktopPlatform,
   { isDesktopVaultFolderJustPicked }: { isDesktopVaultFolderJustPicked: boolean },
 ): Promise<PapelizOpenVaultResult> {
+  // The folder's name, for what goes wrong before the vault's own name is read.
   const papelizVaultDisplayName = readDesktopVaultFolderName(desktopVaultFolderPath)
   const { desktopFileSystem } = papelizDesktopPlatform
   try {
@@ -383,13 +412,15 @@ export async function openPapelizDesktopVaultFolderPath(
       return { openVaultOutcome: 'failed', openVaultFailureMessage: describePapelizFailureMessage(`Couldn’t open “${papelizVaultDisplayName}”`, desktopVaultFolderRememberError) }
     }
   }
-  const rememberedVaultFolder = await rememberDesktopVaultFolderPath(desktopVaultFolderPath).catch(() => null)
+  const desktopVaultFolderAdapter = createPapelizDesktopFolderVaultAdapter(desktopVaultFolderPath, desktopFileSystem)
+  const folderVaultOwnNameRead = await readPapelizFolderVaultOwnNameBeforeUnlock(desktopVaultFolderAdapter)
+  const rememberedVaultFolder = await rememberDesktopVaultFolderPath(desktopVaultFolderPath, folderVaultOwnNameRead).catch(() => null)
   return {
     openVaultOutcome: 'opened',
     papelizOpenVault: {
       papelizVaultId: rememberedVaultFolder?.papelizVaultId ?? crypto.randomUUID(),
-      papelizVaultDisplayName,
-      papelizVaultAdapter: createPapelizDesktopFolderVaultAdapter(desktopVaultFolderPath, desktopFileSystem),
+      papelizVaultDisplayName: rememberedVaultFolder?.papelizVaultDisplayName ?? choosePapelizFolderVaultDisplayName(folderVaultOwnNameRead, papelizVaultDisplayName, undefined),
+      papelizVaultAdapter: desktopVaultFolderAdapter,
     },
   }
 }

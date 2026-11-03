@@ -1,4 +1,5 @@
 import type { PapelizExistingVaultOpenResult, PapelizOpenVault, PapelizOpenVaultResult } from './papeliz-open-vault'
+import { renameRememberedVaultFolder } from './papeliz-remembered-vault-folders'
 import { describePapelizVaultError, type PapelizVaultAdapter } from './papeliz-vault-adapter'
 import type {
   PapelizEndToEndVaultMakeRequest,
@@ -50,6 +51,8 @@ import {
 } from './papeliz-vault-encryption-stored-files'
 import { PapelizUnlockedVaultEncryptionKeyHolder } from './papeliz-vault-encryption-unlocked-key'
 import { describePapelizVaultEncryptionFailureMessage } from './papeliz-vault-encryption-words'
+import { papelizVaultOwnNameSettingsFileName, readPapelizVaultOwnName, writePapelizVaultOwnName } from './papeliz-vault-own-name'
+import { joinVaultRelativePath, papelizVaultSettingsFolderName } from './papeliz-vault-relative-paths'
 import { PapelizEndToEndEncryptingVaultAdapter } from './papeliz-end-to-end-vault-adapter'
 
 // Making, finding, unlocking and remembering End-to-end vaults (papeliz-vault-encryption.ts says what
@@ -171,6 +174,10 @@ async function isPapelizVaultKeyHolderCheckedBySettings(
 
 // Making a new End-to-end vault --------------------------------------------------------------------------
 
+// The one file a new vault may hold before it is made End-to-end: the name New Vault saved in it
+// (papeliz-vault-own-name.ts), which is then sealed with the rest.
+const plainVaultOwnNameFileRelativePath = joinVaultRelativePath(papelizVaultSettingsFolderName, papelizVaultOwnNameSettingsFileName)
+
 export async function makePapelizEndToEndVault(endToEndVaultMakeRequest: PapelizEndToEndVaultMakeRequest): Promise<PapelizEndToEndVaultUnlockResult> {
   const { newVaultOpenVault } = endToEndVaultMakeRequest
   const storedVaultAdapter = readPapelizVaultAdapterBehindPlainWriteRefusal(newVaultOpenVault.papelizVaultAdapter)
@@ -182,7 +189,12 @@ export async function makePapelizEndToEndVault(endToEndVaultMakeRequest: Papeliz
     if (vaultEncryptionSettingsReadResult.vaultEncryptionSettingsReadOutcome === 'read' && vaultEncryptionSettingsReadResult.vaultEncryptionSettings.papelizVaultEncryptionKind === 'end-to-end') {
       return { endToEndVaultUnlockOutcome: 'failed', vaultEncryptionFailureCode: 'Already End-to-end' }
     }
-    if ((await storedVaultAdapter.listStoredVaultFileStats()).length > 0) return { endToEndVaultUnlockOutcome: 'failed', vaultEncryptionFailureCode: 'Vault Not Empty' }
+    const storedVaultFileStats = await storedVaultAdapter.listStoredVaultFileStats()
+    if (storedVaultFileStats.some((storedVaultFileStat) => storedVaultFileStat.vaultFileRelativePath !== plainVaultOwnNameFileRelativePath)) {
+      return { endToEndVaultUnlockOutcome: 'failed', vaultEncryptionFailureCode: 'Vault Not Empty' }
+    }
+    const isPlainVaultOwnNameFileThere = storedVaultFileStats.length > 0
+    const newVaultOwnName = isPlainVaultOwnNameFileThere ? await readPapelizVaultOwnName(storedVaultAdapter) : null
     const { unlockedVaultEncryptionKeyHolder, endToEndVaultEncryptionSettings } = await makePapelizEndToEndVaultKeyAndSettings(
       endToEndVaultMakeRequest.vaultPassphrase,
       null,
@@ -192,6 +204,10 @@ export async function makePapelizEndToEndVault(endToEndVaultMakeRequest: Papeliz
     await writePapelizEncryptedVaultAboutFile(storedVaultAdapter)
     await storedVaultAdapter.makeStoredVaultFolder(papelizEncryptedVaultFilesFolderName)
     const endToEndVaultAdapter = await PapelizEndToEndEncryptingVaultAdapter.wrapStoredVaultAdapter(storedVaultAdapter, unlockedVaultEncryptionKeyHolder, null)
+    if (isPlainVaultOwnNameFileThere) {
+      if (newVaultOwnName !== null) await writePapelizVaultOwnName(endToEndVaultAdapter, newVaultOwnName)
+      await storedVaultAdapter.removeStoredVaultEntry(plainVaultOwnNameFileRelativePath)
+    }
     await recordPapelizRecentVaultEncryptionKind({
       papelizVaultId: newVaultOpenVault.papelizVaultId,
       papelizVaultEncryptionKind: 'end-to-end',
@@ -271,7 +287,28 @@ async function openPapelizUnlockedEndToEndVault(
     papelizVaultEncryptionKind: 'end-to-end',
     papelizEncryptedVaultId: endToEndVaultAdapter.papelizEncryptedVaultId,
   })
-  return { papelizVaultId: lockedEndToEndVault.papelizVaultId, papelizVaultDisplayName: lockedEndToEndVault.papelizVaultDisplayName, papelizVaultAdapter: endToEndVaultAdapter }
+  return {
+    papelizVaultId: lockedEndToEndVault.papelizVaultId,
+    papelizVaultDisplayName: await readPapelizUnlockedVaultDisplayName(lockedEndToEndVault, storedVaultAdapter, endToEndVaultAdapter),
+    papelizVaultAdapter: endToEndVaultAdapter,
+  }
+}
+
+// A folder vault opened locked with the name this device last saw; unlocked, its own sealed name (or
+// its folder's, when none is saved) takes over, and Recent Vaults keeps it. A change of kind that
+// stopped part-way may have left the name still plain, or plain again. A browser vault keeps the name
+// it has.
+async function readPapelizUnlockedVaultDisplayName(
+  lockedEndToEndVault: PapelizLockedEndToEndVault,
+  storedVaultAdapter: PapelizStoredVaultAdapter,
+  endToEndVaultAdapter: PapelizEndToEndEncryptingVaultAdapter,
+): Promise<string> {
+  if (storedVaultAdapter.papelizVaultKind !== 'folder-on-disk') return lockedEndToEndVault.papelizVaultDisplayName
+  const papelizVaultOwnName =
+    (await readPapelizVaultOwnName(endToEndVaultAdapter)) ??
+    (endToEndVaultAdapter.unfinishedVaultEncryptionKindChange === null ? null : await readPapelizVaultOwnName(storedVaultAdapter))
+  const rememberedVaultDisplayName = await renameRememberedVaultFolder(lockedEndToEndVault.papelizVaultId, papelizVaultOwnName).catch(() => null)
+  return rememberedVaultDisplayName ?? papelizVaultOwnName ?? lockedEndToEndVault.papelizVaultDisplayName
 }
 
 function readLockedStoredVaultAdapter(lockedEndToEndVault: PapelizLockedEndToEndVault): PapelizStoredVaultAdapter | null {

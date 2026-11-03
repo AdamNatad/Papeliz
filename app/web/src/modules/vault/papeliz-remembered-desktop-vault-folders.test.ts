@@ -58,6 +58,8 @@ const desktopTestHomeFolderPath = 'C:\\Users\\Ada'
 const desktopTestVaultFolderPath = 'C:\\Users\\Ada\\Field Notes'
 const desktopTestPlaceFolderPath = 'C:\\Users\\Ada\\Documents'
 const desktopTestNewVaultDefaultParentFolderPath = 'C:\\Users\\Ada\\Documents\\Papeliz'
+// What New Vault saves in the vault it makes: the name typed, as the vault's own (papeliz-vault-own-name.ts).
+const newFieldNotesVaultOwnNameSettingsFileText = '{\n  "papelizVaultName": "Field Notes"\n}\n'
 const movedDesktopTestVaultFailureMessage = 'Couldn’t open “Field Notes”. The folder was moved, renamed or deleted. Find it on your disk and open it again.'
 
 // The desktop app's native side, as far as Recent Vaults reaches it: the files under the home folder
@@ -231,7 +233,12 @@ describe('making a new vault in a folder in Papeliz for Windows', () => {
     const openVaultResult = await pickPlaceAndOpenNewPapelizFolderVault('Field Notes')
     expect(testDesktopPlatform.shownDesktopFolderPickerTitles).toEqual([papelizNewVaultDesktopFolderPickerTitle])
     expect(openVaultResult.openVaultOutcome === 'opened' && openVaultResult.papelizOpenVault.papelizVaultDisplayName).toBe('Field Notes')
-    expect(testDesktopPlatform.fakeDesktopFileSystem.readFakeDesktopFolder(desktopTestPlaceFolderPath)).toEqual({ 'Taxes.pdf': 'pdf', 'Field Notes/': '' })
+    expect(testDesktopPlatform.fakeDesktopFileSystem.readFakeDesktopFolder(desktopTestPlaceFolderPath)).toEqual({
+      'Taxes.pdf': 'pdf',
+      'Field Notes/': '',
+      'Field Notes/.papeliz/': '',
+      'Field Notes/.papeliz/vault-name.json': newFieldNotesVaultOwnNameSettingsFileText,
+    })
     expect(await readOnlyRecentVault()).toMatchObject({ papelizVaultDisplayName: 'Field Notes', desktopVaultFolderPath: `${desktopTestPlaceFolderPath}\\Field Notes` })
     // The vault's own folder is remembered on the native side, never the place picked for it.
     expect(testDesktopPlatform.nativelyRememberedDesktopVaultFolderPaths).toEqual([`${desktopTestPlaceFolderPath}\\Field Notes`])
@@ -299,7 +306,13 @@ describe('New Vault’s place in Papeliz for Windows, picked before Create Vault
     const newVaultDefaultParentFolder = await readPapelizNewVaultDefaultParentFolder()
     const openVaultResult = await makeAndOpenNewPapelizFolderVault(newVaultDefaultParentFolder!, 'Field Notes')
     expect(openVaultResult.openVaultOutcome === 'opened' && openVaultResult.papelizOpenVault.papelizVaultDisplayName).toBe('Field Notes')
-    expect(testDesktopPlatform.fakeDesktopFileSystem.readFakeDesktopFolder(desktopTestPlaceFolderPath)).toEqual({ 'Taxes.pdf': 'pdf', 'Papeliz/': '', 'Papeliz/Field Notes/': '' })
+    expect(testDesktopPlatform.fakeDesktopFileSystem.readFakeDesktopFolder(desktopTestPlaceFolderPath)).toEqual({
+      'Taxes.pdf': 'pdf',
+      'Papeliz/': '',
+      'Papeliz/Field Notes/': '',
+      'Papeliz/Field Notes/.papeliz/': '',
+      'Papeliz/Field Notes/.papeliz/vault-name.json': newFieldNotesVaultOwnNameSettingsFileText,
+    })
     expect(testDesktopPlatform.nativelyRememberedDesktopVaultFolderPaths).toEqual([`${desktopTestNewVaultDefaultParentFolderPath}\\Field Notes`])
     expect(testDesktopPlatform.shownDesktopFolderPickerTitles).toEqual([])
   })

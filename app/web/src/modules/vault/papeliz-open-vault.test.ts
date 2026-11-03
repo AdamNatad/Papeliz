@@ -13,6 +13,12 @@ import {
   reopenRememberedPapelizVaultFolder,
 } from './papeliz-open-vault'
 
+// What New Vault saves in the vault it makes: the name typed, as the vault's own (papeliz-vault-own-name.ts).
+const newFieldNotesVaultOwnNameFiles = {
+  'Field Notes/.papeliz/': '',
+  'Field Notes/.papeliz/vault-name.json': '{\n  "papelizVaultName": "Field Notes"\n}\n',
+}
+
 function stubBrowserWithFolderPicker(showDirectoryPicker: (() => Promise<FileSystemDirectoryHandle>) | undefined) {
   vi.stubGlobal('window', { isSecureContext: true, showDirectoryPicker })
 }
@@ -154,7 +160,7 @@ describe('New Vault’s place in a browser, picked before Create Vault', () => {
       'Field Notes',
     )
     expect(openVaultResult.openVaultOutcome === 'opened' && openVaultResult.papelizOpenVault.papelizVaultDisplayName).toBe('Field Notes')
-    expect(await readPapelizFakeVaultFolder(pickedPlaceHandle)).toEqual({ 'Field Notes/': '' })
+    expect(await readPapelizFakeVaultFolder(pickedPlaceHandle)).toEqual({ 'Field Notes/': '', ...newFieldNotesVaultOwnNameFiles })
     expect(folderWindowCount).toBe(0)
   })
 })
@@ -178,7 +184,7 @@ describe('making a new vault in a folder', () => {
     if (openVaultResult.openVaultOutcome !== 'opened') return
     expect(openVaultResult.papelizOpenVault.papelizVaultDisplayName).toBe('Field Notes')
     expect(openVaultResult.papelizOpenVault.papelizVaultAdapter.papelizVaultKind).toBe('folder-on-disk')
-    expect(await readPapelizFakeVaultFolder(pickedPlaceHandle)).toEqual({ 'Taxes.pdf': 'pdf', 'Field Notes/': '' })
+    expect(await readPapelizFakeVaultFolder(pickedPlaceHandle)).toEqual({ 'Taxes.pdf': 'pdf', 'Field Notes/': '', ...newFieldNotesVaultOwnNameFiles })
   })
 
   it('uses an empty folder of that name already there', async () => {

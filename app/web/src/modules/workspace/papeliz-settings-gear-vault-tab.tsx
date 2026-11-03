@@ -5,6 +5,7 @@ import { PapelizPillButton } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { findPapelizBrowserVaultNameProblem, listPapelizBrowserVaults, renameOpenPapelizBrowserVault, type PapelizBrowserVaultRecord } from '../vault/papeliz-browser-vaults'
 import { describePapelizFailureMessage } from '../vault/papeliz-failure-code-words'
+import { renameOpenPapelizFolderVault } from '../vault/papeliz-open-vault'
 import {
   canPapelizVaultAdapterBeEndToEnd,
   forgetPapelizVaultEncryptionKeyOnThisDevice,
@@ -13,6 +14,7 @@ import {
   rememberPapelizVaultEncryptionKeyOnThisDevice,
   type PapelizEndToEndVaultAdapter,
 } from '../vault/papeliz-vault-encryption'
+import { findPapelizVaultOwnNameProblem } from '../vault/papeliz-vault-own-name'
 import { usePapelizBrowserVaultBackupReminderStore } from './papeliz-browser-vault-backup-reminder-store'
 import { PapelizBrowserVaultNameField } from './papeliz-browser-vault-name-field'
 import { PapelizVaultEncryptionChangeDialog, type PapelizVaultEncryptionChange } from './papeliz-vault-encryption-change-dialog'
@@ -26,8 +28,8 @@ import {
 import { usePapelizWorkspaceStore } from './papeliz-workspace-store'
 
 // Settings › Vault: the open vault's name, then its Encryption. A browser vault renames here, unless
-// another tab has it open too. A folder vault takes its folder's name, so it says how to change that;
-// the sample vault's name is fixed, and it is never encrypted.
+// another tab has it open too. A folder vault renames here too: its name is kept in the vault, and the
+// folder on disk keeps its own. The sample vault's name is fixed, and it is never encrypted.
 export function PapelizSettingsGearVaultTab() {
   const openVault = usePapelizWorkspaceStore((workspaceState) => workspaceState.openVault)
   if (openVault === null) return null
@@ -48,26 +50,121 @@ function PapelizSettingsGearVaultName() {
   if (openVaultKind === 'browser-vault-in-opfs') {
     return <PapelizSettingsGearBrowserVaultRename key={openVault.papelizVaultId} papelizVaultId={openVault.papelizVaultId} openVaultDisplayName={openVault.papelizVaultDisplayName} />
   }
+  if (openVaultKind === 'folder-on-disk') return <PapelizSettingsGearFolderVaultRename key={openVault.papelizVaultId} openVaultDisplayName={openVault.papelizVaultDisplayName} />
   return (
     <div>
       <p className="text-[12px] leading-snug font-semibold text-papeliz-ink">Vault Name</p>
       <p className="mt-1 flex h-[30px] items-center truncate rounded-md border border-papeliz-line bg-papeliz-surface-soft px-2.5 text-[13px] text-papeliz-ink-muted">
         {openVault.papelizVaultDisplayName}
       </p>
-      <p className="mt-1.5 text-[12px] leading-snug text-papeliz-ink-subtle">
-        {openVaultKind === 'folder-on-disk'
-          ? 'Folder Storage. A folder vault takes its folder’s name: rename the folder on your computer, then open it again.'
-          : 'The sample vault keeps its name.'}
-      </p>
+      <p className="mt-1.5 text-[12px] leading-snug text-papeliz-ink-subtle">The sample vault keeps its name.</p>
     </div>
+  )
+}
+
+interface PapelizSettingsGearVaultRenameRowProps {
+  typedVaultName: string
+  // Why the typed name can't be used, as a code ("Name Taken"), or null when it can.
+  vaultNameProblem: string | null
+  isVaultRenameOff: boolean
+  vaultRenameFailureMessage: string | null
+  // Where the vault is kept, under the field.
+  vaultStorageLine: string
+  onVaultNameType: (typedVaultName: string) => void
+  onVaultRename: () => void
+}
+
+// The Vault Name field with Rename beside it, then why a rename failed, then where the vault is kept.
+function PapelizSettingsGearVaultRenameRow({
+  typedVaultName,
+  vaultNameProblem,
+  isVaultRenameOff,
+  vaultRenameFailureMessage,
+  vaultStorageLine,
+  onVaultNameType,
+  onVaultRename,
+}: PapelizSettingsGearVaultRenameRowProps) {
+  const vaultRenameIdPrefix = useId()
+  const vaultRenameInputRef = useRef<HTMLInputElement>(null)
+  return (
+    <div>
+      {/* The field and Rename side by side; Rename lines up with the box, under the label. */}
+      <div className="flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <PapelizBrowserVaultNameField
+            browserVaultNameInputRef={vaultRenameInputRef}
+            typedBrowserVaultName={typedVaultName}
+            browserVaultNameProblem={vaultNameProblem}
+            browserVaultNameProblemId={`${vaultRenameIdPrefix}-name-problem`}
+            onBrowserVaultNameType={onVaultNameType}
+            onBrowserVaultNameSubmit={onVaultRename}
+          />
+        </div>
+        <PapelizPillButton pillButtonVariant="primary" pillButtonSize="small" className="mt-[20.5px]" disabled={isVaultRenameOff} onClick={onVaultRename}>
+          Rename
+        </PapelizPillButton>
+      </div>
+      {vaultRenameFailureMessage !== null && (
+        <p role="alert" className="mt-1.5 text-[12px] leading-snug font-medium text-papeliz-diff-removed-ink">
+          {vaultRenameFailureMessage}
+        </p>
+      )}
+      <p className="mt-1.5 text-[12px] leading-snug text-papeliz-ink-subtle">{vaultStorageLine}</p>
+    </div>
+  )
+}
+
+// A folder vault's own name, saved in the vault (sealed when it is End-to-end): the top bar, the window's
+// title and Recent Vaults show it at once.
+function PapelizSettingsGearFolderVaultRename({ openVaultDisplayName }: { openVaultDisplayName: string }) {
+  const setOpenVaultDisplayName = usePapelizWorkspaceStore((workspaceState) => workspaceState.setOpenVaultDisplayName)
+  const showWorkspaceNotice = usePapelizWorkspaceStore((workspaceState) => workspaceState.showWorkspaceNotice)
+  const [typedFolderVaultName, setTypedFolderVaultName] = useState(openVaultDisplayName)
+  const [isFolderVaultRenameRunning, setFolderVaultRenameRunning] = useState(false)
+  const [folderVaultRenameFailureMessage, setFolderVaultRenameFailureMessage] = useState<string | null>(null)
+
+  const folderVaultNameProblem = findPapelizVaultOwnNameProblem(typedFolderVaultName)
+  const isFolderVaultRenameOff = folderVaultNameProblem !== null || typedFolderVaultName.trim() === openVaultDisplayName || isFolderVaultRenameRunning
+
+  const renameOpenFolderVault = async () => {
+    // The vault as it is now: a change of kind since this tab opened gives it another adapter.
+    const renamedOpenVault = usePapelizWorkspaceStore.getState().openVault
+    if (isFolderVaultRenameOff || renamedOpenVault === null) return
+    setFolderVaultRenameRunning(true)
+    setFolderVaultRenameFailureMessage(null)
+    try {
+      const renamedFolderVaultName = await renameOpenPapelizFolderVault(renamedOpenVault, typedFolderVaultName)
+      setOpenVaultDisplayName(renamedFolderVaultName)
+      setTypedFolderVaultName(renamedFolderVaultName)
+      showWorkspaceNotice('info', `Renamed to “${renamedFolderVaultName}”.`)
+    } catch (folderVaultRenameError) {
+      setFolderVaultRenameFailureMessage(
+        describePapelizFailureMessage(`Couldn’t rename “${openVaultDisplayName}”`, folderVaultRenameError, { failedEntryName: typedFolderVaultName, failedEntryKind: 'vault' }),
+      )
+    } finally {
+      setFolderVaultRenameRunning(false)
+    }
+  }
+
+  return (
+    <PapelizSettingsGearVaultRenameRow
+      typedVaultName={typedFolderVaultName}
+      vaultNameProblem={folderVaultNameProblem}
+      isVaultRenameOff={isFolderVaultRenameOff}
+      vaultRenameFailureMessage={folderVaultRenameFailureMessage}
+      vaultStorageLine="Folder Storage. The folder on your computer keeps its own name."
+      onVaultNameType={(changedFolderVaultName) => {
+        setTypedFolderVaultName(changedFolderVaultName)
+        setFolderVaultRenameFailureMessage(null)
+      }}
+      onVaultRename={() => void renameOpenFolderVault()}
+    />
   )
 }
 
 function PapelizSettingsGearBrowserVaultRename({ papelizVaultId, openVaultDisplayName }: { papelizVaultId: string; openVaultDisplayName: string }) {
   const setOpenVaultDisplayName = usePapelizWorkspaceStore((workspaceState) => workspaceState.setOpenVaultDisplayName)
   const showWorkspaceNotice = usePapelizWorkspaceStore((workspaceState) => workspaceState.showWorkspaceNotice)
-  const browserVaultRenameIdPrefix = useId()
-  const browserVaultRenameInputRef = useRef<HTMLInputElement>(null)
   const [typedBrowserVaultName, setTypedBrowserVaultName] = useState(openVaultDisplayName)
   const [otherBrowserVaultRecords, setOtherBrowserVaultRecords] = useState<readonly PapelizBrowserVaultRecord[]>([])
   const [isBrowserVaultRenameRunning, setBrowserVaultRenameRunning] = useState(false)
@@ -110,33 +207,18 @@ function PapelizSettingsGearBrowserVaultRename({ papelizVaultId, openVaultDispla
   }
 
   return (
-    <div>
-      {/* The field and Rename side by side; Rename lines up with the box, under the label. */}
-      <div className="flex items-start gap-2">
-        <div className="min-w-0 flex-1">
-          <PapelizBrowserVaultNameField
-            browserVaultNameInputRef={browserVaultRenameInputRef}
-            typedBrowserVaultName={typedBrowserVaultName}
-            browserVaultNameProblem={browserVaultNameProblem}
-            browserVaultNameProblemId={`${browserVaultRenameIdPrefix}-name-problem`}
-            onBrowserVaultNameType={(changedBrowserVaultName) => {
-              setTypedBrowserVaultName(changedBrowserVaultName)
-              setBrowserVaultRenameFailureMessage(null)
-            }}
-            onBrowserVaultNameSubmit={() => void renameOpenBrowserVault()}
-          />
-        </div>
-        <PapelizPillButton pillButtonVariant="primary" pillButtonSize="small" className="mt-[20.5px]" disabled={isBrowserVaultRenameOff} onClick={() => void renameOpenBrowserVault()}>
-          Rename
-        </PapelizPillButton>
-      </div>
-      {browserVaultRenameFailureMessage !== null && (
-        <p role="alert" className="mt-1.5 text-[12px] leading-snug font-medium text-papeliz-diff-removed-ink">
-          {browserVaultRenameFailureMessage}
-        </p>
-      )}
-      <p className="mt-1.5 text-[12px] leading-snug text-papeliz-ink-subtle">Browser Storage. Kept inside this browser.</p>
-    </div>
+    <PapelizSettingsGearVaultRenameRow
+      typedVaultName={typedBrowserVaultName}
+      vaultNameProblem={browserVaultNameProblem}
+      isVaultRenameOff={isBrowserVaultRenameOff}
+      vaultRenameFailureMessage={browserVaultRenameFailureMessage}
+      vaultStorageLine="Browser Storage. Kept inside this browser."
+      onVaultNameType={(changedBrowserVaultName) => {
+        setTypedBrowserVaultName(changedBrowserVaultName)
+        setBrowserVaultRenameFailureMessage(null)
+      }}
+      onVaultRename={() => void renameOpenBrowserVault()}
+    />
   )
 }
 
