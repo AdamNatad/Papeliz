@@ -108,7 +108,7 @@ export type PapelizNewFolderVaultFolderResult =
   | { newFolderVaultFolderOutcome: 'folder-not-empty' | 'file-has-the-name' }
 
 // Why New Vault's folder couldn't be used: the name is taken in the place picked.
-function describeNewFolderVaultNameTakenMessage(newFolderVaultFolderOutcome: 'folder-not-empty' | 'file-has-the-name', newVaultName: string): string {
+export function describeNewFolderVaultNameTakenMessage(newFolderVaultFolderOutcome: 'folder-not-empty' | 'file-has-the-name', newVaultName: string): string {
   const takenNameEntryKind = newFolderVaultFolderOutcome === 'folder-not-empty' ? 'folder' : 'file'
   return `A ${takenNameEntryKind} named “${newVaultName}” is already there. Pick another name or another place.`
 }
@@ -131,18 +131,92 @@ export async function makePapelizNewFolderVaultFolder(
   return { newFolderVaultFolderOutcome: 'ready', papelizVaultFolderHandle: await pickedPlaceFolderHandle.getDirectoryHandle(newVaultName, { create: true }) }
 }
 
-// New Vault in a folder: the browser's folder window picks where it goes (with permission to change
-// it), then the vault's folder is made there, named after the vault, and opened and remembered as any
-// folder vault is. Must run from a click. In Papeliz for Windows, Windows' own folder picker picks
-// the place, and the folder is made, opened and remembered by its path.
-export async function pickPlaceAndOpenNewPapelizFolderVault(newVaultName: string): Promise<PapelizOpenVaultResult> {
+// Where New Vault makes a vault's folder, picked before Create Vault: a folder's path in Papeliz for
+// Windows, or a folder from the browser's folder window (which tells Papeliz only its name).
+export type PapelizNewVaultParentFolder =
+  | { newVaultParentFolderKind: 'desktop-folder-path'; desktopParentFolderPath: string }
+  | { newVaultParentFolderKind: 'browser-folder-handle'; browserParentFolderHandle: FileSystemDirectoryHandle }
+
+export type PapelizNewVaultParentFolderPickResult =
+  | { newVaultParentFolderPickOutcome: 'picked'; pickedNewVaultParentFolder: PapelizNewVaultParentFolder }
+  | Exclude<PapelizOpenVaultResult, { openVaultOutcome: 'opened' }>
+
+// The folder window, for where New Vault makes the vault (with permission to change it in a browser).
+// Must run from a click.
+export async function pickPapelizNewVaultParentFolder(): Promise<PapelizNewVaultParentFolderPickResult> {
   const papelizDesktopPlatform = await waitForPapelizDesktopPlatform()
-  if (papelizDesktopPlatform !== null) return pickPlaceAndOpenNewPapelizDesktopFolderVault(newVaultName, papelizDesktopPlatform)
-  const placeFolderPickResult = await pickPapelizVaultFolderHandle()
-  if (!('vaultFolderPickOutcome' in placeFolderPickResult)) return placeFolderPickResult
+  if (papelizDesktopPlatform !== null) {
+    const desktopFolderPickResult = await pickPapelizDesktopFolderPath(papelizDesktopPlatform, papelizNewVaultDesktopFolderPickerTitle)
+    if (!('desktopFolderPickOutcome' in desktopFolderPickResult)) return desktopFolderPickResult
+    return {
+      newVaultParentFolderPickOutcome: 'picked',
+      pickedNewVaultParentFolder: { newVaultParentFolderKind: 'desktop-folder-path', desktopParentFolderPath: desktopFolderPickResult.pickedDesktopFolderPath },
+    }
+  }
+  const browserFolderPickResult = await pickPapelizVaultFolderHandle()
+  if (!('vaultFolderPickOutcome' in browserFolderPickResult)) return browserFolderPickResult
+  return {
+    newVaultParentFolderPickOutcome: 'picked',
+    pickedNewVaultParentFolder: { newVaultParentFolderKind: 'browser-folder-handle', browserParentFolderHandle: browserFolderPickResult.papelizVaultFolderHandle },
+  }
+}
+
+// Where New Vault starts in Papeliz for Windows, before another place is picked: `<Documents>\Papeliz`.
+// Null in a browser, which has no such place, and when Documents can't be found.
+export async function readPapelizNewVaultDefaultParentFolder(): Promise<PapelizNewVaultParentFolder | null> {
+  const papelizDesktopPlatform = await waitForPapelizDesktopPlatform()
+  if (papelizDesktopPlatform === null) return null
+  try {
+    const desktopParentFolderPath = await papelizDesktopPlatform.readDesktopNewVaultDefaultParentFolderPath()
+    return desktopParentFolderPath === null ? null : { newVaultParentFolderKind: 'desktop-folder-path', desktopParentFolderPath }
+  } catch {
+    return null
+  }
+}
+
+// Whether New Vault's folder name is taken in the place picked, by makePapelizNewFolderVaultFolder's
+// rule: a folder of that name with anything in it, or a file of that name. Null when it is free, or
+// when the place can't be read, so the check never refuses what Create Vault would make.
+export async function findPapelizNewVaultFolderNameTaken(
+  newVaultParentFolder: PapelizNewVaultParentFolder,
+  newVaultName: string,
+): Promise<'folder-not-empty' | 'file-has-the-name' | null> {
+  try {
+    if (newVaultParentFolder.newVaultParentFolderKind === 'desktop-folder-path') {
+      const papelizDesktopPlatform = await waitForPapelizDesktopPlatform()
+      if (papelizDesktopPlatform === null) return null
+      const { desktopFileSystem } = papelizDesktopPlatform
+      const desktopVaultFolderPath = desktopFileSystem.joinDesktopPath(newVaultParentFolder.desktopParentFolderPath, newVaultName)
+      const existingDesktopEntry = await desktopFileSystem.readDesktopEntry(desktopVaultFolderPath)
+      if (existingDesktopEntry === null) return null
+      if (!existingDesktopEntry.isDesktopEntryFolder) return 'file-has-the-name'
+      return (await desktopFileSystem.listDesktopFolderEntries(desktopVaultFolderPath)).length > 0 ? 'folder-not-empty' : null
+    }
+    let existingVaultFolderHandle: FileSystemDirectoryHandle
+    try {
+      existingVaultFolderHandle = await newVaultParentFolder.browserParentFolderHandle.getDirectoryHandle(newVaultName)
+    } catch (existingFolderError) {
+      return existingFolderError instanceof DOMException && existingFolderError.name === 'TypeMismatchError' ? 'file-has-the-name' : null
+    }
+    for await (const _existingFolderEntryName of existingVaultFolderHandle.keys()) return 'folder-not-empty'
+    return null
+  } catch {
+    return null
+  }
+}
+
+// New Vault's folder, made in the place picked and opened and remembered as any folder vault is.
+export async function makeAndOpenNewPapelizFolderVault(newVaultParentFolder: PapelizNewVaultParentFolder, newVaultName: string): Promise<PapelizOpenVaultResult> {
+  if (newVaultParentFolder.newVaultParentFolderKind === 'desktop-folder-path') {
+    const papelizDesktopPlatform = await waitForPapelizDesktopPlatform()
+    if (papelizDesktopPlatform === null) {
+      return { openVaultOutcome: 'failed', openVaultFailureMessage: describePapelizFailureCodeMessage(`Couldn’t make “${newVaultName}”`, 'Not Supported Yet') }
+    }
+    return makeAndOpenNewPapelizDesktopFolderVault(newVaultParentFolder.desktopParentFolderPath, newVaultName, papelizDesktopPlatform)
+  }
   let newFolderVaultFolderResult: PapelizNewFolderVaultFolderResult
   try {
-    newFolderVaultFolderResult = await makePapelizNewFolderVaultFolder(placeFolderPickResult.papelizVaultFolderHandle, newVaultName)
+    newFolderVaultFolderResult = await makePapelizNewFolderVaultFolder(newVaultParentFolder.browserParentFolderHandle, newVaultName)
   } catch (newVaultFolderError) {
     return {
       openVaultOutcome: 'failed',
@@ -153,6 +227,16 @@ export async function pickPlaceAndOpenNewPapelizFolderVault(newVaultName: string
     return { openVaultOutcome: 'failed', openVaultFailureMessage: describeNewFolderVaultNameTakenMessage(newFolderVaultFolderResult.newFolderVaultFolderOutcome, newVaultName) }
   }
   return openPapelizVaultFolderHandle(newFolderVaultFolderResult.papelizVaultFolderHandle)
+}
+
+// New Vault in a folder: the browser's folder window picks where it goes (with permission to change
+// it), then the vault's folder is made there, named after the vault, and opened and remembered as any
+// folder vault is. Must run from a click. In Papeliz for Windows, Windows' own folder picker picks
+// the place, and the folder is made, opened and remembered by its path.
+export async function pickPlaceAndOpenNewPapelizFolderVault(newVaultName: string): Promise<PapelizOpenVaultResult> {
+  const newVaultParentFolderPickResult = await pickPapelizNewVaultParentFolder()
+  if (!('newVaultParentFolderPickOutcome' in newVaultParentFolderPickResult)) return newVaultParentFolderPickResult
+  return makeAndOpenNewPapelizFolderVault(newVaultParentFolderPickResult.pickedNewVaultParentFolder, newVaultName)
 }
 
 // Reopens a folder from the welcome screen's recent list, asking for permission again if the
@@ -236,18 +320,16 @@ export async function makePapelizNewDesktopFolderVaultFolder(
   return { newFolderVaultFolderOutcome: 'ready', desktopVaultFolderPath }
 }
 
-// New Vault in a folder in Papeliz for Windows. Must run from a click. The vault's folder is inside
-// the place picked, which the native side keeps reachable.
-async function pickPlaceAndOpenNewPapelizDesktopFolderVault(newVaultName: string, papelizDesktopPlatform: PapelizDesktopPlatform): Promise<PapelizOpenVaultResult> {
-  const placeFolderPickResult = await pickPapelizDesktopFolderPath(papelizDesktopPlatform, papelizNewVaultDesktopFolderPickerTitle)
-  if (!('desktopFolderPickOutcome' in placeFolderPickResult)) return placeFolderPickResult
+// New Vault in a folder in Papeliz for Windows. The vault's folder is made inside the place picked (or
+// New Vault's starting place), which the native side keeps reachable for this session.
+async function makeAndOpenNewPapelizDesktopFolderVault(
+  desktopParentFolderPath: string,
+  newVaultName: string,
+  papelizDesktopPlatform: PapelizDesktopPlatform,
+): Promise<PapelizOpenVaultResult> {
   let newFolderVaultFolderResult: PapelizNewDesktopFolderVaultFolderResult
   try {
-    newFolderVaultFolderResult = await makePapelizNewDesktopFolderVaultFolder(
-      placeFolderPickResult.pickedDesktopFolderPath,
-      newVaultName,
-      papelizDesktopPlatform.desktopFileSystem,
-    )
+    newFolderVaultFolderResult = await makePapelizNewDesktopFolderVaultFolder(desktopParentFolderPath, newVaultName, papelizDesktopPlatform.desktopFileSystem)
   } catch (newVaultFolderError) {
     return {
       openVaultOutcome: 'failed',

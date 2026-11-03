@@ -112,6 +112,11 @@ export interface PapelizDesktopPlatform {
   // The folder picker, for a vault or the place for a new one: the folder's absolute path, or null when
   // the person cancels. The app may reach that folder, and what is inside it, for this session only.
   pickDesktopFolderPath(desktopFolderPickerTitle: string): Promise<string | null>
+  // Where New Vault makes a vault until another place is picked: the absolute `<Documents>\Papeliz`
+  // path, which the app may then reach, and what is inside it, for this session, as a folder picked.
+  // Nothing is made here; the vault's folder is made inside it with `makeDesktopFolder`. Null when the
+  // Documents folder can't be found.
+  readDesktopNewVaultDefaultParentFolderPath(): Promise<string | null>
   // A vault's own folder, once it opens: the folder picked, or one made inside a folder picked in this
   // session. The native side then lets the app reach it at every later start, until it is forgotten;
   // any other path fails as 'no-permission'. So the place picked for New Vault (Documents, say) is

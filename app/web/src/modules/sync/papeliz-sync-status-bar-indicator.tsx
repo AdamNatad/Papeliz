@@ -7,7 +7,8 @@ import { isPapelizSyncUsedOnThisDevice, readPapelizSyncDevFakeEngineScenarioText
 import type { PapelizSyncEngineEvent } from './papeliz-sync-engine-contract'
 import { showPapelizSyncMissingFiles } from './papeliz-sync-flow-store'
 import { createPapelizSyncLocalVaultFiles } from './papeliz-sync-local-vault-files'
-import { describePapelizSyncStatusForStatusBar } from './papeliz-sync-screen-words'
+import { turnPapelizSyncOnForNewVaultWhenWaiting } from './papeliz-sync-new-vault-turn-on'
+import { describePapelizSyncActionFailureNow, describePapelizSyncStatusForStatusBar } from './papeliz-sync-screen-words'
 import { requestPapelizSettingsGearSyncPage } from './papeliz-sync-settings-gear-request-store'
 import { papelizSyncStatusIcons } from './papeliz-sync-status-icons'
 import { reportPapelizSyncVaultFileSaved, reportPapelizSyncVaultNoteLeft, sendWaitingPapelizSyncChangesNow } from './papeliz-sync-workspace-reports'
@@ -86,13 +87,20 @@ export function PapelizSyncWorkspaceConnection() {
     const papelizVaultKind = openVault.papelizVaultAdapter.papelizVaultKind
     // The sample vault never syncs.
     if (papelizVaultKind === 'sample-vault-in-memory') return
-    return papelizSyncEngine.attachSyncToOpenVault({
+    const detachSyncFromOpenVault = papelizSyncEngine.attachSyncToOpenVault({
       papelizVaultId: openVault.papelizVaultId,
       papelizVaultKind,
       papelizVaultDisplayName: openVault.papelizVaultDisplayName,
       syncLocalVaultFiles: createPapelizSyncLocalVaultFiles(openVault.papelizVaultAdapter),
     })
-  }, [papelizSyncEngine, openVault])
+    // A vault New Vault just made with "Sync This Vault" on starts syncing now that it is attached.
+    void turnPapelizSyncOnForNewVaultWhenWaiting(papelizSyncEngine, openVault.papelizVaultId)?.then((newVaultSyncTurnOnOutcome) => {
+      if (newVaultSyncTurnOnOutcome.syncActionOutcome === 'failed') {
+        showWorkspaceNotice('error', `Couldn’t turn on Sync for “${openVault.papelizVaultDisplayName}”. ${describePapelizSyncActionFailureNow(newVaultSyncTurnOnOutcome)}`)
+      }
+    })
+    return detachSyncFromOpenVault
+  }, [papelizSyncEngine, openVault, showWorkspaceNotice])
 
   // A note saved from its tab (it went from saving to saved), and a note left for another one.
   // Renames, moves, the trash, copies, new notes, Papeliz's own files and the Assistant's writes to

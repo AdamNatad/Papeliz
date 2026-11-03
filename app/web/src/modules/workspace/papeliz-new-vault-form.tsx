@@ -1,13 +1,41 @@
-import { AppWindow, FolderOpen, type LucideIcon } from 'lucide-react'
+import { AppWindow, Cloud, Folder, FolderOpen, Lock, ShieldCheck, TriangleAlert, type LucideIcon } from 'lucide-react'
 import { isPapelizDesktopApp } from 'virtual:papeliz-desktop-platform-availability'
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { isPapelizSyncEngineInThisBuild } from 'virtual:papeliz-sync-engine-availability'
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
+import { PapelizSyncSignInPageLinks } from '../sync/papeliz-sync-blocked-sign-in-links'
+import type { PapelizSyncVaultEncryptionChoice, PapelizSyncVaultEncryptionKind } from '../sync/papeliz-sync-engine-contract'
+import { readPapelizSyncDevFakeEngineScenarioText, usePapelizSyncEngineSnapshot, usePapelizSyncEngineStore } from '../sync/papeliz-sync-engine-store'
+import { describePapelizSyncSignInFromClickFailure, startPapelizSyncSignInFromClick, usePapelizSyncFlowStore } from '../sync/papeliz-sync-flow-store'
+import { PapelizSyncNewPassphraseFields } from '../sync/papeliz-sync-passphrase-fields'
+import { PapelizSyncSwitch } from '../sync/papeliz-sync-page-parts'
+import {
+  papelizSyncVaultEncryptionKindDisplayNames,
+  papelizSyncVaultEncryptionKindReaderLines,
+  papelizSyncVaultNameReadableLine,
+  papelizSyncVaultPassphraseNotRecoverableLine,
+} from '../sync/papeliz-sync-screen-words'
 import { papelizMainActionButtonColorClassName, papelizOutlineButtonColorClassName } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { usePapelizFooterEqualButtonWidthRef } from '../ui/papeliz-footer-equal-button-width'
 import { PapelizInfoTip } from '../ui/papeliz-info-tip'
 import { findPapelizBrowserVaultNameProblem, type PapelizBrowserVaultRecord } from '../vault/papeliz-browser-vaults'
-import { findPapelizNewFolderVaultNameProblem } from '../vault/papeliz-open-vault'
+import {
+  describeNewFolderVaultNameTakenMessage,
+  findPapelizNewFolderVaultNameProblem,
+  findPapelizNewVaultFolderNameTaken,
+  readPapelizNewVaultDefaultParentFolder,
+  type PapelizNewVaultParentFolder,
+} from '../vault/papeliz-open-vault'
 import { PapelizBrowserVaultNameField } from './papeliz-browser-vault-name-field'
+import {
+  describePapelizNewVaultParentFolderPlace,
+  findPapelizNewVaultCreateBlock,
+  isPapelizNewVaultSyncThisVaultOn,
+  readPapelizNewVaultParentFolderName,
+  readPapelizNewVaultSyncPartKind,
+  readPapelizNewVaultSyncVaultEncryptionChoice,
+  type PapelizNewVaultSyncChoice,
+} from './papeliz-new-vault-form-rules'
 
 // Where a new vault is kept: a folder on the disk (Chrome, Edge and Brave) or this browser.
 export type PapelizNewVaultPlace = 'folder-on-disk' | 'browser-vault-in-opfs'
@@ -15,6 +43,9 @@ export type PapelizNewVaultPlace = 'folder-on-disk' | 'browser-vault-in-opfs'
 // The help guide on starting, opening and importing a vault.
 const papelizNewVaultHelpArticleUrl = 'https://papeliz.com/help/open-a-folder/'
 const papelizNewVaultHelpLinkLabel = 'Help: start or open a vault'
+
+// How long the name rests before Papeliz looks whether the place picked already has it.
+const papelizNewVaultFolderNameTakenCheckDelayMilliseconds = 150
 
 type PapelizNewVaultPlaceBadgeTone = 'recommended' | 'risky' | 'off'
 
@@ -27,13 +58,6 @@ interface PapelizNewVaultPlaceDescription {
   newVaultPlaceLine: string
 }
 
-// Papeliz for Windows keeps every vault in a real folder, so its New Vault offers only that card.
-function listShownPapelizNewVaultPlaceDescriptions(): readonly PapelizNewVaultPlaceDescription[] {
-  return isPapelizDesktopApp
-    ? papelizNewVaultPlaceDescriptions.filter((newVaultPlaceDescription) => newVaultPlaceDescription.newVaultPlace === 'folder-on-disk')
-    : papelizNewVaultPlaceDescriptions
-}
-
 const papelizNewVaultPlaceDescriptions: readonly PapelizNewVaultPlaceDescription[] = [
   {
     newVaultPlace: 'folder-on-disk',
@@ -41,7 +65,7 @@ const papelizNewVaultPlaceDescriptions: readonly PapelizNewVaultPlaceDescription
     newVaultPlaceTitle: 'Folder Storage',
     newVaultPlaceBadgeText: 'Recommended',
     newVaultPlaceBadgeTone: 'recommended',
-    newVaultPlaceLine: 'Stores your notes in a folder on your machine',
+    newVaultPlaceLine: 'A folder on your machine.',
   },
   {
     newVaultPlace: 'browser-vault-in-opfs',
@@ -49,9 +73,14 @@ const papelizNewVaultPlaceDescriptions: readonly PapelizNewVaultPlaceDescription
     newVaultPlaceTitle: 'Browser Storage',
     newVaultPlaceBadgeText: 'Risky',
     newVaultPlaceBadgeTone: 'risky',
-    newVaultPlaceLine: 'Stores your notes inside this browser',
+    newVaultPlaceLine: 'Inside this browser.',
   },
 ]
+
+const papelizNewVaultEncryptionKindIcons: Record<PapelizSyncVaultEncryptionKind, LucideIcon> = {
+  standard: ShieldCheck,
+  'end-to-end': Lock,
+}
 
 const papelizNewVaultPlaceBadgeToneClassNames: Record<PapelizNewVaultPlaceBadgeTone, string> = {
   recommended: 'border-papeliz-diff-added-ink/30 bg-papeliz-diff-added text-papeliz-diff-added-ink',
@@ -157,31 +186,148 @@ export const newVaultFormFooterButtonClassName =
 export const newVaultFormFooterCancelButtonColorClassName = papelizOutlineButtonColorClassName
 export const newVaultFormFooterActionButtonColorClassName = papelizMainActionButtonColorClassName
 
+// What Create Vault hands on besides the name and the place.
+export interface PapelizNewVaultConfirmDetails {
+  // The folder the vault's folder is made in, when the form picked one (null: none picked yet, so it
+  // is asked for now).
+  newVaultParentFolder: PapelizNewVaultParentFolder | null
+  // The kind to turn Sync on with once the vault opens, or null when it doesn't sync.
+  newVaultSyncVaultEncryptionChoice: PapelizSyncVaultEncryptionChoice | null
+}
+
 interface PapelizNewVaultFormProps {
   newVaultFormHeadingId: string
-  // Why this browser can't keep a vault in a folder, or in the browser, or null when it can. That card
-  // then stays, greyed, and says why.
+  // Why this browser can't keep a vault in a folder, or in the browser, or null when it can. When one
+  // can't, the other shows as the one place; when neither can, both stay, greyed, and say why.
   folderAccessOffReasonText: string | null
   browserVaultOffReasonText: string | null
   suggestedNewVaultName: string
-  // The place chosen when the form opens; by default a folder where folders work. The form comes back
-  // on the place it had when making a folder vault didn't go through.
+  // The place chosen when the form opens; by default a folder where folders work.
   initialNewVaultPlace?: PapelizNewVaultPlace
   existingBrowserVaultRecords: readonly PapelizBrowserVaultRecord[]
   // Use Template opens the form on a template: it is named at the top with how reading its files is
   // going, Cancel goes back to it, and the action waits until its files are read and checked.
   newVaultFromTemplate?: { newVaultTemplateName: string; newVaultTemplateDetailLine: string; newVaultTemplateThumbnail: ReactNode; newVaultTemplateStatus: ReactNode }
   isNewVaultConfirmHeld?: boolean
-  onNewVaultConfirm: (typedNewVaultName: string, chosenNewVaultPlace: PapelizNewVaultPlace) => void
+  // Where the vault's folder goes, picked from the form (Browse…), shown before Create Vault. Without
+  // it the form shows no place row, and the place is picked once Create Vault is pressed.
+  onNewVaultParentFolderPick?: () => Promise<PapelizNewVaultParentFolder | null>
+  // The Sync part under Location: the start page's New Vault has it, Use Template's doesn't.
+  isNewVaultSyncPartShown?: boolean
+  // Why the last Create Vault didn't make the vault, shown under Location.
+  newVaultCreateFailureMessage?: string | null
+  onNewVaultConfirm: (typedNewVaultName: string, chosenNewVaultPlace: PapelizNewVaultPlace, newVaultConfirmDetails: PapelizNewVaultConfirmDetails) => void
   onNewVaultCancel: () => void
 }
 
-// New Vault, in the start card in place of Recent Vaults: the vault's name first (every vault has one),
-// then the two places as cards (an icon tile, a badge, one line and a radio at the right edge) and a
-// comparison under them, with Cancel at the left edge and the action at the right. A browser vault is
-// made under the name; a folder vault is a new folder of that name, made in the place picked next. The
-// action stays off until the name can be used, and says why under the field. Esc cancels. From Use
-// Template, the template it starts from sits above the name.
+// A small heading over a part of the form.
+function PapelizNewVaultFormPartHeading({ newVaultFormPartHeadingId, children, newVaultFormPartHeadingEnd }: { newVaultFormPartHeadingId: string; children: ReactNode; newVaultFormPartHeadingEnd?: ReactNode }) {
+  return (
+    <div className="mb-1.5 flex items-center gap-2">
+      <h3 id={newVaultFormPartHeadingId} className="text-[12px] leading-snug font-semibold text-papeliz-ink">
+        {children}
+      </h3>
+      {newVaultFormPartHeadingEnd !== undefined && <span className="ml-auto">{newVaultFormPartHeadingEnd}</span>}
+    </div>
+  )
+}
+
+// One choice as a tile: an icon tile, the title, a line under it, and the radio at the right edge. The
+// two web places and the two kinds of Sync encryption use it, side by side.
+function PapelizNewVaultChoiceTile({
+  choiceTileGroupName,
+  choiceTileValue,
+  ChoiceTileIcon,
+  choiceTileTitle,
+  choiceTileLine,
+  isChoiceTileChosen,
+  choiceTileOffReasonText = null,
+  choiceTileOffReasonId,
+  onChoiceTileChoose,
+}: {
+  choiceTileGroupName: string
+  choiceTileValue: string
+  ChoiceTileIcon: LucideIcon
+  choiceTileTitle: string
+  choiceTileLine: ReactNode
+  isChoiceTileChosen: boolean
+  choiceTileOffReasonText?: string | null
+  choiceTileOffReasonId?: string
+  onChoiceTileChoose: () => void
+}) {
+  const isChoiceTileOff = choiceTileOffReasonText !== null
+  return (
+    <label
+      className={joinPapelizClassNames(
+        'flex items-start gap-2.5 rounded-xl border px-2.5 py-2 transition-colors',
+        isChoiceTileChosen
+          ? 'border-papeliz-blue-line bg-papeliz-blue-soft'
+          : isChoiceTileOff
+            ? 'cursor-not-allowed border-papeliz-line bg-papeliz-surface-soft'
+            : 'cursor-pointer border-papeliz-line bg-papeliz-surface hover:bg-papeliz-hover',
+      )}
+    >
+      <span
+        aria-hidden="true"
+        className={joinPapelizClassNames(
+          'grid size-[30px] flex-none place-items-center rounded-lg transition-colors',
+          isChoiceTileChosen ? 'bg-papeliz-chosen-tab-ground text-white' : 'bg-papeliz-surface-gray text-papeliz-ink-muted',
+          isChoiceTileOff && 'opacity-55',
+        )}
+      >
+        <ChoiceTileIcon className="size-4" />
+      </span>
+      <input
+        type="radio"
+        name={choiceTileGroupName}
+        value={choiceTileValue}
+        checked={isChoiceTileChosen}
+        disabled={isChoiceTileOff}
+        aria-describedby={isChoiceTileOff ? choiceTileOffReasonId : undefined}
+        onChange={onChoiceTileChoose}
+        className={joinPapelizClassNames('order-last mt-0.5 size-4 flex-none accent-papeliz-blue', isChoiceTileOff ? 'opacity-55' : 'cursor-pointer')}
+      />
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className={joinPapelizClassNames('text-[13.5px] leading-tight font-semibold text-papeliz-ink', isChoiceTileOff && 'opacity-55')}>{choiceTileTitle}</span>
+        {isChoiceTileOff ? (
+          <span id={choiceTileOffReasonId} className="text-[12px] leading-snug font-medium text-papeliz-diff-removed-ink">
+            {choiceTileOffReasonText}
+          </span>
+        ) : (
+          <span className="text-[12px] leading-snug text-papeliz-ink-subtle">{choiceTileLine}</span>
+        )}
+      </span>
+    </label>
+  )
+}
+
+function PapelizNewVaultPlaceBadge({ newVaultPlaceBadgeTone, children }: { newVaultPlaceBadgeTone: PapelizNewVaultPlaceBadgeTone; children: ReactNode }) {
+  return (
+    <span className={joinPapelizClassNames('mr-1 inline-block rounded-full border px-1.5 text-[10px] leading-snug font-semibold', papelizNewVaultPlaceBadgeToneClassNames[newVaultPlaceBadgeTone])}>
+      {children}
+    </span>
+  )
+}
+
+// A red line under Location: the name taken in the place picked, or why Create Vault didn't work.
+function PapelizNewVaultFailureLine({ children, newVaultFailureLineId }: { children: ReactNode; newVaultFailureLineId?: string }) {
+  return (
+    <p id={newVaultFailureLineId} role="alert" className="mt-1.5 flex items-start gap-2 rounded-lg bg-papeliz-diff-removed px-2.5 py-1.5 text-[12px] leading-snug font-medium text-papeliz-diff-removed-ink">
+      <TriangleAlert className="mt-px size-3.5 flex-none" aria-hidden="true" />
+      <span>{children}</span>
+    </p>
+  )
+}
+
+// New Vault, in the start card in place of Recent Vaults, the same on the web and in Papeliz for
+// Windows: the vault's name, then Location, then Sync, each under a small heading, with Cancel at the
+// footer's left edge and Create Vault at its right. Location shows only what this app has: in Papeliz
+// for Windows the folder the vault's folder will be made in, as its whole path, with Browse… to pick
+// another; on the web its storage places as two tiles (or, where only one works, that one as a plain
+// line), then for Folder Storage the folder it goes in, with Browse…. Compare shows how the places
+// differ. Sync is a quiet line in a build without it; in a build with it, the "Sync This Vault"
+// switch, with Standard or End-to-end (and End-to-end's passphrase) under it. Create Vault stays off
+// until the vault can be made, and says why. Esc cancels.
 export function PapelizNewVaultForm({
   newVaultFormHeadingId,
   folderAccessOffReasonText,
@@ -191,30 +337,143 @@ export function PapelizNewVaultForm({
   existingBrowserVaultRecords,
   newVaultFromTemplate,
   isNewVaultConfirmHeld = false,
+  onNewVaultParentFolderPick,
+  isNewVaultSyncPartShown = false,
+  newVaultCreateFailureMessage = null,
   onNewVaultConfirm,
   onNewVaultCancel,
 }: PapelizNewVaultFormProps) {
   const newVaultNameInputRef = useRef<HTMLInputElement>(null)
   const newVaultFormFooterRef = usePapelizFooterEqualButtonWidthRef(128)
   const newVaultFormIdPrefix = useId()
-  const newVaultPlacePromptId = `${newVaultFormIdPrefix}-place-prompt`
   const newVaultPlaceOffReasonTexts: Record<PapelizNewVaultPlace, string | null> = {
     'folder-on-disk': folderAccessOffReasonText,
     'browser-vault-in-opfs': browserVaultOffReasonText,
   }
-  const isFolderVaultOn = folderAccessOffReasonText === null
+  const isFolderVaultOn = isPapelizDesktopApp || folderAccessOffReasonText === null
   const [typedNewVaultName, setTypedNewVaultName] = useState(suggestedNewVaultName)
   const [chosenNewVaultPlace, setChosenNewVaultPlace] = useState<PapelizNewVaultPlace>(
-    initialNewVaultPlace !== undefined && newVaultPlaceOffReasonTexts[initialNewVaultPlace] === null
-      ? initialNewVaultPlace
-      : isFolderVaultOn
-        ? 'folder-on-disk'
-        : 'browser-vault-in-opfs',
+    isPapelizDesktopApp
+      ? 'folder-on-disk'
+      : initialNewVaultPlace !== undefined && newVaultPlaceOffReasonTexts[initialNewVaultPlace] === null
+        ? initialNewVaultPlace
+        : isFolderVaultOn
+          ? 'folder-on-disk'
+          : 'browser-vault-in-opfs',
   )
   const isFolderVaultChosen = chosenNewVaultPlace === 'folder-on-disk'
   const newVaultNameProblem = isFolderVaultChosen
     ? findPapelizNewFolderVaultNameProblem(typedNewVaultName)
     : findPapelizBrowserVaultNameProblem(typedNewVaultName, existingBrowserVaultRecords, null)
+  const trimmedNewVaultName = typedNewVaultName.trim()
+
+  // The web shows its places as tiles while both can be used, or neither can (each then says why); a
+  // browser with only one shows it as a plain line. Papeliz for Windows keeps every vault in a folder.
+  const usableNewVaultPlaces = papelizNewVaultPlaceDescriptions.filter((newVaultPlaceDescription) => newVaultPlaceOffReasonTexts[newVaultPlaceDescription.newVaultPlace] === null)
+  const onlyUsableNewVaultPlaceDescription = !isPapelizDesktopApp && usableNewVaultPlaces.length === 1 ? usableNewVaultPlaces[0] : undefined
+  const areNewVaultPlaceTilesShown = !isPapelizDesktopApp && onlyUsableNewVaultPlaceDescription === undefined
+  const [isNewVaultPlaceComparisonShown, setIsNewVaultPlaceComparisonShown] = useState(false)
+
+  // Where the vault's folder goes. Papeliz for Windows starts at `<Documents>\Papeliz`; the web, which
+  // can't reach a folder until one is picked, starts with none.
+  const isNewVaultParentFolderRowShown = isFolderVaultChosen && onNewVaultParentFolderPick !== undefined
+  const [newVaultParentFolder, setNewVaultParentFolder] = useState<PapelizNewVaultParentFolder | null>(null)
+  const [isNewVaultParentFolderPicking, setIsNewVaultParentFolderPicking] = useState(false)
+  const isNewVaultParentFolderPicked = useRef(false)
+  const isNewVaultParentFolderPickable = onNewVaultParentFolderPick !== undefined
+  useEffect(() => {
+    if (!isPapelizDesktopApp || !isNewVaultParentFolderPickable) return
+    let isNewVaultFormLeft = false
+    void readPapelizNewVaultDefaultParentFolder().then((newVaultDefaultParentFolder) => {
+      if (!isNewVaultFormLeft && !isNewVaultParentFolderPicked.current) setNewVaultParentFolder(newVaultDefaultParentFolder)
+    })
+    return () => {
+      isNewVaultFormLeft = true
+    }
+  }, [isNewVaultParentFolderPickable])
+  const pickNewVaultParentFolder = async () => {
+    if (onNewVaultParentFolderPick === undefined) return
+    setIsNewVaultParentFolderPicking(true)
+    try {
+      const pickedNewVaultParentFolder = await onNewVaultParentFolderPick()
+      if (pickedNewVaultParentFolder === null) return
+      isNewVaultParentFolderPicked.current = true
+      setNewVaultParentFolder(pickedNewVaultParentFolder)
+    } finally {
+      setIsNewVaultParentFolderPicking(false)
+    }
+  }
+
+  // Whether the place picked already has the name: looked at a moment after the name or place changes.
+  const [newVaultFolderNameTakenReading, setNewVaultFolderNameTakenReading] = useState<{
+    readNewVaultParentFolder: PapelizNewVaultParentFolder
+    readNewVaultName: string
+    newVaultFolderNameTaken: 'folder-not-empty' | 'file-has-the-name' | null
+  } | null>(null)
+  const isNewVaultFolderNameCheckable = isNewVaultParentFolderRowShown && newVaultParentFolder !== null && findPapelizNewFolderVaultNameProblem(typedNewVaultName) === null
+  useEffect(() => {
+    if (!isNewVaultFolderNameCheckable || newVaultParentFolder === null) return
+    let isCheckOutdated = false
+    const newVaultFolderNameTakenCheckTimer = setTimeout(() => {
+      void findPapelizNewVaultFolderNameTaken(newVaultParentFolder, trimmedNewVaultName).then((newVaultFolderNameTaken) => {
+        if (!isCheckOutdated) setNewVaultFolderNameTakenReading({ readNewVaultParentFolder: newVaultParentFolder, readNewVaultName: trimmedNewVaultName, newVaultFolderNameTaken })
+      })
+    }, papelizNewVaultFolderNameTakenCheckDelayMilliseconds)
+    return () => {
+      isCheckOutdated = true
+      clearTimeout(newVaultFolderNameTakenCheckTimer)
+    }
+  }, [isNewVaultFolderNameCheckable, newVaultParentFolder, trimmedNewVaultName])
+  const newVaultFolderNameTaken =
+    isNewVaultFolderNameCheckable &&
+    newVaultFolderNameTakenReading !== null &&
+    newVaultFolderNameTakenReading.readNewVaultParentFolder === newVaultParentFolder &&
+    newVaultFolderNameTakenReading.readNewVaultName === trimmedNewVaultName
+      ? newVaultFolderNameTakenReading.newVaultFolderNameTaken
+      : null
+
+  // Sync: a quiet line in a build without it, the switch and the kinds in a build with it. The switch
+  // is off until the person is signed in to Sync, then on unless they turn it off.
+  const isPapelizSyncInThisBuild = useMemo(() => isPapelizSyncEngineInThisBuild || readPapelizSyncDevFakeEngineScenarioText() !== null, [])
+  const newVaultSyncPartKind = readPapelizNewVaultSyncPartKind(isNewVaultSyncPartShown, isPapelizSyncInThisBuild)
+  const loadPapelizSyncEngine = usePapelizSyncEngineStore((syncEngineState) => syncEngineState.loadPapelizSyncEngine)
+  const syncEngineLoadState = usePapelizSyncEngineStore((syncEngineState) => syncEngineState.syncEngineLoadState)
+  const syncEngineReading = usePapelizSyncEngineSnapshot()
+  const blockedSyncSignInPageUrl = usePapelizSyncFlowStore((syncFlowState) => syncFlowState.blockedSyncSignInPageUrl)
+  useEffect(() => {
+    if (newVaultSyncPartKind === 'sync-choice') void loadPapelizSyncEngine()
+  }, [newVaultSyncPartKind, loadPapelizSyncEngine])
+  const isSignedInToSync = syncEngineReading?.syncEngineSnapshot.syncSignIn.syncSignInKind === 'signed-in'
+  const [syncThisVaultSwitchPick, setSyncThisVaultSwitchPick] = useState<boolean | null>(null)
+  const [chosenSyncVaultEncryptionKind, setChosenSyncVaultEncryptionKind] = useState<PapelizSyncVaultEncryptionKind>('standard')
+  const [typedSyncVaultPassphrase, setTypedSyncVaultPassphrase] = useState('')
+  const [repeatedSyncVaultPassphrase, setRepeatedSyncVaultPassphrase] = useState('')
+  const [isSyncSignInRunning, setIsSyncSignInRunning] = useState(false)
+  const [syncSignInFailureWords, setSyncSignInFailureWords] = useState<string | null>(null)
+  const newVaultSyncChoice: PapelizNewVaultSyncChoice | null =
+    newVaultSyncPartKind === 'sync-choice'
+      ? {
+          isSyncThisVaultOn: isPapelizNewVaultSyncThisVaultOn(isSignedInToSync, syncThisVaultSwitchPick),
+          chosenSyncVaultEncryptionKind,
+          typedSyncVaultPassphrase,
+          repeatedSyncVaultPassphrase,
+        }
+      : null
+  const signInToSyncFromNewVault = () => {
+    if (syncEngineReading === null) return
+    setSyncSignInFailureWords(null)
+    setIsSyncSignInRunning(true)
+    void startPapelizSyncSignInFromClick(syncEngineReading.papelizSyncEngine, null)
+      .then((signInFromClickOutcome) => setSyncSignInFailureWords(describePapelizSyncSignInFromClickFailure(signInFromClickOutcome)))
+      .finally(() => setIsSyncSignInRunning(false))
+  }
+
+  const newVaultCreateBlock = findPapelizNewVaultCreateBlock({
+    newVaultNameProblem,
+    newVaultFolderNameTaken,
+    newVaultSyncChoice,
+    isNewVaultConfirmHeld: isNewVaultConfirmHeld || isNewVaultParentFolderPicking,
+  })
 
   // The Name field opens with the name chosen, ready to type over.
   useEffect(() => {
@@ -223,9 +482,19 @@ export function PapelizNewVaultForm({
   }, [])
 
   const confirmNewVault = () => {
-    if (newVaultNameProblem !== null || isNewVaultConfirmHeld) return
-    onNewVaultConfirm(typedNewVaultName.trim(), chosenNewVaultPlace)
+    if (newVaultCreateBlock !== null) return
+    onNewVaultConfirm(trimmedNewVaultName, chosenNewVaultPlace, {
+      newVaultParentFolder: isNewVaultParentFolderRowShown ? newVaultParentFolder : null,
+      newVaultSyncVaultEncryptionChoice: newVaultSyncChoice === null ? null : readPapelizNewVaultSyncVaultEncryptionChoice(newVaultSyncChoice),
+    })
   }
+
+  const locationHeadingId = `${newVaultFormIdPrefix}-location-heading`
+  const syncHeadingId = `${newVaultFormIdPrefix}-sync-heading`
+  const encryptionHeadingId = `${newVaultFormIdPrefix}-encryption-heading`
+  const newVaultParentFolderLineId = `${newVaultFormIdPrefix}-parent-folder-line`
+  const newVaultPlaceComparisonId = `${newVaultFormIdPrefix}-place-comparison`
+  const keptPlaceWords = isPapelizDesktopApp ? 'on this computer' : isFolderVaultChosen ? 'in your folder' : 'in this browser'
 
   return (
     <div
@@ -254,7 +523,7 @@ export function PapelizNewVaultForm({
         </div>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-3 pt-2 pb-3">
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-3 pt-2 pb-3">
         {newVaultFromTemplate !== undefined && (
           <div className="flex flex-none flex-col gap-2 rounded-xl border border-papeliz-line bg-papeliz-surface-soft px-2.5 py-2">
             <div className="flex items-center gap-3">
@@ -277,179 +546,221 @@ export function PapelizNewVaultForm({
             onBrowserVaultNameSubmit={confirmNewVault}
           />
         </div>
-        <p id={newVaultPlacePromptId} className="mt-1 text-[12.5px] text-papeliz-ink-muted">
-          Choose where to keep this vault.
-        </p>
-        <div role="radiogroup" aria-labelledby={newVaultPlacePromptId} className="flex flex-col gap-2">
-          {listShownPapelizNewVaultPlaceDescriptions().map((newVaultPlaceDescription) => {
-            const { newVaultPlace, NewVaultPlaceIcon } = newVaultPlaceDescription
-            const isNewVaultPlaceChosen = newVaultPlace === chosenNewVaultPlace
-            const newVaultPlaceOffReasonText = newVaultPlaceOffReasonTexts[newVaultPlace]
-            const isNewVaultPlaceOff = newVaultPlaceOffReasonText !== null
-            const newVaultPlaceOffReasonId = `${newVaultFormIdPrefix}-${newVaultPlace}-off-reason`
-            return (
-              <div
-                key={newVaultPlace}
-                className={joinPapelizClassNames(
-                  'rounded-xl border transition-colors',
-                  isNewVaultPlaceChosen
-                    ? 'border-papeliz-blue-line bg-papeliz-blue-soft'
-                    : isNewVaultPlaceOff
-                      ? 'border-papeliz-line bg-papeliz-surface-soft'
-                      : 'border-papeliz-line bg-papeliz-surface hover:bg-papeliz-hover',
-                )}
-              >
-                {/* Icon tile, then the title, its badge and its line; the radio sits at the right edge. An
-                    off card dims all but its badge, and its line says why. */}
-                <label className={joinPapelizClassNames('flex items-center gap-3 px-3.5 py-2.5', isNewVaultPlaceOff ? 'cursor-not-allowed' : 'cursor-pointer')}>
-                  <span
-                    aria-hidden="true"
-                    className={joinPapelizClassNames(
-                      'grid size-9 flex-none place-items-center rounded-[9px] transition-colors',
-                      isNewVaultPlaceChosen ? 'bg-papeliz-chosen-tab-ground text-white' : 'bg-papeliz-surface-gray text-papeliz-ink-muted',
-                      isNewVaultPlaceOff && 'opacity-55',
-                    )}
-                  >
-                    <NewVaultPlaceIcon className="size-[19px]" />
-                  </span>
-                  <input
-                    type="radio"
-                    name={`${newVaultFormIdPrefix}-new-vault-place`}
-                    value={newVaultPlace}
-                    checked={isNewVaultPlaceChosen}
-                    disabled={isNewVaultPlaceOff}
-                    aria-describedby={isNewVaultPlaceOff ? newVaultPlaceOffReasonId : undefined}
-                    onChange={() => setChosenNewVaultPlace(newVaultPlace)}
-                    className={joinPapelizClassNames('order-last size-4 flex-none accent-papeliz-blue', isNewVaultPlaceOff ? 'opacity-55' : 'cursor-pointer')}
-                  />
-                  <span className="flex min-w-0 flex-1 flex-col gap-[3px] whitespace-nowrap">
-                    <span className="flex min-w-0 items-center gap-2 text-[14.5px] leading-tight font-semibold text-papeliz-ink">
-                      <span className={joinPapelizClassNames(isNewVaultPlaceOff && 'opacity-55')}>{newVaultPlaceDescription.newVaultPlaceTitle}</span>
-                      <span
-                        className={joinPapelizClassNames(
-                          'rounded-full border px-1.5 py-px text-[10px] leading-snug font-semibold',
-                          papelizNewVaultPlaceBadgeToneClassNames[isNewVaultPlaceOff ? 'off' : newVaultPlaceDescription.newVaultPlaceBadgeTone],
-                        )}
-                      >
-                        {isNewVaultPlaceOff ? 'Off in this browser' : newVaultPlaceDescription.newVaultPlaceBadgeText}
-                      </span>
-                    </span>
-                    {isNewVaultPlaceOff ? (
-                      <span id={newVaultPlaceOffReasonId} className="truncate text-[12.5px] leading-snug font-medium max-sm:whitespace-normal text-papeliz-diff-removed-ink">
-                        {newVaultPlaceOffReasonText}
-                      </span>
-                    ) : (
-                      <span className="truncate text-[12.5px] leading-snug text-papeliz-ink-subtle max-sm:whitespace-normal">{newVaultPlaceDescription.newVaultPlaceLine}</span>
-                    )}
-                  </span>
-                </label>
-              </div>
-            )
-          })}
-        </div>
 
-        {/* The comparison: what each place means, side by side; the chosen place's column lights up. Every
-            cell stays on one line. Too narrow for that (a phone), each place gets its own short list,
-            one under the other, the chosen one lit. Papeliz for Windows offers one place, so it has none. */}
-        {!isPapelizDesktopApp && (
-        <>
-        <div className="flex flex-none flex-col gap-2 sm:hidden">
-          {papelizNewVaultPlaceDescriptions.map(({ newVaultPlace, NewVaultPlaceIcon, newVaultPlaceTitle }) => (
-            <div
-              key={newVaultPlace}
-              className={joinPapelizClassNames(
-                'rounded-xl border border-papeliz-line text-[12px] leading-snug transition-colors duration-300',
-                newVaultPlace === chosenNewVaultPlace ? 'bg-papeliz-blue-soft' : 'bg-papeliz-surface-soft',
-                newVaultPlaceOffReasonTexts[newVaultPlace] !== null && 'opacity-55',
-              )}
-            >
-              <h3 className="px-2.5 py-[5px] font-semibold text-papeliz-ink">
-                <NewVaultPlaceIcon
-                  className={joinPapelizClassNames('mr-1.5 inline size-[13px] align-[-2px]', newVaultPlace === chosenNewVaultPlace ? 'text-papeliz-blue' : 'text-papeliz-ink-muted')}
-                  aria-hidden="true"
-                />
-                {newVaultPlaceTitle}
-              </h3>
-              <dl>
-                {papelizNewVaultPlaceComparisonRows.map((comparisonRow) => {
-                  const comparisonCell = comparisonRow.comparisonRowCellByPlace[newVaultPlace]
-                  return (
-                    <div key={comparisonRow.comparisonRowLabel} className="flex items-center justify-between gap-3 border-t border-papeliz-line px-2.5 py-[5px]">
-                      <dt className="font-medium whitespace-nowrap text-papeliz-ink-subtle">{comparisonRow.comparisonRowLabel}</dt>
-                      <dd className={joinPapelizClassNames('flex min-w-0 items-center text-right', newVaultPlace === chosenNewVaultPlace ? 'text-papeliz-ink' : 'text-papeliz-ink-muted')}>
-                        {comparisonCell.comparisonCellText}
-                        <PapelizInfoTip
-                          infoTipButtonLabel={`About “${comparisonCell.comparisonCellText}” in ${newVaultPlaceTitle}`}
-                          infoTipTitle={comparisonCell.comparisonCellInfoTipTitle}
-                          infoTipLines={comparisonCell.comparisonCellInfoTipLines}
-                          infoTipButtonClassName="-my-0.5 ml-1.5"
-                        />
-                      </dd>
-                    </div>
-                  )
-                })}
-              </dl>
+        <section aria-labelledby={locationHeadingId}>
+          <PapelizNewVaultFormPartHeading
+            newVaultFormPartHeadingId={locationHeadingId}
+            newVaultFormPartHeadingEnd={
+              !isPapelizDesktopApp && (
+                <button
+                  type="button"
+                  aria-expanded={isNewVaultPlaceComparisonShown}
+                  aria-controls={newVaultPlaceComparisonId}
+                  onClick={() => setIsNewVaultPlaceComparisonShown(!isNewVaultPlaceComparisonShown)}
+                  className="rounded-full px-1.5 text-[12px] font-medium text-papeliz-blue hover:bg-papeliz-blue-soft"
+                >
+                  {isNewVaultPlaceComparisonShown ? 'Hide Comparison' : 'Compare'}
+                </button>
+              )
+            }
+          >
+            Location
+          </PapelizNewVaultFormPartHeading>
+
+          {areNewVaultPlaceTilesShown && (
+            <div role="radiogroup" aria-labelledby={locationHeadingId} className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {papelizNewVaultPlaceDescriptions.map((newVaultPlaceDescription) => {
+                const newVaultPlaceOffReasonText = newVaultPlaceOffReasonTexts[newVaultPlaceDescription.newVaultPlace]
+                return (
+                  <PapelizNewVaultChoiceTile
+                    key={newVaultPlaceDescription.newVaultPlace}
+                    choiceTileGroupName={`${newVaultFormIdPrefix}-new-vault-place`}
+                    choiceTileValue={newVaultPlaceDescription.newVaultPlace}
+                    ChoiceTileIcon={newVaultPlaceDescription.NewVaultPlaceIcon}
+                    choiceTileTitle={newVaultPlaceDescription.newVaultPlaceTitle}
+                    choiceTileLine={
+                      <>
+                        <PapelizNewVaultPlaceBadge newVaultPlaceBadgeTone={newVaultPlaceDescription.newVaultPlaceBadgeTone}>{newVaultPlaceDescription.newVaultPlaceBadgeText}</PapelizNewVaultPlaceBadge>
+                        {newVaultPlaceDescription.newVaultPlaceLine}
+                      </>
+                    }
+                    isChoiceTileChosen={newVaultPlaceDescription.newVaultPlace === chosenNewVaultPlace}
+                    choiceTileOffReasonText={newVaultPlaceOffReasonText}
+                    choiceTileOffReasonId={`${newVaultFormIdPrefix}-${newVaultPlaceDescription.newVaultPlace}-off-reason`}
+                    onChoiceTileChoose={() => setChosenNewVaultPlace(newVaultPlaceDescription.newVaultPlace)}
+                  />
+                )
+              })}
             </div>
-          ))}
-        </div>
-        <div className="relative flex-none overflow-x-auto rounded-xl border border-papeliz-line bg-papeliz-surface-soft max-sm:hidden">
-          <table className="w-full border-collapse text-[12px] leading-snug">
-            <caption className="sr-only">How the two places compare</caption>
-            <thead>
-              <tr>
-                <td className="w-px" />
-                {papelizNewVaultPlaceDescriptions.map(({ newVaultPlace, NewVaultPlaceIcon, newVaultPlaceTitle }) => (
-                  <th
-                    key={newVaultPlace}
-                    scope="col"
-                    className={joinPapelizClassNames(
-                      'px-2.5 py-[5px] text-left font-semibold whitespace-nowrap text-papeliz-ink transition-colors duration-300',
-                      newVaultPlace === chosenNewVaultPlace && 'bg-papeliz-blue-soft',
-                      newVaultPlaceOffReasonTexts[newVaultPlace] !== null && 'opacity-55',
-                    )}
-                  >
-                    <NewVaultPlaceIcon
-                      className={joinPapelizClassNames('mr-1.5 inline size-[13px] align-[-2px]', newVaultPlace === chosenNewVaultPlace ? 'text-papeliz-blue' : 'text-papeliz-ink-muted')}
-                      aria-hidden="true"
+          )}
+          {onlyUsableNewVaultPlaceDescription !== undefined && (
+            <div className="flex items-center gap-2.5 rounded-xl border border-papeliz-line bg-papeliz-surface px-2.5 py-2">
+              <span aria-hidden="true" className="grid size-[30px] flex-none place-items-center rounded-lg bg-papeliz-surface-gray text-papeliz-ink-muted">
+                <onlyUsableNewVaultPlaceDescription.NewVaultPlaceIcon className="size-4" />
+              </span>
+              <span className="flex min-w-0 flex-col gap-0.5">
+                <span className="text-[13.5px] leading-tight font-semibold text-papeliz-ink">{onlyUsableNewVaultPlaceDescription.newVaultPlaceTitle}</span>
+                <span className="text-[12px] leading-snug text-papeliz-ink-subtle">
+                  <PapelizNewVaultPlaceBadge newVaultPlaceBadgeTone={onlyUsableNewVaultPlaceDescription.newVaultPlaceBadgeTone}>
+                    {onlyUsableNewVaultPlaceDescription.newVaultPlaceBadgeText}
+                  </PapelizNewVaultPlaceBadge>
+                  {onlyUsableNewVaultPlaceDescription.newVaultPlace === 'browser-vault-in-opfs'
+                    ? 'Inside this browser, the only place it can keep vaults. Download backups to keep your notes safe.'
+                    : onlyUsableNewVaultPlaceDescription.newVaultPlaceLine}
+                </span>
+              </span>
+            </div>
+          )}
+
+          {isNewVaultParentFolderRowShown && (
+            <div className={joinPapelizClassNames(!isPapelizDesktopApp && 'mt-2')}>
+              <div className="flex items-center gap-2">
+                <p
+                  className={joinPapelizClassNames(
+                    'flex h-[34px] min-w-0 flex-1 items-center gap-2 rounded-lg border px-2.5 text-[12.5px] whitespace-nowrap',
+                    newVaultFolderNameTaken !== null ? 'border-papeliz-diff-removed-ink/35 bg-papeliz-diff-removed' : 'border-papeliz-line bg-papeliz-surface-soft',
+                  )}
+                  title={newVaultParentFolder === null ? undefined : `${describePapelizNewVaultParentFolderPlace(newVaultParentFolder)}${trimmedNewVaultName}`}
+                >
+                  <Folder className="size-4 flex-none text-papeliz-blue" aria-hidden="true" />
+                  <span className="sr-only">Where the vault’s folder goes: </span>
+                  {newVaultParentFolder === null ? (
+                    <span className="truncate text-papeliz-ink-subtle italic">No folder picked yet</span>
+                  ) : (
+                    <span className="truncate text-papeliz-ink-muted" dir="ltr">
+                      {describePapelizNewVaultParentFolderPlace(newVaultParentFolder)}
+                      {trimmedNewVaultName === '' ? (
+                        <span className="text-papeliz-ink-subtle italic">vault name</span>
+                      ) : (
+                        <span className="font-semibold text-papeliz-ink">{trimmedNewVaultName}</span>
+                      )}
+                    </span>
+                  )}
+                </p>
+                <button
+                  type="button"
+                  disabled={isNewVaultParentFolderPicking || isNewVaultConfirmHeld}
+                  onClick={() => void pickNewVaultParentFolder()}
+                  aria-describedby={newVaultParentFolderLineId}
+                  aria-label="Browse for the Folder It Goes In"
+                  className={joinPapelizClassNames(newVaultFormFooterButtonClassName, newVaultFormFooterCancelButtonColorClassName, 'h-[34px]')}
+                >
+                  Browse…
+                </button>
+              </div>
+              {newVaultCreateFailureMessage !== null ? (
+                <PapelizNewVaultFailureLine newVaultFailureLineId={newVaultParentFolderLineId}>{newVaultCreateFailureMessage}</PapelizNewVaultFailureLine>
+              ) : newVaultFolderNameTaken !== null ? (
+                <PapelizNewVaultFailureLine newVaultFailureLineId={newVaultParentFolderLineId}>
+                  {describeNewFolderVaultNameTakenMessage(newVaultFolderNameTaken, trimmedNewVaultName)} Or open it with Open Vault.
+                </PapelizNewVaultFailureLine>
+              ) : (
+                <p id={newVaultParentFolderLineId} className="mt-1 text-[12px] leading-snug text-papeliz-ink-subtle">
+                  {newVaultParentFolder === null ? (
+                    'Pick the folder it goes in, now or at Create Vault.'
+                  ) : trimmedNewVaultName === '' || newVaultNameProblem !== null ? (
+                    'Papeliz makes the vault’s folder here.'
+                  ) : (
+                    <>
+                      Papeliz makes the folder <b className="font-semibold text-papeliz-ink-muted">{trimmedNewVaultName}</b> in “{readPapelizNewVaultParentFolderName(newVaultParentFolder)}”, with every note
+                      in it as a Markdown file.
+                    </>
+                  )}
+                </p>
+              )}
+            </div>
+          )}
+          {!isNewVaultParentFolderRowShown && chosenNewVaultPlace === 'browser-vault-in-opfs' && areNewVaultPlaceTilesShown && (
+            <p className="mt-1.5 text-[12px] leading-snug text-papeliz-ink-subtle">Kept inside this browser. Download backups to keep your notes safe.</p>
+          )}
+          {!isNewVaultParentFolderRowShown && newVaultCreateFailureMessage !== null && <PapelizNewVaultFailureLine>{newVaultCreateFailureMessage}</PapelizNewVaultFailureLine>}
+
+          {!isPapelizDesktopApp && isNewVaultPlaceComparisonShown && (
+            <div id={newVaultPlaceComparisonId} className="mt-2">
+              <PapelizNewVaultPlaceComparison chosenNewVaultPlace={chosenNewVaultPlace} newVaultPlaceOffReasonTexts={newVaultPlaceOffReasonTexts} />
+            </div>
+          )}
+        </section>
+
+        {newVaultSyncPartKind === 'sync-coming' && (
+          <p className="flex items-center gap-2 border-t border-dashed border-papeliz-line pt-2.5 text-[12.5px] leading-snug text-papeliz-ink-subtle">
+            <Cloud className="size-[15px] flex-none text-papeliz-blue" aria-hidden="true" />
+            <span>Sync, with Standard or End-to-end encryption, is coming. Until then this vault stays {keptPlaceWords}.</span>
+          </p>
+        )}
+
+        {newVaultSyncPartKind === 'sync-choice' && newVaultSyncChoice !== null && (
+          <section aria-labelledby={syncHeadingId} className="flex flex-col gap-3">
+            <div className="flex items-center gap-2.5 rounded-xl border border-papeliz-line px-2.5 py-2">
+              <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <h3 id={syncHeadingId} className="text-[13.5px] leading-tight font-semibold text-papeliz-ink">
+                  Sync This Vault
+                </h3>
+                <span className="text-[12px] leading-snug text-papeliz-ink-subtle">
+                  {syncEngineLoadState === 'failed-to-load' ? (
+                    'Papeliz Sync didn’t load. Turn it on later in Settings › Sync.'
+                  ) : syncEngineReading === null ? (
+                    'Checking Sync…'
+                  ) : !isSignedInToSync ? (
+                    <>
+                      Sign in to Sync to keep it on your other devices.{' '}
+                      <button type="button" disabled={isSyncSignInRunning} onClick={signInToSyncFromNewVault} className="font-semibold text-papeliz-blue hover:underline disabled:opacity-60">
+                        {isSyncSignInRunning ? 'Waiting for the sign-in…' : 'Sign In'}
+                      </button>
+                    </>
+                  ) : newVaultSyncChoice.isSyncThisVaultOn ? (
+                    'It uploads encrypted, and your other devices can download it.'
+                  ) : (
+                    `It stays ${keptPlaceWords}. Turn Sync on later in Settings › Sync.`
+                  )}
+                </span>
+              </span>
+              <PapelizSyncSwitch
+                syncSwitchLabel="Sync This Vault"
+                isSyncSwitchOn={newVaultSyncChoice.isSyncThisVaultOn}
+                isSyncSwitchDisabled={!isSignedInToSync || isNewVaultConfirmHeld}
+                onSyncSwitchToggle={() => setSyncThisVaultSwitchPick(!newVaultSyncChoice.isSyncThisVaultOn)}
+              />
+            </div>
+            {blockedSyncSignInPageUrl !== null && !isSignedInToSync && <PapelizSyncSignInPageLinks syncSignInPageUrl={blockedSyncSignInPageUrl} signInLinksAlignment="from-left-edge" />}
+            {syncSignInFailureWords !== null && <PapelizNewVaultFailureLine>{syncSignInFailureWords}</PapelizNewVaultFailureLine>}
+
+            {newVaultSyncChoice.isSyncThisVaultOn && (
+              <section aria-labelledby={encryptionHeadingId}>
+                <PapelizNewVaultFormPartHeading newVaultFormPartHeadingId={encryptionHeadingId}>Encryption</PapelizNewVaultFormPartHeading>
+                <div role="radiogroup" aria-labelledby={encryptionHeadingId} className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {(['standard', 'end-to-end'] as const).map((syncVaultEncryptionKind) => (
+                    <PapelizNewVaultChoiceTile
+                      key={syncVaultEncryptionKind}
+                      choiceTileGroupName={`${newVaultFormIdPrefix}-sync-vault-encryption-kind`}
+                      choiceTileValue={syncVaultEncryptionKind}
+                      ChoiceTileIcon={papelizNewVaultEncryptionKindIcons[syncVaultEncryptionKind]}
+                      choiceTileTitle={papelizSyncVaultEncryptionKindDisplayNames[syncVaultEncryptionKind]}
+                      choiceTileLine={papelizSyncVaultEncryptionKindReaderLines[syncVaultEncryptionKind]}
+                      isChoiceTileChosen={syncVaultEncryptionKind === chosenSyncVaultEncryptionKind}
+                      onChoiceTileChoose={() => setChosenSyncVaultEncryptionKind(syncVaultEncryptionKind)}
                     />
-                    {newVaultPlaceTitle}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {papelizNewVaultPlaceComparisonRows.map((comparisonRow) => (
-                <tr key={comparisonRow.comparisonRowLabel} className="border-t border-papeliz-line">
-                  <th scope="row" className="w-px px-2.5 py-[5px] text-left font-medium whitespace-nowrap text-papeliz-ink-subtle">
-                    {comparisonRow.comparisonRowLabel}
-                  </th>
-                  {papelizNewVaultPlaceDescriptions.map(({ newVaultPlace, newVaultPlaceTitle }) => {
-                    const comparisonCell = comparisonRow.comparisonRowCellByPlace[newVaultPlace]
-                    return (
-                      <td
-                        key={newVaultPlace}
-                        className={joinPapelizClassNames(
-                          'px-2.5 py-[5px] whitespace-nowrap transition-colors duration-300',
-                          newVaultPlace === chosenNewVaultPlace ? 'bg-papeliz-blue-soft text-papeliz-ink' : 'text-papeliz-ink-muted',
-                          newVaultPlaceOffReasonTexts[newVaultPlace] !== null && 'opacity-55',
-                        )}
-                      >
-                        {comparisonCell.comparisonCellText}
-                        <PapelizInfoTip
-                          infoTipButtonLabel={`About “${comparisonCell.comparisonCellText}” in ${newVaultPlaceTitle}`}
-                          infoTipTitle={comparisonCell.comparisonCellInfoTipTitle}
-                          infoTipLines={comparisonCell.comparisonCellInfoTipLines}
-                          infoTipButtonClassName="-my-0.5 ml-1.5"
-                        />
-                      </td>
-                    )
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        </>
+                  ))}
+                </div>
+                {chosenSyncVaultEncryptionKind === 'end-to-end' && (
+                  <>
+                    <PapelizSyncNewPassphraseFields
+                      newSyncPassphrase={typedSyncVaultPassphrase}
+                      onNewSyncPassphraseChange={setTypedSyncVaultPassphrase}
+                      repeatedSyncPassphrase={repeatedSyncVaultPassphrase}
+                      onRepeatedSyncPassphraseChange={setRepeatedSyncVaultPassphrase}
+                      newSyncPassphraseFieldLabel="Passphrase"
+                    />
+                    <p className="mt-3 flex items-start gap-2 rounded-xl bg-papeliz-warning px-3 py-2.5 text-[12.5px] leading-[1.45] text-papeliz-warning-ink">
+                      <TriangleAlert className="mt-0.5 size-[15px] flex-none" aria-hidden="true" />
+                      <span>{papelizSyncVaultPassphraseNotRecoverableLine}</span>
+                    </p>
+                  </>
+                )}
+                <p className="mt-1.5 text-[11.5px] leading-snug text-papeliz-ink-subtle">{papelizSyncVaultNameReadableLine}</p>
+              </section>
+            )}
+          </section>
         )}
       </div>
 
@@ -460,13 +771,125 @@ export function PapelizNewVaultForm({
         </button>
         <button
           type="button"
-          disabled={newVaultNameProblem !== null || isNewVaultConfirmHeld}
+          disabled={newVaultCreateBlock !== null}
           onClick={confirmNewVault}
           className={joinPapelizClassNames(newVaultFormFooterButtonClassName, newVaultFormFooterActionButtonColorClassName)}
         >
-          {isFolderVaultChosen ? 'Pick Folder' : 'Create Vault'}
+          Create Vault
         </button>
       </div>
     </div>
+  )
+}
+
+// What each place means, side by side, behind Compare; the chosen place's column lights up. Every cell
+// stays on one line. Too narrow for that (a phone), each place gets its own short list, one under the
+// other, the chosen one lit.
+function PapelizNewVaultPlaceComparison({
+  chosenNewVaultPlace,
+  newVaultPlaceOffReasonTexts,
+}: {
+  chosenNewVaultPlace: PapelizNewVaultPlace
+  newVaultPlaceOffReasonTexts: Record<PapelizNewVaultPlace, string | null>
+}) {
+  return (
+    <>
+      <div className="flex flex-none flex-col gap-2 sm:hidden">
+      {papelizNewVaultPlaceDescriptions.map(({ newVaultPlace, NewVaultPlaceIcon, newVaultPlaceTitle }) => (
+        <div
+          key={newVaultPlace}
+          className={joinPapelizClassNames(
+            'rounded-xl border border-papeliz-line text-[12px] leading-snug transition-colors duration-300',
+            newVaultPlace === chosenNewVaultPlace ? 'bg-papeliz-blue-soft' : 'bg-papeliz-surface-soft',
+            newVaultPlaceOffReasonTexts[newVaultPlace] !== null && 'opacity-55',
+          )}
+        >
+          <h3 className="px-2.5 py-[5px] font-semibold text-papeliz-ink">
+            <NewVaultPlaceIcon
+              className={joinPapelizClassNames('mr-1.5 inline size-[13px] align-[-2px]', newVaultPlace === chosenNewVaultPlace ? 'text-papeliz-blue' : 'text-papeliz-ink-muted')}
+              aria-hidden="true"
+            />
+            {newVaultPlaceTitle}
+          </h3>
+          <dl>
+            {papelizNewVaultPlaceComparisonRows.map((comparisonRow) => {
+              const comparisonCell = comparisonRow.comparisonRowCellByPlace[newVaultPlace]
+              return (
+                <div key={comparisonRow.comparisonRowLabel} className="flex items-center justify-between gap-3 border-t border-papeliz-line px-2.5 py-[5px]">
+                  <dt className="font-medium whitespace-nowrap text-papeliz-ink-subtle">{comparisonRow.comparisonRowLabel}</dt>
+                  <dd className={joinPapelizClassNames('flex min-w-0 items-center text-right', newVaultPlace === chosenNewVaultPlace ? 'text-papeliz-ink' : 'text-papeliz-ink-muted')}>
+                    {comparisonCell.comparisonCellText}
+                    <PapelizInfoTip
+                      infoTipButtonLabel={`About “${comparisonCell.comparisonCellText}” in ${newVaultPlaceTitle}`}
+                      infoTipTitle={comparisonCell.comparisonCellInfoTipTitle}
+                      infoTipLines={comparisonCell.comparisonCellInfoTipLines}
+                      infoTipButtonClassName="-my-0.5 ml-1.5"
+                    />
+                  </dd>
+                </div>
+              )
+            })}
+          </dl>
+        </div>
+      ))}
+    </div>
+    <div className="relative flex-none overflow-x-auto rounded-xl border border-papeliz-line bg-papeliz-surface-soft max-sm:hidden">
+      <table className="w-full border-collapse text-[12px] leading-snug">
+        <caption className="sr-only">How the two places compare</caption>
+        <thead>
+          <tr>
+            <td className="w-px" />
+            {papelizNewVaultPlaceDescriptions.map(({ newVaultPlace, NewVaultPlaceIcon, newVaultPlaceTitle }) => (
+              <th
+                key={newVaultPlace}
+                scope="col"
+                className={joinPapelizClassNames(
+                  'px-2.5 py-[5px] text-left font-semibold whitespace-nowrap text-papeliz-ink transition-colors duration-300',
+                  newVaultPlace === chosenNewVaultPlace && 'bg-papeliz-blue-soft',
+                  newVaultPlaceOffReasonTexts[newVaultPlace] !== null && 'opacity-55',
+                )}
+              >
+                <NewVaultPlaceIcon
+                  className={joinPapelizClassNames('mr-1.5 inline size-[13px] align-[-2px]', newVaultPlace === chosenNewVaultPlace ? 'text-papeliz-blue' : 'text-papeliz-ink-muted')}
+                  aria-hidden="true"
+                />
+                {newVaultPlaceTitle}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {papelizNewVaultPlaceComparisonRows.map((comparisonRow) => (
+            <tr key={comparisonRow.comparisonRowLabel} className="border-t border-papeliz-line">
+              <th scope="row" className="w-px px-2.5 py-[5px] text-left font-medium whitespace-nowrap text-papeliz-ink-subtle">
+                {comparisonRow.comparisonRowLabel}
+              </th>
+              {papelizNewVaultPlaceDescriptions.map(({ newVaultPlace, newVaultPlaceTitle }) => {
+                const comparisonCell = comparisonRow.comparisonRowCellByPlace[newVaultPlace]
+                return (
+                  <td
+                    key={newVaultPlace}
+                    className={joinPapelizClassNames(
+                      'px-2.5 py-[5px] whitespace-nowrap transition-colors duration-300',
+                      newVaultPlace === chosenNewVaultPlace ? 'bg-papeliz-blue-soft text-papeliz-ink' : 'text-papeliz-ink-muted',
+                      newVaultPlaceOffReasonTexts[newVaultPlace] !== null && 'opacity-55',
+                    )}
+                  >
+                    {comparisonCell.comparisonCellText}
+                    <PapelizInfoTip
+                      infoTipButtonLabel={`About “${comparisonCell.comparisonCellText}” in ${newVaultPlaceTitle}`}
+                      infoTipTitle={comparisonCell.comparisonCellInfoTipTitle}
+                      infoTipLines={comparisonCell.comparisonCellInfoTipLines}
+                      infoTipButtonClassName="-my-0.5 ml-1.5"
+                    />
+                  </td>
+                )
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+    </>
   )
 }

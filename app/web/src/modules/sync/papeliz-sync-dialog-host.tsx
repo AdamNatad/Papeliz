@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { usePapelizWorkspaceStore } from '../workspace/papeliz-workspace-store'
+import { PapelizSyncChangeEncryptionDialog } from './papeliz-sync-change-encryption-dialog'
 import { usePapelizSyncEngineSnapshot } from './papeliz-sync-engine-store'
 import { followPapelizSyncSnapshotInFlows, usePapelizSyncFlowStore } from './papeliz-sync-flow-store'
 import { PapelizSyncMissingFilesDialog } from './papeliz-sync-missing-files-dialog'
@@ -15,7 +16,7 @@ interface PapelizSyncDialogHostProps {
 }
 
 // Sync's dialogs, wherever their flow stands (papeliz-sync-flow-store.ts): the subscribe dialog, the
-// set-up dialog, the missing-files dialog (it opens by itself once when the open vault's files went
+// set-up dialog (or Change Encryption, which shares its place in the flow), the missing-files dialog (it opens by itself once when the open vault's files went
 // missing here), the clash dialog (it opens by itself for each new clash in the open vault) and Old
 // versions.
 export function PapelizSyncDialogHost({ isSyncDialogDrawnInPlace }: PapelizSyncDialogHostProps) {
@@ -60,7 +61,19 @@ export function PapelizSyncDialogHost({ isSyncDialogDrawnInPlace }: PapelizSyncD
           isSyncDialogDrawnInPlace={isSyncDialogDrawnInPlace}
         />
       )}
-      {syncSetUpDialogRequest !== null && (
+      {syncSetUpDialogRequest?.syncSetUpDialogKind === 'change-vault-encryption' && (
+        <PapelizSyncChangeEncryptionDialog
+          key={`change-vault-encryption-${syncSetUpDialogRequest.papelizSyncVaultId}`}
+          papelizSyncEngine={papelizSyncEngine}
+          syncEngineSnapshot={syncEngineReading.syncEngineSnapshot}
+          papelizVaultId={syncSetUpDialogRequest.papelizVaultId}
+          papelizSyncVaultId={syncSetUpDialogRequest.papelizSyncVaultId}
+          syncVaultName={syncSetUpDialogRequest.syncVaultName}
+          currentSyncVaultEncryptionKind={syncSetUpDialogRequest.currentSyncVaultEncryptionKind}
+          isSyncDialogDrawnInPlace={isSyncDialogDrawnInPlace}
+        />
+      )}
+      {syncSetUpDialogRequest !== null && syncSetUpDialogRequest.syncSetUpDialogKind !== 'change-vault-encryption' && (
         <PapelizSyncSetUpDialog
           key={syncSetUpDialogRequest.syncSetUpDialogKind === 'change-vault-passphrase' ? `change-vault-passphrase-${syncSetUpDialogRequest.papelizSyncVaultId}` : syncSetUpDialogRequest.syncSetUpDialogKind}
           papelizSyncEngine={papelizSyncEngine}

@@ -1,4 +1,4 @@
-import { Check, CirclePause, CloudOff, FolderOpen, History, Play, TriangleAlert, type LucideIcon } from 'lucide-react'
+import { Check, CirclePause, CloudOff, FolderOpen, History, Lock, Play, ShieldCheck, TriangleAlert, type LucideIcon } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { PapelizSlidingChoiceGroup } from '../ui/papeliz-sliding-choice-group'
 import { PapelizPillButton } from '../ui/papeliz-buttons'
@@ -54,12 +54,14 @@ import {
   formatPapelizSyncByteSize,
   papelizSyncMissingFilesDialogWords,
   papelizSyncVaultEncryptionKindDisplayNames,
+  papelizSyncVaultEncryptionKindReaderLines,
 } from './papeliz-sync-screen-words'
 import { papelizSyncStatusIcons } from './papeliz-sync-status-icons'
 import { PapelizSyncSyncedVaultsSection, type PapelizSyncAccountVaultDialogRequest } from './papeliz-sync-synced-vaults-section'
 import { usePapelizSyncClockTime } from './papeliz-sync-clock'
 import { getVaultNoteTitle } from '../vault/papeliz-vault-relative-paths'
 import { usePapelizSyncSettingsGearRequestStore } from './papeliz-sync-settings-gear-request-store'
+import { readPapelizSyncVaultOtherEncryptionKind } from './papeliz-sync-vault-encryption-change'
 
 // The gear's Sync page, in two tabs. Plans: Free and the paid plans, with Sign In, Choose or Current
 // Plan. Settings: signed out, Sign In; signed in on Free or a plan, this vault's switch (turning it on
@@ -411,6 +413,42 @@ function PapelizSyncOnState({
             syncPageRowTitle={openVault === null ? 'No vault open' : 'The sample vault never syncs'}
             syncPageRowDetail="Open a folder or a browser vault to sync it."
           />
+        )}
+        {openVaultSyncReading !== undefined && openVault !== null && (
+          // Change Encryption deletes the synced copy and uploads this device's notes again, so it waits
+          // until this device is up to date: nothing from another device is lost with the copy.
+          // The button goes under the words when the gear is narrow, so neither is squeezed.
+          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-2 px-3 py-2">
+            {openVaultSyncReading.syncVaultEncryptionKind === 'end-to-end' ? (
+              <Lock className="size-4 flex-none text-papeliz-ink-muted" aria-hidden="true" />
+            ) : (
+              <ShieldCheck className="size-4 flex-none text-papeliz-ink-muted" aria-hidden="true" />
+            )}
+            <div className="min-w-[12rem] flex-1">
+              <div className="text-[12.5px] font-medium">Encryption: {papelizSyncVaultEncryptionKindDisplayNames[openVaultSyncReading.syncVaultEncryptionKind]}</div>
+              <div className="text-[11.5px] leading-[1.35] text-papeliz-ink-subtle">
+                {openVaultSyncReading.syncVaultStatus.syncStatusKind === 'synced' || isReadOnly
+                  ? papelizSyncVaultEncryptionKindReaderLines[openVaultSyncReading.syncVaultEncryptionKind]
+                  : 'It can change once this vault is up to date here.'}
+              </div>
+            </div>
+            <PapelizPillButton
+              pillButtonVariant="line"
+              pillButtonSize="small"
+              disabled={openVaultSyncReading.syncVaultStatus.syncStatusKind !== 'synced' || isReadOnly || syncAccount.isSyncAccountPaused}
+              onClick={() =>
+                openPapelizSyncSetUpDialog({
+                  syncSetUpDialogKind: 'change-vault-encryption',
+                  papelizVaultId: openVault.papelizVaultId,
+                  papelizSyncVaultId: openVaultSyncReading.papelizSyncVaultId,
+                  syncVaultName: openVault.papelizVaultDisplayName,
+                  currentSyncVaultEncryptionKind: openVaultSyncReading.syncVaultEncryptionKind,
+                })
+              }
+            >
+              Change to {papelizSyncVaultEncryptionKindDisplayNames[readPapelizSyncVaultOtherEncryptionKind(openVaultSyncReading.syncVaultEncryptionKind)]}…
+            </PapelizPillButton>
+          </div>
         )}
         {openVaultSyncReading?.syncVaultTransferProgress != null && (
           <div className="px-3 py-2.5">

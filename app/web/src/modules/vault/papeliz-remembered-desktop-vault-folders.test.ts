@@ -6,11 +6,15 @@ import { PapelizFakeDesktopFileSystem } from './papeliz-fake-desktop-file-system
 import { createPapelizFakeVaultFolder } from './papeliz-fake-file-system-access.test-support'
 import {
   findPapelizNewFolderVaultNameProblem,
+  findPapelizNewVaultFolderNameTaken,
+  makeAndOpenNewPapelizFolderVault,
   makePapelizNewDesktopFolderVaultFolder,
   papelizNewVaultDesktopFolderPickerTitle,
   papelizOpenVaultDesktopFolderPickerTitle,
   pickAndOpenPapelizVaultFolder,
+  pickPapelizNewVaultParentFolder,
   pickPlaceAndOpenNewPapelizFolderVault,
+  readPapelizNewVaultDefaultParentFolder,
 } from './papeliz-open-vault'
 import {
   deletePapelizRecentVault,
@@ -53,6 +57,7 @@ vi.mock('../browser-database/papeliz-browser-database', async (importOriginal) =
 const desktopTestHomeFolderPath = 'C:\\Users\\Ada'
 const desktopTestVaultFolderPath = 'C:\\Users\\Ada\\Field Notes'
 const desktopTestPlaceFolderPath = 'C:\\Users\\Ada\\Documents'
+const desktopTestNewVaultDefaultParentFolderPath = 'C:\\Users\\Ada\\Documents\\Papeliz'
 const movedDesktopTestVaultFailureMessage = 'Couldn’t open “Field Notes”. The folder was moved, renamed or deleted. Find it on your disk and open it again.'
 
 // The desktop app's native side, as far as Recent Vaults reaches it: the files under the home folder
@@ -67,12 +72,14 @@ function createTestDesktopPlatform() {
     shownDesktopFolderPickerTitles: [] as string[],
     forgottenDesktopVaultFolderPaths: [] as string[],
     nativelyRememberedDesktopVaultFolderPaths: [] as string[],
+    newVaultDefaultParentFolderPath: desktopTestNewVaultDefaultParentFolderPath as string | null,
   }
   const papelizDesktopPlatform: Pick<
     PapelizDesktopPlatform,
-    'desktopFileSystem' | 'pickDesktopFolderPath' | 'rememberDesktopVaultFolderPath' | 'forgetDesktopVaultFolderPath'
+    'desktopFileSystem' | 'pickDesktopFolderPath' | 'readDesktopNewVaultDefaultParentFolderPath' | 'rememberDesktopVaultFolderPath' | 'forgetDesktopVaultFolderPath'
   > = {
     desktopFileSystem: fakeDesktopFileSystem,
+    readDesktopNewVaultDefaultParentFolderPath: async () => testDesktopPlatform.newVaultDefaultParentFolderPath,
     pickDesktopFolderPath: async (desktopFolderPickerTitle) => {
       testDesktopPlatform.shownDesktopFolderPickerTitles.push(desktopFolderPickerTitle)
       return testDesktopPlatform.nextPickedDesktopFolderPath
@@ -272,6 +279,53 @@ describe('making a new vault in a folder in Papeliz for Windows', () => {
     testDesktopPlatform.fakeDesktopFileSystem.addFakeDesktopFiles(desktopTestPlaceFolderPath, {})
     expect(await pickPlaceAndOpenNewPapelizFolderVault('Field Notes')).toEqual({ openVaultOutcome: 'cancelled' })
     expect(testDesktopPlatform.fakeDesktopFileSystem.readFakeDesktopFolder(desktopTestPlaceFolderPath)).toEqual({})
+  })
+})
+
+describe('New Vault’s place in Papeliz for Windows, picked before Create Vault', () => {
+  it('starts at Documents\\Papeliz, or at no place when Documents can’t be found', async () => {
+    const testDesktopPlatform = createTestDesktopPlatform()
+    expect(await readPapelizNewVaultDefaultParentFolder()).toEqual({
+      newVaultParentFolderKind: 'desktop-folder-path',
+      desktopParentFolderPath: desktopTestNewVaultDefaultParentFolderPath,
+    })
+    testDesktopPlatform.newVaultDefaultParentFolderPath = null
+    expect(await readPapelizNewVaultDefaultParentFolder()).toBeNull()
+  })
+
+  it('makes Documents\\Papeliz with the vault inside it, then opens and remembers only the vault', async () => {
+    const testDesktopPlatform = createTestDesktopPlatform()
+    testDesktopPlatform.fakeDesktopFileSystem.addFakeDesktopFiles(desktopTestPlaceFolderPath, { 'Taxes.pdf': 'pdf' })
+    const newVaultDefaultParentFolder = await readPapelizNewVaultDefaultParentFolder()
+    const openVaultResult = await makeAndOpenNewPapelizFolderVault(newVaultDefaultParentFolder!, 'Field Notes')
+    expect(openVaultResult.openVaultOutcome === 'opened' && openVaultResult.papelizOpenVault.papelizVaultDisplayName).toBe('Field Notes')
+    expect(testDesktopPlatform.fakeDesktopFileSystem.readFakeDesktopFolder(desktopTestPlaceFolderPath)).toEqual({ 'Taxes.pdf': 'pdf', 'Papeliz/': '', 'Papeliz/Field Notes/': '' })
+    expect(testDesktopPlatform.nativelyRememberedDesktopVaultFolderPaths).toEqual([`${desktopTestNewVaultDefaultParentFolderPath}\\Field Notes`])
+    expect(testDesktopPlatform.shownDesktopFolderPickerTitles).toEqual([])
+  })
+
+  it('finds the name taken in the place before Create Vault, by the same rule as making it', async () => {
+    const testDesktopPlatform = createTestDesktopPlatform()
+    testDesktopPlatform.fakeDesktopFileSystem.addFakeDesktopFiles(desktopTestPlaceFolderPath, { 'Field Notes/Inbox.md': '# Inbox', 'Reading List': 'a file', 'Empty/': '' })
+    const pickedParentFolder = { newVaultParentFolderKind: 'desktop-folder-path' as const, desktopParentFolderPath: desktopTestPlaceFolderPath }
+    expect(await findPapelizNewVaultFolderNameTaken(pickedParentFolder, 'Field Notes')).toBe('folder-not-empty')
+    expect(await findPapelizNewVaultFolderNameTaken(pickedParentFolder, 'Reading List')).toBe('file-has-the-name')
+    expect(await findPapelizNewVaultFolderNameTaken(pickedParentFolder, 'Empty')).toBeNull()
+    expect(await findPapelizNewVaultFolderNameTaken(pickedParentFolder, 'Garden')).toBeNull()
+  })
+
+  it('picks another place in Windows’ folder picker, titled New Vault, and makes nothing yet', async () => {
+    const testDesktopPlatform = createTestDesktopPlatform()
+    testDesktopPlatform.fakeDesktopFileSystem.addFakeDesktopFiles(desktopTestPlaceFolderPath, {})
+    testDesktopPlatform.nextPickedDesktopFolderPath = desktopTestPlaceFolderPath
+    expect(await pickPapelizNewVaultParentFolder()).toEqual({
+      newVaultParentFolderPickOutcome: 'picked',
+      pickedNewVaultParentFolder: { newVaultParentFolderKind: 'desktop-folder-path', desktopParentFolderPath: desktopTestPlaceFolderPath },
+    })
+    expect(testDesktopPlatform.shownDesktopFolderPickerTitles).toEqual([papelizNewVaultDesktopFolderPickerTitle])
+    expect(testDesktopPlatform.fakeDesktopFileSystem.readFakeDesktopFolder(desktopTestPlaceFolderPath)).toEqual({})
+    testDesktopPlatform.nextPickedDesktopFolderPath = null
+    expect(await pickPapelizNewVaultParentFolder()).toEqual({ openVaultOutcome: 'cancelled' })
   })
 })
 

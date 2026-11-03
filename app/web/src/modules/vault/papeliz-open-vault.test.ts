@@ -2,10 +2,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createPapelizFakeVaultFolder, PapelizFakeDirectoryHandle, readPapelizFakeVaultFolder } from './papeliz-fake-file-system-access.test-support'
 import {
   findPapelizNewFolderVaultNameProblem,
+  findPapelizNewVaultFolderNameTaken,
+  makeAndOpenNewPapelizFolderVault,
   makePapelizNewFolderVaultFolder,
   papelizFolderWindowShortestHumanCancelMilliseconds,
   pickAndOpenPapelizVaultFolder,
+  pickPapelizNewVaultParentFolder,
   pickPlaceAndOpenNewPapelizFolderVault,
+  readPapelizNewVaultDefaultParentFolder,
   reopenRememberedPapelizVaultFolder,
 } from './papeliz-open-vault'
 
@@ -111,6 +115,47 @@ describe('reopening a recent folder', () => {
     }
     const openVaultResult = await reopenRememberedPapelizVaultFolder(rememberedVaultFolderFor(fakeVaultRootHandle))
     expect(openVaultResult.openVaultOutcome === 'failed' && openVaultResult.openVaultFailureMessage).toBe('Couldn’t open “Field Notes”. The folder was moved, renamed or deleted. Find it on your disk and open it again.')
+  })
+})
+
+describe('New Vault’s place in a browser, picked before Create Vault', () => {
+  it('has no starting place, since a browser reaches no folder until one is picked', async () => {
+    expect(await readPapelizNewVaultDefaultParentFolder()).toBeNull()
+  })
+
+  it('picks the folder it goes in from the folder window, and makes nothing yet', async () => {
+    const pickedPlaceHandle = await createPapelizFakeVaultFolder('Vaults', {})
+    stubBrowserWithFolderPicker(async () => pickedPlaceHandle.asFileSystemDirectoryHandle())
+    const newVaultParentFolderPickResult = await pickPapelizNewVaultParentFolder()
+    expect('newVaultParentFolderPickOutcome' in newVaultParentFolderPickResult && newVaultParentFolderPickResult.pickedNewVaultParentFolder.newVaultParentFolderKind).toBe(
+      'browser-folder-handle',
+    )
+    expect(await readPapelizFakeVaultFolder(pickedPlaceHandle)).toEqual({})
+  })
+
+  it('finds the name taken in the folder picked, by the same rule as making it', async () => {
+    const pickedPlaceHandle = await createPapelizFakeVaultFolder('Vaults', { 'Field Notes/Inbox.md': '# Inbox', 'Reading List': 'a file', 'Empty/': '' })
+    const pickedParentFolder = { newVaultParentFolderKind: 'browser-folder-handle' as const, browserParentFolderHandle: pickedPlaceHandle.asFileSystemDirectoryHandle() }
+    expect(await findPapelizNewVaultFolderNameTaken(pickedParentFolder, 'Field Notes')).toBe('folder-not-empty')
+    expect(await findPapelizNewVaultFolderNameTaken(pickedParentFolder, 'Reading List')).toBe('file-has-the-name')
+    expect(await findPapelizNewVaultFolderNameTaken(pickedParentFolder, 'Empty')).toBeNull()
+    expect(await findPapelizNewVaultFolderNameTaken(pickedParentFolder, 'Garden')).toBeNull()
+  })
+
+  it('makes the vault’s folder in the folder picked and opens it, with no second folder window', async () => {
+    const pickedPlaceHandle = await createPapelizFakeVaultFolder('Vaults', {})
+    let folderWindowCount = 0
+    stubBrowserWithFolderPicker(async () => {
+      folderWindowCount += 1
+      return pickedPlaceHandle.asFileSystemDirectoryHandle()
+    })
+    const openVaultResult = await makeAndOpenNewPapelizFolderVault(
+      { newVaultParentFolderKind: 'browser-folder-handle', browserParentFolderHandle: pickedPlaceHandle.asFileSystemDirectoryHandle() },
+      'Field Notes',
+    )
+    expect(openVaultResult.openVaultOutcome === 'opened' && openVaultResult.papelizOpenVault.papelizVaultDisplayName).toBe('Field Notes')
+    expect(await readPapelizFakeVaultFolder(pickedPlaceHandle)).toEqual({ 'Field Notes/': '' })
+    expect(folderWindowCount).toBe(0)
   })
 })
 

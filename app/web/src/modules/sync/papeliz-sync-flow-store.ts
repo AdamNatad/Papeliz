@@ -9,6 +9,7 @@ import type {
   PapelizSyncSignInOutcome,
   PapelizSyncStoragePlace,
   PapelizSyncSubscriptionState,
+  PapelizSyncVaultEncryptionKind,
 } from './papeliz-sync-engine-contract'
 import { openPapelizSyncNewTabFromClick, openPapelizSyncNewTabWhenAddressIsReady, papelizSyncBlockedNewTabWords } from './papeliz-sync-new-tab'
 import { describePapelizSyncActionFailure, pickNearestPapelizSyncStoragePlaceForThisDevice } from './papeliz-sync-screen-words'
@@ -36,9 +37,18 @@ export type PapelizSyncSubscribeStep =
 //   End-to-end, then the first upload.
 // - `change-vault-passphrase`: a new passphrase for any End-to-end vault on the account, and its
 //   current one too when this device doesn't hold its key.
+// - `change-vault-encryption`: the open vault's other kind, by deleting its synced copy and turning
+//   Sync on again (papeliz-sync-change-encryption-dialog.tsx).
 export type PapelizSyncSetUpDialogRequest =
   | { syncSetUpDialogKind: 'turn-on-vault-sync' }
   | { syncSetUpDialogKind: 'change-vault-passphrase'; papelizSyncVaultId: string; syncVaultName: string; isCurrentSyncVaultPassphraseAsked: boolean }
+  | {
+      syncSetUpDialogKind: 'change-vault-encryption'
+      papelizVaultId: string
+      papelizSyncVaultId: string
+      syncVaultName: string
+      currentSyncVaultEncryptionKind: PapelizSyncVaultEncryptionKind
+    }
 
 interface PapelizSyncFlowState {
   syncSubscribeStep: PapelizSyncSubscribeStep | null

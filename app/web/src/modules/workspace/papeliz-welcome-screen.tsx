@@ -9,6 +9,7 @@ import { PapelizSyncStartScreenDownloadProgressLines, readPapelizSyncStartScreen
 import { returnPapelizSyncSyncedVaultsPageToLive, usePapelizSyncSyncedVaultsPagePreviewStore } from '../sync/papeliz-sync-synced-vaults-page-preview-store'
 import { takePapelizTemplateGalleryIdFromAddress } from '../template-gallery/papeliz-template-gallery-address-request'
 import { returnPapelizTemplateGalleryPageToLive, usePapelizTemplateGalleryPagePreviewStore } from '../template-gallery/papeliz-template-gallery-page-preview-store'
+import { waitToTurnPapelizSyncOnForNewVault } from '../sync/papeliz-sync-new-vault-turn-on'
 import {
   forgetPapelizSyncLinksOfDeletedVault,
   resumePapelizSyncStartScreenDownloads,
@@ -41,9 +42,11 @@ import {
   type PapelizBrowserVaultRecord,
 } from '../vault/papeliz-browser-vaults'
 import {
+  makeAndOpenNewPapelizFolderVault,
   openPapelizSampleVault,
   pickAndOpenPapelizVaultFolder,
-  pickPlaceAndOpenNewPapelizFolderVault,
+  pickPapelizNewVaultParentFolder,
+  type PapelizNewVaultParentFolder,
   type PapelizOpenVault,
   type PapelizOpenVaultResult,
 } from '../vault/papeliz-open-vault'
@@ -63,7 +66,7 @@ import { papelizSampleVaultFirstNoteRelativePath, papelizSampleVaultNotes } from
 import { usePapelizBrowserStorageStore } from './papeliz-browser-storage-store'
 import { downloadPapelizBrowserVaultBackupFromClick } from './papeliz-browser-vault-backup-reminder-store'
 import { PapelizBrowserVaultNameDialog } from './papeliz-browser-vault-name-dialog'
-import { PapelizNewVaultForm, type PapelizNewVaultPlace } from './papeliz-new-vault-form'
+import { PapelizNewVaultForm, type PapelizNewVaultConfirmDetails, type PapelizNewVaultPlace } from './papeliz-new-vault-form'
 import { readPapelizRecentVaultSyncEncryptionKinds } from './papeliz-recent-vault-sync-badges'
 import { PapelizSettingsGearButton } from './papeliz-settings-gear-button'
 import { usePapelizStartScreenEyePreviewStore, type PapelizStartScreenEyePreview } from './papeliz-start-screen-eye-preview-store'
@@ -371,6 +374,8 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
   })
   // New Vault's form, shown in the start card in place of Recent Vaults, with the name it suggests.
   const [newVaultFormRequest, setNewVaultFormRequest] = useState<{ suggestedNewVaultName: string; initialNewVaultPlace?: PapelizNewVaultPlace } | null>(null)
+  // Why New Vault's last Create Vault (or Browse…) didn't work, shown in the form under Location.
+  const [newVaultCreateFailureMessage, setNewVaultCreateFailureMessage] = useState<string | null>(null)
   // The Synced Vaults page, shown there instead, and why the sign-in its button started didn't happen.
   const [isSyncedVaultsPageShown, setSyncedVaultsPageShown] = useState(false)
   // A pick in the page's previewer (development builds only) shows the page in that state.
@@ -698,36 +703,88 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
     }
     scrollStartPagePanelIntoViewOnPhone()
     if (newVaultFormRequest !== null) return
+    setNewVaultCreateFailureMessage(null)
     setNewVaultFormRequest({ suggestedNewVaultName: pickFreePapelizBrowserVaultName('Notes', browserVaultRecords) })
   }
 
   // New Vault's form cancelled: Recent Vaults again, and focus back on New Vault.
   const cancelNewVault = () => {
     setNewVaultFormRequest(null)
+    setNewVaultCreateFailureMessage(null)
     newVaultActionButtonRef.current?.focus()
   }
 
+  // New Vault's Browse…: the folder window picks where the vault's folder is made. Must run from a
+  // click. Null when nothing was picked; a folder window that can't open, or a folder the browser won't
+  // share, says so as Open Vault does.
+  const pickNewVaultParentFolderFromForm = async (): Promise<PapelizNewVaultParentFolder | null> => {
+    if (startScreenEyePreview !== null) {
+      showStartScreenPreviewOnlyNotice()
+      return null
+    }
+    setVaultFolderWindowOpen(true)
+    let newVaultParentFolderPickResult: Awaited<ReturnType<typeof pickPapelizNewVaultParentFolder>>
+    try {
+      newVaultParentFolderPickResult = await pickPapelizNewVaultParentFolder()
+    } finally {
+      setVaultFolderWindowOpen(false)
+    }
+    if ('newVaultParentFolderPickOutcome' in newVaultParentFolderPickResult) {
+      setNewVaultCreateFailureMessage(null)
+      return newVaultParentFolderPickResult.pickedNewVaultParentFolder
+    }
+    if (newVaultParentFolderPickResult.openVaultOutcome === 'failed') setNewVaultCreateFailureMessage(newVaultParentFolderPickResult.openVaultFailureMessage)
+    if (newVaultParentFolderPickResult.openVaultOutcome === 'chooser-unavailable') {
+      setFolderChooserUnavailable(true)
+      showFolderAccessOffNotice('chooser-unavailable', true)
+    }
+    return null
+  }
+
   // New Vault's form confirmed. Runs from its click: the folder window and Firefox's question about
-  // keeping storage need one.
-  const finishNewVault = async (typedNewVaultName: string, chosenNewVaultPlace: PapelizNewVaultPlace) => {
+  // keeping storage need one. The form stays while the vault is made, and says under Location why it
+  // couldn't be. With "Sync This Vault" on, Sync is turned on for the vault once it opens.
+  const finishNewVault = async (
+    typedNewVaultName: string,
+    chosenNewVaultPlace: PapelizNewVaultPlace,
+    { newVaultParentFolder, newVaultSyncVaultEncryptionChoice }: PapelizNewVaultConfirmDetails,
+  ) => {
     if (startScreenEyePreview !== null) {
       showStartScreenPreviewOnlyNotice()
       return
     }
-    setNewVaultFormRequest(null)
-    // Papeliz for Windows makes every new vault a folder.
+    setNewVaultCreateFailureMessage(null)
+    const openNewVaultInWorkspace = async (newVaultOpenResult: PapelizOpenVaultResult) => {
+      if (newVaultOpenResult.openVaultOutcome === 'failed') {
+        setNewVaultCreateFailureMessage(newVaultOpenResult.openVaultFailureMessage)
+        return
+      }
+      if (newVaultOpenResult.openVaultOutcome === 'opened' && newVaultSyncVaultEncryptionChoice !== null) {
+        waitToTurnPapelizSyncOnForNewVault(newVaultOpenResult.papelizOpenVault.papelizVaultId, newVaultSyncVaultEncryptionChoice)
+      }
+      if (newVaultOpenResult.openVaultOutcome === 'opened') setNewVaultFormRequest(null)
+      await finishOpeningVault(newVaultOpenResult, true)
+    }
+    // Papeliz for Windows makes every new vault a folder. No folder picked yet: the folder window asks
+    // now, from Create Vault's click.
     if (chosenNewVaultPlace === 'folder-on-disk' || isPapelizDesktopApp) {
-      await pickPlaceAndOpenNewFolderVault(typedNewVaultName)
+      const pickedNewVaultParentFolder = newVaultParentFolder ?? (await pickNewVaultParentFolderFromForm())
+      if (pickedNewVaultParentFolder === null) return
+      setIsOpeningVault(true)
+      try {
+        await openNewVaultInWorkspace(await makeAndOpenNewPapelizFolderVault(pickedNewVaultParentFolder, typedNewVaultName))
+      } finally {
+        setIsOpeningVault(false)
+      }
       return
     }
     askBrowserToKeepStorage()
     setIsOpeningVault(true)
     try {
       const createdBrowserVaultRecord = await createPapelizBrowserVault(typedNewVaultName)
-      await finishOpeningVault(await openPapelizBrowserVault(createdBrowserVaultRecord), true)
+      await openNewVaultInWorkspace(await openPapelizBrowserVault(createdBrowserVaultRecord))
     } catch (browserVaultCreateError) {
-      showWorkspaceNotice(
-        'error',
+      setNewVaultCreateFailureMessage(
         describePapelizFailureMessage(`Couldn’t make “${typedNewVaultName}”`, browserVaultCreateError, { failedEntryName: typedNewVaultName, failedEntryKind: 'vault' }),
       )
       reloadRecentVaults()
@@ -760,28 +817,6 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
       return
     }
     await pickAndOpenFolderVault(isNewVault)
-  }
-
-  // New Vault in a folder: the folder window picks where it goes, and a folder of the vault's name is
-  // made there and opened. Must run from New Vault's click. If no vault opens (the window closed, or the
-  // name is taken there), the form comes back with the name typed, to change it or pick again.
-  const pickPlaceAndOpenNewFolderVault = async (typedNewVaultName: string) => {
-    setIsOpeningVault(true)
-    setVaultFolderWindowOpen(true)
-    try {
-      let newFolderVaultOpenResult: PapelizOpenVaultResult
-      try {
-        newFolderVaultOpenResult = await pickPlaceAndOpenNewPapelizFolderVault(typedNewVaultName)
-      } finally {
-        setVaultFolderWindowOpen(false)
-      }
-      if (newFolderVaultOpenResult.openVaultOutcome !== 'opened') {
-        setNewVaultFormRequest({ suggestedNewVaultName: typedNewVaultName, initialNewVaultPlace: 'folder-on-disk' })
-      }
-      await finishOpeningVault(newFolderVaultOpenResult, true)
-    } finally {
-      setIsOpeningVault(false)
-    }
   }
 
   // Shows the folder window and opens the folder picked. Must run from a click.
@@ -1109,7 +1144,13 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                 suggestedNewVaultName={newVaultFormRequest.suggestedNewVaultName}
                 initialNewVaultPlace={newVaultFormRequest.initialNewVaultPlace}
                 existingBrowserVaultRecords={browserVaultRecords}
-                onNewVaultConfirm={(typedNewVaultName, chosenNewVaultPlace) => void finishNewVault(typedNewVaultName, chosenNewVaultPlace)}
+                isNewVaultConfirmHeld={isOpeningVault}
+                onNewVaultParentFolderPick={pickNewVaultParentFolderFromForm}
+                isNewVaultSyncPartShown
+                newVaultCreateFailureMessage={newVaultCreateFailureMessage}
+                onNewVaultConfirm={(typedNewVaultName, chosenNewVaultPlace, newVaultConfirmDetails) =>
+                  void finishNewVault(typedNewVaultName, chosenNewVaultPlace, newVaultConfirmDetails)
+                }
                 onNewVaultCancel={cancelNewVault}
               />
             ) : (
