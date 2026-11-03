@@ -967,7 +967,9 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
     })
 
   return (
-    <div className="flex min-h-full flex-col bg-papeliz-surface-soft">
+    // The blue bar stays put and only the card's place scrolls on a short window, so Papeliz for
+    // Windows' window buttons and the bar's drag area never scroll away.
+    <div className="flex h-dvh flex-col overflow-hidden bg-papeliz-surface-soft">
       <header
         {...desktopWindowBarDragHandlers}
         className={joinPapelizClassNames(
@@ -994,8 +996,10 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
         </div>
       </header>
 
-      <main className="flex flex-1 items-center justify-center p-3 sm:p-4">
-        <div className="papeliz-welcome-enter flex w-[750px] max-w-[calc(100vw-24px)] overflow-hidden rounded-[14px] border border-papeliz-line bg-papeliz-surface shadow-papeliz-card max-md:flex-col md:h-[520px] md:max-h-[calc(100dvh-80px)] sm:max-w-[calc(100vw-48px)]">
+      {/* The card is centered by its auto margins, which, unlike centering the row, never push its top
+          out of reach when it's taller than the window. */}
+      <main className="flex min-h-0 flex-1 overflow-y-auto p-3 sm:p-4">
+        <div className="papeliz-welcome-enter m-auto flex w-[750px] max-w-[calc(100vw-24px)] overflow-hidden rounded-[14px] border border-papeliz-line bg-papeliz-surface shadow-papeliz-card max-md:flex-col md:h-[520px] md:max-h-[calc(100dvh-80px)] sm:max-w-[calc(100vw-48px)]">
           <section aria-label="Start" className="flex flex-none flex-col bg-papeliz-topbar p-3 text-white md:w-[190px] md:overflow-y-auto md:[scrollbar-width:none]">
             {/* On a short window the panel scrolls (wheel, touch or Tab), so its foot (Synced Vaults and the
                 licence) stays reachable; a scrollbar would narrow the actions until their lines wrap. */}

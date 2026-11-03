@@ -20,6 +20,7 @@ import {
   PapelizSettingsGearTeaserPage,
 } from './papeliz-settings-gear-pages'
 import { PapelizTopbarFrostedSquareButton } from './papeliz-topbar-frosted-square-button'
+import { findPapelizTopbarPanelAnchorElement } from './papeliz-topbar-panel-anchor'
 import { usePapelizWorkspaceStore } from './papeliz-workspace-store'
 
 type PapelizSettingsGearPage = 'account' | 'sync' | 'settings' | 'accessibility' | 'ai-assistant' | 'desktop-updates'
@@ -68,9 +69,10 @@ function PapelizSettingsGearListLine() {
 // scrolls inside it. A short window takes what room there is below the gear.
 const papelizSettingsGearPanelHeightPixels = 520
 
-// The panel hangs below the gear, its right edge in line with the gear's.
+// The panel hangs below the gear, its right edge in line with the gear's (or More's, when the top bar
+// has folded the gear into it).
 function measureSettingsGearPanelAnchor(settingsGearButtonElement: HTMLElement): { anchorRight: number; anchorTop: number } {
-  const settingsGearButtonRect = settingsGearButtonElement.getBoundingClientRect()
+  const settingsGearButtonRect = findPapelizTopbarPanelAnchorElement(settingsGearButtonElement).getBoundingClientRect()
   return { anchorRight: window.innerWidth - settingsGearButtonRect.right, anchorTop: settingsGearButtonRect.bottom + 6 }
 }
 

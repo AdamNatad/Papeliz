@@ -4,13 +4,15 @@ import { createPortal } from 'react-dom'
 import { subscribeToPapelizWindowWidthChange } from '../ui/papeliz-window-width-change'
 import { PapelizSettingsGearExportPage } from './papeliz-settings-gear-export-page'
 import { PapelizTopbarFrostedSquareButton } from './papeliz-topbar-frosted-square-button'
+import { findPapelizTopbarPanelAnchorElement } from './papeliz-topbar-panel-anchor'
 
 // The Export panel's height, the Settings panel's: the notes and formats fit, a long tree scrolls.
 const papelizTopbarExportPanelHeightPixels = 520
 
-// The panel hangs below the button, its right edge in line with the button's.
+// The panel hangs below the button, its right edge in line with the button's (or More's, when the top
+// bar has folded Export into it).
 function measureTopbarExportPanelAnchor(topbarExportButtonElement: HTMLElement): { anchorRight: number; anchorTop: number } {
-  const topbarExportButtonRect = topbarExportButtonElement.getBoundingClientRect()
+  const topbarExportButtonRect = findPapelizTopbarPanelAnchorElement(topbarExportButtonElement).getBoundingClientRect()
   return { anchorRight: window.innerWidth - topbarExportButtonRect.right, anchorTop: topbarExportButtonRect.bottom + 6 }
 }
 
