@@ -412,6 +412,9 @@ describe('the assistant conversation', () => {
     await waitUntil(() => usePapelizWorkspaceStore.getState().vaultTreeEntries.length > 0)
 
     await usePapelizAssistantConversationStore.getState().sendAssistantMessage('What model are you?')
+    expect(providerSystemMessages.at(-1)).toContain(
+      'You are the assistant inside Papeliz, a Free, Open-Source Markdown Editor for your Personal Knowledge Base, with a built-in AI Assistant and Workflow Templates for Coding and AI Agents. You help the user with their vault',
+    )
     expect(providerSystemMessages.at(-1)).toContain('You run on the model “muse-spark-1.3-contributor” from the provider “Meta Model API”')
     expect(providerSystemMessages.at(-1)).toContain('Never claim to be another model')
     expect(providerSystemMessages.at(-1)).toContain(

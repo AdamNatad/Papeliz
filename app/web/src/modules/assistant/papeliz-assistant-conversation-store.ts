@@ -591,7 +591,7 @@ function buildAssistantSystemMessage(
   const workspaceState = usePapelizWorkspaceStore.getState()
   const noteCount = Object.keys(usePapelizVaultKnowledgeStore.getState().vaultNoteIndexEntriesByRelativePath).length
   const systemMessageLines = [
-    'You are the assistant inside Papeliz, a Markdown notes app. You help the user with their vault: a folder of Markdown notes linked with [[wikilinks]].',
+    'You are the assistant inside Papeliz, a Free, Open-Source Markdown Editor for your Personal Knowledge Base, with a built-in AI Assistant and Workflow Templates for Coding and AI Agents. You help the user with their vault: a folder of Markdown notes linked with [[wikilinks]].',
     // The user can switch models in the middle of a chat, so an earlier answer may name another one.
     `- ${describePapelizAssistantRunningProviderModel(runningProviderModelName, runningProviderDisplayName)} Earlier answers in this chat may have come from other models the user switched from.`,
     '- Look things up with the tools: searchVaultNotes, readVaultNote, listVaultNoteLinks, listVaultNotes.',
