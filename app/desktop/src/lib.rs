@@ -16,6 +16,8 @@ use tauri::{AppHandle, Manager, Runtime, Url, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_opener::OpenerExt;
 
 const PAPELIZ_DESKTOP_MAIN_WINDOW_LABEL: &str = "main";
+// The window's title before the page sets one, and whenever the page's title is empty.
+const PAPELIZ_DESKTOP_MAIN_WINDOW_DEFAULT_TITLE: &str = "Papeliz";
 
 // The built web app is served at https://tauri.localhost/app/, the same /app/ path as on papeliz.com,
 // so the build needs no other base path. The https scheme is fixed for good: changing it later would
@@ -78,7 +80,7 @@ fn create_papeliz_desktop_main_window(app_handle: &AppHandle) -> tauri::Result<(
         PAPELIZ_DESKTOP_MAIN_WINDOW_LABEL,
         WebviewUrl::App(PAPELIZ_DESKTOP_APP_START_PATH.into()),
     )
-    .title("Papeliz")
+    .title(PAPELIZ_DESKTOP_MAIN_WINDOW_DEFAULT_TITLE)
     .inner_size(PAPELIZ_DESKTOP_MAIN_WINDOW_STARTING_INNER_WIDTH, PAPELIZ_DESKTOP_MAIN_WINDOW_STARTING_INNER_HEIGHT)
     .min_inner_size(PAPELIZ_DESKTOP_MAIN_WINDOW_MINIMUM_INNER_WIDTH, PAPELIZ_DESKTOP_MAIN_WINDOW_MINIMUM_INNER_HEIGHT)
     .center()
@@ -103,6 +105,11 @@ fn create_papeliz_desktop_main_window(app_handle: &AppHandle) -> tauri::Result<(
     .on_new_window(move |new_window_url, _new_window_features| {
         open_url_in_system_browser(&new_window_app_handle, &new_window_url);
         NewWindowResponse::Deny
+    })
+    // The page names the open vault in its title ("<vault> · Papeliz"); the window takes the same title,
+    // so the taskbar, Alt+Tab and Task View name the vault too.
+    .on_document_title_changed(|main_window, page_document_title| {
+        let _ = main_window.set_title(papeliz_desktop_main_window_title(&page_document_title));
     })
     .build()?;
     // On Windows, the minimum holds for the page, not the frameless window's invisible borders around it.
@@ -159,9 +166,26 @@ fn open_url_in_system_browser(app_handle: &AppHandle, external_url: &Url) {
     }
 }
 
+fn papeliz_desktop_main_window_title(page_document_title: &str) -> &str {
+    let trimmed_page_document_title = page_document_title.trim();
+    if trimmed_page_document_title.is_empty() {
+        PAPELIZ_DESKTOP_MAIN_WINDOW_DEFAULT_TITLE
+    } else {
+        trimmed_page_document_title
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_main_window_takes_the_page_title_and_says_papeliz_when_it_is_empty() {
+        assert_eq!(papeliz_desktop_main_window_title("Field Notes · Papeliz"), "Field Notes · Papeliz");
+        assert_eq!(papeliz_desktop_main_window_title("  Papeliz \n"), "Papeliz");
+        assert_eq!(papeliz_desktop_main_window_title(""), "Papeliz");
+        assert_eq!(papeliz_desktop_main_window_title(" \t "), "Papeliz");
+    }
 
     #[test]
     fn the_main_window_opens_at_1280_by_820_and_shrinks_to_400_by_300() {
