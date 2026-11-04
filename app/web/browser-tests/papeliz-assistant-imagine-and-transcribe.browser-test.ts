@@ -474,6 +474,122 @@ test('Imagine’s Ask talks a picture through with the chat model, and Draw This
   expect(refusedOutsideRequestUrls).toEqual([])
 })
 
+// Watches, from now on, every scroll of the page or of a box around the assistant panel (the app's shell),
+// and keeps the largest offset any of them reached. The panel's own lists, inside it, aren't watched.
+async function watchPageAndShellScrollOffsets(page: Page, assistantPanel: Locator): Promise<() => Promise<number>> {
+  await assistantPanel.evaluate((assistantPanelElement) => {
+    const shellElements: Element[] = []
+    for (let shellElement: Element | null = assistantPanelElement; shellElement !== null; shellElement = shellElement.parentElement) shellElements.push(shellElement)
+    const pageAndShellScrollWatch = { largestPageOrShellScrollOffset: Math.max(Math.abs(window.scrollX), Math.abs(window.scrollY)) }
+    ;(window as unknown as { papelizPageAndShellScrollWatch: typeof pageAndShellScrollWatch }).papelizPageAndShellScrollWatch = pageAndShellScrollWatch
+    document.addEventListener(
+      'scroll',
+      (scrollEvent) => {
+        const scrolledElement = scrollEvent.target === document ? document.scrollingElement : (scrollEvent.target as Element)
+        if (scrolledElement === null || !shellElements.includes(scrolledElement)) return
+        pageAndShellScrollWatch.largestPageOrShellScrollOffset = Math.max(pageAndShellScrollWatch.largestPageOrShellScrollOffset, Math.abs(scrolledElement.scrollTop), Math.abs(scrolledElement.scrollLeft))
+      },
+      { capture: true },
+    )
+  })
+  return () => page.evaluate(() => (window as unknown as { papelizPageAndShellScrollWatch: { largestPageOrShellScrollOffset: number } }).papelizPageAndShellScrollWatch.largestPageOrShellScrollOffset)
+}
+
+// How many pixels clearly differ between two pictures of the same place, read with the page's own picture
+// decoding. A spring of the window shifts everything by many pixels; drawing noise changes a few by a shade.
+async function countClearlyChangedPixels(page: Page, firstPicturePng: Buffer, secondPicturePng: Buffer): Promise<number> {
+  return page.evaluate(
+    async ([firstPictureBase64, secondPictureBase64]) => {
+      const readPicturePixels = async (pictureBase64: string) => {
+        const pictureBitmap = await createImageBitmap(new Blob([Uint8Array.from(atob(pictureBase64), (pictureCharacter) => pictureCharacter.charCodeAt(0))], { type: 'image/png' }))
+        const pictureCanvas = new OffscreenCanvas(pictureBitmap.width, pictureBitmap.height)
+        const pictureCanvasContext = pictureCanvas.getContext('2d')!
+        pictureCanvasContext.drawImage(pictureBitmap, 0, 0)
+        return pictureCanvasContext.getImageData(0, 0, pictureBitmap.width, pictureBitmap.height).data
+      }
+      const [firstPicturePixels, secondPicturePixels] = await Promise.all([readPicturePixels(firstPictureBase64), readPicturePixels(secondPictureBase64)])
+      let clearlyChangedPixelCount = 0
+      for (let pixelByteIndex = 0; pixelByteIndex < firstPicturePixels.length; pixelByteIndex += 4) {
+        const redChange = Math.abs(firstPicturePixels[pixelByteIndex]! - secondPicturePixels[pixelByteIndex]!)
+        const greenChange = Math.abs(firstPicturePixels[pixelByteIndex + 1]! - secondPicturePixels[pixelByteIndex + 1]!)
+        const blueChange = Math.abs(firstPicturePixels[pixelByteIndex + 2]! - secondPicturePixels[pixelByteIndex + 2]!)
+        if (Math.max(redChange, greenChange, blueChange) > 48) clearlyChangedPixelCount += 1
+      }
+      return clearlyChangedPixelCount
+    },
+    [firstPicturePng.toString('base64'), secondPicturePng.toString('base64')] as const,
+  )
+}
+
+// Wheel turns past the end of a list, with the pointer over it, must leave the window itself where it is.
+// Edge on Windows springs the whole page, title bar and all, when a turn runs past the end, and no scroll
+// offset shows it, so the window's left edge (the file list) is compared, picture by picture, with how it
+// looked before the turns. The pictures are all taken first, so comparing them can't slow the turns down.
+async function expectWindowStillUnderWheelTurnsPastListEnd(page: Page, wheeledListLocator: Locator): Promise<void> {
+  const viewportSize = page.viewportSize()!
+  const wheeledListBox = (await wheeledListLocator.boundingBox())!
+  const wheeledListShownTop = Math.max(wheeledListBox.y, 0)
+  const wheeledListShownBottom = Math.min(wheeledListBox.y + wheeledListBox.height, viewportSize.height)
+  await page.mouse.move(wheeledListBox.x + wheeledListBox.width / 2, (wheeledListShownTop + wheeledListShownBottom) / 2)
+  // To the list's end first, then a beat for its own scrolling to finish.
+  for (let wheelTurnIndex = 0; wheelTurnIndex < 12; wheelTurnIndex += 1) await page.mouse.wheel(0, 400)
+  await page.waitForTimeout(1000)
+  const windowEdgeClip = { x: 0, y: 0, width: 240, height: viewportSize.height }
+  const windowEdgeBeforeTurns = await page.screenshot({ clip: windowEdgeClip })
+  const windowEdgesDuringTurns: Buffer[] = []
+  for (let wheelTurnIndex = 0; wheelTurnIndex < 3; wheelTurnIndex += 1) {
+    await page.mouse.wheel(0, 140)
+    for (let pictureIndex = 0; pictureIndex < 3; pictureIndex += 1) windowEdgesDuringTurns.push(await page.screenshot({ clip: windowEdgeClip }))
+  }
+  const clearlyChangedPixelCounts: number[] = []
+  for (const windowEdgeDuringTurns of windowEdgesDuringTurns) clearlyChangedPixelCounts.push(await countClearlyChangedPixels(page, windowEdgeBeforeTurns, windowEdgeDuringTurns))
+  expect(clearlyChangedPixelCounts.filter((clearlyChangedPixelCount) => clearlyChangedPixelCount > 20)).toEqual([])
+}
+
+test('only Imagine’s own list moves: Draw This, a picture landing and Put in Note leave the page and the shell still, and wheel turns past a list’s end don’t spring the window', { tag: '@papeliz-desktop-app' }, async ({ page }) => {
+  const { refusedOutsideRequestUrls } = await playTestMetaProvider(page)
+  await openSampleVaultWithMetaProvider(page)
+  const assistantPanel = page.getByRole('complementary', { name: 'AI Assistant' })
+  await assistantPanel.getByRole('tab', { name: 'Imagine', exact: true }).click()
+  await assistantPanel.getByRole('tab', { name: 'Ask', exact: true }).click()
+  const questionBox = assistantPanel.getByRole('textbox', { name: 'Ask about a picture' })
+  await questionBox.fill('What light suits a lighthouse?')
+  await questionBox.press('Enter')
+  const askAnswer = assistantPanel.getByRole('region', { name: 'Answer' })
+  await expect(askAnswer.getByText(testAskDrawPromptText)).toBeVisible()
+
+  // Draw This: Draw opens with the prompt in its focused box.
+  const readLargestPageOrShellScrollOffset = await watchPageAndShellScrollOffsets(page, assistantPanel)
+  await askAnswer.getByRole('button', { name: 'Draw This' }).click()
+  const promptBox = assistantPanel.getByRole('textbox', { name: 'Describe a picture' })
+  await expect(promptBox).toHaveValue(testAskDrawPromptText)
+  await expect(promptBox).toBeFocused()
+  await page.waitForTimeout(800)
+  expect(await readLargestPageOrShellScrollOffset()).toBe(0)
+  const drawSection = assistantPanel.getByRole('tabpanel', { name: 'Draw' })
+  await expectWindowStillUnderWheelTurnsPastListEnd(page, drawSection)
+  await expectWindowStillUnderWheelTurnsPastListEnd(page, page.locator('.cm-content').first())
+
+  // The picture lands, and Draw's list scrolls to it; then Put in Note's change comes into view in the list.
+  await promptBox.press('Enter')
+  const drawnPictureEntry = assistantPanel.getByRole('region', { name: `Imagine: ${testAskDrawPromptText}` })
+  const drawnPicture = drawnPictureEntry.getByRole('img')
+  await expect(drawnPicture).toBeVisible()
+  await page.waitForTimeout(800)
+  await expect(drawnPicture).toBeInViewport()
+  expect(await readLargestPageOrShellScrollOffset()).toBe(0)
+  await drawnPictureEntry.getByRole('button', { name: 'Put in Note' }).click()
+  const pictureDiffCard = drawnPictureEntry.getByRole('region', { name: 'Change to Start here' })
+  await expect(pictureDiffCard).toBeVisible()
+  await page.waitForTimeout(800)
+  await expect(pictureDiffCard.getByRole('button', { name: 'Accept', exact: true })).toBeInViewport()
+  expect(await readLargestPageOrShellScrollOffset()).toBe(0)
+  await expectWindowStillUnderWheelTurnsPastListEnd(page, drawSection)
+  await expectWindowStillUnderWheelTurnsPastListEnd(page, page.locator('.cm-content').first())
+  expect(await readLargestPageOrShellScrollOffset()).toBe(0)
+  expect(refusedOutsideRequestUrls).toEqual([])
+})
+
 test('Imagine’s Gallery lists every picture newest first, with its actions, a lightbox and Show in Draw', async ({ page }) => {
   const { refusedOutsideRequestUrls } = await playTestMetaProvider(page)
   await openSampleVaultWithMetaProvider(page)

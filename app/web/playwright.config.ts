@@ -40,7 +40,8 @@ export default defineConfig({
     { name: 'msedge', use: { ...devices['Desktop Edge'], channel: 'msedge' } },
     {
       name: 'msedge-desktop',
-      testMatch: '**/papeliz-workspace-topbar-widths.browser-test.ts',
+      testMatch: ['**/papeliz-workspace-topbar-widths.browser-test.ts', '**/papeliz-assistant-imagine-and-transcribe.browser-test.ts'],
+      grep: [/topbar-widths/, /@papeliz-desktop-app/],
       use: { ...devices['Desktop Edge'], channel: 'msedge', baseURL: 'http://127.0.0.1:14253/' },
     },
   ],

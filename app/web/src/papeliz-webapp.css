@@ -282,6 +282,11 @@
     height: 100%;
   }
 
+  /* The whole window never springs or swipes away: a wheel or touchpad turn past a list's end stops there. */
+  html {
+    overscroll-behavior: none;
+  }
+
   body {
     margin: 0;
     background: var(--color-papeliz-surface);
