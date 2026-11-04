@@ -96,6 +96,7 @@ export const papelizHelpWritingArticles: readonly PapelizHelpArticle[] = [
           'The switch in the middle of the top bar picks how your notes show: **MD Code** or **MD View**. `Ctrl+E` switches between them from anywhere in the workspace.',
         ),
         helpParagraph('Switching keeps your place: the text, the cursor and the undo history stay as they were.'),
+        helpParagraph('A vault always opens in **MD View**. If you switch to **MD Code**, it stays chosen while the vault is open.'),
       ]),
       helpSection('Lock a note', [
         helpNumberedSteps(['Open the note.', 'Choose the lock at the front of its tab, above the note.']),

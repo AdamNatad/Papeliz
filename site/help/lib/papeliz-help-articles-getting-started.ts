@@ -93,12 +93,17 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
           'On the start page, choose **New Vault**. It opens where **Recent Vaults** was.',
           'Type the vault’s name in **Vault Name**. Every vault has one, and it shows in **Recent Vaults**, the top bar and the status bar.',
           'Under **Location**, choose where to keep it: **Folder Storage** or **Browser Storage**. **Compare** shows how the two differ. In Firefox, Safari and phone browsers, only **Browser Storage** is offered.',
-          'For a folder, choose **Browse…** and pick the place it goes, such as **Documents**, now or when you choose **Create Vault**, and allow editing when the browser asks. Papeliz makes a folder with the vault’s name there.',
+          'For a folder, choose **Browse…** and pick the place it goes, such as **Documents**, now or when you choose **Create Vault**, and allow editing when the browser asks. Papeliz makes the vault’s folder there. Its name follows the vault’s name, with any characters a folder can’t use replaced; **Change Folder Name** gives it a name of its own.',
           'Under **Encryption**, choose **Standard**, plain Markdown files any app can open, or **End-to-end**, encrypted with a passphrase only you know. See [[end-to-end-vaults]].',
-          'Choose **Create Vault**. Papeliz starts your first note, named and ready to write in.',
+          'Choose **Create Vault**. Papeliz starts your first note, named and ready to write in, in MD View.',
         ]),
         helpParagraph('**Cancel**, or Esc, goes back to **Recent Vaults**.'),
-        helpParagraph('If the place already has a folder with that name and something in it, Papeliz says so and lets you pick another name or another place. An empty folder of that name is used. To open a folder that already has notes, use **Open Vault**.'),
+        helpParagraph(
+          'If the place already has a folder of that name with something in it, or a file of that name, New Vault says so under **Location** before anything is made, and nothing there is changed. It offers the next free name, such as **Use “Notes 2”**, and **Change Folder Name**. When that folder is already a Papeliz vault, **Open It** opens it instead. An empty folder of that name is used.',
+        ),
+        helpParagraph(
+          'A folder vault keeps its name inside its folder, so every device that opens it shows the same name, even when the folder is named differently. Rename any vault in the gear’s **Settings** › **Vault**. See [[settings-gear]].',
+        ),
         helpParagraph('A vault kept in the browser lives in the browser’s own storage, not in a folder you can see. See [[keep-a-vault-in-your-browser]].'),
       ]),
       helpSection('Open a folder you already have', [
@@ -402,7 +407,7 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
         helpBulletList([
           '**Account**: sign in to Papeliz Sync, then see your email, your plan and your devices, and sign out. See [[sync-your-vaults]].',
           '**Sync**: keep your vaults the same on all your devices, with the tabs **Plans** and **Settings**. Every account comes with Free. See [[sync-your-vaults]].',
-          '**Settings**: the tabs **Vault**, the open vault’s name (a vault kept in your browser renames here; a folder vault takes its folder’s name) and its **Encryption** (see [[end-to-end-vaults]]), and **Key Bindings**, the shortcuts you can change. See [[keyboard-shortcuts]]. In a vault kept in your browser, a third tab, **Reminder**, holds the backup reminder and **Download Backup**. See [[keep-a-vault-in-your-browser]].',
+          '**Settings**: the tabs **Vault**, the open vault’s name with **Rename** (a folder vault keeps its name inside the vault, and the folder on your computer keeps its own) and its **Encryption** (see [[end-to-end-vaults]]), and **Key Bindings**, the shortcuts you can change. See [[keyboard-shortcuts]]. In a vault kept in your browser, a third tab, **Reminder**, holds the backup reminder and **Download Backup**. See [[keep-a-vault-in-your-browser]].',
           '**Accessibility**: the theme, how tabs show, how your notes’ text looks (font, size and width), and the **Lock All Notes** and **Focus Mode** switches. See [[text-settings-and-theme]], [[switch-views-and-lock]] and [[focus-mode|focus mode]].',
           '**AI Provider**: your **Saved Providers**, with **Add Provider** under them. Open a provider’s gear for its key, models and **Advanced**, or pick the models Transcribe and Draw use in **Models for Transcribe and Draw**. See [[bring-your-own-key]].',
           '**Lock Now**, in an End-to-end vault: saves every note and locks the vault.',

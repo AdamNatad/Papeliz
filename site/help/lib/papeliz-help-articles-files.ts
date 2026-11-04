@@ -124,7 +124,7 @@ export const papelizHelpFilesArticles: readonly PapelizHelpArticle[] = [
           'Folders and `.md` notes: shown in the file list and saved in place.',
           'Text files such as JSON, YAML, scripts, `.gitignore` and `LICENSE`: shown in the file list and opened in MD Code only, up to 5 MB. Nothing in them ever runs.',
           '`.trash`: where deleted notes and folders go.',
-          '`.papeliz`: Papeliz’s own files for the vault, such as the file list’s order. It never shows in the list.',
+          '`.papeliz`: Papeliz’s own files for the vault, such as its name and the file list’s order. It never shows in the list.',
           '`.csessions`: the assistant’s saved chats.',
           'Every other hidden folder or file, such as `.git` or another app’s settings, is never changed.',
           'Pictures, PDFs and other files that aren’t text stay untouched, and don’t appear in the list.',
