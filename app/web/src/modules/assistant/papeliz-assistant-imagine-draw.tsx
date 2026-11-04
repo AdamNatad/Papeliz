@@ -389,7 +389,7 @@ export function PapelizImagineDrawSection({ onBringInPictureFiles, isPictureDrag
               ))}
             </div>
             <p className={joinPapelizClassNames('text-xs text-papeliz-ink-subtle', isPictureDraggedOverSection && 'font-medium text-papeliz-blue')}>
-              Bring in a picture with +, or drop one here, to clean it of metadata and save it.
+              Bring in a picture with +, or drop one here, to save it.
             </p>
           </div>
         ) : (

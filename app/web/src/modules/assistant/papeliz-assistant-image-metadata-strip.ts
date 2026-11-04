@@ -262,13 +262,13 @@ export function listPapelizAssistantImageMetadataNames(imageFileBytes: Uint8Arra
 
 export function stripPapelizAssistantImageMetadata(imageFileBytes: Uint8Array): PapelizAssistantImageMetadataStripResult {
   const imageFileFormat = detectPapelizAssistantImageFileFormat(imageFileBytes)
-  if (imageFileFormat === null) throw new PapelizAssistantImageMetadataStripError('Only PNG, JPEG and WebP pictures can be cleaned.')
+  if (imageFileFormat === null) throw new PapelizAssistantImageMetadataStripError('This picture isn’t a PNG, JPEG or WebP file, so it couldn’t be saved.')
   const { strippedImageFileBytes, removedImageMetadataNames } = stripImageMetadataByFormat(imageFileFormat, imageFileBytes)
   // Read back: nothing left to remove, and the image data exactly as it was.
   const strippedAgain = stripImageMetadataByFormat(imageFileFormat, strippedImageFileBytes)
-  if (strippedAgain.removedImageMetadataNames.length > 0) throw new PapelizAssistantImageMetadataStripError('The picture still carried metadata after cleaning.')
+  if (strippedAgain.removedImageMetadataNames.length > 0) throw new PapelizAssistantImageMetadataStripError('This picture couldn’t be saved. Draw it again, or bring in another.')
   if (!areBytesEqual(readImageDataBytesByFormat(imageFileFormat, imageFileBytes), readImageDataBytesByFormat(imageFileFormat, strippedImageFileBytes))) {
-    throw new PapelizAssistantImageMetadataStripError('Cleaning would have changed the picture itself.')
+    throw new PapelizAssistantImageMetadataStripError('Saving would have changed the picture itself, so it wasn’t saved.')
   }
   return { imageFileFormat, strippedImageFileBytes, removedImageMetadataNames }
 }

@@ -139,7 +139,9 @@ export function PapelizImaginePictureCard({ imaginePicture, pictureCardCaption, 
         </span>
       </div>
       {isPictureUnreadableForCleaning && (
-        <p className="px-0.5 text-[11.5px] leading-snug text-papeliz-ink-subtle">This picture can’t be read to clean it, so it can’t be saved cleaned.</p>
+        <p className="px-0.5 text-[11.5px] leading-snug text-papeliz-ink-subtle">
+          {imaginePicture.isRemoveMetadataOn ? 'Papeliz can’t read this picture. To save it as it came, turn off the switch above.' : 'Papeliz can’t read this picture, so it will be saved as it came.'}
+        </p>
       )}
       {imaginePicture.savedVaultFileRelativePath !== null && (
         <p className="truncate px-0.5 text-[11.5px] text-papeliz-ink-muted" title={imaginePicture.savedVaultFileRelativePath}>
@@ -169,9 +171,6 @@ export function PapelizImaginePictureCard({ imaginePicture, pictureCardCaption, 
 
 // Put in Note's change, as a diff to accept, beside the picture it puts in.
 export function PapelizImaginePictureInsertionCard({ imaginePictureInsertion }: { imaginePictureInsertion: PapelizImaginePictureInsertion }) {
-  const isInsertedPictureRemoveMetadataOn = usePapelizImagineStore(
-    (imagineState) => imagineState.imaginePictures.find((imaginePicture) => imaginePicture.imaginePictureId === imaginePictureInsertion.imaginePictureId)?.isRemoveMetadataOn !== false,
-  )
   const acceptImaginePictureInsertion = usePapelizImagineStore((imagineState) => imagineState.acceptImaginePictureInsertion)
   const rejectImaginePictureInsertion = usePapelizImagineStore((imagineState) => imagineState.rejectImaginePictureInsertion)
   const insertionCardRef = useRef<HTMLDivElement>(null)
@@ -188,8 +187,7 @@ export function PapelizImaginePictureInsertionCard({ imaginePictureInsertion }: 
         addedNoteText={imaginePictureInsertion.pictureNoteTextInsertion.insertedNoteText}
         noteDiffCardNote={
           <p className="text-[11.5px] leading-snug text-papeliz-ink-subtle">
-            Accept saves the picture as {imaginePictureInsertion.plannedPictureVaultFileRelativePath}
-            {isInsertedPictureRemoveMetadataOn ? ', with C2PA and other metadata removed,' : ', with its metadata,'} and puts the link after the cursor’s line.
+            Accept saves the picture as {imaginePictureInsertion.plannedPictureVaultFileRelativePath} and puts the link after the cursor’s line.
           </p>
         }
         isAccepting={imaginePictureInsertion.insertionStage === 'accepting'}

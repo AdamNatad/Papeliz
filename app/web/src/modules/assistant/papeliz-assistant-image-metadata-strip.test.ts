@@ -190,6 +190,6 @@ describe('Remove Metadata', () => {
     expect(() => stripPapelizAssistantImageMetadata(testJpegBytes.subarray(0, 30))).toThrow(PapelizAssistantImageMetadataStripError)
     const testWebpBytes = buildTestWebpWithMetadata()
     expect(() => stripPapelizAssistantImageMetadata(testWebpBytes.subarray(0, testWebpBytes.length - 30))).toThrow(PapelizAssistantImageMetadataStripError)
-    expect(() => stripPapelizAssistantImageMetadata(latin1Bytes('GIF89a not a supported picture'))).toThrow('Only PNG, JPEG and WebP')
+    expect(() => stripPapelizAssistantImageMetadata(latin1Bytes('GIF89a not a supported picture'))).toThrow('isn’t a PNG, JPEG or WebP file')
   })
 })
