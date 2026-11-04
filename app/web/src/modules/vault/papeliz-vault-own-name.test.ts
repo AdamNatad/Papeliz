@@ -202,7 +202,7 @@ describe('a folder vault’s own name, in a Standard vault', () => {
     const desktopTestVaultFolderPath = 'C:\\Users\\Ada\\Field Notes'
     const fakeDesktopFileSystem = new PapelizFakeDesktopFileSystem(['C:\\Users\\Ada'])
     fakeDesktopFileSystem.addFakeDesktopFiles(desktopTestVaultFolderPath, { 'Inbox.md': '# Inbox' })
-    const papelizDesktopPlatform = { desktopFileSystem: fakeDesktopFileSystem, rememberDesktopVaultFolderPath: async () => undefined }
+    const papelizDesktopPlatform = { desktopFileSystem: fakeDesktopFileSystem, rememberDesktopVaultFolderPath: async () => undefined, desktopWindow: { bringForwardDesktopWindowWithVault: async () => false } }
     usePapelizDesktopPlatformStore.setState({ papelizDesktopPlatform: papelizDesktopPlatform as unknown as PapelizDesktopPlatform })
     const openVaultResult = await openPapelizDesktopVaultFolderPath(desktopTestVaultFolderPath, papelizDesktopPlatform as unknown as PapelizDesktopPlatform, {
       isDesktopVaultFolderJustPicked: true,
@@ -390,7 +390,7 @@ describe('New Vault’s folder name, apart from the vault’s', () => {
         const desktopPlaceFolderPath = 'C:\\Users\\Ada\\Documents'
         const fakeDesktopFileSystem = new PapelizFakeDesktopFileSystem(['C:\\Users\\Ada'])
         fakeDesktopFileSystem.addFakeDesktopFiles(desktopPlaceFolderPath, takenPlaceFiles)
-        const papelizDesktopPlatform = { desktopFileSystem: fakeDesktopFileSystem, rememberDesktopVaultFolderPath: async () => undefined }
+        const papelizDesktopPlatform = { desktopFileSystem: fakeDesktopFileSystem, rememberDesktopVaultFolderPath: async () => undefined, desktopWindow: { bringForwardDesktopWindowWithVault: async () => false } }
         usePapelizDesktopPlatformStore.setState({ papelizDesktopPlatform: papelizDesktopPlatform as unknown as PapelizDesktopPlatform })
         return {
           newVaultParentFolder: { newVaultParentFolderKind: 'desktop-folder-path', desktopParentFolderPath: desktopPlaceFolderPath },

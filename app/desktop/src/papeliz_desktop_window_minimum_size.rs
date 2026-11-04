@@ -30,22 +30,22 @@ fn papeliz_desktop_minimum_window_track_size(
     }
 }
 
-/// Runs the answer for the main window from here on. Windows only: elsewhere the window's own minimum
+/// Runs the answer for this window from here on. Windows only: elsewhere the window's own minimum
 /// already applies to the page.
-pub fn hold_papeliz_desktop_window_minimum_size_to_its_page(main_window: &tauri::WebviewWindow) -> tauri::Result<()> {
+pub fn hold_papeliz_desktop_window_minimum_size_to_its_page(papeliz_window: &tauri::WebviewWindow) -> tauri::Result<()> {
     #[cfg(target_os = "windows")]
     {
-        let main_window_hwnd = main_window.hwnd()?;
-        let main_window_hwnd_value = main_window_hwnd.0 as isize;
+        let papeliz_window_hwnd = papeliz_window.hwnd()?;
+        let papeliz_window_hwnd_value = papeliz_window_hwnd.0 as isize;
         // A subclass is set from the thread that owns the window.
-        main_window.run_on_main_thread(move || {
+        papeliz_window.run_on_main_thread(move || {
             papeliz_desktop_window_minimum_track_size_answer::answer_papeliz_desktop_window_minimum_track_size(
-                windows::Win32::Foundation::HWND(main_window_hwnd_value as *mut core::ffi::c_void),
+                windows::Win32::Foundation::HWND(papeliz_window_hwnd_value as *mut core::ffi::c_void),
             );
         })?;
     }
     #[cfg(not(target_os = "windows"))]
-    let _ = main_window;
+    let _ = papeliz_window;
 
     Ok(())
 }
@@ -53,7 +53,7 @@ pub fn hold_papeliz_desktop_window_minimum_size_to_its_page(main_window: &tauri:
 #[cfg(target_os = "windows")]
 mod papeliz_desktop_window_minimum_track_size_answer {
     use super::{papeliz_desktop_minimum_window_track_size, PapelizDesktopWindowPixelSize};
-    use crate::{PAPELIZ_DESKTOP_MAIN_WINDOW_MINIMUM_INNER_HEIGHT, PAPELIZ_DESKTOP_MAIN_WINDOW_MINIMUM_INNER_WIDTH};
+    use crate::{PAPELIZ_DESKTOP_WINDOW_MINIMUM_INNER_HEIGHT, PAPELIZ_DESKTOP_WINDOW_MINIMUM_INNER_WIDTH};
     use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, POINT, RECT, WPARAM};
     use windows::Win32::UI::HiDpi::GetDpiForWindow;
     use windows::Win32::UI::Shell::{DefSubclassProc, RemoveWindowSubclass, SetWindowSubclass};
@@ -65,11 +65,11 @@ mod papeliz_desktop_window_minimum_track_size_answer {
     const PAPELIZ_DESKTOP_WINDOW_MINIMUM_SIZE_SUBCLASS_ID: usize = 0x5041_5045;
 
     /// Runs on the main thread.
-    pub(super) fn answer_papeliz_desktop_window_minimum_track_size(main_window_hwnd: HWND) {
+    pub(super) fn answer_papeliz_desktop_window_minimum_track_size(papeliz_window_hwnd: HWND) {
         // SAFETY: the window belongs to this thread, and the subclass is removed when it's destroyed.
         let _ = unsafe {
             SetWindowSubclass(
-                main_window_hwnd,
+                papeliz_window_hwnd,
                 Some(papeliz_desktop_window_minimum_size_subclass_procedure),
                 PAPELIZ_DESKTOP_WINDOW_MINIMUM_SIZE_SUBCLASS_ID,
                 0,
@@ -79,16 +79,16 @@ mod papeliz_desktop_window_minimum_track_size_answer {
 
     /// The borders around the page while the window is a normal, restored window. Maximized and
     /// minimized windows keep tao's answer: no drag happens then.
-    fn read_papeliz_desktop_window_border_size(main_window_hwnd: HWND) -> Option<PapelizDesktopWindowPixelSize> {
+    fn read_papeliz_desktop_window_border_size(papeliz_window_hwnd: HWND) -> Option<PapelizDesktopWindowPixelSize> {
         // SAFETY: plain Win32 reads of a window of this thread.
         unsafe {
-            if IsZoomed(main_window_hwnd).as_bool() || IsIconic(main_window_hwnd).as_bool() {
+            if IsZoomed(papeliz_window_hwnd).as_bool() || IsIconic(papeliz_window_hwnd).as_bool() {
                 return None;
             }
             let mut window_rect = RECT::default();
             let mut client_rect = RECT::default();
-            GetWindowRect(main_window_hwnd, &mut window_rect).ok()?;
-            GetClientRect(main_window_hwnd, &mut client_rect).ok()?;
+            GetWindowRect(papeliz_window_hwnd, &mut window_rect).ok()?;
+            GetClientRect(papeliz_window_hwnd, &mut client_rect).ok()?;
             Some(PapelizDesktopWindowPixelSize {
                 width: (window_rect.right - window_rect.left) - (client_rect.right - client_rect.left),
                 height: (window_rect.bottom - window_rect.top) - (client_rect.bottom - client_rect.top),
@@ -97,7 +97,7 @@ mod papeliz_desktop_window_minimum_track_size_answer {
     }
 
     unsafe extern "system" fn papeliz_desktop_window_minimum_size_subclass_procedure(
-        main_window_hwnd: HWND,
+        papeliz_window_hwnd: HWND,
         message: u32,
         wparam: WPARAM,
         lparam: LPARAM,
@@ -108,25 +108,25 @@ mod papeliz_desktop_window_minimum_track_size_answer {
             // SAFETY: removes this subclass from its own window before the window goes.
             unsafe {
                 let _ = RemoveWindowSubclass(
-                    main_window_hwnd,
+                    papeliz_window_hwnd,
                     Some(papeliz_desktop_window_minimum_size_subclass_procedure),
                     PAPELIZ_DESKTOP_WINDOW_MINIMUM_SIZE_SUBCLASS_ID,
                 );
-                return DefSubclassProc(main_window_hwnd, message, wparam, lparam);
+                return DefSubclassProc(papeliz_window_hwnd, message, wparam, lparam);
             }
         }
 
         // tao answers first; only its minimum is replaced afterwards.
         // SAFETY: passes the message on unchanged.
-        let tao_result = unsafe { DefSubclassProc(main_window_hwnd, message, wparam, lparam) };
+        let tao_result = unsafe { DefSubclassProc(papeliz_window_hwnd, message, wparam, lparam) };
         if message == WM_GETMINMAXINFO && lparam.0 != 0 {
-            if let Some(window_border_size) = read_papeliz_desktop_window_border_size(main_window_hwnd) {
+            if let Some(window_border_size) = read_papeliz_desktop_window_border_size(papeliz_window_hwnd) {
                 // SAFETY: plain Win32 read of a window of this thread.
-                let window_scale_factor = f64::from(unsafe { GetDpiForWindow(main_window_hwnd) }) / 96.0;
+                let window_scale_factor = f64::from(unsafe { GetDpiForWindow(papeliz_window_hwnd) }) / 96.0;
                 if window_scale_factor > 0.0 {
                     let minimum_window_track_size = papeliz_desktop_minimum_window_track_size(
-                        PAPELIZ_DESKTOP_MAIN_WINDOW_MINIMUM_INNER_WIDTH,
-                        PAPELIZ_DESKTOP_MAIN_WINDOW_MINIMUM_INNER_HEIGHT,
+                        PAPELIZ_DESKTOP_WINDOW_MINIMUM_INNER_WIDTH,
+                        PAPELIZ_DESKTOP_WINDOW_MINIMUM_INNER_HEIGHT,
                         window_scale_factor,
                         window_border_size,
                     );

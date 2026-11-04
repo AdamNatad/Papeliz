@@ -5,7 +5,6 @@
 // app/desktop and the web build never carries them.
 import { getVersion } from '@tauri-apps/api/app'
 import { invoke } from '@tauri-apps/api/core'
-import { listen } from '@tauri-apps/api/event'
 import { sep } from '@tauri-apps/api/path'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { copyFile, exists, mkdir, readDir, readFile, readTextFile, remove, rename, stat, writeFile, writeTextFile } from '@tauri-apps/plugin-fs'
@@ -40,6 +39,10 @@ const papelizDesktopRustCommandNames = {
   rememberVaultEncryptionKey: 'remember_papeliz_desktop_vault_encryption_key',
   readRememberedVaultEncryptionKey: 'read_remembered_papeliz_desktop_vault_encryption_key',
   forgetRememberedVaultEncryptionKey: 'forget_remembered_papeliz_desktop_vault_encryption_key',
+  openNewWindow: 'open_papeliz_desktop_new_window_from_page',
+  claimWindowVault: 'claim_papeliz_desktop_window_vault',
+  releaseWindowVault: 'release_papeliz_desktop_window_vault',
+  bringForwardWindowWithVault: 'bring_forward_papeliz_desktop_window_with_vault',
 } as const
 const papelizDesktopMaximizeButtonPointerStateEventName = 'papeliz-desktop-maximize-button-pointer-state'
 
@@ -190,28 +193,29 @@ function stopListeningLater(desktopListenerStart: Promise<() => void>): () => vo
 }
 
 function createPapelizTauriDesktopWindow(): PapelizDesktopWindow {
-  const papelizDesktopMainWindow = getCurrentWindow()
+  const papelizDesktopThisWindow = getCurrentWindow()
   return {
-    minimizeDesktopWindow: () => papelizDesktopMainWindow.minimize(),
-    toggleDesktopWindowMaximized: () => papelizDesktopMainWindow.toggleMaximize(),
-    isDesktopWindowMaximized: () => papelizDesktopMainWindow.isMaximized(),
+    minimizeDesktopWindow: () => papelizDesktopThisWindow.minimize(),
+    toggleDesktopWindowMaximized: () => papelizDesktopThisWindow.toggleMaximize(),
+    isDesktopWindowMaximized: () => papelizDesktopThisWindow.isMaximized(),
     subscribeToDesktopWindowMaximized(onDesktopWindowMaximizedChange) {
       let lastKnownDesktopWindowMaximized: boolean | null = null
       return stopListeningLater(
-        papelizDesktopMainWindow.onResized(async () => {
-          const isDesktopWindowMaximized = await papelizDesktopMainWindow.isMaximized()
+        papelizDesktopThisWindow.onResized(async () => {
+          const isDesktopWindowMaximized = await papelizDesktopThisWindow.isMaximized()
           if (isDesktopWindowMaximized === lastKnownDesktopWindowMaximized) return
           lastKnownDesktopWindowMaximized = isDesktopWindowMaximized
           onDesktopWindowMaximizedChange(isDesktopWindowMaximized)
         }),
       )
     },
-    startDesktopWindowDragging: () => papelizDesktopMainWindow.startDragging(),
+    startDesktopWindowDragging: () => papelizDesktopThisWindow.startDragging(),
     setDesktopMaximizeButtonBounds: (desktopMaximizeButtonBounds: PapelizDesktopMaximizeButtonBounds | null) =>
       invoke(papelizDesktopRustCommandNames.setMaximizeButtonBounds, { desktopMaximizeButtonBounds }),
     subscribeToDesktopMaximizeButtonPointerState(onDesktopMaximizeButtonPointerStateChange) {
       return stopListeningLater(
-        listen<PapelizDesktopMaximizeButtonPointerState>(papelizDesktopMaximizeButtonPointerStateEventName, (pointerStateEvent) =>
+        // This window's own events only: with several windows open, each one's button hears only itself.
+        papelizDesktopThisWindow.listen<PapelizDesktopMaximizeButtonPointerState>(papelizDesktopMaximizeButtonPointerStateEventName, (pointerStateEvent) =>
           onDesktopMaximizeButtonPointerStateChange(pointerStateEvent.payload),
         ),
       )
@@ -220,7 +224,7 @@ function createPapelizTauriDesktopWindow(): PapelizDesktopWindow {
     // couldn't be saved the handler throws, and the window stays open while the app says why.
     setDesktopWindowCloseRequestHandler(beforeDesktopWindowCloses) {
       return stopListeningLater(
-        papelizDesktopMainWindow.onCloseRequested(async (desktopWindowCloseRequest) => {
+        papelizDesktopThisWindow.onCloseRequested(async (desktopWindowCloseRequest) => {
           try {
             await beforeDesktopWindowCloses()
           } catch {
@@ -230,7 +234,12 @@ function createPapelizTauriDesktopWindow(): PapelizDesktopWindow {
       )
     },
     // The same request Alt+F4 makes, so the close request handler above runs first.
-    closeDesktopWindow: () => papelizDesktopMainWindow.close(),
+    closeDesktopWindow: () => papelizDesktopThisWindow.close(),
+    // The native side keeps which folder vault each window shows (papeliz_desktop_windows.rs).
+    openNewDesktopWindow: () => invoke<void>(papelizDesktopRustCommandNames.openNewWindow),
+    claimDesktopWindowVault: (papelizVaultId) => invoke<boolean>(papelizDesktopRustCommandNames.claimWindowVault, { papelizVaultId }),
+    releaseDesktopWindowVault: () => invoke<void>(papelizDesktopRustCommandNames.releaseWindowVault),
+    bringForwardDesktopWindowWithVault: (papelizVaultId) => invoke<boolean>(papelizDesktopRustCommandNames.bringForwardWindowWithVault, { papelizVaultId }),
   }
 }
 

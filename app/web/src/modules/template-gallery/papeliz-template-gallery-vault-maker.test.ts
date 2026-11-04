@@ -177,7 +177,8 @@ describe('template vault maker in Papeliz for Windows', () => {
         templateTestDesktopPlatform.nativelyRememberedDesktopVaultFolderPaths.push(desktopVaultFolderPath)
       },
     }
-    usePapelizDesktopPlatformStore.setState({ papelizDesktopPlatform: papelizDesktopPlatform as PapelizDesktopPlatform })
+    // One window: no other window ever shows the vault.
+    usePapelizDesktopPlatformStore.setState({ papelizDesktopPlatform: { ...papelizDesktopPlatform, desktopWindow: { bringForwardDesktopWindowWithVault: async () => false } } as unknown as PapelizDesktopPlatform })
     return templateTestDesktopPlatform
   }
 

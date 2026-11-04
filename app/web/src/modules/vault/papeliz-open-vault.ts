@@ -530,6 +530,12 @@ export async function openPapelizDesktopVaultFolderPath(
   const desktopVaultFolderAdapter = createPapelizDesktopFolderVaultAdapter(desktopVaultFolderPath, desktopFileSystem)
   const folderVaultOwnNameRead = await readPapelizFolderVaultOwnNameBeforeUnlock(desktopVaultFolderAdapter)
   const rememberedVaultFolder = await rememberDesktopVaultFolderPath(desktopVaultFolderPath, folderVaultOwnNameRead).catch(() => null)
+  // Papeliz for Windows shows a folder vault in one window only: when another window already shows this
+  // one, that window comes forward and nothing opens here, so two windows never write the same vault.
+  if (rememberedVaultFolder !== null) {
+    const isVaultShownInAnotherWindow = await papelizDesktopPlatform.desktopWindow.bringForwardDesktopWindowWithVault(rememberedVaultFolder.papelizVaultId).catch(() => false)
+    if (isVaultShownInAnotherWindow) return { openVaultOutcome: 'cancelled' }
+  }
   return {
     openVaultOutcome: 'opened',
     papelizOpenVault: {

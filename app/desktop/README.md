@@ -32,6 +32,15 @@ so the installer stays small.
   installing the regular installer again goes back. Never publish it: `desktop:build` always leaves
   DevTools out.
 
+## Windows
+
+Papeliz opens a window per vault, like a code editor. A second launch, the gear's New Window or
+Ctrl+Shift+N opens another window on the start screen. A vault already open in one window isn't opened
+in another: that window comes forward instead, so two windows never write the same vault. Each window has
+its own vault, tabs, title, size and place. Closing a window closes only it, after it saves its notes,
+and closing the last one quits. The next start opens one window on the start screen.
+`src/papeliz_desktop_windows.rs` keeps which vault each window shows.
+
 ## Updates
 
 The app checks for updates with Tauri's updater, which only installs an update signed with the
@@ -52,7 +61,7 @@ The Microsoft Store signs the MSIX itself when it accepts it.
 app/desktop/
 ├─ tauri.conf.json          the app: name, identifier, installer, updater
 ├─ Cargo.toml, build.rs     the Rust crate (papeliz-desktop)
-├─ src/                     the shell: the window, plugins, links opening in the system browser
+├─ src/                     the shell: the windows, plugins, links opening in the system browser
 ├─ capabilities/            what the page may ask of the shell
 ├─ icons/                   made from branding/logo/svg/papeliz-logo-scroll-spark-traced-app-tile.svg
 └─ msix/                    the Microsoft Store package's manifest and logos

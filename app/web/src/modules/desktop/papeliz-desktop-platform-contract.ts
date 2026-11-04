@@ -94,6 +94,17 @@ export interface PapelizDesktopWindow {
   // The bar's close button: asks Windows to close the window, the same way Alt+F4 does, so the handler
   // above runs first.
   closeDesktopWindow(): Promise<void>
+  // Papeliz for Windows opens several windows, one vault each. New Window (and Ctrl+Shift+N) opens
+  // another window on the start screen.
+  openNewDesktopWindow(): Promise<void>
+  // This window now shows that folder vault, by its id. False when another window already shows it:
+  // that window comes forward, and this one closes the vault again.
+  claimDesktopWindowVault(papelizVaultId: string): Promise<boolean>
+  // This window shows no folder vault now.
+  releaseDesktopWindowVault(): Promise<void>
+  // Before a vault opens: true when another window already shows it, which then comes forward, so
+  // nothing opens twice.
+  bringForwardDesktopWindowWithVault(papelizVaultId: string): Promise<boolean>
 }
 
 // A newer Papeliz for Windows, from the update check at start.

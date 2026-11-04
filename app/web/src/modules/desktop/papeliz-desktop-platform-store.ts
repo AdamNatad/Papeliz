@@ -19,6 +19,13 @@ export function loadPapelizDesktopPlatformOnce(): Promise<PapelizDesktopPlatform
     const papelizDesktopPlatform =
       desktopPlatformLoadResult.papelizDesktopPlatformAvailability === 'in-the-desktop-app' ? desktopPlatformLoadResult.papelizDesktopPlatform : null
     usePapelizDesktopPlatformStore.setState({ papelizDesktopPlatform })
+    // Each window tells the native side which folder vault it shows (papeliz-desktop-window-vault-claims.ts).
+    // Loaded here, after the workspace, which itself reads this store.
+    if (papelizDesktopPlatform !== null) {
+      void import('./papeliz-desktop-window-vault-claims').then((windowVaultClaimsModule) =>
+        windowVaultClaimsModule.startPapelizDesktopWindowVaultClaims(papelizDesktopPlatform),
+      )
+    }
     return papelizDesktopPlatform
   })
   return papelizDesktopPlatformLoad

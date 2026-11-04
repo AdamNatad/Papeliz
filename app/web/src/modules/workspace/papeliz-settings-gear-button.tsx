@@ -1,4 +1,4 @@
-import { Accessibility, ChevronLeft, ChevronRight, CircleArrowDown, FolderX, Lock, RefreshCw, Settings, User, WandSparkles, type LucideIcon } from 'lucide-react'
+import { Accessibility, AppWindow, ChevronLeft, ChevronRight, CircleArrowDown, FolderX, Lock, RefreshCw, Settings, User, WandSparkles, type LucideIcon } from 'lucide-react'
 import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import {
@@ -8,6 +8,8 @@ import {
   usePapelizReadyDesktopAppUpdateVersion,
 } from '../desktop/papeliz-desktop-app-update-parts'
 import { usePapelizDesktopAppUpdateStore } from '../desktop/papeliz-desktop-app-update-store'
+import { papelizDesktopNewWindowShortcutLabel } from '../desktop/papeliz-desktop-new-window-shortcut'
+import { usePapelizDesktopPlatformStore } from '../desktop/papeliz-desktop-platform-store'
 import { usePapelizAssistantPanelUiStore } from '../assistant/papeliz-assistant-panel-ui-store'
 import { takePapelizSyncPlanPickFromAddress, usePapelizSyncSettingsGearRequestStore } from '../sync/papeliz-sync-settings-gear-request-store'
 import { PapelizIconButton } from '../ui/papeliz-buttons'
@@ -44,7 +46,7 @@ const papelizSettingsGearPageChoices: Record<PapelizSettingsGearPage, { settings
 }
 
 // The list's groups, split by lines: Account | Sync, Settings | Accessibility, AI Provider (then, in
-// the workspace, Lock Now for an End-to-end vault and Close Vault). Export has its own button on the top bar. The start page has no vault, so no
+// the workspace, Lock Now for an End-to-end vault and Close Vault, under Papeliz for Windows' New Window on both). Export has its own button on the top bar. The start page has no vault, so no
 // Settings or AI Provider, and its Accessibility has only the theme.
 const papelizSettingsGearWorkspacePageGroups: ReadonlyArray<ReadonlyArray<PapelizSettingsGearPage>> = [
   ['account'],
@@ -103,6 +105,8 @@ export function PapelizSettingsGearButton({ settingsGearPlace }: PapelizSettings
   const isPapelizDesktopAppSelfUpdating = useIsPapelizDesktopAppSelfUpdating()
   const readyDesktopAppUpdateVersion = usePapelizReadyDesktopAppUpdateVersion()
   const installReadyDesktopAppUpdate = usePapelizDesktopAppUpdateStore((desktopAppUpdateState) => desktopAppUpdateState.installReadyDesktopAppUpdate)
+  // Papeliz for Windows only: New Window, in the start page's gear and the workspace's.
+  const papelizDesktopWindow = usePapelizDesktopPlatformStore((desktopPlatformState) => desktopPlatformState.papelizDesktopPlatform?.desktopWindow ?? null)
   const placeSettingsGearPageGroups = isWorkspaceSettingsGear ? papelizSettingsGearWorkspacePageGroups : papelizSettingsGearStartPagePageGroups
   const settingsGearPageGroups = isPapelizDesktopAppSelfUpdating ? addPapelizDesktopAppUpdatesPage(placeSettingsGearPageGroups) : placeSettingsGearPageGroups
   const isSettingsGearPanelOpen = settingsGearPanelAnchor !== null
@@ -244,10 +248,24 @@ export function PapelizSettingsGearButton({ settingsGearPlace }: PapelizSettings
           })}
         </div>
       ))}
-      {isWorkspaceSettingsGear && (
+      {(isWorkspaceSettingsGear || papelizDesktopWindow !== null) && (
         <>
           <div className="mt-auto flex flex-none flex-col gap-0.5 border-t border-papeliz-line pt-1.5">
-            {isOpenVaultEndToEnd && (
+            {papelizDesktopWindow !== null && (
+              <button
+                type="button"
+                title={`Open another Papeliz window, on the start page (${papelizDesktopNewWindowShortcutLabel})`}
+                onClick={() => {
+                  closeSettingsGearPanel()
+                  void papelizDesktopWindow.openNewDesktopWindow()
+                }}
+                className={papelizSettingsGearRowClassName}
+              >
+                <AppWindow className="size-4 flex-none text-papeliz-ink-muted" aria-hidden="true" />
+                <span className="min-w-0 flex-1 truncate">New Window</span>
+              </button>
+            )}
+            {isWorkspaceSettingsGear && isOpenVaultEndToEnd && (
               <button
                 type="button"
                 title={papelizLockEndToEndVaultNowTooltipText}
@@ -261,20 +279,22 @@ export function PapelizSettingsGearButton({ settingsGearPlace }: PapelizSettings
                 <span className="min-w-0 flex-1 truncate">{papelizLockEndToEndVaultNowLabel}</span>
               </button>
             )}
-            <button
-              type="button"
-              title="Close this vault and go back to the start page"
-              onClick={() => {
-                // Focus waits on the gear, so it comes back there when the question closes.
-                settingsGearButtonRef.current?.focus()
-                closeSettingsGearPanel()
-                setVaultCloseConfirmationShown(true)
-              }}
-              className={papelizSettingsGearRowClassName}
-            >
-              <FolderX className="size-4 flex-none text-papeliz-ink-muted" aria-hidden="true" />
-              <span className="min-w-0 flex-1 truncate">Close Vault</span>
-            </button>
+            {isWorkspaceSettingsGear && (
+              <button
+                type="button"
+                title="Close this vault and go back to the start page"
+                onClick={() => {
+                  // Focus waits on the gear, so it comes back there when the question closes.
+                  settingsGearButtonRef.current?.focus()
+                  closeSettingsGearPanel()
+                  setVaultCloseConfirmationShown(true)
+                }}
+                className={papelizSettingsGearRowClassName}
+              >
+                <FolderX className="size-4 flex-none text-papeliz-ink-muted" aria-hidden="true" />
+                <span className="min-w-0 flex-1 truncate">Close Vault</span>
+              </button>
+            )}
           </div>
         </>
       )}
@@ -319,7 +339,10 @@ export function PapelizSettingsGearButton({ settingsGearPlace }: PapelizSettings
               isSettingsGearSideBySide ? 'w-[474px]' : 'w-[min(360px,calc(100vw-16px))]',
             )}
             style={{
-              right: Math.max(8, settingsGearPanelAnchor.anchorRight),
+              // Under its button, but never past the window's left edge: in Papeliz for Windows the window
+              // buttons sit right of More, so at the narrowest window its right edge alone would push the
+              // panel off the left.
+              right: `max(8px, min(${settingsGearPanelAnchor.anchorRight}px, calc(100vw - ${isSettingsGearSideBySide ? '474px' : 'min(360px, 100vw - 16px)'} - 8px)))`,
               top: settingsGearPanelAnchor.anchorTop,
               height: `min(${papelizSettingsGearPanelHeightPixels}px, calc(100dvh - ${settingsGearPanelAnchor.anchorTop + 8}px))`,
             }}

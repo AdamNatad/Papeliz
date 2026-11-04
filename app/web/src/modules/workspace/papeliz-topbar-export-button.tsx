@@ -68,7 +68,9 @@ export function PapelizTopbarExportButton() {
             aria-label="Export"
             className="papeliz-pop-enter fixed z-50 flex w-[min(320px,calc(100vw-16px))] flex-col overflow-hidden rounded-2xl border border-papeliz-line bg-papeliz-surface text-papeliz-ink shadow-papeliz-pop"
             style={{
-              right: Math.max(8, topbarExportPanelAnchor.anchorRight),
+              // Under its button, but never past the window's left edge (Papeliz for Windows' window buttons
+              // sit right of More).
+              right: `max(8px, min(${topbarExportPanelAnchor.anchorRight}px, calc(100vw - min(320px, 100vw - 16px) - 8px)))`,
               top: topbarExportPanelAnchor.anchorTop,
               maxHeight: `min(${papelizTopbarExportPanelHeightPixels}px, calc(100dvh - ${topbarExportPanelAnchor.anchorTop + 8}px))`,
             }}
