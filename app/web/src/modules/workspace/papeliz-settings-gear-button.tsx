@@ -1,6 +1,6 @@
 import { Accessibility, AppWindow, ChevronLeft, ChevronRight, CircleArrowDown, FolderX, Lock, RefreshCw, Settings, User, WandSparkles, type LucideIcon } from 'lucide-react'
 import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
-import { createPortal } from 'react-dom'
+import { createPortal, flushSync } from 'react-dom'
 import {
   PapelizDesktopAppUpdateGearDot,
   PapelizDesktopAppUpdatesPage,
@@ -102,6 +102,11 @@ export function PapelizSettingsGearButton({ settingsGearPlace }: PapelizSettings
   const [isSettingsGearPageOpenOnPhone, setIsSettingsGearPageOpenOnPhone] = useState(false)
   const settingsGearPanelRef = useRef<HTMLDivElement>(null)
   const settingsGearButtonRef = useRef<HTMLButtonElement>(null)
+  // Esc puts focus back on the gear, and Edge shows the title of a button focused from a key as a
+  // tooltip that stays until focus moves on. So after Esc the gear has no title (its name stays
+  // Settings) until focus leaves it or the pointer comes back over it. A Tab onto it still shows the
+  // tooltip.
+  const [isSettingsGearTitleHeldBack, setIsSettingsGearTitleHeldBack] = useState(false)
   const isPapelizDesktopAppSelfUpdating = useIsPapelizDesktopAppSelfUpdating()
   const readyDesktopAppUpdateVersion = usePapelizReadyDesktopAppUpdateVersion()
   const installReadyDesktopAppUpdate = usePapelizDesktopAppUpdateStore((desktopAppUpdateState) => desktopAppUpdateState.installReadyDesktopAppUpdate)
@@ -172,6 +177,8 @@ export function PapelizSettingsGearButton({ settingsGearPlace }: PapelizSettings
       if (keyboardEvent.key !== 'Escape' || keyboardEvent.defaultPrevented) return
       // The workspace leaves focus mode on Esc too; this Esc only closes the panel.
       keyboardEvent.preventDefault()
+      // The title is gone before focus comes back, so Edge has none to show.
+      flushSync(() => setIsSettingsGearTitleHeldBack(true))
       setSettingsGearPanelAnchor(null)
       settingsGearButtonRef.current?.focus()
     }
@@ -311,8 +318,11 @@ export function PapelizSettingsGearButton({ settingsGearPlace }: PapelizSettings
       <PapelizTopbarFrostedSquareButton
         ref={settingsGearButtonRef}
         topbarFrostedSquareButtonLabel="Settings"
+        title={isSettingsGearTitleHeldBack ? undefined : 'Settings'}
         aria-haspopup="dialog"
         aria-expanded={isSettingsGearPanelOpen}
+        onBlur={() => setIsSettingsGearTitleHeldBack(false)}
+        onPointerEnter={() => setIsSettingsGearTitleHeldBack(false)}
         onClick={(clickEvent) => {
           if (isSettingsGearPanelOpen) {
             closeSettingsGearPanel()
