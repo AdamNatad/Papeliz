@@ -318,7 +318,7 @@ export const papelizHelpAssistantArticles: readonly PapelizHelpArticle[] = [
       ]),
       helpSection('Remove Metadata', [
         helpParagraph(
-          'Every picture has **Remove Metadata**, on by default. Before a picture is saved, it takes C2PA content credentials, EXIF (camera, date and location), XMP, IPTC, text chunks and comments out of the PNG, JPEG or WebP file, in your browser. The picture itself doesn’t change. Hover over the switch to see the list. Turn it off to keep a picture’s credentials.',
+          'Every picture has **Remove Metadata**, on by default. Before a picture is saved, it takes the picture’s metadata out, in your browser. The picture itself doesn’t change. Hover over the switch to see what that covers. Turn it off to keep the picture as it came.',
         ),
         helpNote('Pictures, prompts and audio go straight to your provider, and the microphone is used only while you record. See [[where-your-notes-live]].'),
       ]),

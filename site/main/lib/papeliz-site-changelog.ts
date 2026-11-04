@@ -21,7 +21,7 @@ export const papelizSiteChangelogEntries: PapelizSiteChangelogEntry[] = [
       'In the chat box, the microphone puts what you say into the message, and the picture button makes a picture of what you typed.',
       'The Imagine button in the assistant keeps every picture made or brought in, to make more, save them or put them in a note.',
       'Pictures work with the recommended provider, OpenAI, Google Gemini, OpenRouter and Together, and speech with those and Groq.',
-      'Remove C2PA, on by default, takes a picture’s content credentials and other hidden details out in your browser before it’s saved.',
+      'Remove Metadata, on by default, takes a picture’s metadata out in your browser before it’s saved.',
     ],
   },
   {

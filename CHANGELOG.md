@@ -19,8 +19,7 @@ from the plan to the launch. The website's Changelog page shows the same list.
   or put them in a note.
 - Pictures work with the recommended provider, OpenAI, Google Gemini, OpenRouter and Together, and
   speech with those and Groq.
-- Remove C2PA, on by default, takes a picture’s content credentials and other hidden details out in
-  your browser before it’s saved.
+- Remove Metadata, on by default, takes a picture’s metadata out in your browser before it’s saved.
 
 ## 2026-11-02 — Templates, imports, export settings, and a Free Sync plan
 
