@@ -14,6 +14,7 @@ import { usePapelizAssistantPanelUiStore } from '../assistant/papeliz-assistant-
 import { takePapelizSyncPlanPickFromAddress, usePapelizSyncSettingsGearRequestStore } from '../sync/papeliz-sync-settings-gear-request-store'
 import { PapelizIconButton } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
+import { givePapelizFocusBackWithTitleHeldBack } from '../ui/papeliz-focus-back-with-title-held-back'
 import { usePapelizMediaQuery } from '../ui/papeliz-media-query'
 import { subscribeToPapelizWindowWidthChange } from '../ui/papeliz-window-width-change'
 import {
@@ -177,10 +178,13 @@ export function PapelizSettingsGearButton({ settingsGearPlace }: PapelizSettings
       if (keyboardEvent.key !== 'Escape' || keyboardEvent.defaultPrevented) return
       // The workspace leaves focus mode on Esc too; this Esc only closes the panel.
       keyboardEvent.preventDefault()
-      // The title is gone before focus comes back, so Edge has none to show.
-      flushSync(() => setIsSettingsGearTitleHeldBack(true))
+      // Focus goes back to the gear, or to More while the gear is folded into it and has no box. The title
+      // is gone before focus comes back, so Edge has none to show: the gear's held in state, More's on it.
+      const settingsGearButtonElement = settingsGearButtonRef.current
+      const settingsGearFocusReturnElement = settingsGearButtonElement === null ? null : findPapelizTopbarPanelAnchorElement(settingsGearButtonElement)
+      if (settingsGearFocusReturnElement === settingsGearButtonElement) flushSync(() => setIsSettingsGearTitleHeldBack(true))
       setSettingsGearPanelAnchor(null)
-      settingsGearButtonRef.current?.focus()
+      if (settingsGearFocusReturnElement !== null) givePapelizFocusBackWithTitleHeldBack(settingsGearFocusReturnElement, () => settingsGearFocusReturnElement.focus())
     }
     document.addEventListener('pointerdown', closeOnOutsidePointer, true)
     document.addEventListener('keydown', closeOnEscape)

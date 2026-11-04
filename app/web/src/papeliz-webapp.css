@@ -709,7 +709,8 @@ label:has(> input[type='search']:focus-visible) {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  /* Below 640px the labels are hidden: each choice is a round 30px icon. */
+  /* Narrower below 640px; with its label hidden (the top bar's own step), each choice is then a round 30px
+     icon. */
   padding: 0 8px;
   border-radius: 9999px;
   font-size: 13px;
