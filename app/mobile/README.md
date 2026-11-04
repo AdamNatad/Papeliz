@@ -45,7 +45,8 @@ installs from that app when Android asks.
 
 Once a vault is open, the app draws its own layout, the same on Android and iOS:
 - **the blue top bar on every place:** the mark, Papeliz, and the note's or vault's name under it. On
-  Note it ends with MD Code | MD View and More (⋯), which holds Export and the note's menu.
+  Note it ends with the web's MD Code | MD View switch and More (⋯), which holds Export and the note's
+  menu. The switch's words fold to its icons only on a phone too narrow for them.
 - **the bottom bar:** Files, Note, Assistant and Settings.
 
 It lives in `papeliz-mobile-layout/` and reuses the web app's own panels. The web app gets it only

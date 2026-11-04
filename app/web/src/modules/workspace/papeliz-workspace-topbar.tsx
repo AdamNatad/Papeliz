@@ -111,7 +111,8 @@ function PapelizTopbarMoreButton() {
 // still named, with its tooltip.
 // A text file (JSON, `.gitignore`, a script) has only MD Code: while one is in front the switch shows
 // MD Code and MD View is greyed out, and the view picked for notes comes back on a note's tab.
-function PapelizNoteViewSwitch() {
+// The Android and iOS app's top bar shows this same switch, sized for a thumb.
+export function PapelizNoteViewSwitch() {
   const shownNoteViewMode = usePapelizWorkspaceStore(selectShownNoteViewMode)
   const isVaultTextFileTabInFront = usePapelizWorkspaceStore(selectIsVaultTextFileTabInFront)
   const setNoteViewMode = usePapelizWorkspaceStore((workspaceState) => workspaceState.setNoteViewMode)

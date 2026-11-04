@@ -54,37 +54,28 @@
   white-space: nowrap;
 }
 
-.papeliz-mobile-note-view-switch {
+/* The web's MD Code | MD View switch (its pill and motion are in papeliz-webapp.css), in its own words and
+   widths so both words fit a 360px phone, and larger for a thumb: each choice is 36px tall to see (the
+   web's touch-screen rule widens what takes a tap to 50px), and at least 44px wide when only its icon shows. */
+.papeliz-mobile-top-bar .papeliz-note-view-switch {
   flex: none;
-  display: flex;
-  gap: 2px;
-  padding: 3px;
-  border-radius: 12px;
-  background: rgb(255 255 255 / 0.16);
 }
 
-.papeliz-mobile-note-view-switch button,
+.papeliz-mobile-top-bar .papeliz-note-view-switch-option {
+  min-width: 44px;
+  height: 36px;
+}
+
 .papeliz-mobile-top-bar-button {
+  flex: none;
   display: grid;
   place-items: center;
-  width: 40px;
-  height: 34px;
+  width: 44px;
+  height: 44px;
   border: 0;
-  border-radius: 9px;
+  border-radius: 12px;
   background: none;
   color: rgb(255 255 255 / 0.88);
-}
-
-.papeliz-mobile-note-view-switch button[aria-pressed='true'] {
-  background: #fff;
-  color: var(--color-papeliz-topbar);
-}
-
-.papeliz-mobile-top-bar-button {
-  flex: none;
-  width: 42px;
-  height: 42px;
-  border-radius: 12px;
 }
 
 .papeliz-mobile-top-bar-button[aria-pressed='true'] {
@@ -92,7 +83,6 @@
   color: #fff;
 }
 
-.papeliz-mobile-note-view-switch svg,
 .papeliz-mobile-top-bar-button svg {
   width: 20px;
   height: 20px;

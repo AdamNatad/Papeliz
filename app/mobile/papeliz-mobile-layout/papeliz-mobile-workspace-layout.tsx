@@ -1,5 +1,5 @@
-import { ChartNoAxesColumn, Code, Eye, FileText, FolderTree, History, Settings, SquarePen, WandSparkles } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { ChartNoAxesColumn, FileText, FolderTree, History, Settings, SquarePen, WandSparkles } from 'lucide-react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { usePapelizAssistantConversationStore } from '../../web/src/modules/assistant/papeliz-assistant-conversation-store'
 import { PapelizAssistantPanel } from '../../web/src/modules/assistant/papeliz-assistant-panel'
 import { usePapelizAssistantPanelUiStore } from '../../web/src/modules/assistant/papeliz-assistant-panel-ui-store'
@@ -12,7 +12,8 @@ import { PapelizFileExplorer } from '../../web/src/modules/workspace/papeliz-fil
 import { PapelizFileListThisNoteSection } from '../../web/src/modules/workspace/papeliz-file-list-this-note-section'
 import { PapelizNoteArea } from '../../web/src/modules/workspace/papeliz-note-area'
 import { PapelizNoteTabsBar } from '../../web/src/modules/workspace/papeliz-note-tabs-bar'
-import { selectShownNoteViewMode, usePapelizWorkspaceStore } from '../../web/src/modules/workspace/papeliz-workspace-store'
+import { usePapelizWorkspaceStore } from '../../web/src/modules/workspace/papeliz-workspace-store'
+import { PapelizNoteViewSwitch, type papelizTopbarGiveWayAttributeNames } from '../../web/src/modules/workspace/papeliz-workspace-topbar'
 import { usePapelizMobileBackStep, usePapelizMobileModalDialogBackStep } from './papeliz-mobile-back-steps'
 import { PapelizMobileNoteMoreMenu } from './papeliz-mobile-note-more-menu'
 import { PapelizMobileSettingsPlace } from './papeliz-mobile-settings-place'
@@ -27,6 +28,20 @@ const papelizMobileBottomBarPlaces: ReadonlyArray<{ mobilePlace: PapelizMobilePl
   { mobilePlace: 'assistant', mobilePlaceLabel: 'Assistant', MobilePlaceIcon: WandSparkles },
   { mobilePlace: 'settings', mobilePlaceLabel: 'Settings', MobilePlaceIcon: Settings },
 ]
+
+// The note's MD Code | MD View switch is the web's own (its sliding pill, timing and reduced motion), with
+// its words beside the icons. On a phone too narrow for both the words and the whole word Papeliz, the
+// words fold away through the web bar's own attribute for that, and each choice keeps its name for
+// screen readers. The top bar carries the web bar's group name so the switch reads that attribute.
+const papelizMobileTopBarSwitchWordsFoldedAttributeName: (typeof papelizTopbarGiveWayAttributeNames)[number] = 'data-papeliz-topbar-switch-labels-hidden'
+
+function foldPapelizMobileTopBarSwitchWordsWhenTight(mobileTopBarElement: HTMLElement): void {
+  mobileTopBarElement.removeAttribute(papelizMobileTopBarSwitchWordsFoldedAttributeName)
+  const mobileTopBarTitleElement = mobileTopBarElement.querySelector<HTMLElement>('.papeliz-mobile-top-bar-title')
+  if (mobileTopBarTitleElement !== null && mobileTopBarTitleElement.scrollWidth > mobileTopBarTitleElement.clientWidth + 0.5) {
+    mobileTopBarElement.setAttribute(papelizMobileTopBarSwitchWordsFoldedAttributeName, '')
+  }
+}
 
 // A phone app's page doesn't zoom: a pinch would zoom its bars along with the note. The note's own
 // text size (Settings, Accessibility) is the way to read larger.
@@ -75,8 +90,6 @@ export function PapelizMobileWorkspaceLayout({ noteEditorSessionCache, children 
   const [chosenMobilePlace, setChosenMobilePlace] = useState<PapelizMobilePlace>('note')
   const openVaultDisplayName = usePapelizWorkspaceStore((workspaceState) => workspaceState.openVault?.papelizVaultDisplayName ?? '')
   const activeVaultNoteRelativePath = usePapelizWorkspaceStore((workspaceState) => workspaceState.activeVaultNoteRelativePath)
-  const shownNoteViewMode = usePapelizWorkspaceStore(selectShownNoteViewMode)
-  const setNoteViewMode = usePapelizWorkspaceStore((workspaceState) => workspaceState.setNoteViewMode)
   const setVaultCloseConfirmationShown = usePapelizWorkspaceStore((workspaceState) => workspaceState.setVaultCloseConfirmationShown)
   const isAssistantProposalPreviewShown = usePapelizWorkspaceStore((workspaceState) => workspaceState.assistantProposalPreview !== null)
   const openBrowserVaultId = usePapelizWorkspaceStore((workspaceState) =>
@@ -106,10 +119,38 @@ export function PapelizMobileWorkspaceLayout({ noteEditorSessionCache, children 
   )
 
   const mobileTopBarSubtitle = chosenMobilePlace === 'note' && activeVaultNoteRelativePath !== null ? getVaultNoteTitle(activeVaultNoteRelativePath) : openVaultDisplayName
+  const isNoteViewSwitchShown = chosenMobilePlace === 'note' && activeVaultNoteRelativePath !== null
+
+  // Measured before the bar is painted, again when its width changes (the phone turned, or the app shown
+  // beside another), and once the fonts have loaded, since the words' widths change with them.
+  const mobileTopBarRef = useRef<HTMLElement>(null)
+  useLayoutEffect(() => {
+    const mobileTopBarElement = mobileTopBarRef.current
+    if (mobileTopBarElement === null || !isNoteViewSwitchShown) return
+    foldPapelizMobileTopBarSwitchWordsWhenTight(mobileTopBarElement)
+    let measuredMobileTopBarWidth = mobileTopBarElement.clientWidth
+    let mobileTopBarRefitFrame = 0
+    const mobileTopBarResizeObserver = new ResizeObserver(() => {
+      if (mobileTopBarElement.clientWidth === measuredMobileTopBarWidth) return
+      measuredMobileTopBarWidth = mobileTopBarElement.clientWidth
+      cancelAnimationFrame(mobileTopBarRefitFrame)
+      mobileTopBarRefitFrame = requestAnimationFrame(() => foldPapelizMobileTopBarSwitchWordsWhenTight(mobileTopBarElement))
+    })
+    mobileTopBarResizeObserver.observe(mobileTopBarElement)
+    let isMobileTopBarSwitchGone = false
+    void document.fonts?.ready.then(() => {
+      if (!isMobileTopBarSwitchGone) foldPapelizMobileTopBarSwitchWordsWhenTight(mobileTopBarElement)
+    })
+    return () => {
+      isMobileTopBarSwitchGone = true
+      cancelAnimationFrame(mobileTopBarRefitFrame)
+      mobileTopBarResizeObserver.disconnect()
+    }
+  }, [isNoteViewSwitchShown])
 
   return (
     <div className="papeliz-mobile-workspace">
-      <header className="papeliz-mobile-top-bar">
+      <header ref={mobileTopBarRef} className="papeliz-mobile-top-bar group/papeliz-topbar">
         <PapelizMark papelizMarkSize={30} papelizMarkTone="on-blue" />
         {chosenMobilePlace === 'files' ? (
           // On Files the vault's name is the way back to the start screen, through Close Vault.
@@ -123,16 +164,9 @@ export function PapelizMobileWorkspaceLayout({ noteEditorSessionCache, children 
             <small>{mobileTopBarSubtitle}</small>
           </span>
         )}
-        {chosenMobilePlace === 'note' && activeVaultNoteRelativePath !== null && (
+        {isNoteViewSwitchShown && (
           <>
-            <span role="group" aria-label="Note view" className="papeliz-mobile-note-view-switch">
-              <button type="button" aria-label="MD Code" aria-pressed={shownNoteViewMode === 'md-code'} onClick={() => setNoteViewMode('md-code')}>
-                <Code aria-hidden="true" />
-              </button>
-              <button type="button" aria-label="MD View" aria-pressed={shownNoteViewMode === 'md-view'} onClick={() => setNoteViewMode('md-view')}>
-                <Eye aria-hidden="true" />
-              </button>
-            </span>
+            <PapelizNoteViewSwitch />
             <PapelizMobileNoteMoreMenu vaultNoteRelativePath={activeVaultNoteRelativePath} onRenameInFileList={() => setChosenMobilePlace('files')} />
           </>
         )}
