@@ -3,6 +3,8 @@ import { isPapelizDesktopApp } from 'virtual:papeliz-desktop-platform-availabili
 import { useDeferredValue, useMemo, useState } from 'react'
 import { PapelizDesktopAppUpdateStatusBarLine } from '../desktop/papeliz-desktop-app-update-parts'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
+import { PapelizLoadingWords } from '../ui/papeliz-loading-dots'
+import { PapelizLoadingRing } from '../ui/papeliz-loading-ring'
 import { PapelizPopoverMenu, type PapelizPopoverMenuPosition } from '../ui/papeliz-popover-menu'
 import type { PapelizVaultKind } from '../vault/papeliz-vault-adapter'
 import { isPapelizEndToEndVaultAdapter } from '../vault/papeliz-vault-encryption'
@@ -226,21 +228,25 @@ export function PapelizStatusBar() {
         {isNoteReady && activeVaultNoteRelativePath !== null && (
           <>
             <span className="flex items-center gap-1.5">
-              <span
-                aria-hidden="true"
-                className={joinPapelizClassNames(
-                  'size-[7px] rounded-full',
-                  activeLoadedVaultNote.noteSaveState === 'saved' && 'bg-white/85',
-                  activeLoadedVaultNote.noteSaveState === 'unsaved' && 'bg-white/40',
-                  activeLoadedVaultNote.noteSaveState === 'saving' && 'papeliz-saving-dot bg-white',
-                  (activeLoadedVaultNote.noteSaveState === 'save-failed' || activeLoadedVaultNote.noteSaveState === 'save-conflict') && 'bg-red-300',
-                )}
-              />
+              {/* Saving shows the small ring; every other state its dot. */}
+              {activeLoadedVaultNote.noteSaveState === 'saving' ? (
+                <PapelizLoadingRing loadingRingTone="on-blue" className="papeliz-loading-ring-small" />
+              ) : (
+                <span
+                  aria-hidden="true"
+                  className={joinPapelizClassNames(
+                    'size-[7px] rounded-full',
+                    activeLoadedVaultNote.noteSaveState === 'saved' && 'bg-white/85',
+                    activeLoadedVaultNote.noteSaveState === 'unsaved' && 'bg-white/40',
+                    (activeLoadedVaultNote.noteSaveState === 'save-failed' || activeLoadedVaultNote.noteSaveState === 'save-conflict') && 'bg-red-300',
+                  )}
+                />
+              )}
               <span className={activeLoadedVaultNote.noteSaveState === 'save-failed' ? 'font-medium text-white' : undefined}>
-                {describeNoteSaveState(
-                  activeLoadedVaultNote.noteSaveState,
-                  openVaultKind,
-                  activeVaultNoteSaveConflict?.vaultNoteSaveConflictKind === 'deleted-elsewhere',
+                {activeLoadedVaultNote.noteSaveState === 'saving' ? (
+                  <PapelizLoadingWords loadingWords="Saving…" />
+                ) : (
+                  describeNoteSaveState(activeLoadedVaultNote.noteSaveState, openVaultKind, activeVaultNoteSaveConflict?.vaultNoteSaveConflictKind === 'deleted-elsewhere')
                 )}
               </span>
             </span>

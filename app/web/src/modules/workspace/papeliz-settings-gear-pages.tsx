@@ -1,5 +1,7 @@
-import { Lock, LockOpen, LoaderCircle, Maximize2, Monitor, Moon, RotateCcw, Sun, type LucideIcon } from 'lucide-react'
+import { Lock, LockOpen, Maximize2, Monitor, Moon, RotateCcw, Sun, type LucideIcon } from 'lucide-react'
 import { lazy, Suspense, useState, type ReactNode } from 'react'
+import { PapelizLoadingWords } from '../ui/papeliz-loading-dots'
+import { PapelizLoadingRing } from '../ui/papeliz-loading-ring'
 import { PapelizSlidingChoiceGroup } from '../ui/papeliz-sliding-choice-group'
 import { usePapelizThemeStore, type PapelizThemePreference } from '../ui/papeliz-theme'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
@@ -256,8 +258,8 @@ export function PapelizSettingsGearTeaserPage({ settingsGearTeaser }: { settings
     <Suspense
       fallback={
         <p role="status" className="flex items-center gap-2 py-2 text-[12.5px] text-papeliz-ink-subtle">
-          <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" />
-          Loading…
+          <PapelizLoadingRing />
+          <PapelizLoadingWords loadingWords="Loading…" />
         </p>
       }
     >

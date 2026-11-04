@@ -1,10 +1,12 @@
-import { Check, ChevronDown, ChevronRight, CircleAlert, CircleCheck, ExternalLink, Eye, EyeOff, LoaderCircle, Lock, PlugZap, RefreshCw, Search, X } from 'lucide-react'
+import { Check, ChevronDown, ChevronRight, CircleAlert, CircleCheck, ExternalLink, Eye, EyeOff, Lock, PlugZap, RefreshCw, Search, X } from 'lucide-react'
 import { Fragment, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { isPapelizDesktopApp } from 'virtual:papeliz-desktop-platform-availability'
 import { PapelizIconButton, PapelizPillButton } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { PapelizConfirmDialog } from '../ui/papeliz-confirm-dialog'
 import { measurePapelizListboxSelectRoom } from '../ui/papeliz-listbox-select'
+import { PapelizLoadingWords } from '../ui/papeliz-loading-dots'
+import { PapelizLoadingRing } from '../ui/papeliz-loading-ring'
 import {
   findPapelizAssistantModelPrice,
   formatPapelizAssistantModelPricePerMillionTokens,
@@ -63,10 +65,10 @@ function PapelizProviderCheckMessage({ providerCheckState }: { providerCheckStat
         (providerCheckState.providerCheckKind === 'running' || providerCheckState.providerCheckKind === 'waiting') && 'bg-papeliz-surface-gray text-papeliz-ink-muted',
       )}
     >
-      {providerCheckState.providerCheckKind === 'running' && <LoaderCircle className="mt-0.5 size-4 flex-none animate-spin" aria-hidden="true" />}
+      {providerCheckState.providerCheckKind === 'running' && <PapelizLoadingRing className="mt-[3px]" />}
       {providerCheckState.providerCheckKind === 'passed' && <CircleCheck className="mt-0.5 size-4 flex-none" aria-hidden="true" />}
       {providerCheckState.providerCheckKind === 'failed' && <CircleAlert className="mt-0.5 size-4 flex-none" aria-hidden="true" />}
-      <span>{providerCheckState.providerCheckKind === 'running' ? providerCheckState.providerCheckLabel : providerCheckState.providerCheckMessage}</span>
+      {providerCheckState.providerCheckKind === 'running' ? <PapelizLoadingWords loadingWords={providerCheckState.providerCheckLabel} /> : <span>{providerCheckState.providerCheckMessage}</span>}
     </p>
   )
 }
@@ -779,7 +781,7 @@ function PapelizAssistantProviderSettingsForm({
             onClick={testProviderConnection}
           >
             {providerCheckState.providerCheckKind === 'running' && providerCheckState.providerCheckSubject === 'connection-test' ? (
-              <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" />
+              <PapelizLoadingRing />
             ) : (
               <PlugZap className="size-3.5" aria-hidden="true" />
             )}

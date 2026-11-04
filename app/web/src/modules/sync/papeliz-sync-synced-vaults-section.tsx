@@ -1,6 +1,7 @@
-import { KeyRound, LoaderCircle, Lock, LockOpen, Trash2, TriangleAlert } from 'lucide-react'
+import { KeyRound, Lock, LockOpen, Trash2, TriangleAlert } from 'lucide-react'
 import { useState } from 'react'
 import { PapelizConfirmDialog } from '../ui/papeliz-confirm-dialog'
+import { PapelizLoadingRing } from '../ui/papeliz-loading-ring'
 import { usePapelizWorkspaceStore } from '../workspace/papeliz-workspace-store'
 import type { PapelizSyncAccountVaultReading, PapelizSyncActionOutcome, PapelizSyncEngine } from './papeliz-sync-engine-contract'
 import { openPapelizSyncSetUpDialog } from './papeliz-sync-flow-store'
@@ -222,7 +223,7 @@ export function PapelizSyncSyncedVaultsSection({
                   onClick={() => openAccountVaultDialog('delete', accountVault)}
                   className={`${papelizSyncVaultRowButtonClassName} hover:border-papeliz-diff-removed-ink/40 hover:bg-papeliz-diff-removed hover:text-papeliz-diff-removed-ink focus-visible:text-papeliz-diff-removed-ink`}
                 >
-                  {isAccountVaultDeleting ? <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" /> : <Trash2 className="size-3.5" aria-hidden="true" />}
+                  {isAccountVaultDeleting ? <PapelizLoadingRing /> : <Trash2 className="size-3.5" aria-hidden="true" />}
                 </button>
               </div>
             </div>

@@ -1,8 +1,9 @@
-import { AppWindow, Check, ChevronRight, Cloud, CloudCheck, CloudDownload, CloudOff, Ellipsis, FolderOpen, LoaderCircle, Lock, LockOpen, RefreshCw, RotateCcw, TriangleAlert, type LucideIcon } from 'lucide-react'
+import { AppWindow, Check, ChevronRight, Cloud, CloudCheck, CloudDownload, CloudOff, Ellipsis, FolderOpen, Lock, LockOpen, RefreshCw, RotateCcw, TriangleAlert, type LucideIcon } from 'lucide-react'
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { PapelizConfirmDialog } from '../ui/papeliz-confirm-dialog'
 import { usePapelizFooterEqualButtonWidthRef } from '../ui/papeliz-footer-equal-button-width'
+import { PapelizLoadingRing } from '../ui/papeliz-loading-ring'
 import { PapelizPopoverMenu, type PapelizPopoverMenuPosition } from '../ui/papeliz-popover-menu'
 import { createPapelizBrowserVault, openPapelizBrowserVault, pickFreePapelizBrowserVaultName, type PapelizBrowserVaultRecord } from '../vault/papeliz-browser-vaults'
 import type { PapelizOpenVault } from '../vault/papeliz-open-vault'
@@ -882,7 +883,7 @@ export function PapelizSyncSyncedVaultsPage({
               onClick={syncedVaultsPagePrimaryAction.onPrimaryActionSelect}
               className={joinPapelizClassNames(newVaultFormFooterButtonClassName, newVaultFormFooterActionButtonColorClassName)}
             >
-              {isSyncedVaultsPageActionRunning && <LoaderCircle className="size-[15px] flex-none animate-spin" aria-hidden="true" />}
+              {isSyncedVaultsPageActionRunning && <PapelizLoadingRing loadingRingTone="on-blue" />}
               {syncedVaultsPagePrimaryAction.primaryActionLabel}
             </button>
           )}

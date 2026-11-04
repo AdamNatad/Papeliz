@@ -1416,14 +1416,9 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
                   </div>
                 </div>
 
-                {/* The list and, while it reloads, a ring turning over it. */}
+                {/* The list and, while it reloads, the covering card over it. */}
                 <div className="relative flex min-h-0 flex-1 flex-col">
-                  {isRecentVaultListReloading && (
-                    <div role="status" className="papeliz-recent-vaults-reload-overlay">
-                      <span className="papeliz-recent-vaults-reload-ring" aria-hidden="true" />
-                      <span className="text-[12.5px] font-semibold text-papeliz-ink-muted">Reloading…</span>
-                    </div>
-                  )}
+                  {isRecentVaultListReloading && <PapelizLoadingCoverCard loadingWords="Reloading…" loadingCoverPlacement="over-pane" />}
                   {isVaultFolderWindowOpen && (
                     <div role="status" className="papeliz-recent-vaults-reload-overlay px-6 text-center">
                       <span className="grid size-11 place-items-center rounded-xl bg-papeliz-blue-soft text-papeliz-blue">

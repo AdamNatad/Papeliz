@@ -2,6 +2,9 @@ import { Lock, ShieldAlert } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { isPapelizDesktopApp } from 'virtual:papeliz-desktop-platform-availability'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
+import { usePapelizLoadingStartedAtMilliseconds } from '../ui/papeliz-loading-clock'
+import type { PapelizLoadingStep } from '../ui/papeliz-loading-progress-count'
+import { PapelizLoadingReadout } from '../ui/papeliz-loading-readout'
 import { describePapelizFailureCode } from '../vault/papeliz-failure-code-words'
 import {
   describePapelizVaultEncryptionFailureCode,
@@ -10,7 +13,6 @@ import {
   type PapelizVaultEncryptionKindChangeProgress,
 } from '../vault/papeliz-vault-encryption'
 import {
-  formatPapelizVaultFileCount,
   papelizEndToEndVaultAssistantLine,
   papelizEndToEndVaultBadgeWords,
   papelizRememberEndToEndVaultInBrowserLine,
@@ -60,8 +62,8 @@ export function readPapelizRememberEndToEndVaultLine(): string {
   return isPapelizDesktopApp ? papelizRememberEndToEndVaultInWindowsLine : papelizRememberEndToEndVaultInBrowserLine
 }
 
-// "Encrypting My Notes", "1,284 of 3,210 files" and the bar, while a change of kind rewrites the vault's
-// files. Before the count is known the bar waits empty.
+// "Encrypting My Notes" and the readout, while a change of kind rewrites the vault's files: counting the
+// files first, while the bar slides, then the files done, counted on the bar, with the steps open under it.
 export function PapelizVaultEncryptionChangeProgressBlock({
   papelizVaultDisplayName,
   vaultEncryptionKindChangeDirection,
@@ -73,32 +75,36 @@ export function PapelizVaultEncryptionChangeProgressBlock({
   vaultEncryptionKindChangeProgress: PapelizVaultEncryptionKindChangeProgress | null
   children?: ReactNode
 }) {
+  const vaultEncryptionChangeStartedAtMilliseconds = usePapelizLoadingStartedAtMilliseconds()
+  const vaultEncryptionChangeWord = vaultEncryptionKindChangeDirection === 'to-end-to-end' ? 'Encrypting' : 'Decrypting'
   const vaultEncryptionChangeFilesInAll = vaultEncryptionKindChangeProgress?.vaultEncryptionChangeFilesInAll ?? 0
   const vaultEncryptionChangeFilesDone = vaultEncryptionKindChangeProgress?.vaultEncryptionChangeFilesDone ?? 0
-  const vaultEncryptionChangePercent = vaultEncryptionChangeFilesInAll === 0 ? 0 : Math.floor((vaultEncryptionChangeFilesDone / vaultEncryptionChangeFilesInAll) * 100)
+  const vaultEncryptionChangeSteps: PapelizLoadingStep[] = [
+    { loadingStepLabel: 'Counting the files', loadingStepState: vaultEncryptionKindChangeProgress === null ? 'running' : 'done' },
+    {
+      loadingStepLabel: vaultEncryptionChangeWord,
+      loadingStepState:
+        vaultEncryptionKindChangeProgress === null
+          ? 'waiting'
+          : vaultEncryptionChangeFilesInAll > 0 && vaultEncryptionChangeFilesDone >= vaultEncryptionChangeFilesInAll
+            ? 'done'
+            : 'running',
+      loadingStepWeight: 9,
+      loadingStepDoneUnitCount: vaultEncryptionChangeFilesDone,
+      loadingStepUnitCount: vaultEncryptionChangeFilesInAll,
+      loadingStepUnitWord: vaultEncryptionChangeFilesInAll === 1 ? 'file' : 'files',
+    },
+  ]
   return (
-    <div role="status" className="flex flex-col gap-2">
+    <div role="status" aria-label={`${vaultEncryptionChangeWord} ${papelizVaultDisplayName}`} className="flex flex-col gap-2">
       <p className="text-[13.5px] font-semibold text-papeliz-ink">
-        {vaultEncryptionKindChangeDirection === 'to-end-to-end' ? 'Encrypting' : 'Decrypting'} {papelizVaultDisplayName}
+        {vaultEncryptionChangeWord} {papelizVaultDisplayName}
       </p>
-      <div className="flex items-center justify-between gap-3 text-[12.5px] text-papeliz-ink-muted tabular-nums">
-        <span>
-          {vaultEncryptionKindChangeProgress === null
-            ? 'Counting the files…'
-            : `${vaultEncryptionChangeFilesDone.toLocaleString('en-US')} of ${formatPapelizVaultFileCount(vaultEncryptionChangeFilesInAll)}`}
-        </span>
-        <span>{vaultEncryptionChangePercent}%</span>
-      </div>
-      <div
-        role="progressbar"
-        aria-label={`${vaultEncryptionKindChangeDirection === 'to-end-to-end' ? 'Encrypting' : 'Decrypting'} ${papelizVaultDisplayName}`}
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={vaultEncryptionChangePercent}
-        className="h-1.5 overflow-hidden rounded-full bg-papeliz-surface-gray"
-      >
-        <div className="h-full rounded-full bg-papeliz-blue transition-[width] duration-200 ease-out" style={{ width: `${vaultEncryptionChangePercent}%` }} />
-      </div>
+      <PapelizLoadingReadout
+        loadingWords={vaultEncryptionKindChangeProgress === null ? 'Counting the files' : vaultEncryptionChangeWord}
+        loadingSteps={vaultEncryptionChangeSteps}
+        loadingStartedAtMilliseconds={vaultEncryptionChangeStartedAtMilliseconds}
+      />
       {children}
     </div>
   )

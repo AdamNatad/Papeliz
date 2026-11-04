@@ -1,8 +1,9 @@
-import { History, LoaderCircle } from 'lucide-react'
+import { History } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { PapelizPillButton } from '../ui/papeliz-buttons'
 import { PapelizConfirmDialog } from '../ui/papeliz-confirm-dialog'
+import { PapelizLoadingRing } from '../ui/papeliz-loading-ring'
 import { getVaultNoteTitle } from '../vault/papeliz-vault-relative-paths'
 import type { PapelizSyncActionOutcome, PapelizSyncEngine, PapelizSyncFileVersionReading } from './papeliz-sync-engine-contract'
 import { usePapelizSyncClockTime } from './papeliz-sync-clock'
@@ -154,7 +155,7 @@ export function PapelizSyncOldVersionsDialog({ papelizSyncEngine, papelizVaultId
                         disabled={restoringSyncFileVersion !== null || isOldVersionDeleteRunning}
                         onClick={() => void restoreVersion(fileVersion.syncFileVersion)}
                       >
-                        {restoringSyncFileVersion === fileVersion.syncFileVersion && <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" />}
+                        {restoringSyncFileVersion === fileVersion.syncFileVersion && <PapelizLoadingRing />}
                         {restoredSyncFileVersion === fileVersion.syncFileVersion ? 'Restored' : 'Restore'}
                       </PapelizPillButton>
                     )}

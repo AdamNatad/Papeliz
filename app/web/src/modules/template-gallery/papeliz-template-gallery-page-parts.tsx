@@ -1,6 +1,7 @@
-import { ArrowBigDown, ArrowBigUp, Braces, ChevronDown, ChevronRight, CircleDashed, FileText, Folder, Image, LoaderCircle, RefreshCw, SquareTerminal, type LucideIcon } from 'lucide-react'
+import { ArrowBigDown, ArrowBigUp, Braces, ChevronDown, ChevronRight, CircleDashed, FileText, Folder, Image, RefreshCw, SquareTerminal, type LucideIcon } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
+import { PapelizLoadingRing } from '../ui/papeliz-loading-ring'
 import { PapelizSolidCircleCheckIcon, PapelizSolidCircleXIcon } from '../ui/papeliz-solid-circle-icons'
 import { describePapelizSyncFileCount, formatPapelizSyncByteSize } from '../sync/papeliz-sync-screen-words'
 import { isVaultJsonFileName } from '../vault/papeliz-vault-text-files'
@@ -607,7 +608,7 @@ export function PapelizTemplateGalleryCenteredStep({
     <div role={isTemplateGalleryStepWaiting ? 'status' : undefined} className="flex flex-1 flex-col items-center justify-center gap-1.5 px-4 py-8 text-center">
       <span className="grid size-11 place-items-center rounded-xl bg-papeliz-blue-soft text-papeliz-blue">
         {isTemplateGalleryStepWaiting || TemplateGalleryStepIcon === undefined ? (
-          <LoaderCircle className="size-5 animate-spin" aria-hidden="true" />
+          <PapelizLoadingRing />
         ) : (
           <TemplateGalleryStepIcon className="size-5" aria-hidden="true" />
         )}

@@ -1,7 +1,9 @@
-import { Check, CreditCard, Globe, LoaderCircle } from 'lucide-react'
+import { Check, CreditCard, Globe } from 'lucide-react'
 import { useEffect } from 'react'
 import { PapelizPillButton } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
+import { PapelizLoadingWords } from '../ui/papeliz-loading-dots'
+import { PapelizLoadingRing } from '../ui/papeliz-loading-ring'
 import type { PapelizSyncEngine, PapelizSyncEngineSnapshot } from './papeliz-sync-engine-contract'
 import {
   choosePapelizSyncStoragePlace,
@@ -73,8 +75,8 @@ export function PapelizSyncSubscribeDialog({ papelizSyncEngine, syncEngineSnapsh
               disabled={syncSubscribeStep.chosenSyncStoragePlace === null || isSigningIn}
               onClick={() => void continuePapelizSyncSubscribeToSignIn(papelizSyncEngine)}
             >
-              {isSigningIn && <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />}
-              {isSigningIn ? 'Waiting for sign-in…' : 'Continue to Sign In'}
+              {isSigningIn && <PapelizLoadingRing loadingRingTone="on-blue" />}
+              {isSigningIn ? <PapelizLoadingWords loadingWords="Waiting for sign-in…" /> : 'Continue to Sign In'}
             </PapelizPillButton>
           </>
         }
@@ -146,8 +148,8 @@ export function PapelizSyncSubscribeDialog({ papelizSyncEngine, syncEngineSnapsh
       </p>
       {isCheckingOut && (
         <p className="mt-3 flex items-center gap-2 text-[12px] text-papeliz-ink-subtle" role="status">
-          <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" />
-          Waiting for checkout to finish…
+          <PapelizLoadingRing />
+          <PapelizLoadingWords loadingWords="Waiting for checkout to finish…" />
         </p>
       )}
       {failureLine}

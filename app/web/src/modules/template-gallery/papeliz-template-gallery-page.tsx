@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactN
 import { isPapelizDesktopApp } from 'virtual:papeliz-desktop-platform-availability'
 import { PapelizIconButton, PapelizPillButton } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
+import { PapelizLoadingCoverCard } from '../ui/papeliz-loading-cover-card'
 import { PapelizSlidingChoiceGroup } from '../ui/papeliz-sliding-choice-group'
 import { pickFreePapelizBrowserVaultName, type PapelizBrowserVaultRecord } from '../vault/papeliz-browser-vaults'
 import { pickPapelizNewVaultParentFolder, type PapelizNewVaultParentFolder, type PapelizOpenVault } from '../vault/papeliz-open-vault'
@@ -521,7 +522,11 @@ function PapelizTemplateGalleryList({
       </PapelizTemplateGalleryCenteredStep>
     )
   } else if (isChosenTabFromServer && templateGallerySnapshotStage === 'loading') {
-    templateGalleryListBody = <PapelizTemplateGalleryCenteredStep isTemplateGalleryStepWaiting templateGalleryStepTitle="Reading Templates…" />
+    templateGalleryListBody = (
+      <div className="flex flex-1 flex-col justify-center">
+        <PapelizLoadingCoverCard loadingWords="Reading Templates…" loadingCoverPlacement="in-place" />
+      </div>
+    )
   } else if (isChosenTabFromServer && templateGallerySnapshotState.templateGallerySnapshotStage === 'offline') {
     templateGalleryListBody = (
       <PapelizTemplateGalleryCenteredStep TemplateGalleryStepIcon={WifiOff} templateGalleryStepTitle="Templates can’t be reached" templateGalleryStepText={templateGallerySnapshotState.templateGallerySnapshotProblemSentence}>

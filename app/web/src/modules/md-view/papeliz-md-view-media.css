@@ -35,14 +35,25 @@
   vertical-align: middle;
 }
 
-/* Until a vault file is read: a quiet space about one line high. */
+/* Until a vault file is read: a calm placeholder swept by the loading sheen (papeliz-webapp.css,
+   papeliz-loading-*), breathing instead with reduced motion. */
 .papeliz-md-view-article .papeliz-md-view-media-waiting,
 .papeliz-md-view .papeliz-md-view-media-waiting {
   display: inline-block;
   width: 96px;
-  height: 1.5em;
-  border-radius: 8px;
-  background: var(--color-papeliz-surface-soft);
+  height: 72px;
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 1px var(--color-papeliz-blue-line);
+  background-image: linear-gradient(
+    105deg,
+    var(--papeliz-loading-sheen-edge) 0%,
+    var(--papeliz-loading-sheen-middle) 38%,
+    var(--papeliz-loading-sheen-light) 50%,
+    var(--papeliz-loading-sheen-middle) 62%,
+    var(--papeliz-loading-sheen-edge) 100%
+  );
+  background-size: 220% 100%;
+  animation: papeliz-loading-sheen-sweep 1.8s linear infinite;
   vertical-align: middle;
 }
 
@@ -267,5 +278,11 @@
 @media (prefers-reduced-motion: reduce) {
   .papeliz-md-view .papeliz-md-view-picture-resize-handle {
     transition: none;
+  }
+
+  .papeliz-md-view-article .papeliz-md-view-media-waiting,
+  .papeliz-md-view .papeliz-md-view-media-waiting {
+    background-position: 50% 0;
+    animation: papeliz-loading-breathe 1.4s ease-in-out infinite !important;
   }
 }

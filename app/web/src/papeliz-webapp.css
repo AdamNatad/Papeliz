@@ -1530,13 +1530,25 @@ label:has(> input[type='search']:focus-visible) {
   margin: 6px 0 18px;
 }
 
+/* A diagram being drawn: its words with stepping dots in a dashed box the sheen sweeps
+   (papeliz-loading-* below), breathing instead with reduced motion. */
 .papeliz-mermaid-diagram .papeliz-mermaid-diagram-placeholder {
   margin: 0;
   padding: 28px 0;
-  border: 1px dashed var(--color-papeliz-line-strong);
+  border: 1.5px dashed var(--color-papeliz-blue-line);
   border-radius: 14px;
-  color: var(--color-papeliz-ink-subtle);
+  color: var(--color-papeliz-ink-muted);
   font-size: 14px;
+  background-image: linear-gradient(
+    105deg,
+    var(--papeliz-loading-sheen-edge) 0%,
+    var(--papeliz-loading-sheen-middle) 38%,
+    var(--papeliz-loading-sheen-light) 50%,
+    var(--papeliz-loading-sheen-middle) 62%,
+    var(--papeliz-loading-sheen-edge) 100%
+  );
+  background-size: 220% 100%;
+  animation: papeliz-loading-sheen-sweep 1.8s linear infinite;
 }
 
 .papeliz-mermaid-diagram.papeliz-mermaid-diagram-has-error {
@@ -2121,16 +2133,6 @@ label:has(> input[type='search']:focus-visible) {
   animation: papeliz-recent-vaults-reload-overlay-in 160ms ease-out both;
 }
 
-.papeliz-recent-vaults-reload-ring {
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  border: 3px solid color-mix(in srgb, var(--color-papeliz-ink) 14%, transparent);
-  border-top-color: var(--color-papeliz-blue);
-  box-shadow: 0 0 12px color-mix(in srgb, var(--color-papeliz-blue) 35%, transparent);
-  animation: papeliz-recent-vaults-reload-turn 800ms linear infinite;
-}
-
 @keyframes papeliz-recent-vaults-reload-turn {
   from {
     transform: rotate(0deg);
@@ -2531,6 +2533,13 @@ label:has(> input[type='search']:focus-visible) {
 .papeliz-loading-ring-on-blue {
   border-color: rgb(255 255 255 / 0.35);
   border-top-color: #fff;
+}
+
+/* The small ring, for a line as short as the status bar's. */
+.papeliz-loading-ring-small {
+  width: 10px;
+  height: 10px;
+  border-width: 1.5px;
 }
 
 /* The readout: the bar, and under it the pill; More info unfolds downward in 180 ms and folds back
@@ -3009,11 +3018,13 @@ label:has(> input[type='search']:focus-visible) {
   }
 
   .papeliz-loading-ring,
-  .papeliz-loading-sheen {
+  .papeliz-loading-sheen,
+  .papeliz-mermaid-diagram .papeliz-mermaid-diagram-placeholder {
     animation: papeliz-loading-breathe 1.4s ease-in-out infinite !important;
   }
 
-  .papeliz-loading-sheen {
+  .papeliz-loading-sheen,
+  .papeliz-mermaid-diagram .papeliz-mermaid-diagram-placeholder {
     background-position: 50% 0;
   }
 

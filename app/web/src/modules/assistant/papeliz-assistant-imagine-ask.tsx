@@ -15,6 +15,7 @@ import {
   PapelizImagineBoxSendButton,
   PapelizImagineBoxStopButton,
 } from './papeliz-assistant-imagine-box'
+import { PapelizAssistantReplyLoadingSteps } from './papeliz-assistant-chat-view'
 import { focusPapelizImagineBoxTextAtEnd } from './papeliz-assistant-imagine-draw'
 import { readPapelizImagineSectionLabel, usePapelizImagineSectionStore } from './papeliz-assistant-imagine-sections'
 import { usePapelizImagineStore } from './papeliz-assistant-imagine-store'
@@ -90,16 +91,8 @@ function PapelizImagineAskEntryView({ imagineAskEntry }: { imagineAskEntry: Pape
             <span className="min-w-0 truncate">{imagineAskEntry.askAnswerModelName}</span>
           </>
         )}
-        {imagineAskEntry.isAskAnswerStreaming && askAnswerParts.length > 0 && (
-          <span className="papeliz-saving-dot size-1.5 flex-none rounded-full bg-papeliz-blue motion-reduce:animate-none" aria-label="Writing" />
-        )}
       </div>
-      {askAnswerParts.length === 0 && imagineAskEntry.isAskAnswerStreaming && (
-        <p className="flex items-center gap-2 text-sm text-papeliz-ink-subtle">
-          <span className="papeliz-saving-dot size-1.5 flex-none rounded-full bg-papeliz-blue motion-reduce:animate-none" aria-label="Writing" />
-          Thinking…
-        </p>
-      )}
+      {imagineAskEntry.isAskAnswerStreaming && <PapelizAssistantReplyLoadingSteps isReplyWriting={askAnswerParts.length > 0} />}
       {askAnswerParts.map((askAnswerPart, askAnswerPartIndex) =>
         askAnswerPart.askAnswerPartKind === 'words' ? (
           <PapelizAssistantMessageMarkdown key={askAnswerPartIndex} assistantMessageText={askAnswerPart.askAnswerWordsText} />

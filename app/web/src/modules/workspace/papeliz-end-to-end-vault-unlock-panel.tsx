@@ -2,6 +2,9 @@ import { Lock, TriangleAlert } from 'lucide-react'
 import { useId, useState, type ReactNode } from 'react'
 import { PapelizSyncPassphraseField } from '../sync/papeliz-sync-passphrase-fields'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
+import { PapelizLoadingCoverCard } from '../ui/papeliz-loading-cover-card'
+import { PapelizLoadingWords } from '../ui/papeliz-loading-dots'
+import { PapelizLoadingRing } from '../ui/papeliz-loading-ring'
 import { usePapelizFooterEqualButtonWidthRef } from '../ui/papeliz-footer-equal-button-width'
 import type { PapelizOpenVault } from '../vault/papeliz-open-vault'
 import {
@@ -168,8 +171,11 @@ export function PapelizEndToEndVaultUnlockPanel({
           submitEvent.preventDefault()
           void unlockEndToEndVault()
         }}
-        className="flex min-h-0 flex-1 flex-col"
+        className="relative flex min-h-0 flex-1 flex-col"
       >
+        {endToEndVaultUnlockStage.endToEndVaultUnlockStageKind === 'unlocking' && (
+          <PapelizLoadingCoverCard loadingWords={`Unlocking ${papelizVaultDisplayName}`} loadingCoverPlacement="over-pane" />
+        )}
         <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-3 pt-2 pb-3">
           {endToEndVaultUnlockTopLine !== null && <p className="text-[12.5px] leading-snug text-papeliz-ink-muted">{endToEndVaultUnlockTopLine}</p>}
 
@@ -255,8 +261,14 @@ export function PapelizEndToEndVaultUnlockPanel({
             aria-describedby={endToEndVaultUnlockStage.endToEndVaultUnlockStageKind === 'wrong-passphrase' || endToEndVaultUnlockStage.endToEndVaultUnlockStageKind === 'failed' ? vaultPassphraseProblemId : undefined}
             className={joinPapelizClassNames(newVaultFormFooterButtonClassName, newVaultFormFooterActionButtonColorClassName)}
           >
-            <Lock className="size-3.5" aria-hidden="true" />
-            {endToEndVaultUnlockStage.endToEndVaultUnlockStageKind === 'unlocking' ? 'Unlocking…' : endToEndVaultUnlockStage.endToEndVaultUnlockStageKind === 'finishing-kind-change' ? 'Changing…' : 'Unlock'}
+            {isEndToEndVaultUnlockRunning ? <PapelizLoadingRing loadingRingTone="on-blue" /> : <Lock className="size-3.5" aria-hidden="true" />}
+            {endToEndVaultUnlockStage.endToEndVaultUnlockStageKind === 'unlocking' ? (
+              <PapelizLoadingWords loadingWords="Unlocking…" />
+            ) : endToEndVaultUnlockStage.endToEndVaultUnlockStageKind === 'finishing-kind-change' ? (
+              <PapelizLoadingWords loadingWords="Changing…" />
+            ) : (
+              'Unlock'
+            )}
           </button>
         </div>
       </form>

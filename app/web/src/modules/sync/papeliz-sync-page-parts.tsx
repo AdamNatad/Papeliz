@@ -1,7 +1,11 @@
-import { LoaderCircle, type LucideIcon } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { useEffect, useRef, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
+import { usePapelizLoadingStartedAtMilliseconds } from '../ui/papeliz-loading-clock'
+import { PapelizLoadingWords } from '../ui/papeliz-loading-dots'
+import { PapelizLoadingReadout } from '../ui/papeliz-loading-readout'
+import { PapelizLoadingRing } from '../ui/papeliz-loading-ring'
 
 // The small pieces the gear's Account and Sync pages and Sync's dialogs share, in the gear's look.
 
@@ -124,11 +128,12 @@ export function PapelizSyncPageNotice({ children, syncPageNoticeAction }: { chil
   )
 }
 
+// A wait in the gear's pages and Sync's dialogs: the small ring, and words whose "…" steps as dots.
 export function PapelizSyncLoadingLine({ children }: { children: ReactNode }) {
   return (
     <p role="status" className="flex items-center gap-2 py-2 text-[12.5px] text-papeliz-ink-subtle">
-      <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" />
-      {children}
+      <PapelizLoadingRing />
+      {typeof children === 'string' ? <PapelizLoadingWords loadingWords={children} /> : children}
     </p>
   )
 }
@@ -245,7 +250,37 @@ export function PapelizSyncDialogSteps({ syncDialogStepLabels, currentSyncDialog
   )
 }
 
-// How far a first upload, download or Connect has come.
+interface PapelizSyncTransferReadoutProps {
+  // What is moving: "Uploading", "Downloading", "Merging".
+  syncTransferWords: string
+  syncTransferredFileCount: number
+  syncTransferFileCount: number
+  className?: string
+}
+
+// A first upload, download or Connect while it runs: the bar fills file by file, with the readout and
+// its step open under it.
+export function PapelizSyncTransferReadout({ syncTransferWords, syncTransferredFileCount, syncTransferFileCount, className }: PapelizSyncTransferReadoutProps) {
+  const syncTransferStartedAtMilliseconds = usePapelizLoadingStartedAtMilliseconds()
+  return (
+    <PapelizLoadingReadout
+      className={className}
+      loadingWords={syncTransferWords}
+      loadingStartedAtMilliseconds={syncTransferStartedAtMilliseconds}
+      loadingSteps={[
+        {
+          loadingStepLabel: syncTransferWords,
+          loadingStepState: syncTransferFileCount > 0 && syncTransferredFileCount >= syncTransferFileCount ? 'done' : 'running',
+          loadingStepDoneUnitCount: syncTransferredFileCount,
+          loadingStepUnitCount: syncTransferFileCount,
+          loadingStepUnitWord: syncTransferFileCount === 1 ? 'file' : 'files',
+        },
+      ]}
+    />
+  )
+}
+
+// How far a first upload, download or Connect has come, and how much storage is used.
 export function PapelizSyncProgressBar({ syncProgressFraction, syncProgressLabel }: { syncProgressFraction: number; syncProgressLabel: string }) {
   const syncProgressPercent = Math.round(Math.min(1, Math.max(0, syncProgressFraction)) * 100)
   return (

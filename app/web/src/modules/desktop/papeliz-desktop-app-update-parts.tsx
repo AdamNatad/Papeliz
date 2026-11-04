@@ -1,7 +1,9 @@
 import { isPapelizDesktopApp } from 'virtual:papeliz-desktop-platform-availability'
-import { CircleArrowDown, LoaderCircle, RefreshCw, X } from 'lucide-react'
+import { CircleArrowDown, RefreshCw, X } from 'lucide-react'
 import { PapelizIconButton, PapelizPillButton } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
+import { PapelizLoadingWords } from '../ui/papeliz-loading-dots'
+import { PapelizLoadingRing } from '../ui/papeliz-loading-ring'
 import { usePapelizDesktopAppUpdateStore } from './papeliz-desktop-app-update-store'
 import { usePapelizDesktopPlatformStore } from './papeliz-desktop-platform-store'
 
@@ -48,8 +50,8 @@ function PapelizDesktopAppUpdateToastInDesktopApp() {
           : `Papeliz ${readyDesktopAppUpdateVersion} is ready.`}
       </span>
       <PapelizPillButton pillButtonVariant="line" pillButtonSize="small" disabled={isDesktopAppUpdateInstalling} onClick={() => void installReadyDesktopAppUpdate()}>
-        {isDesktopAppUpdateInstalling && <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" />}
-        {describeDesktopAppUpdateInstallLabel(isDesktopAppUpdateInstalling)}
+        {isDesktopAppUpdateInstalling && <PapelizLoadingRing />}
+        {isDesktopAppUpdateInstalling ? <PapelizLoadingWords loadingWords={describeDesktopAppUpdateInstallLabel(true)} /> : describeDesktopAppUpdateInstallLabel(false)}
       </PapelizPillButton>
       <PapelizIconButton iconButtonLabel="Dismiss" iconButtonSize="small" iconButtonTone="surface" onClick={closeDesktopAppUpdateToast}>
         <X className="size-[14px]" aria-hidden="true" />

@@ -1,7 +1,9 @@
-import { ExternalLink, Globe, Laptop, LoaderCircle, LogOut, MonitorSmartphone, Pencil, RefreshCw, Smartphone, User, type LucideIcon } from 'lucide-react'
+import { ExternalLink, Globe, Laptop, LogOut, MonitorSmartphone, Pencil, RefreshCw, Smartphone, User, type LucideIcon } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { PapelizPillButton } from '../ui/papeliz-buttons'
 import { PapelizConfirmDialog } from '../ui/papeliz-confirm-dialog'
+import { PapelizLoadingWords } from '../ui/papeliz-loading-dots'
+import { PapelizLoadingRing } from '../ui/papeliz-loading-ring'
 import { PapelizMark } from '../ui/papeliz-mark'
 import type {
   PapelizSyncAccountReading,
@@ -359,8 +361,8 @@ export function PapelizSyncAccountPage() {
           return (
             <PapelizSyncAccountCenteredState accountStateTitle="Finish in the new tab">
               <p className="mt-1 flex items-center gap-1.5 text-[12px] text-papeliz-ink-subtle" role="status">
-                <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" />
-                Waiting for sign-in…
+                <PapelizLoadingRing />
+                <PapelizLoadingWords loadingWords="Waiting for sign-in…" />
               </p>
               <PapelizPillButton pillButtonVariant="gray" className="mt-3.5 w-full" onClick={cancelPapelizSyncSignIn}>
                 Cancel

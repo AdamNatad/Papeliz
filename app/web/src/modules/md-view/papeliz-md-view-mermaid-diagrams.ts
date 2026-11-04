@@ -616,7 +616,10 @@ function drawMountedPapelizMermaidDiagram(diagramElement: HTMLElement): void {
   if (!diagramElement.hasChildNodes()) {
     const placeholderElement = document.createElement('p')
     placeholderElement.className = 'papeliz-mermaid-diagram-placeholder'
-    placeholderElement.textContent = 'Drawing the diagram…'
+    const placeholderDotsElement = document.createElement('span')
+    placeholderDotsElement.className = 'papeliz-loading-dots'
+    placeholderDotsElement.setAttribute('aria-hidden', 'true')
+    placeholderElement.replaceChildren('Drawing the diagram', placeholderDotsElement)
     diagramElement.replaceChildren(placeholderElement)
   }
   void drawPapelizMermaidDiagramSvg(mermaidDiagramSource, shownTheme).then((drawResult) => {

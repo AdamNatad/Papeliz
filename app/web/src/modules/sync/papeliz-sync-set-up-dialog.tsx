@@ -1,16 +1,16 @@
-import { CloudUpload, KeyRound, LoaderCircle, Lock, ShieldCheck, TriangleAlert, type LucideIcon } from 'lucide-react'
+import { CloudUpload, KeyRound, Lock, ShieldCheck, TriangleAlert, type LucideIcon } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { PapelizPillButton } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
+import { PapelizLoadingRing } from '../ui/papeliz-loading-ring'
 import { usePapelizBrowserStorageStore } from '../workspace/papeliz-browser-storage-store'
 import { usePapelizWorkspaceStore } from '../workspace/papeliz-workspace-store'
 import type { PapelizSyncActionOutcome, PapelizSyncEngine, PapelizSyncEngineSnapshot, PapelizSyncVaultEncryptionKind } from './papeliz-sync-engine-contract'
 import { closePapelizSyncSetUpDialog, describePapelizSyncSignInFromClickFailure, startPapelizSyncSignInFromClick, type PapelizSyncSetUpDialogRequest } from './papeliz-sync-flow-store'
 import { isPapelizSyncNewPassphraseReady, PapelizSyncNewPassphraseFields, PapelizSyncPassphraseField } from './papeliz-sync-passphrase-fields'
-import { PapelizSyncDialogFrame, PapelizSyncDialogSteps, PapelizSyncFailureLine, PapelizSyncLoadingLine, PapelizSyncProgressBar } from './papeliz-sync-page-parts'
+import { PapelizSyncDialogFrame, PapelizSyncDialogSteps, PapelizSyncFailureLine, PapelizSyncLoadingLine, PapelizSyncTransferReadout } from './papeliz-sync-page-parts'
 import {
   describePapelizSyncActionFailureNow,
-  describePapelizSyncFileCount,
   describePapelizSyncVaultPassphraseChangedElsewhere,
   papelizSyncVaultEncryptionKindDisplayNames,
   papelizSyncVaultEncryptionKindReaderLines,
@@ -151,7 +151,7 @@ export function PapelizSyncSetUpDialog({ papelizSyncEngine, syncEngineSnapshot, 
   const runningButtonContent = (buttonLabel: string): ReactNode =>
     isSetUpActionRunning ? (
       <>
-        <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
+        <PapelizLoadingRing loadingRingTone="on-blue" />
         {buttonLabel}
       </>
     ) : (
@@ -445,15 +445,11 @@ export function PapelizSyncSetUpDialog({ papelizSyncEngine, syncEngineSnapshot, 
           {syncVaultTransferProgress === null ? (
             <PapelizSyncLoadingLine>Getting ready…</PapelizSyncLoadingLine>
           ) : (
-            <>
-              <PapelizSyncProgressBar
-                syncProgressLabel="First upload"
-                syncProgressFraction={syncVaultTransferProgress.syncTransferFileCount === 0 ? 1 : syncVaultTransferProgress.syncTransferredFileCount / syncVaultTransferProgress.syncTransferFileCount}
-              />
-              <p className="mt-1.5 text-[12px] text-papeliz-ink-subtle tabular-nums" role="status">
-                {syncVaultTransferProgress.syncTransferredFileCount.toLocaleString('en-US')} of {describePapelizSyncFileCount(syncVaultTransferProgress.syncTransferFileCount)}
-              </p>
-            </>
+            <PapelizSyncTransferReadout
+              syncTransferWords="Uploading"
+              syncTransferredFileCount={syncVaultTransferProgress.syncTransferredFileCount}
+              syncTransferFileCount={syncVaultTransferProgress.syncTransferFileCount}
+            />
           )}
         </div>
       )}

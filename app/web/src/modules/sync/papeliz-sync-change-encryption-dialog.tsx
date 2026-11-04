@@ -1,11 +1,13 @@
-import { CircleCheck, LoaderCircle, RefreshCw, TriangleAlert } from 'lucide-react'
+import { CircleCheck, RefreshCw, TriangleAlert } from 'lucide-react'
 import { useState } from 'react'
 import { PapelizPillButton } from '../ui/papeliz-buttons'
+import { PapelizLoadingWords } from '../ui/papeliz-loading-dots'
+import { PapelizLoadingRing } from '../ui/papeliz-loading-ring'
 import type { PapelizSyncEngine, PapelizSyncEngineSnapshot, PapelizSyncVaultEncryptionChoice, PapelizSyncVaultEncryptionKind } from './papeliz-sync-engine-contract'
 import { closePapelizSyncSetUpDialog } from './papeliz-sync-flow-store'
 import { isPapelizSyncNewPassphraseReady, PapelizSyncNewPassphraseFields } from './papeliz-sync-passphrase-fields'
-import { PapelizSyncDialogFrame, PapelizSyncDialogSteps, PapelizSyncFailureLine, PapelizSyncProgressBar } from './papeliz-sync-page-parts'
-import { describePapelizSyncActionFailureNow, describePapelizSyncFileCount, papelizSyncVaultEncryptionKindDisplayNames, papelizSyncVaultPassphraseNotRecoverableLine } from './papeliz-sync-screen-words'
+import { PapelizSyncDialogFrame, PapelizSyncDialogSteps, PapelizSyncFailureLine, PapelizSyncTransferReadout } from './papeliz-sync-page-parts'
+import { describePapelizSyncActionFailureNow, papelizSyncVaultEncryptionKindDisplayNames, papelizSyncVaultPassphraseNotRecoverableLine } from './papeliz-sync-screen-words'
 import {
   changePapelizSyncVaultEncryption,
   readPapelizSyncVaultOtherEncryptionKind,
@@ -251,25 +253,23 @@ export function PapelizSyncChangeEncryptionDialog({
             {isSyncedCopyDeleted ? (
               <CircleCheck className="size-4 flex-none text-papeliz-ok" aria-hidden="true" />
             ) : (
-              <LoaderCircle className="size-4 flex-none animate-spin text-papeliz-blue" aria-hidden="true" />
+              <PapelizLoadingRing />
             )}
-            {isSyncedCopyDeleted ? 'Synced copy deleted' : 'Deleting the synced copy…'}
+            {isSyncedCopyDeleted ? 'Synced copy deleted' : <PapelizLoadingWords loadingWords="Deleting the synced copy…" />}
           </p>
           {isSyncedCopyDeleted && changeEncryptionRunState.changeEncryptionRunKind !== 'failed' && (
             <div>
-              <p className="flex items-center gap-2">
-                <LoaderCircle className="size-4 flex-none animate-spin text-papeliz-blue" aria-hidden="true" />
-                {syncVaultTransferProgress === null
-                  ? `Turning Sync on again, ${newSyncVaultEncryptionKindName}…`
-                  : `Uploading${isGoingEndToEnd ? ', locked with the passphrase' : ''} · ${syncVaultTransferProgress.syncTransferredFileCount.toLocaleString('en-US')} of ${describePapelizSyncFileCount(syncVaultTransferProgress.syncTransferFileCount)}`}
-              </p>
-              {syncVaultTransferProgress !== null && (
-                <div className="mt-2">
-                  <PapelizSyncProgressBar
-                    syncProgressLabel="Uploading again"
-                    syncProgressFraction={syncVaultTransferProgress.syncTransferFileCount === 0 ? 1 : syncVaultTransferProgress.syncTransferredFileCount / syncVaultTransferProgress.syncTransferFileCount}
-                  />
-                </div>
+              {syncVaultTransferProgress === null ? (
+                <p className="flex items-center gap-2">
+                  <PapelizLoadingRing />
+                  <PapelizLoadingWords loadingWords={`Turning Sync on again, ${newSyncVaultEncryptionKindName}…`} />
+                </p>
+              ) : (
+                <PapelizSyncTransferReadout
+                  syncTransferWords={`Uploading${isGoingEndToEnd ? ', locked with the passphrase' : ''}`}
+                  syncTransferredFileCount={syncVaultTransferProgress.syncTransferredFileCount}
+                  syncTransferFileCount={syncVaultTransferProgress.syncTransferFileCount}
+                />
               )}
             </div>
           )}

@@ -3,6 +3,9 @@ import { useId, useState } from 'react'
 import { PapelizSyncFailureLine, PapelizSyncLoadingLine } from '../sync/papeliz-sync-page-parts'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { usePapelizFooterEqualButtonWidthRef } from '../ui/papeliz-footer-equal-button-width'
+import { usePapelizLoadingStartedAtMilliseconds } from '../ui/papeliz-loading-clock'
+import type { PapelizLoadingStep } from '../ui/papeliz-loading-progress-count'
+import { PapelizLoadingReadout } from '../ui/papeliz-loading-readout'
 import { PapelizSolidCircleCheckIcon } from '../ui/papeliz-solid-circle-icons'
 import { newVaultFormFooterActionButtonColorClassName, newVaultFormFooterButtonClassName, newVaultFormFooterCancelButtonColorClassName, type PapelizNewVaultPlace } from '../workspace/papeliz-new-vault-form'
 import { describePapelizTemplateHiddenCharacter, splitPapelizTemplateTextAtHiddenCharacters } from './papeliz-template-gallery-checks'
@@ -19,6 +22,21 @@ import {
 
 // Use Template's own pages and lines: the commands a template names, to read before going on; how
 // reading and checking its files is going, at the top of New Vault's form; and the vault being made.
+
+// A template's files written, counted, then what opens once they are all written.
+function describeTemplateWritingSteps(areTemplateFilesWritten: boolean, templateWrittenFileCount: number, templateFileCount: number, openingStepLabel: string): PapelizLoadingStep[] {
+  return [
+    {
+      loadingStepLabel: 'Writing the files',
+      loadingStepState: areTemplateFilesWritten ? 'done' : 'running',
+      loadingStepWeight: 9,
+      loadingStepDoneUnitCount: templateWrittenFileCount,
+      loadingStepUnitCount: templateFileCount,
+      loadingStepUnitWord: templateFileCount === 1 ? 'file' : 'files',
+    },
+    { loadingStepLabel: openingStepLabel, loadingStepState: areTemplateFilesWritten ? 'running' : 'waiting' },
+  ]
+}
 
 // "Reading and checking the files… 12 of 40 files", while Use Template prepares.
 function PapelizTemplateUsePreparingLine({ templateUseState }: { templateUseState: Extract<PapelizTemplateUseState, { templateUseStage: 'preparing' }> }) {
@@ -343,9 +361,10 @@ interface PapelizTemplateGalleryVaultImportingPageProps {
 
 // The template's files being written into the vault's new folder, counted on a bar.
 export function PapelizTemplateGalleryVaultImportingPage({ templateGalleryPageHeadingId, templateGalleryRow, importingVaultDisplayName, templateUseState }: PapelizTemplateGalleryVaultImportingPageProps) {
+  const templateImportingStartedAtMilliseconds = usePapelizLoadingStartedAtMilliseconds()
   const templateWrittenFileCount = templateUseState.templateUseStage === 'importing-into-vault' ? templateUseState.templateWrittenFileCount : 0
   const templateFileCount = templateUseState.templateUseStage === 'importing-into-vault' ? templateUseState.templateFileCount : 0
-  const templateImportingPercent = templateFileCount === 0 ? 0 : Math.round((templateWrittenFileCount / templateFileCount) * 100)
+  const isTemplateImported = templateUseState.templateUseStage === 'imported-into-vault'
   return (
     <div className="papeliz-welcome-enter flex min-h-0 flex-1 flex-col">
       <div className="px-3 pt-[11px] pb-1">
@@ -356,22 +375,12 @@ export function PapelizTemplateGalleryVaultImportingPage({ templateGalleryPageHe
       </div>
       <div role="status" className="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-8 text-center">
         <PapelizTemplateGalleryThumbnail templateGalleryRow={templateGalleryRow} templateThumbnailSize="row" />
-        <p className="text-[14px] font-semibold">{templateUseState.templateUseStage === 'imported-into-vault' ? 'Opening its first note…' : 'Writing the files…'}</p>
-        <div
-          role="progressbar"
-          aria-label={`Importing “${templateGalleryRow.templateName}”`}
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={templateImportingPercent}
-          className="h-1.5 w-full max-w-[300px] overflow-hidden rounded-full bg-papeliz-surface-gray"
-        >
-          <div className="h-full rounded-full bg-papeliz-blue transition-[width] duration-300" style={{ width: `${templateImportingPercent}%` }} />
-        </div>
-        {templateFileCount > 0 && (
-          <p className="-mt-1 text-[12px] text-papeliz-ink-subtle tabular-nums">
-            {templateWrittenFileCount.toLocaleString('en-US')} of {describeTemplateGalleryFileCount(templateFileCount)}
-          </p>
-        )}
+        <PapelizLoadingReadout
+          className="max-w-[300px]"
+          loadingWords={isTemplateImported ? 'Opening its first note' : 'Writing the files'}
+          loadingStartedAtMilliseconds={templateImportingStartedAtMilliseconds}
+          loadingSteps={describeTemplateWritingSteps(isTemplateImported, templateWrittenFileCount, templateFileCount, 'Opening its first note')}
+        />
       </div>
     </div>
   )
@@ -388,10 +397,11 @@ interface PapelizTemplateGalleryVaultMakingPageProps {
 // The vault being made from a template: for a folder, where to look for the folder window while it's
 // open; then its files written, counted on a bar. The vault opens once it's made.
 export function PapelizTemplateGalleryVaultMakingPage({ templateGalleryPageHeadingId, templateGalleryRow, newVaultName, newVaultPlace, templateUseState }: PapelizTemplateGalleryVaultMakingPageProps) {
+  const templateVaultMakingStartedAtMilliseconds = usePapelizLoadingStartedAtMilliseconds()
   const templateWrittenFileCount = templateUseState.templateUseStage === 'making-vault' ? templateUseState.templateWrittenFileCount : 0
   const templateFileCount = templateUseState.templateUseStage === 'making-vault' ? templateUseState.templateFileCount : 0
   const isVaultFolderWindowOpen = newVaultPlace === 'folder-on-disk' && templateUseState.templateUseStage === 'picking-folder'
-  const templateVaultMakingPercent = templateFileCount === 0 ? 0 : Math.round((templateWrittenFileCount / templateFileCount) * 100)
+  const isTemplateVaultMade = templateUseState.templateUseStage === 'made'
   return (
     <div className="papeliz-welcome-enter flex min-h-0 flex-1 flex-col">
       <div className="px-3 pt-[11px] pb-1">
@@ -409,22 +419,12 @@ export function PapelizTemplateGalleryVaultMakingPage({ templateGalleryPageHeadi
       ) : (
         <div role="status" className="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-8 text-center">
           <PapelizTemplateGalleryThumbnail templateGalleryRow={templateGalleryRow} templateThumbnailSize="row" />
-          <p className="text-[14px] font-semibold">{templateUseState.templateUseStage === 'made' ? 'Opening the vault…' : 'Writing the files…'}</p>
-          <div
-            role="progressbar"
-            aria-label={`Making “${newVaultName}”`}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={templateVaultMakingPercent}
-            className="h-1.5 w-full max-w-[300px] overflow-hidden rounded-full bg-papeliz-surface-gray"
-          >
-            <div className="h-full rounded-full bg-papeliz-blue transition-[width] duration-300" style={{ width: `${templateVaultMakingPercent}%` }} />
-          </div>
-          {templateFileCount > 0 && (
-            <p className="-mt-1 text-[12px] text-papeliz-ink-subtle tabular-nums">
-              {templateWrittenFileCount.toLocaleString('en-US')} of {describeTemplateGalleryFileCount(templateFileCount)}
-            </p>
-          )}
+          <PapelizLoadingReadout
+            className="max-w-[300px]"
+            loadingWords={isTemplateVaultMade ? 'Opening the vault' : 'Writing the files'}
+            loadingStartedAtMilliseconds={templateVaultMakingStartedAtMilliseconds}
+            loadingSteps={describeTemplateWritingSteps(isTemplateVaultMade, templateWrittenFileCount, templateFileCount, 'Opening the vault')}
+          />
         </div>
       )}
     </div>

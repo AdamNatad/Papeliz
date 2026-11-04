@@ -40,6 +40,7 @@ import {
   PapelizSyncProgressBar,
   PapelizSyncSwitch,
   PapelizSyncTextButton,
+  PapelizSyncTransferReadout,
 } from './papeliz-sync-page-parts'
 import { PapelizSyncPlanOffersSection } from './papeliz-sync-plan-offers'
 import {
@@ -452,19 +453,17 @@ function PapelizSyncOnState({
         )}
         {openVaultSyncReading?.syncVaultTransferProgress != null && (
           <div className="px-3 py-2.5">
-            <PapelizSyncProgressBar
-              syncProgressLabel="First upload"
-              syncProgressFraction={
-                openVaultSyncReading.syncVaultTransferProgress.syncTransferFileCount === 0
-                  ? 1
-                  : openVaultSyncReading.syncVaultTransferProgress.syncTransferredFileCount / openVaultSyncReading.syncVaultTransferProgress.syncTransferFileCount
+            <PapelizSyncTransferReadout
+              syncTransferWords={
+                openVaultSyncReading.syncVaultTransferProgress.syncVaultTransferKind === 'first-upload'
+                  ? 'Uploading'
+                  : openVaultSyncReading.syncVaultTransferProgress.syncVaultTransferKind === 'first-download'
+                    ? 'Downloading'
+                    : 'Merging'
               }
+              syncTransferredFileCount={openVaultSyncReading.syncVaultTransferProgress.syncTransferredFileCount}
+              syncTransferFileCount={openVaultSyncReading.syncVaultTransferProgress.syncTransferFileCount}
             />
-            <PapelizSyncPageSmallText className="mt-1 tabular-nums">
-              {openVaultSyncReading.syncVaultTransferProgress.syncVaultTransferKind === 'first-upload' ? 'Uploading' : openVaultSyncReading.syncVaultTransferProgress.syncVaultTransferKind === 'first-download' ? 'Downloading' : 'Merging'}{' '}
-              {openVaultSyncReading.syncVaultTransferProgress.syncTransferredFileCount.toLocaleString('en-US')} of{' '}
-              {describePapelizSyncFileCount(openVaultSyncReading.syncVaultTransferProgress.syncTransferFileCount)}
-            </PapelizSyncPageSmallText>
           </div>
         )}
       </PapelizSyncPageBox>

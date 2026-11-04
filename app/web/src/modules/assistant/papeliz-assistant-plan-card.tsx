@@ -13,7 +13,6 @@ import {
   Hammer,
   Library,
   ListChecks,
-  LoaderCircle,
   Maximize2,
   MessageCircleQuestion,
   Minimize2,
@@ -28,6 +27,7 @@ import {
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode, type RefObject } from 'react'
 import { PapelizPillButton } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
+import { PapelizLoadingRing } from '../ui/papeliz-loading-ring'
 import { PapelizPopoverMenu, type PapelizPopoverMenuItem, type PapelizPopoverMenuPosition } from '../ui/papeliz-popover-menu'
 import { getVaultEntryName, getVaultEntryParentFolderRelativePath, getVaultNoteTitle, papelizVaultRootFolderRelativePath } from '../vault/papeliz-vault-relative-paths'
 import { readLatestPapelizVaultNoteText } from '../workspace/papeliz-vault-knowledge-store'
@@ -482,7 +482,7 @@ export function PapelizAssistantPlanCard({ planEntry, planCardPlacement }: Papel
       </span>
     ) : (
       <span className="ml-auto flex min-w-0 items-center gap-1.5 truncate text-[12.5px] font-medium text-papeliz-blue">
-        <LoaderCircle className="size-3.5 flex-none animate-spin motion-reduce:animate-none" aria-hidden="true" />
+        <PapelizLoadingRing />
         {activePlanStepNumber === null ? 'Building' : `Step ${activePlanStepNumber} of ${planStepCount}`}
       </span>
     )
@@ -644,7 +644,7 @@ export function PapelizAssistantPlanCard({ planEntry, planCardPlacement }: Papel
                   )}
                   {planStep.planStepStatus === 'running' ? (
                     <span className="grid size-5 place-items-center text-papeliz-blue">
-                      <LoaderCircle className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />
+                      <PapelizLoadingRing />
                     </span>
                   ) : planStep.planStepStatus === 'needs-review' ? (
                     <span className="grid size-5 place-items-center text-papeliz-warning-ink">
@@ -1026,7 +1026,7 @@ export function PapelizAssistantPlanBuildStrip({ chatScrollAreaRef }: { chatScro
       ) : activePlanStep?.planStepStatus === 'needs-review' ? (
         <Eye className="size-[15px] flex-none text-papeliz-warning-ink" aria-hidden="true" />
       ) : (
-        <LoaderCircle className="size-[15px] flex-none animate-spin text-papeliz-blue motion-reduce:animate-none" aria-hidden="true" />
+        <PapelizLoadingRing />
       )}
       <span className="min-w-0 flex-1 truncate">
         <b className="font-semibold text-papeliz-ink">{planTitle}</b> · {planBuildWhereText}
