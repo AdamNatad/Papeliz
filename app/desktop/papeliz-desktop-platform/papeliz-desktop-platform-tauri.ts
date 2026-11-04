@@ -243,6 +243,16 @@ function createPapelizTauriDesktopWindow(): PapelizDesktopWindow {
   }
 }
 
+// The version as people read it: a pre-release's `1.0.0-preview.1` reads "1.0.0 Preview 1". A version with
+// no pre-release part reads as it is. The web app only shows them; the updater compares the semver itself.
+function describePapelizDesktopAppVersionForPeople(desktopAppSemverVersion: string): string {
+  return desktopAppSemverVersion.replace(
+    /^(\d+\.\d+\.\d+)-([a-z]+)\.(\d+)$/,
+    (_desktopAppSemverVersion, desktopAppReleaseNumbers: string, desktopAppPreReleaseName: string, desktopAppPreReleaseNumber: string) =>
+      `${desktopAppReleaseNumbers} ${desktopAppPreReleaseName.charAt(0).toUpperCase()}${desktopAppPreReleaseName.slice(1)} ${desktopAppPreReleaseNumber}`,
+  )
+}
+
 async function checkForPapelizDesktopAppUpdate(desktopAppDistribution: PapelizDesktopAppDistribution): Promise<PapelizDesktopAppUpdate | null> {
   // The Store package has no updater: the Store updates it.
   if (desktopAppDistribution === 'microsoft-store') return null
@@ -250,7 +260,7 @@ async function checkForPapelizDesktopAppUpdate(desktopAppDistribution: PapelizDe
     const availableDesktopAppUpdate = await check()
     if (!availableDesktopAppUpdate) return null
     return {
-      desktopAppUpdateVersion: availableDesktopAppUpdate.version,
+      desktopAppUpdateVersion: describePapelizDesktopAppVersionForPeople(availableDesktopAppUpdate.version),
       // On Windows the installer closes Papeliz, installs, and starts it again.
       installDesktopAppUpdate: () => availableDesktopAppUpdate.downloadAndInstall(),
     }
@@ -260,12 +270,12 @@ async function checkForPapelizDesktopAppUpdate(desktopAppDistribution: PapelizDe
 }
 
 export async function loadPapelizDesktopPlatform(): Promise<PapelizDesktopPlatformLoadResult> {
-  const [desktopAppVersion, desktopAppDistribution] = await Promise.all([
+  const [desktopAppSemverVersion, desktopAppDistribution] = await Promise.all([
     getVersion(),
     invoke<PapelizDesktopAppDistribution>(papelizDesktopRustCommandNames.getAppDistribution),
   ])
   const papelizDesktopPlatform: PapelizDesktopPlatform = {
-    desktopAppVersion,
+    desktopAppVersion: describePapelizDesktopAppVersionForPeople(desktopAppSemverVersion),
     desktopAppDistribution,
     desktopFileSystem: papelizTauriDesktopFileSystem,
     pickDesktopFolderPath: (desktopFolderPickerTitle) =>

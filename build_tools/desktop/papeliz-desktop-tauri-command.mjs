@@ -100,8 +100,8 @@ runPapelizDesktopStep('pnpm', [
   ...tauriCommandOptions,
 ])
 
-// `Papeliz_0.1.0_x64-setup.exe` becomes `Papeliz_0.1.0_x64-recording-devtools-setup.exe`, replacing the
-// last recording build's, so it can't be taken for the release installer.
+// `Papeliz_1.0.0-preview.1_x64-setup.exe` becomes `Papeliz_1.0.0-preview.1_x64-recording-devtools-setup.exe`,
+// replacing the last recording build's, so it can't be taken for the release installer.
 if (isRecordingDevtoolsBuild) {
   for (const recordingDevtoolsInstallerName of readdirSync(recordingDevtoolsInstallerDirectory)) {
     if (!recordingDevtoolsInstallerName.endsWith('-setup.exe') || recordingDevtoolsInstallerName.endsWith('-recording-devtools-setup.exe')) continue
