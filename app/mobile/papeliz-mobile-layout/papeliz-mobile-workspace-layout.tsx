@@ -1,6 +1,8 @@
-import { Code, Eye, FileText, FolderTree, Settings, WandSparkles } from 'lucide-react'
+import { ChartNoAxesColumn, Code, Eye, FileText, FolderTree, History, Settings, SquarePen, WandSparkles } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { usePapelizAssistantConversationStore } from '../../web/src/modules/assistant/papeliz-assistant-conversation-store'
 import { PapelizAssistantPanel } from '../../web/src/modules/assistant/papeliz-assistant-panel'
+import { usePapelizAssistantPanelUiStore } from '../../web/src/modules/assistant/papeliz-assistant-panel-ui-store'
 import { PapelizAssistantProposalPreview } from '../../web/src/modules/assistant/papeliz-assistant-proposal-preview'
 import type { PapelizMobileWorkspaceLayoutProps } from '../../web/src/modules/mobile/papeliz-mobile-platform-contract'
 import { PapelizMark } from '../../web/src/modules/ui/papeliz-mark'
@@ -10,7 +12,7 @@ import { PapelizFileListThisNoteSection } from '../../web/src/modules/workspace/
 import { PapelizNoteArea } from '../../web/src/modules/workspace/papeliz-note-area'
 import { PapelizNoteTabsBar } from '../../web/src/modules/workspace/papeliz-note-tabs-bar'
 import { selectShownNoteViewMode, usePapelizWorkspaceStore } from '../../web/src/modules/workspace/papeliz-workspace-store'
-import { usePapelizMobileBackStep } from './papeliz-mobile-back-steps'
+import { usePapelizMobileBackStep, usePapelizMobileModalDialogBackStep } from './papeliz-mobile-back-steps'
 import { PapelizMobileNoteMoreMenu } from './papeliz-mobile-note-more-menu'
 import { PapelizMobileSettingsPlace } from './papeliz-mobile-settings-place'
 import './papeliz-mobile-workspace-layout.css'
@@ -32,6 +34,39 @@ function keepPapelizMobilePageUnzoomed(): void {
   viewportMetaElement?.setAttribute('content', 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover')
 }
 
+// On the Assistant the panel's own head moves up into the top bar: New Conversation, Sessions and Usage.
+// The bottom bar does what its Close did. Sessions and Usage open in place of the page and, pressed
+// again or with Back, go back to the conversation, as in the panel.
+function PapelizMobileAssistantTopBarButtons() {
+  const assistantPanelTab = usePapelizAssistantPanelUiStore((panelUiState) => panelUiState.assistantPanelTab)
+  const setAssistantPanelTab = usePapelizAssistantPanelUiStore((panelUiState) => panelUiState.setAssistantPanelTab)
+  const startNewAssistantChat = usePapelizAssistantConversationStore((conversationState) => conversationState.startNewAssistantChat)
+  const toggleAssistantPanelView = (assistantPanelView: 'sessions' | 'usage') => setAssistantPanelTab(assistantPanelTab === assistantPanelView ? 'chat' : assistantPanelView)
+  usePapelizMobileBackStep(assistantPanelTab === 'sessions' || assistantPanelTab === 'usage', () => setAssistantPanelTab('chat'))
+
+  return (
+    <>
+      <button
+        type="button"
+        className="papeliz-mobile-top-bar-button"
+        aria-label="New Conversation"
+        onClick={() => {
+          startNewAssistantChat()
+          setAssistantPanelTab('chat')
+        }}
+      >
+        <SquarePen aria-hidden="true" />
+      </button>
+      <button type="button" className="papeliz-mobile-top-bar-button" aria-label="Sessions" aria-pressed={assistantPanelTab === 'sessions'} onClick={() => toggleAssistantPanelView('sessions')}>
+        <History aria-hidden="true" />
+      </button>
+      <button type="button" className="papeliz-mobile-top-bar-button" aria-label="Usage" aria-pressed={assistantPanelTab === 'usage'} onClick={() => toggleAssistantPanelView('usage')}>
+        <ChartNoAxesColumn aria-hidden="true" />
+      </button>
+    </>
+  )
+}
+
 // The Android and iOS app's phone layout, drawn the same on both phones: the blue top bar with the mark,
 // Papeliz and where you are under it, one place at a time, and the bottom bar that moves between the
 // places. papeliz.com, its phone view included, never loads this file (virtual:papeliz-mobile-platform).
@@ -45,8 +80,10 @@ export function PapelizMobileWorkspaceLayout({ noteEditorSessionCache, children 
   const isAssistantProposalPreviewShown = usePapelizWorkspaceStore((workspaceState) => workspaceState.assistantProposalPreview !== null)
 
   useEffect(keepPapelizMobilePageUnzoomed, [])
-  // Back from Files, the Assistant or Settings goes to Note; Back on Note leaves the app.
+  // Back from Files, the Assistant or Settings goes to Note; Back on Note leaves the app. An open dialog
+  // closes first, wherever it opened.
   usePapelizMobileBackStep(chosenMobilePlace !== 'note', () => setChosenMobilePlace('note'))
+  usePapelizMobileModalDialogBackStep()
 
   // What the rest of the app asks for leads to its place: a note opened (from the file list, a link or
   // the Assistant) shows on Note, and the app's own requests to open the file list or the Assistant
@@ -95,6 +132,7 @@ export function PapelizMobileWorkspaceLayout({ noteEditorSessionCache, children 
             <PapelizMobileNoteMoreMenu vaultNoteRelativePath={activeVaultNoteRelativePath} onRenameInFileList={() => setChosenMobilePlace('files')} />
           </>
         )}
+        {chosenMobilePlace === 'assistant' && <PapelizMobileAssistantTopBarButtons />}
       </header>
 
       <main className="papeliz-mobile-place">

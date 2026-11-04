@@ -1,6 +1,8 @@
-import { Accessibility, ArrowLeft, ChevronRight, LogOut, Settings, WandSparkles } from 'lucide-react'
+import { Accessibility, ArrowLeft, ChevronRight, Lock, LogOut, Settings, WandSparkles } from 'lucide-react'
 import { lazy, Suspense, useState, type ReactNode } from 'react'
+import { isPapelizEndToEndVaultAdapter } from '../../web/src/modules/vault/papeliz-vault-encryption'
 import { PapelizSettingsGearAccessibilityPage, PapelizSettingsGearSettingsPage } from '../../web/src/modules/workspace/papeliz-settings-gear-pages'
+import { papelizLockEndToEndVaultNowLabel, papelizLockEndToEndVaultNowTooltipText } from '../../web/src/modules/workspace/papeliz-vault-encryption-screen-words'
 import { usePapelizWorkspaceStore } from '../../web/src/modules/workspace/papeliz-workspace-store'
 import { usePapelizMobileBackStep } from './papeliz-mobile-back-steps'
 
@@ -33,6 +35,8 @@ function renderPapelizMobileSettingsPage(mobileSettingsPage: PapelizMobileSettin
 export function PapelizMobileSettingsPlace() {
   const [openMobileSettingsPage, setOpenMobileSettingsPage] = useState<PapelizMobileSettingsPage | null>(null)
   const setVaultCloseConfirmationShown = usePapelizWorkspaceStore((workspaceState) => workspaceState.setVaultCloseConfirmationShown)
+  const lockOpenEndToEndVault = usePapelizWorkspaceStore((workspaceState) => workspaceState.lockOpenEndToEndVault)
+  const isOpenVaultEndToEnd = usePapelizWorkspaceStore((workspaceState) => workspaceState.openVault !== null && isPapelizEndToEndVaultAdapter(workspaceState.openVault.papelizVaultAdapter))
   // Back from one of the pages goes back to the list.
   usePapelizMobileBackStep(openMobileSettingsPage !== null, () => setOpenMobileSettingsPage(null))
 
@@ -66,6 +70,15 @@ export function PapelizMobileSettingsPlace() {
         ))}
       </div>
       <div className="papeliz-mobile-settings-group">
+        {/* An End-to-end vault can be locked at once, as from the web app's gear. */}
+        {isOpenVaultEndToEnd && (
+          <button type="button" className="papeliz-mobile-settings-row" title={papelizLockEndToEndVaultNowTooltipText} onClick={() => void lockOpenEndToEndVault()}>
+            <span className="papeliz-mobile-settings-row-icon">
+              <Lock aria-hidden="true" />
+            </span>
+            <span className="papeliz-mobile-settings-row-label">{papelizLockEndToEndVaultNowLabel}</span>
+          </button>
+        )}
         <button type="button" className="papeliz-mobile-settings-row" onClick={() => setVaultCloseConfirmationShown(true)}>
           <span className="papeliz-mobile-settings-row-icon">
             <LogOut aria-hidden="true" />

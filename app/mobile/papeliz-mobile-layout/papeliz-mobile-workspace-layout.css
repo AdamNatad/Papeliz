@@ -81,9 +81,15 @@
 }
 
 .papeliz-mobile-top-bar-button {
+  flex: none;
   width: 42px;
   height: 42px;
   border-radius: 12px;
+}
+
+.papeliz-mobile-top-bar-button[aria-pressed='true'] {
+  background: rgb(255 255 255 / 0.2);
+  color: #fff;
 }
 
 .papeliz-mobile-note-view-switch svg,
@@ -114,6 +120,17 @@
 .papeliz-mobile-assistant-place > * {
   min-height: 0;
   flex: 1;
+}
+
+/* The top bar already names the vault and holds the Assistant's buttons, so the panels' own heads don't
+   repeat them: the file list's band keeps New and Import without the vault's name, and the Assistant's
+   head row (its name, its buttons and Close) gives way to its Notes and Imagine tabs. */
+.papeliz-mobile-files-place > aside[aria-label='Files'] > :first-child > h2 {
+  display: none;
+}
+
+.papeliz-mobile-assistant-place > aside[aria-label='AI Assistant'] > :first-child:not([role='tablist']) {
+  display: none;
 }
 
 .papeliz-mobile-note-area {

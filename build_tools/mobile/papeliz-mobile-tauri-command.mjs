@@ -230,4 +230,6 @@ runPapelizMobileStep('pnpm', [
   ...tauriCommandOptions,
 ])
 
-if (tauriCommandName === 'build') signAndroidApkWithDebugKey(androidSdkDirectory)
+// A `--debug` build is already signed by Gradle and leaves the release APK as it was, so only a release
+// build is signed here; signing then would hand out the last release build's APK as if it were new.
+if (tauriCommandName === 'build' && !tauriCommandOptions.includes('--debug')) signAndroidApkWithDebugKey(androidSdkDirectory)

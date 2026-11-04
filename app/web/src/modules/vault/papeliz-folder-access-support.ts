@@ -1,3 +1,5 @@
+import { isPapelizMobileApp } from 'virtual:papeliz-mobile-platform-availability'
+
 // Whether this browser can open a folder on the disk as a vault, and if not, why. Detection checks
 // features, never the browser's name: the folder picker, the write API behind it, and whether the
 // page runs inside another site's frame, where browsers refuse to show the picker.
@@ -28,7 +30,8 @@ function isInsideAnotherSitesFrame(): boolean {
 }
 
 export function detectPapelizFolderAccessSupport(): PapelizFolderAccessSupport {
-  if (typeof window === 'undefined' || !window.isSecureContext || typeof window.showDirectoryPicker !== 'function') {
+  // The Android and iOS app's web view has the picker, but it closes at once there, so it counts as none.
+  if (isPapelizMobileApp || typeof window === 'undefined' || !window.isSecureContext || typeof window.showDirectoryPicker !== 'function') {
     return { isFolderAccessOn: false, folderAccessOffReason: 'unsupported' }
   }
   if (typeof FileSystemFileHandle === 'undefined' || typeof FileSystemFileHandle.prototype.createWritable !== 'function') {
