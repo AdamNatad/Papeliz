@@ -4,12 +4,12 @@
   </a>
 </p>
 
-<h1 align="center">Papeliz</h1>
-
-<p align="center"><strong>Making Notes Simple.</strong></p>
+<h1 align="center">Papeliz - Making Notes Simple.</h1>
 
 <p align="center">
-  The Markdown home for agentic work: plan, review and build with Muse Spark, by voice or by hand.
+  Papeliz is a Free, Open-Source Markdown Editor for building your Personal Knowledge Base, with a built-in AI
+  Assistant that works with your Preferred AI Provider, as well as the ability to create and import Workflow Templates
+  for Coding and AI Agents.
 </p>
 
 <p align="center">
@@ -79,6 +79,8 @@ Then try, in this order:
   writes its alt text with Muse Spark's vision.
 
 ## The problem, and who it's for
+
+Where coders plan with Muse Spark, review every change as a diff, and keep it all in plain Markdown files.
 
 **Software engineers and coders working with agentic workflows.** AI coding agents work from Markdown: agent
 instructions, plans, specs and task lists. That work needs a home where the person reads it, plans it and approves
