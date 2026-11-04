@@ -189,7 +189,7 @@
   font-weight: 400;
 }
 
-/* More (⋯): the open note's menu, hanging under the top bar's end. */
+/* More (the square menu): the open note's menu, hanging under the top bar's end. */
 .papeliz-mobile-menu-backdrop {
   position: fixed;
   inset: 0;

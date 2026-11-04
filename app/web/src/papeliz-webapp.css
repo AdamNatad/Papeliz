@@ -2101,6 +2101,7 @@ label:has(> input[type='search']:focus-visible) {
   *::before,
   *::after {
     transition-duration: 0s !important;
+    transition-delay: 0s !important;
     animation-duration: 0s !important;
   }
 }

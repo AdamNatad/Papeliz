@@ -1,4 +1,4 @@
-import { CopyPlus, Ellipsis, Lock, LockOpen, Pencil, Share, Trash2, X } from 'lucide-react'
+import { CopyPlus, Lock, LockOpen, Pencil, Share, SquareMenu, Trash2, X } from 'lucide-react'
 import { useState } from 'react'
 import { PapelizConfirmDialog } from '../../web/src/modules/ui/papeliz-confirm-dialog'
 import { getVaultNoteTitle } from '../../web/src/modules/vault/papeliz-vault-relative-paths'
@@ -13,8 +13,8 @@ interface PapelizMobileNoteMoreMenuProps {
   onRenameInFileList: () => void
 }
 
-// More (⋯) at the top bar's end, on Note: Export first, the web's own Export page in a sheet, then what
-// the file list's menu does to the open note.
+// More (the square menu) at the top bar's end, on Note: Export first, the web's own Export page in a
+// sheet, then what the file list's menu does to the open note.
 export function PapelizMobileNoteMoreMenu({ vaultNoteRelativePath, onRenameInFileList }: PapelizMobileNoteMoreMenuProps) {
   const [isMoreMenuOpen, setMoreMenuOpen] = useState(false)
   const [isExportSheetOpen, setExportSheetOpen] = useState(false)
@@ -49,7 +49,7 @@ export function PapelizMobileNoteMoreMenu({ vaultNoteRelativePath, onRenameInFil
         aria-expanded={isMoreMenuOpen}
         onClick={() => setMoreMenuOpen(!isMoreMenuOpen)}
       >
-        <Ellipsis aria-hidden="true" />
+        <SquareMenu aria-hidden="true" />
       </button>
 
       {/* Drawn inside the blue top bar, so what opens from it takes the page's own ink, not the bar's white. */}
