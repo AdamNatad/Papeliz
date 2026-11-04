@@ -30,13 +30,13 @@ import { describePapelizAssistantMediaProblem } from './papeliz-assistant-media-
 import { insertPapelizBlockAfterCursorLine } from './papeliz-assistant-media-vault-files'
 import { takePapelizPendingInlineMediaAction, type PapelizInlineMediaAction } from './papeliz-assistant-inline-media-request'
 import { getActivePapelizAssistantProviderConnection } from './papeliz-assistant-provider-settings-store'
-import { PapelizAssistantProviderError, streamPapelizChatCompletion, type PapelizAssistantProviderConnection } from './papeliz-openai-compatible-client'
+import { PapelizAssistantProviderError, streamPapelizChatCompletion } from './papeliz-openai-compatible-client'
 
 // The assistant's media actions in a note, beside Rewrite in the inline card, each with the person's
 // own provider:
 // - Imagine: a picture of the selected text, or of a prompt, put after it or at the cursor;
 // - Transcribe: speech, written up by the chat's model, put at the cursor;
-// - Describe Picture: a model that sees pictures (Models for Each Task, or the chat's) writes its alt text;
+// - Describe Picture: the chat's model looks at the picture and writes its alt text;
 // - Edit Picture: Draw's model changes the picture as asked, where its provider edits pictures (the
 //   Meta Model API's image edits), and the link points at the new one; the old file stays.
 // Each ends as a change shown in place, accepted or rejected like any inline edit: Accept saves a new
@@ -131,18 +131,6 @@ function widenInlinePassageToPictureLink(): PapelizNotePictureLink | null {
   inlineEditEditorView.dispatch({ effects: setPapelizInlineEditRangeEffect.of({ inlineEditFrom: notePictureLink.pictureLinkFrom, inlineEditTo: notePictureLink.pictureLinkTo }) })
   usePapelizInlineEditStore.setState({ selectedPassageText: notePictureLink.pictureLinkMarkdown })
   return { ...notePictureLink, pictureLinkFrom: 0, pictureLinkTo: notePictureLink.pictureLinkMarkdown.length }
-}
-
-// Describe Picture's model: the one chosen in Models for Each Task, or the chat's on Same as Chat.
-async function buildPictureDescriptionConnection(): Promise<
-  { providerConnectionOutcome: 'ready'; providerConnection: PapelizAssistantProviderConnection } | { providerConnectionOutcome: 'not-set-up'; providerSetupProblem: string }
-> {
-  const pictureDescriptionModel = await resolvePapelizAssistantMediaModelWhenLoaded('picture-description')
-  if (pictureDescriptionModel === null) return getActivePapelizAssistantProviderConnection()
-  const mediaConnection = buildPapelizAssistantMediaProviderConnection('picture-description', pictureDescriptionModel)
-  return mediaConnection.mediaConnectionOutcome === 'ready'
-    ? { providerConnectionOutcome: 'ready', providerConnection: mediaConnection.providerConnection }
-    : { providerConnectionOutcome: 'not-set-up', providerSetupProblem: mediaConnection.mediaSetupProblem }
 }
 
 export const usePapelizInlineMediaStore = create<PapelizInlineMediaState>()((setInlineMediaState, getInlineMediaState) => {
@@ -256,8 +244,8 @@ export const usePapelizInlineMediaStore = create<PapelizInlineMediaState>()((set
     describeInlinePicture: async () => {
       const { inlinePictureLink } = getInlineMediaState()
       if (inlinePictureLink === null) return
-      const pictureDescriptionConnection = await buildPictureDescriptionConnection()
-      if (getInlineMediaState().inlinePictureLink !== inlinePictureLink) return
+      // Describe Picture always uses the chat's model.
+      const pictureDescriptionConnection = getActivePapelizAssistantProviderConnection()
       if (pictureDescriptionConnection.providerConnectionOutcome !== 'ready') {
         failInlineMedia(new PapelizAssistantProviderError(pictureDescriptionConnection.providerSetupProblem, null))
         return

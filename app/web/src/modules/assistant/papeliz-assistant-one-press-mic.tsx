@@ -59,8 +59,8 @@ interface PapelizOnePressMicButtonProps {
   micButtonClassName?: string
 }
 
-// The mic's hover: how it works, which model transcribes (Models for Each Task's Transcribe, or what
-// Automatic uses now), and the browser's first question.
+// The mic's hover: how it works, which model transcribes (Transcribe's, in Models for Transcribe and
+// Draw, or what Automatic uses now), and the browser's first question.
 export function describePapelizOnePressMicTitle(transcriptionModelInUse: { providerModelName: string; providerDisplayName: string } | null): string {
   const transcriptionModelSentence =
     transcriptionModelInUse === null ? '' : ` Transcribes with ${transcriptionModelInUse.providerModelName}, on ${transcriptionModelInUse.providerDisplayName}.`

@@ -155,8 +155,8 @@ export function PapelizSettingsGearButton({ settingsGearPlace }: PapelizSettings
 
   useEffect(() => {
     if (!isSettingsGearPanelOpen) return
-    // A menu opened from the panel (a row of Models for Each Task) sits on the page, outside it: a press
-    // there is the panel's own.
+    // A menu opened from the panel (a row of Models for Transcribe and Draw) sits on the page, outside
+    // it: a press there is the panel's own.
     const closeOnOutsidePointer = (pointerEvent: PointerEvent) => {
       const pointerTarget = pointerEvent.target as Node
       const isPointerInOpenMenu = pointerTarget instanceof Element && pointerTarget.closest('[role="menu"]') !== null
@@ -282,6 +282,9 @@ export function PapelizSettingsGearButton({ settingsGearPlace }: PapelizSettings
   )
 
   const isPhonePageShown = !isSettingsGearSideBySide && isSettingsGearPageOpenOnPhone
+  // AI Provider fits the panel as a flex column: in a shorter window its providers' box shrinks before
+  // the page scrolls.
+  const settingsGearPageLayoutClassName = chosenSettingsGearPage === 'ai-assistant' ? 'flex flex-col' : undefined
 
   return (
     <>
@@ -324,7 +327,9 @@ export function PapelizSettingsGearButton({ settingsGearPlace }: PapelizSettings
             {isSettingsGearSideBySide ? (
               <>
                 <div className="flex w-[184px] flex-none flex-col overflow-y-auto border-r border-papeliz-line bg-papeliz-surface-soft p-2 papeliz-settings-gear-scroller">{settingsGearList}</div>
-                <div className="min-w-0 flex-1 overflow-y-auto overscroll-contain p-3.5 papeliz-settings-gear-scroller">{renderSettingsGearPage()}</div>
+                <div className={joinPapelizClassNames('min-w-0 flex-1 overflow-y-auto overscroll-contain p-3.5 papeliz-settings-gear-scroller', settingsGearPageLayoutClassName)}>
+                  {renderSettingsGearPage()}
+                </div>
               </>
             ) : isPhonePageShown ? (
               <div className="flex min-w-0 flex-1 flex-col">
@@ -334,7 +339,9 @@ export function PapelizSettingsGearButton({ settingsGearPlace }: PapelizSettings
                   </PapelizIconButton>
                   <p className="text-[14px] font-semibold">{papelizSettingsGearPageChoices[chosenSettingsGearPage].settingsGearPageLabel}</p>
                 </div>
-                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3.5 papeliz-settings-gear-scroller">{renderSettingsGearPage()}</div>
+                <div className={joinPapelizClassNames('min-h-0 flex-1 overflow-y-auto overscroll-contain p-3.5 papeliz-settings-gear-scroller', settingsGearPageLayoutClassName)}>
+                  {renderSettingsGearPage()}
+                </div>
               </div>
             ) : (
               <div className="min-w-0 flex-1 overflow-y-auto overscroll-contain p-2 papeliz-settings-gear-scroller">{settingsGearList}</div>

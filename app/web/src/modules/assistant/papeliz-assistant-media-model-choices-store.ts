@@ -1,11 +1,7 @@
 import { create } from 'zustand'
 import { readPapelizUserSetting, writePapelizUserSetting } from '../settings/papeliz-user-settings'
 import type { PapelizAssistantProviderConnection } from './papeliz-openai-compatible-client'
-import {
-  findPapelizAssistantImageGenerationPreset,
-  findPapelizAssistantPictureDescriptionPreset,
-  findPapelizAssistantTranscriptionPreset,
-} from './papeliz-assistant-media-provider-presets'
+import { findPapelizAssistantImageGenerationPreset, findPapelizAssistantTranscriptionPreset } from './papeliz-assistant-media-provider-presets'
 import { findPapelizAssistantProviderPreset } from './papeliz-assistant-provider-presets'
 import {
   buildPapelizAssistantProviderConnection,
@@ -15,15 +11,19 @@ import {
   type PapelizAssistantProviderSettingsRecord,
 } from './papeliz-assistant-provider-settings-store'
 
-// The models Draw, Transcribe and Describe Picture use, apart from the chat's model chip (Models for
-// Each Task, in Settings › AI Provider). Each lists the models of the providers the person has added
-// that can do the task (papeliz-assistant-media-provider-presets.ts), plus any model name the person
-// typed for one of them; the Meta Model API's come first. A task with nothing chosen is on Automatic:
-// Draw and Transcribe use the first model offered, and Describe Picture uses the chat's model ("Same as
-// Chat"). Edit Picture follows Draw. The picks are remembered on this device. No key is kept here: a
-// call uses the provider's own saved settings, so its key goes only to it.
+// The models Draw and Transcribe use, apart from the chat's model chip (Models for Transcribe and Draw,
+// in Settings › AI Provider). Each lists the models of the providers the person has added that can do
+// the task (papeliz-assistant-media-provider-presets.ts), plus any model name the person typed for one
+// of them; the Meta Model API's come first. A task with nothing chosen is on Automatic: it uses the
+// first model offered. Describe Picture has no model of its own: it always uses the chat's ("Same as
+// Chat"), and a model picked for it before is no longer read. Edit Picture follows Draw. The picks are
+// remembered on this device. No key is kept here: a call uses the provider's own saved settings, so its
+// key goes only to it.
 
 export type PapelizAssistantMediaKind = 'image-generation' | 'transcription' | 'picture-description'
+
+// The tasks whose model is picked; Describe Picture uses the chat's.
+export type PapelizAssistantPickedModelMediaKind = Exclude<PapelizAssistantMediaKind, 'picture-description'>
 
 export interface PapelizAssistantMediaModelChoice {
   papelizAssistantProviderId: string
@@ -40,24 +40,20 @@ interface PapelizAssistantMediaModelChoicesRecord {
   // Null is Automatic.
   chosenImageGenerationModel: PapelizAssistantMediaModelChoice | null
   chosenTranscriptionModel: PapelizAssistantMediaModelChoice | null
-  chosenPictureDescriptionModel: PapelizAssistantMediaModelChoice | null
   typedImageGenerationModels: PapelizAssistantMediaModelChoice[]
   typedTranscriptionModels: PapelizAssistantMediaModelChoice[]
-  typedPictureDescriptionModels: PapelizAssistantMediaModelChoice[]
 }
 
 // Each task's fields in the record.
 const papelizChosenMediaModelFieldNames = {
   'image-generation': 'chosenImageGenerationModel',
   transcription: 'chosenTranscriptionModel',
-  'picture-description': 'chosenPictureDescriptionModel',
-} as const satisfies Record<PapelizAssistantMediaKind, keyof PapelizAssistantMediaModelChoicesRecord>
+} as const satisfies Record<PapelizAssistantPickedModelMediaKind, keyof PapelizAssistantMediaModelChoicesRecord>
 
 const papelizTypedMediaModelsFieldNames = {
   'image-generation': 'typedImageGenerationModels',
   transcription: 'typedTranscriptionModels',
-  'picture-description': 'typedPictureDescriptionModels',
-} as const satisfies Record<PapelizAssistantMediaKind, keyof PapelizAssistantMediaModelChoicesRecord>
+} as const satisfies Record<PapelizAssistantPickedModelMediaKind, keyof PapelizAssistantMediaModelChoicesRecord>
 
 // Kept in this browser's settings store, beside the chat's model pick.
 export const papelizAssistantMediaModelChoicesSettingName = 'papelizAssistantMediaModelChoices'
@@ -65,35 +61,36 @@ export const papelizAssistantMediaModelChoicesSettingName = 'papelizAssistantMed
 const papelizEmptyMediaModelChoices: PapelizAssistantMediaModelChoicesRecord = {
   chosenImageGenerationModel: null,
   chosenTranscriptionModel: null,
-  chosenPictureDescriptionModel: null,
   typedImageGenerationModels: [],
   typedTranscriptionModels: [],
-  typedPictureDescriptionModels: [],
 }
 
 interface PapelizAssistantMediaModelChoicesState extends PapelizAssistantMediaModelChoicesRecord {
   mediaModelChoicesLoadState: 'not-loaded' | 'loading' | 'loaded'
   // Reads the saved picks once; every later call waits for that same read.
   loadAssistantMediaModelChoices: () => Promise<void>
-  chooseAssistantMediaModel: (assistantMediaKind: PapelizAssistantMediaKind, mediaModelChoice: PapelizAssistantMediaModelChoice) => Promise<void>
-  // Back to Automatic (Same as Chat, for Describe Picture).
-  chooseAssistantMediaModelAutomatically: (assistantMediaKind: PapelizAssistantMediaKind) => Promise<void>
+  chooseAssistantMediaModel: (assistantMediaKind: PapelizAssistantPickedModelMediaKind, mediaModelChoice: PapelizAssistantMediaModelChoice) => Promise<void>
+  // Back to Automatic.
+  chooseAssistantMediaModelAutomatically: (assistantMediaKind: PapelizAssistantPickedModelMediaKind) => Promise<void>
   // Adds a model name for one provider and picks it.
-  addTypedAssistantMediaModel: (assistantMediaKind: PapelizAssistantMediaKind, mediaModelChoice: PapelizAssistantMediaModelChoice) => Promise<void>
+  addTypedAssistantMediaModel: (assistantMediaKind: PapelizAssistantPickedModelMediaKind, mediaModelChoice: PapelizAssistantMediaModelChoice) => Promise<void>
 }
+
+// Describe Picture has no pick: nothing chosen, nothing typed.
+const papelizNoTypedPictureDescriptionModels: readonly PapelizAssistantMediaModelChoice[] = []
 
 export function selectPapelizChosenAssistantMediaModelChoice(
   choicesRecord: PapelizAssistantMediaModelChoicesRecord,
   assistantMediaKind: PapelizAssistantMediaKind,
 ): PapelizAssistantMediaModelChoice | null {
-  return choicesRecord[papelizChosenMediaModelFieldNames[assistantMediaKind]]
+  return assistantMediaKind === 'picture-description' ? null : choicesRecord[papelizChosenMediaModelFieldNames[assistantMediaKind]]
 }
 
 export function selectPapelizTypedAssistantMediaModels(
   choicesRecord: PapelizAssistantMediaModelChoicesRecord,
   assistantMediaKind: PapelizAssistantMediaKind,
-): PapelizAssistantMediaModelChoice[] {
-  return choicesRecord[papelizTypedMediaModelsFieldNames[assistantMediaKind]]
+): readonly PapelizAssistantMediaModelChoice[] {
+  return assistantMediaKind === 'picture-description' ? papelizNoTypedPictureDescriptionModels : choicesRecord[papelizTypedMediaModelsFieldNames[assistantMediaKind]]
 }
 
 function isMediaModelChoice(storedValue: unknown): storedValue is PapelizAssistantMediaModelChoice {
@@ -110,13 +107,12 @@ function readStoredMediaModelChoices(storedValue: unknown): PapelizAssistantMedi
   const storedRecord = storedValue as Partial<Record<keyof PapelizAssistantMediaModelChoicesRecord, unknown>>
   const readChoice = (storedChoice: unknown) => (isMediaModelChoice(storedChoice) ? storedChoice : null)
   const readChoiceList = (storedList: unknown) => (Array.isArray(storedList) ? storedList.filter(isMediaModelChoice) : [])
+  // A Describe Picture model kept by an earlier version is left unread, and the next save drops it.
   return {
     chosenImageGenerationModel: readChoice(storedRecord.chosenImageGenerationModel),
     chosenTranscriptionModel: readChoice(storedRecord.chosenTranscriptionModel),
-    chosenPictureDescriptionModel: readChoice(storedRecord.chosenPictureDescriptionModel),
     typedImageGenerationModels: readChoiceList(storedRecord.typedImageGenerationModels),
     typedTranscriptionModels: readChoiceList(storedRecord.typedTranscriptionModels),
-    typedPictureDescriptionModels: readChoiceList(storedRecord.typedPictureDescriptionModels),
   }
 }
 
@@ -133,7 +129,7 @@ function isSameMediaModelChoice(firstChoice: PapelizAssistantMediaModelChoice | 
 let mediaModelChoicesLoadPromise: Promise<void> | null = null
 
 function buildChosenMediaModelChange(
-  assistantMediaKind: PapelizAssistantMediaKind,
+  assistantMediaKind: PapelizAssistantPickedModelMediaKind,
   mediaModelChoice: PapelizAssistantMediaModelChoice | null,
 ): Partial<PapelizAssistantMediaModelChoicesRecord> {
   const chosenMediaModelChange: Partial<PapelizAssistantMediaModelChoicesRecord> = {}
@@ -147,10 +143,8 @@ export const usePapelizAssistantMediaModelChoicesStore = create<PapelizAssistant
     void writePapelizUserSetting<PapelizAssistantMediaModelChoicesRecord>(papelizAssistantMediaModelChoicesSettingName, {
       chosenImageGenerationModel: choicesState.chosenImageGenerationModel,
       chosenTranscriptionModel: choicesState.chosenTranscriptionModel,
-      chosenPictureDescriptionModel: choicesState.chosenPictureDescriptionModel,
       typedImageGenerationModels: choicesState.typedImageGenerationModels,
       typedTranscriptionModels: choicesState.typedTranscriptionModels,
-      typedPictureDescriptionModels: choicesState.typedPictureDescriptionModels,
     }).catch(() => undefined)
   }
   // A pick made before the saved picks are read waits for them, so it neither is overwritten by them
@@ -180,7 +174,7 @@ export const usePapelizAssistantMediaModelChoicesStore = create<PapelizAssistant
       const trimmedChoice = { ...mediaModelChoice, providerModelName: mediaModelChoice.providerModelName.trim() }
       if (trimmedChoice.providerModelName.length === 0) return Promise.resolve()
       return changeMediaModelChoices((choicesRecord) => {
-        const typedModels = selectPapelizTypedAssistantMediaModels(choicesRecord, assistantMediaKind)
+        const typedModels = choicesRecord[papelizTypedMediaModelsFieldNames[assistantMediaKind]]
         const typedMediaModelChange = buildChosenMediaModelChange(assistantMediaKind, trimmedChoice)
         typedMediaModelChange[papelizTypedMediaModelsFieldNames[assistantMediaKind]] = typedModels.some((typedModel) => isSameMediaModelChoice(typedModel, trimmedChoice))
           ? typedModels
@@ -200,18 +194,15 @@ usePapelizAssistantProviderSettingsStore.subscribe((providerSettingsState, previ
 })
 
 // The model names Papeliz suggests for one provider and task, or null when the provider can't do it.
-// Any added provider may describe pictures with a vision model the person types; only the ones known
-// to see pictures are suggested.
-function listSuggestedMediaModelNames(assistantMediaKind: PapelizAssistantMediaKind, papelizAssistantProviderId: string): readonly string[] | null {
+function listSuggestedMediaModelNames(assistantMediaKind: PapelizAssistantPickedModelMediaKind, papelizAssistantProviderId: string): readonly string[] | null {
   if (assistantMediaKind === 'image-generation') return findPapelizAssistantImageGenerationPreset(papelizAssistantProviderId)?.suggestedImageModelNames ?? null
-  if (assistantMediaKind === 'transcription') return findPapelizAssistantTranscriptionPreset(papelizAssistantProviderId)?.suggestedTranscriptionModelNames ?? null
-  return findPapelizAssistantPictureDescriptionPreset(papelizAssistantProviderId)?.suggestedVisionModelNames ?? []
+  return findPapelizAssistantTranscriptionPreset(papelizAssistantProviderId)?.suggestedTranscriptionModelNames ?? null
 }
 
 // Every model the person can use for a task now: the added providers in the presets' order (the Meta
 // Model API first), each with Papeliz's suggested models, then the ones typed for it.
 export function listPapelizOfferedAssistantMediaModels(
-  assistantMediaKind: PapelizAssistantMediaKind,
+  assistantMediaKind: PapelizAssistantPickedModelMediaKind,
   providerSettingsByProviderId: Record<string, PapelizAssistantProviderSettingsRecord>,
   typedMediaModels: readonly PapelizAssistantMediaModelChoice[],
 ): PapelizAssistantOfferedMediaModel[] {
@@ -233,22 +224,18 @@ export function listPapelizOfferedAssistantMediaModels(
 
 // The added providers that can do a task, for Other Model to type a name for.
 export function listPapelizMediaCapableSavedProviderIds(
-  assistantMediaKind: PapelizAssistantMediaKind,
+  assistantMediaKind: PapelizAssistantPickedModelMediaKind,
   providerSettingsByProviderId: Record<string, PapelizAssistantProviderSettingsRecord>,
 ): string[] {
   return listPapelizSavedAssistantProviderIds(providerSettingsByProviderId).filter((savedProviderId) => listSuggestedMediaModelNames(assistantMediaKind, savedProviderId) !== null)
 }
 
-// The chosen model while it is still offered. Otherwise Automatic: the first one offered, or none for
-// Describe Picture, which then uses the chat's model.
+// The chosen model while it is still offered. Otherwise Automatic: the first one offered.
 export function resolvePapelizChosenAssistantMediaModel(
   offeredMediaModels: readonly PapelizAssistantOfferedMediaModel[],
   chosenMediaModel: PapelizAssistantMediaModelChoice | null,
-  assistantMediaKind: PapelizAssistantMediaKind = 'image-generation',
 ): PapelizAssistantOfferedMediaModel | null {
-  const offeredChosenMediaModel = offeredMediaModels.find((offeredMediaModel) => isSameMediaModelChoice(offeredMediaModel, chosenMediaModel))
-  if (offeredChosenMediaModel !== undefined || assistantMediaKind === 'picture-description') return offeredChosenMediaModel ?? null
-  return offeredMediaModels[0] ?? null
+  return offeredMediaModels.find((offeredMediaModel) => isSameMediaModelChoice(offeredMediaModel, chosenMediaModel)) ?? offeredMediaModels[0] ?? null
 }
 
 export function describePapelizAssistantMediaModelChoiceValue(mediaModelChoice: PapelizAssistantMediaModelChoice): string {
@@ -263,7 +250,7 @@ export function readPapelizAssistantMediaModelChoiceValue(mediaModelChoiceValue:
 
 // What a media call sends: the provider's own saved address, key and headers, with the task's model.
 export function buildPapelizAssistantMediaProviderConnection(
-  assistantMediaKind: PapelizAssistantMediaKind,
+  assistantMediaKind: PapelizAssistantPickedModelMediaKind,
   mediaModelChoice: PapelizAssistantMediaModelChoice,
 ): { mediaConnectionOutcome: 'ready'; providerConnection: PapelizAssistantProviderConnection; providerDisplayName: string } | { mediaConnectionOutcome: 'not-set-up'; mediaSetupProblem: string } {
   const providerSettings = usePapelizAssistantProviderSettingsStore.getState().providerSettingsByProviderId[mediaModelChoice.papelizAssistantProviderId]
@@ -282,7 +269,7 @@ export function buildPapelizAssistantMediaProviderConnection(
   }
 }
 
-function listOfferedAssistantMediaModelsNow(assistantMediaKind: PapelizAssistantMediaKind): PapelizAssistantOfferedMediaModel[] {
+function listOfferedAssistantMediaModelsNow(assistantMediaKind: PapelizAssistantPickedModelMediaKind): PapelizAssistantOfferedMediaModel[] {
   return listPapelizOfferedAssistantMediaModels(
     assistantMediaKind,
     usePapelizAssistantProviderSettingsStore.getState().providerSettingsByProviderId,
@@ -291,17 +278,16 @@ function listOfferedAssistantMediaModelsNow(assistantMediaKind: PapelizAssistant
 }
 
 // The model a task uses now (the one picked while it is still offered, else Automatic's), or null
-// while no added provider can do it; for Describe Picture, null is the chat's model.
-export function resolvePapelizAssistantMediaModelNow(assistantMediaKind: PapelizAssistantMediaKind): PapelizAssistantMediaModelChoice | null {
+// while no added provider can do it.
+export function resolvePapelizAssistantMediaModelNow(assistantMediaKind: PapelizAssistantPickedModelMediaKind): PapelizAssistantMediaModelChoice | null {
   return resolvePapelizChosenAssistantMediaModel(
     listOfferedAssistantMediaModelsNow(assistantMediaKind),
     selectPapelizChosenAssistantMediaModelChoice(usePapelizAssistantMediaModelChoicesStore.getState(), assistantMediaKind),
-    assistantMediaKind,
   )
 }
 
 // The same, once the saved picks have been read.
-export async function resolvePapelizAssistantMediaModelWhenLoaded(assistantMediaKind: PapelizAssistantMediaKind): Promise<PapelizAssistantMediaModelChoice | null> {
+export async function resolvePapelizAssistantMediaModelWhenLoaded(assistantMediaKind: PapelizAssistantPickedModelMediaKind): Promise<PapelizAssistantMediaModelChoice | null> {
   await usePapelizAssistantMediaModelChoicesStore.getState().loadAssistantMediaModelChoices()
   return resolvePapelizAssistantMediaModelNow(assistantMediaKind)
 }
@@ -320,7 +306,7 @@ export interface PapelizAssistantMediaModelInUse {
   providerDisplayName: string
   // Nothing chosen for the task (or the chosen model is no longer offered): Automatic picked this.
   isMediaModelChosenAutomatically: boolean
-  // Describe Picture on Same as Chat: this is the chat's model.
+  // Describe Picture, always Same as Chat: this is the chat's model.
   isMediaModelSameAsChat: boolean
 }
 
@@ -330,8 +316,8 @@ export interface PapelizAssistantMediaModelPicks {
   typedMediaModels: readonly PapelizAssistantMediaModelChoice[]
 }
 
-// The model a task uses now, in words for the mic, Models for Each Task and the cards: its name and
-// provider, and whether Automatic (or Same as Chat) picked it. Null while nothing can do the task.
+// The model a task uses now, in words for the mic and the cards: its name and provider, and whether
+// Automatic (or, for Describe Picture, the chat) picked it. Null while nothing can do the task.
 export function describePapelizAssistantMediaModelInUse(
   assistantMediaKind: PapelizAssistantMediaKind,
   providerSettingsState: Parameters<typeof resolvePapelizActiveAssistantProviderModel>[0] = usePapelizAssistantProviderSettingsStore.getState(),
@@ -340,11 +326,7 @@ export function describePapelizAssistantMediaModelInUse(
     typedMediaModels: selectPapelizTypedAssistantMediaModels(usePapelizAssistantMediaModelChoicesStore.getState(), assistantMediaKind),
   },
 ): PapelizAssistantMediaModelInUse | null {
-  const { chosenMediaModelChoice, typedMediaModels } = mediaModelPicks
-  const offeredMediaModels = listPapelizOfferedAssistantMediaModels(assistantMediaKind, providerSettingsState.providerSettingsByProviderId, typedMediaModels)
-  const mediaModelInUse = resolvePapelizChosenAssistantMediaModel(offeredMediaModels, chosenMediaModelChoice, assistantMediaKind)
-  const isMediaModelChosenAutomatically = !offeredMediaModels.some((offeredMediaModel) => isSameMediaModelChoice(offeredMediaModel, chosenMediaModelChoice))
-  const describeModel = (mediaModelChoice: PapelizAssistantMediaModelChoice, isMediaModelSameAsChat: boolean): PapelizAssistantMediaModelInUse => ({
+  const describeModel = (mediaModelChoice: PapelizAssistantMediaModelChoice, isMediaModelChosenAutomatically: boolean, isMediaModelSameAsChat: boolean): PapelizAssistantMediaModelInUse => ({
     papelizAssistantProviderId: mediaModelChoice.papelizAssistantProviderId,
     providerModelName: mediaModelChoice.providerModelName,
     mediaModelShortName: mediaModelChoice.providerModelName.slice(mediaModelChoice.providerModelName.lastIndexOf('/') + 1),
@@ -352,8 +334,13 @@ export function describePapelizAssistantMediaModelInUse(
     isMediaModelChosenAutomatically,
     isMediaModelSameAsChat,
   })
-  if (mediaModelInUse !== null) return describeModel(mediaModelInUse, false)
-  if (assistantMediaKind !== 'picture-description') return null
-  const chatProviderModel = resolvePapelizActiveAssistantProviderModel(providerSettingsState)
-  return chatProviderModel === null ? null : describeModel(chatProviderModel, true)
+  if (assistantMediaKind === 'picture-description') {
+    const chatProviderModel = resolvePapelizActiveAssistantProviderModel(providerSettingsState)
+    return chatProviderModel === null ? null : describeModel(chatProviderModel, true, true)
+  }
+  const { chosenMediaModelChoice, typedMediaModels } = mediaModelPicks
+  const offeredMediaModels = listPapelizOfferedAssistantMediaModels(assistantMediaKind, providerSettingsState.providerSettingsByProviderId, typedMediaModels)
+  const mediaModelInUse = resolvePapelizChosenAssistantMediaModel(offeredMediaModels, chosenMediaModelChoice)
+  const isMediaModelChosenAutomatically = !offeredMediaModels.some((offeredMediaModel) => isSameMediaModelChoice(offeredMediaModel, chosenMediaModelChoice))
+  return mediaModelInUse === null ? null : describeModel(mediaModelInUse, isMediaModelChosenAutomatically, false)
 }

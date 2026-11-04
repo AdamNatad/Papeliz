@@ -286,10 +286,10 @@ export function PapelizAssistantComposer({ composerPlacement }: PapelizAssistant
             menuItemGroupHeading: 'Settings',
             onMenuItemSelect: () => requestAssistantProviderSettingsPage(),
           },
-          // Settings › AI Provider, scrolled to the models each task uses (this chip's is Chat's).
+          // Settings › AI Provider, scrolled to the models Transcribe and Draw use.
           {
             menuItemKey: 'models-for-each-task',
-            menuItemLabel: 'Models for Each Task',
+            menuItemLabel: 'Models for Transcribe and Draw',
             MenuItemIcon: SlidersHorizontal,
             onMenuItemSelect: () => requestAssistantModelsForEachTaskSection(),
           },

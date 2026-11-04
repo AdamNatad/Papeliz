@@ -362,13 +362,13 @@ test('the Imagine tab is a thread: an example fills the box, Enter sends, and th
   expect(refusedOutsideRequestUrls).toEqual([])
 })
 
-// OpenAI, added from Draw's picture model menu (Models for Each Task opens Settings › AI Provider at
-// that section) as a second provider, its base URL changed to the provider the test plays.
+// OpenAI, added from Draw's picture model menu (Models for Transcribe and Draw opens Settings › AI
+// Provider at that section) as a second provider, its base URL changed to the provider the test plays.
 async function addTestOpenAiProviderFromDraw(page: Page, assistantPanel: Locator): Promise<void> {
   await assistantPanel.getByRole('button', { name: /^Picture model: / }).click()
-  await page.getByRole('menu', { name: 'Picture Model' }).getByRole('menuitem', { name: 'Models for Each Task' }).click()
+  await page.getByRole('menu', { name: 'Picture Model' }).getByRole('menuitem', { name: 'Models for Transcribe and Draw' }).click()
   const settingsPanel = page.getByRole('dialog', { name: 'Settings' })
-  await expect(settingsPanel.getByRole('region', { name: 'Models for Each Task' })).toBeInViewport()
+  await expect(settingsPanel.getByRole('region', { name: 'Models for Transcribe and Draw' })).toBeInViewport()
   await settingsPanel.getByRole('button', { name: 'Add Provider', exact: true }).click()
   const addProviderDialog = page.getByRole('dialog', { name: 'Add Provider' })
   await addProviderDialog.getByRole('button', { name: /^Provider / }).click()
@@ -1036,7 +1036,7 @@ test('Describe Picture writes a picture’s alt text with Meta’s vision, and E
   )
   expect(describeRequest?.providerRequestBodyText).toContain('"type":"image_url"')
   expect(describeRequest?.providerRequestBodyText).toContain('data:image/')
-  // On Same as Chat the chat's model looks, and the footer names it.
+  // Describe Picture always uses the chat's model, and the footer names it.
   expect(JSON.parse(describeRequest?.providerRequestBodyText ?? '{}')).toMatchObject({ model: metaChatModelName })
   await expect(inlineCard.getByText(`${metaChatModelName}, straight to Meta Model API`)).toBeVisible()
   await inlineCard.getByRole('button', { name: /^Accept/ }).click()
@@ -1060,14 +1060,14 @@ test('Describe Picture writes a picture’s alt text with Meta’s vision, and E
   expect(editedLinkText).toMatch(/^!\[A blue square on white paper\]\(Attachments\/imagine-.+\)$/)
   expect(editedLinkText).not.toBe(describedLinkText)
 
-  // Draw's chip starts on Automatic, and its menu ends with Models for Each Task.
+  // Draw's chip starts on Automatic, and its menu ends with Models for Transcribe and Draw.
   const assistantPanel = page.getByRole('complementary', { name: 'AI Assistant' })
   await assistantPanel.getByRole('tab', { name: 'Imagine', exact: true }).click()
   await assistantPanel.getByRole('button', { name: /^Picture model: / }).click()
   const pictureModelMenu = page.getByRole('menu', { name: 'Picture Model' })
   await expect(pictureModelMenu.getByRole('menuitemradio')).toHaveText(['Automatic · muse-image-1.0', 'muse-image-1.0'])
   await expect(pictureModelMenu.getByRole('menuitemradio', { name: 'Automatic · muse-image-1.0' })).toHaveAttribute('aria-checked', 'true')
-  await expect(pictureModelMenu.getByRole('menuitem', { name: 'Models for Each Task' })).toBeVisible()
+  await expect(pictureModelMenu.getByRole('menuitem', { name: 'Models for Transcribe and Draw' })).toBeVisible()
   await expect(pictureModelMenu.getByRole('menuitem', { name: 'AI Provider' })).toHaveCount(0)
   await page.keyboard.press('Escape')
 

@@ -4,7 +4,6 @@ import {
   buildPapelizAssistantMediaProviderConnection,
   describePapelizAssistantMediaModelInUse,
   listPapelizMediaCapableSavedProviderIds,
-  listPapelizOfferedAssistantMediaModels,
   papelizAssistantMediaModelChoicesSettingName,
   resolvePapelizAssistantImageEditingModelNow,
   resolvePapelizAssistantMediaModelNow,
@@ -13,9 +12,9 @@ import {
 } from './papeliz-assistant-media-model-choices-store'
 import { usePapelizAssistantProviderSettingsStore, type PapelizAssistantProviderSettingsRecord } from './papeliz-assistant-provider-settings-store'
 
-// Models for Each Task's store: Automatic as a cleared pick, the transcription pick saved and used,
-// Describe Picture's vision models with Same as Chat, and Edit Picture following Draw. The settings
-// store is a stand-in, so nothing is kept between tests; the keys are made up.
+// The store behind Models for Transcribe and Draw: Automatic as a cleared pick, the transcription pick
+// saved and used, Describe Picture always on the chat's model, and Edit Picture following Draw. The
+// settings store is a stand-in, so nothing is kept between tests; the keys are made up.
 
 let storedMediaModelChoicesValue: unknown = null
 vi.mock('../settings/papeliz-user-settings', () => ({
@@ -53,10 +52,8 @@ beforeEach(() => {
   usePapelizAssistantMediaModelChoicesStore.setState({
     chosenImageGenerationModel: null,
     chosenTranscriptionModel: null,
-    chosenPictureDescriptionModel: null,
     typedImageGenerationModels: [],
     typedTranscriptionModels: [],
-    typedPictureDescriptionModels: [],
     mediaModelChoicesLoadState: 'not-loaded',
   })
 })
@@ -115,52 +112,44 @@ describe('the transcription pick', () => {
     })
     expect(readSavedMediaModelChoices()).toMatchObject({ typedTranscriptionModels: [{ papelizAssistantProviderId: 'groq', providerModelName: 'whisper-large-v3' }] })
   })
+
+  it('can be typed for any added provider that transcribes, Custom too', () => {
+    const customProviderSettings = { ...metaAndGroqProviderSettings, custom: buildTestProviderSettings('custom', ['local-chat']) }
+    expect(listPapelizMediaCapableSavedProviderIds('transcription', customProviderSettings)).toEqual(['meta-model-api', 'groq', 'custom'])
+    usePapelizAssistantProviderSettingsStore.setState({ providerSettingsByProviderId: customProviderSettings })
+    expect(buildPapelizAssistantMediaProviderConnection('transcription', { papelizAssistantProviderId: 'custom', providerModelName: 'whisper-local' })).toMatchObject({
+      mediaConnectionOutcome: 'ready',
+      providerConnection: { providerModelName: 'whisper-local' },
+    })
+  })
 })
 
 describe('Describe Picture', () => {
-  it('offers only the known vision models of the added providers, then the typed ones', async () => {
-    expect(
-      listPapelizOfferedAssistantMediaModels('picture-description', metaAndGroqProviderSettings, [{ papelizAssistantProviderId: 'groq', providerModelName: 'my-vision-model' }]).map(
-        (offeredMediaModel) => `${offeredMediaModel.providerDisplayName} ${offeredMediaModel.providerModelName}${offeredMediaModel.isMediaModelTypedByPerson ? ' (typed)' : ''}`,
-      ),
-    ).toEqual([
-      'Meta Model API muse-spark-1.3',
-      'Meta Model API muse-spark-1.2',
-      'Meta Model API muse-spark-1.1',
-      'Meta Model API muse-wonder-1.0',
-      'Groq qwen/qwen3.8-27b',
-      'Groq my-vision-model (typed)',
-    ])
-  })
-
-  it('lets a vision model be typed for any added provider, and sends it to that provider', () => {
-    const customProviderSettings = { ...metaAndGroqProviderSettings, custom: buildTestProviderSettings('custom', ['local-chat']) }
-    expect(listPapelizMediaCapableSavedProviderIds('picture-description', customProviderSettings)).toEqual(['meta-model-api', 'groq', 'custom'])
-    expect(listPapelizMediaCapableSavedProviderIds('transcription', customProviderSettings)).toEqual(['meta-model-api', 'groq', 'custom'])
-    usePapelizAssistantProviderSettingsStore.setState({ providerSettingsByProviderId: customProviderSettings })
-    expect(buildPapelizAssistantMediaProviderConnection('picture-description', { papelizAssistantProviderId: 'custom', providerModelName: 'llava-local' })).toMatchObject({
-      mediaConnectionOutcome: 'ready',
-      providerConnection: { providerModelName: 'llava-local' },
-    })
-  })
-
-  it('is Same as Chat until a model is chosen: the chat’s model is the one in use', async () => {
-    expect(resolvePapelizAssistantMediaModelNow('picture-description')).toBeNull()
+  it('always uses the chat’s model, and follows it', () => {
     expect(describePapelizAssistantMediaModelInUse('picture-description')).toMatchObject({
       providerModelName: 'muse-spark-1.3',
       providerDisplayName: 'Meta Model API',
-      isMediaModelChosenAutomatically: true,
       isMediaModelSameAsChat: true,
     })
-    await usePapelizAssistantMediaModelChoicesStore.getState().chooseAssistantMediaModel('picture-description', { papelizAssistantProviderId: 'groq', providerModelName: 'qwen/qwen3.8-27b' })
-    expect(describePapelizAssistantMediaModelInUse('picture-description')).toMatchObject({
-      providerModelName: 'qwen/qwen3.8-27b',
-      mediaModelShortName: 'qwen3.8-27b',
-      providerDisplayName: 'Groq',
-      isMediaModelSameAsChat: false,
-    })
-    await usePapelizAssistantMediaModelChoicesStore.getState().chooseAssistantMediaModelAutomatically('picture-description')
-    expect(describePapelizAssistantMediaModelInUse('picture-description')).toMatchObject({ isMediaModelSameAsChat: true })
+    usePapelizAssistantProviderSettingsStore.setState({ activeAssistantProviderId: 'groq', activeAssistantProviderModelName: 'llama-test-chat' })
+    expect(describePapelizAssistantMediaModelInUse('picture-description')).toMatchObject({ providerModelName: 'llama-test-chat', providerDisplayName: 'Groq', isMediaModelSameAsChat: true })
+  })
+
+  it('leaves a model chosen for it before unread, and the next save drops it', async () => {
+    storedMediaModelChoicesValue = {
+      chosenPictureDescriptionModel: { papelizAssistantProviderId: 'groq', providerModelName: 'qwen/qwen3.8-27b' },
+      typedPictureDescriptionModels: [{ papelizAssistantProviderId: 'groq', providerModelName: 'my-vision-model' }],
+    }
+    await usePapelizAssistantMediaModelChoicesStore.getState().loadAssistantMediaModelChoices()
+    expect(describePapelizAssistantMediaModelInUse('picture-description')).toMatchObject({ providerModelName: 'muse-spark-1.3', isMediaModelSameAsChat: true })
+    await usePapelizAssistantMediaModelChoicesStore.getState().chooseAssistantMediaModel('transcription', groqWhisperChoice)
+    expect(readSavedMediaModelChoices()).not.toHaveProperty('chosenPictureDescriptionModel')
+    expect(readSavedMediaModelChoices()).not.toHaveProperty('typedPictureDescriptionModels')
+  })
+
+  it('names nothing while no chat model is switched on', () => {
+    usePapelizAssistantProviderSettingsStore.setState({ providerSettingsByProviderId: { groq: buildTestProviderSettings('groq', []) }, activeAssistantProviderId: 'groq' })
+    expect(describePapelizAssistantMediaModelInUse('picture-description')).toBeNull()
   })
 })
 

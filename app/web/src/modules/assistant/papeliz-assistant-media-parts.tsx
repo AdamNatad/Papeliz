@@ -16,15 +16,16 @@ import {
   type PapelizAssistantMediaKind,
   type PapelizAssistantMediaModelInUse,
   type PapelizAssistantOfferedMediaModel,
+  type PapelizAssistantPickedModelMediaKind,
 } from './papeliz-assistant-media-model-choices-store'
 import { PapelizTextDiffView } from './papeliz-assistant-proposal-card'
 import { findPapelizAssistantProviderPreset } from './papeliz-assistant-provider-presets'
 import { usePapelizAssistantProviderSettingsStore } from './papeliz-assistant-provider-settings-store'
 import { diffPapelizTextByWords } from './papeliz-assistant-text-diff'
 
-// The pieces Imagine, Transcribe, Describe Picture and Models for Each Task share: a switch, the problem
-// line, the models offered for a task and the one in use, the form to type another, and the diff card
-// for a change to a note.
+// The pieces Imagine, Transcribe, Describe Picture and Models for Transcribe and Draw share: a switch, the
+// problem line, the models offered for a task and the one in use, the form to type another, and the diff
+// card for a change to a note.
 
 // A switch's tooltip: the bubble's words, and the same words as one sentence for screen readers.
 interface PapelizAssistantMediaSwitchTooltip {
@@ -179,12 +180,12 @@ export function PapelizAssistantMediaProblemLine({ children }: { children: React
 }
 
 // The models offered now for a task and the one in use, read again whenever the providers or the
-// picks change: the menus of Draw's chip and of Models for Each Task. `chosenMediaModel` is null while
-// nothing can do the task, and for Describe Picture on Same as Chat.
-export function usePapelizChosenAssistantMediaModel(assistantMediaKind: PapelizAssistantMediaKind): {
+// picks change: the menus of Draw's chip and of Models for Transcribe and Draw. `chosenMediaModel` is
+// null while nothing can do the task.
+export function usePapelizChosenAssistantMediaModel(assistantMediaKind: PapelizAssistantPickedModelMediaKind): {
   offeredMediaModels: PapelizAssistantOfferedMediaModel[]
   chosenMediaModel: PapelizAssistantOfferedMediaModel | null
-  // Nothing chosen, or the chosen model is no longer offered: Automatic (Same as Chat) is checked.
+  // Nothing chosen, or the chosen model is no longer offered: Automatic is checked.
   isMediaModelChosenAutomatically: boolean
   mediaCapableSavedProviderIds: string[]
 } {
@@ -199,7 +200,7 @@ export function usePapelizChosenAssistantMediaModel(assistantMediaKind: PapelizA
   }, [loadAssistantProviderSettings, loadAssistantMediaModelChoices])
   return useMemo(() => {
     const offeredMediaModels = listPapelizOfferedAssistantMediaModels(assistantMediaKind, providerSettingsByProviderId, typedMediaModels)
-    const chosenMediaModel = resolvePapelizChosenAssistantMediaModel(offeredMediaModels, chosenMediaModelChoice, assistantMediaKind)
+    const chosenMediaModel = resolvePapelizChosenAssistantMediaModel(offeredMediaModels, chosenMediaModelChoice)
     return {
       offeredMediaModels,
       chosenMediaModel,
@@ -216,7 +217,7 @@ export function usePapelizChosenAssistantMediaModel(assistantMediaKind: PapelizA
 }
 
 // The model a task uses now, in words (describePapelizAssistantMediaModelInUse), read again whenever
-// the providers, the chat's model or the picks change: for the mic's hover and Models for Each Task.
+// the providers, the chat's model or the picks change: for the mic's hover and a note's cards.
 export function usePapelizAssistantMediaModelInUse(assistantMediaKind: PapelizAssistantMediaKind): PapelizAssistantMediaModelInUse | null {
   const activeAssistantProviderId = usePapelizAssistantProviderSettingsStore((settingsState) => settingsState.activeAssistantProviderId)
   const activeAssistantProviderModelName = usePapelizAssistantProviderSettingsStore((settingsState) => settingsState.activeAssistantProviderModelName)
@@ -241,13 +242,13 @@ export function usePapelizAssistantMediaModelInUse(assistantMediaKind: PapelizAs
 }
 
 interface PapelizAssistantMediaOtherModelFormProps {
-  assistantMediaKind: PapelizAssistantMediaKind
+  assistantMediaKind: PapelizAssistantPickedModelMediaKind
   onOtherModelFormClose: () => void
 }
 
 // Other Model: a model a provider offers that Papeliz doesn't suggest, typed by its name (and, when
 // more than one added provider can do the task, for which one). Adding it picks it. Draw's chip and
-// the rows of Models for Each Task open it.
+// the rows of Models for Transcribe and Draw open it.
 export function PapelizAssistantMediaOtherModelForm({ assistantMediaKind, onOtherModelFormClose }: PapelizAssistantMediaOtherModelFormProps) {
   const { mediaCapableSavedProviderIds } = usePapelizChosenAssistantMediaModel(assistantMediaKind)
   const addTypedAssistantMediaModel = usePapelizAssistantMediaModelChoicesStore((choicesState) => choicesState.addTypedAssistantMediaModel)

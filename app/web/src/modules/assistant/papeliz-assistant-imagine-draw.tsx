@@ -186,7 +186,7 @@ function PapelizImagineDrawBox({
     // Opens Settings › AI Provider scrolled to Models for Each Task, under the saved providers.
     {
       menuItemKey: 'models-for-each-task',
-      menuItemLabel: 'Models for Each Task',
+      menuItemLabel: 'Models for Transcribe and Draw',
       MenuItemIcon: SlidersHorizontal,
       onMenuItemSelect: () => requestAssistantModelsForEachTaskSection(),
     },
