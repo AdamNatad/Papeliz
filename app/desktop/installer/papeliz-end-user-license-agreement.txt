@@ -1,0 +1,144 @@
+PAPELIZ END USER LICENSE AGREEMENT
+
+Last updated: November 4, 2026
+
+Please read this agreement before you install or use Papeliz. By installing, opening or using Papeliz, you agree to it. If you don't agree, don't install or use Papeliz.
+
+
+1. WHO THIS AGREEMENT IS WITH
+
+This End User License Agreement ("Agreement") is between you and Natad Corporation ("we", "us", "our"), the publisher of Papeliz. Papeliz is developed by Adam Natad.
+
+You must be old enough to enter into this Agreement where you live, or have a parent's or guardian's permission. If you use Papeliz for an organization, you confirm that you may accept this Agreement for it, and "you" includes that organization.
+
+
+2. WHAT THIS AGREEMENT COVERS
+
+"Papeliz" means the Papeliz apps on every platform, including their installers, updates and add-ons; the Papeliz websites; and every online feature and service offered with them, such as accounts, storage, syncing, sharing, templates and update delivery (the online parts together, the "Services").
+
+Some Services come with their own plans, prices or additional terms. We will show them to you before you use those Services, and they form part of this Agreement.
+
+
+3. OPEN-SOURCE CODE
+
+Papeliz's source code is published under the MIT License. Nothing in this Agreement limits the rights the MIT License gives you in that source code. This Agreement governs the builds we distribute and the Services we run. Where the two differ about the source code, the MIT License controls.
+
+
+4. YOUR LICENSE
+
+Subject to this Agreement, we grant you a personal, worldwide, royalty-free, non-exclusive, non-transferable and revocable license to install and use the Papeliz builds we distribute and to use the Services.
+
+The names "Papeliz" and "Natad Corporation" and the Papeliz logos are not licensed to you, except to refer to Papeliz truthfully.
+
+
+5. ACCEPTABLE USE
+
+You agree not to:
+(a) use Papeliz in breach of any law or of anyone's rights;
+(b) store, share or send through the Services anything unlawful, infringing, malicious or harmful;
+(c) disrupt, overload, probe or gain unauthorized access to the Services, or to other people's accounts or data;
+(d) get around usage limits, access controls or security measures; or
+(e) resell the Services, or offer them to others as a service, without our written permission.
+
+Where we reasonably believe this section has been breached, we may remove content from the Services, or limit, suspend or end access to them.
+
+
+6. YOUR CONTENT, YOUR KEYS AND YOUR BACKUPS
+
+Your notes, files and vaults ("Your Content") stay yours. We claim no ownership of them.
+
+You are responsible for Your Content, for the devices, folders and storage you choose to keep it in, and for keeping your passwords, recovery keys and API keys safe.
+
+Keep your own backups. Papeliz is not designed to be the only copy of anything you can't afford to lose. Some vaults can be encrypted so that no one else, including us, can read them. If you lose the password or key to such a vault, we may be unable to recover the vault or Your Content.
+
+Where a Service stores or transmits Your Content, you give us only the permission needed to host, copy, transmit and display it in order to provide that Service to you. How we handle personal data is set out in the Papeliz Privacy Policy.
+
+Uninstalling Papeliz does not delete Your Content from your folders. If you choose to delete the app's data while uninstalling, content kept inside the app on that device may be deleted with it.
+
+
+7. THIRD-PARTY SERVICES, AI AND OTHER PEOPLE'S CONTENT
+
+Papeliz can connect to AI providers and other third-party services through your own account and key. Your use of them is between you and that provider, under its own terms, prices and privacy practices. We don't control third-party services, and we aren't responsible for their availability, accuracy, security or charges, or for how they handle what you send them.
+
+Content produced by AI ("AI Output") can be inaccurate, incomplete, out of date, offensive, or similar to other people's work. Review AI Output before you rely on it or share it. AI Output is not professional advice of any kind, and you are responsible for how you use it.
+
+Templates, links and other content made by other people belong to them. We don't endorse them and aren't responsible for them.
+
+
+8. UPDATES AND CHANGES
+
+Papeliz may check for and install updates automatically. Updates may add, change or remove features.
+
+We may change, limit, suspend or discontinue any part of Papeliz, including any Service, at any time. If a change materially reduces a Service you have paid for, we will try to give you reasonable notice and, where the law requires it, a pro-rated refund.
+
+Features marked as preview, beta or early access may be incomplete and may change or end without notice.
+
+
+9. NO WARRANTIES
+
+TO THE FULLEST EXTENT PERMITTED BY LAW, PAPELIZ IS PROVIDED "AS IS" AND "AS AVAILABLE", WITH ALL FAULTS AND WITHOUT WARRANTIES OF ANY KIND, WHETHER EXPRESS, IMPLIED OR STATUTORY, INCLUDING ANY WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, NON-INFRINGEMENT, ACCURACY AND QUIET ENJOYMENT.
+
+WITHOUT LIMITING THE ABOVE, WE DO NOT WARRANT THAT PAPELIZ OR ANY SERVICE WILL BE AVAILABLE, UNINTERRUPTED, TIMELY, SECURE OR ERROR-FREE; THAT YOUR CONTENT WILL BE STORED, SYNCED, BACKED UP, ENCRYPTED, RESTORED OR DELIVERED WITHOUT LOSS, CORRUPTION, CONFLICT OR DELAY; THAT DEFECTS WILL BE CORRECTED; OR THAT PAPELIZ WILL MEET YOUR NEEDS OR WORK WITH ANY OTHER SOFTWARE, DEVICE OR SERVICE. YOU USE PAPELIZ AT YOUR OWN DISCRETION AND RISK.
+
+
+10. LIMITATION OF LIABILITY
+
+"Papeliz Parties" means Natad Corporation, Adam Natad, and their affiliates, officers, directors, employees, contractors, contributors, licensors and service providers.
+
+TO THE FULLEST EXTENT PERMITTED BY LAW:
+
+(a) THE PAPELIZ PARTIES WILL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, EXEMPLARY OR PUNITIVE DAMAGES, OR FOR ANY LOSS OF DATA, CONTENT, PROFITS, REVENUE, BUSINESS, GOODWILL OR USE, OR FOR THE COST OF SUBSTITUTE PRODUCTS OR SERVICES;
+
+(b) THIS APPLIES TO EVERY CLAIM ARISING OUT OF OR RELATING TO PAPELIZ OR THIS AGREEMENT, INCLUDING CLAIMS ABOUT ITS AVAILABILITY, PERFORMANCE, RELIABILITY OR SECURITY; ANY INTERRUPTION, DELAY, ERROR OR DEFECT; ANY LOSS, CORRUPTION, CONFLICT OR DISCLOSURE OF YOUR CONTENT; ANY FAILURE TO STORE, SYNC, BACK UP, ENCRYPT OR RESTORE IT; ANY AI OUTPUT; AND ANY THIRD-PARTY SERVICE OR CONTENT. IT APPLIES WHETHER THE CLAIM IS BASED ON CONTRACT, TORT (INCLUDING NEGLIGENCE), STRICT LIABILITY OR ANY OTHER THEORY, AND EVEN IF A PAPELIZ PARTY WAS TOLD THAT SUCH DAMAGES WERE POSSIBLE; AND
+
+(c) THE PAPELIZ PARTIES' TOTAL LIABILITY FOR ALL CLAIMS TOGETHER WILL NOT EXCEED THE GREATER OF (i) WHAT YOU PAID US FOR THE SERVICES IN THE TWELVE (12) MONTHS BEFORE THE EVENT THAT GAVE RISE TO THE CLAIM, AND (ii) FIFTY U.S. DOLLARS (US$50).
+
+These limits are an essential part of this Agreement: Papeliz is offered free, or at its price, because of them. They apply even if a remedy fails of its essential purpose.
+
+
+11. WHAT THIS AGREEMENT DOES NOT LIMIT
+
+Some laws do not allow certain warranties to be excluded or certain liability to be limited, such as liability for fraud, for gross negligence or willful misconduct, or for death or personal injury caused by negligence. Nothing in this Agreement excludes or limits liability that cannot be excluded or limited under the law that applies to you, or takes away rights you have as a consumer that cannot be waived by contract. Where such a law applies, the exclusions and limits in this Agreement apply to the fullest extent that law allows.
+
+
+12. INDEMNITY
+
+To the extent the law allows, you will defend, indemnify and hold harmless the Papeliz Parties against any third-party claim, and any resulting loss, liability, damage, cost or expense (including reasonable legal fees), arising from Your Content, your use of Papeliz, your use of third-party services through Papeliz, or your breach of this Agreement, of any law or of anyone's rights.
+
+
+13. EVENTS BEYOND OUR CONTROL
+
+We are not responsible for any delay or failure caused by events beyond our reasonable control, including failures of the internet, power, hosting or other providers; cyberattacks; fire, flood, earthquake or other natural events; epidemics; war or unrest; government action; and labor disputes.
+
+
+14. ENDING THIS AGREEMENT
+
+You may stop using Papeliz and uninstall it at any time. We may suspend or end your access to the Services if you breach this Agreement, if the law requires it, or if we discontinue them.
+
+Sections 3, 6, 7 and 9 to 18 continue to apply after this Agreement ends.
+
+
+15. EXPORT AND SANCTIONS
+
+You will comply with all export control and sanctions laws that apply to your use of Papeliz.
+
+
+16. GOVERNING LAW AND DISPUTES
+
+This Agreement is governed by the laws of the Republic of the Philippines, without regard to its conflict-of-laws rules. Any action arising out of or relating to Papeliz or this Agreement must be filed exclusively in the proper courts of Toledo City, Cebu, Philippines, to the exclusion of all other courts, except where the law of the country you live in gives you the right to bring a claim in your local courts.
+
+
+17. CHANGES TO THIS AGREEMENT
+
+We may update this Agreement. We will publish the updated version with its date and, for material changes, tell you through Papeliz or by email before they take effect. If you keep using Papeliz after that date, you accept the updated Agreement. If you don't accept it, stop using Papeliz.
+
+
+18. GENERAL
+
+This Agreement, together with any additional terms for Services you use and the Papeliz Privacy Policy, is the entire agreement between you and us about Papeliz. If any part of it is found unenforceable, that part will be enforced to the greatest extent allowed and the rest stays in effect. If we don't enforce a right, we have not waived it. You may not transfer this Agreement without our written consent; we may transfer it as part of a merger, acquisition or sale of assets. Headings are for convenience only.
+
+
+19. CONTACT
+
+Natad Corporation
+adam@papeliz.com

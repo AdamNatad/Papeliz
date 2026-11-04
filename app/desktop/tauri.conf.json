@@ -25,6 +25,7 @@
     "copyright": "Copyright (c) 2026 Natad Corporation",
     "homepage": "https://papeliz.com",
     "license": "MIT",
+    "licenseFile": "installer/papeliz-end-user-license-agreement.txt",
     "category": "Productivity",
     "shortDescription": "Papeliz is a Free, Open-Source Markdown Editor for your Personal Knowledge Base, with a built-in AI Assistant and Workflow Templates for Coding and AI Agents.",
     "icon": [
@@ -39,7 +40,13 @@
       "nsis": {
         "installMode": "currentUser",
         "languages": ["English"],
-        "displayLanguageSelector": false
+        "displayLanguageSelector": false,
+        "installerIcon": "icons/icon.ico",
+        "uninstallerIcon": "icons/icon.ico",
+        "sidebarImage": "installer/papeliz-installer-sidebar-blue.bmp",
+        "headerImage": "installer/papeliz-installer-header-blue.bmp",
+        "uninstallerHeaderImage": "installer/papeliz-installer-header-blue.bmp",
+        "template": "installer/papeliz-installer.nsi"
       }
     }
   },

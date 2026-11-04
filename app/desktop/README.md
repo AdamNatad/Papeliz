@@ -32,6 +32,26 @@ so the installer stays small.
   installing the regular installer again goes back. Never publish it: `desktop:build` always leaves
   DevTools out.
 
+## The installer
+
+`desktop:build` makes the installer from `bundle` in `tauri.conf.json` and the files in `installer/`:
+
+- `papeliz-installer.nsi` is Papeliz's copy of the bundler's installer template (Tauri CLI 2.12.4), with
+  its changes marked `Papeliz:`. The setup file's description reads "Papeliz by Adam Natad", and the
+  Welcome page names the developer. A new install goes to the user's own Programs folder,
+  `%LOCALAPPDATA%\Programs\Papeliz`, while an existing install, such as one in `%LOCALAPPDATA%\Papeliz`,
+  is updated where it is. The desktop shortcut is always made, so the Finish page only offers to run
+  Papeliz. When the Tauri CLI is updated, compare the copy with the bundler's new template.
+- `papeliz-installer-sidebar-blue.bmp` (164 × 314) is the Welcome and Finish pages' side picture, and
+  `papeliz-installer-header-blue.bmp` (150 × 57) the header picture on the other pages, the uninstaller's
+  included. Both are 24-bit BMPs with no metadata, drawn on Papeliz blue (`#0064d4`) with
+  `branding/logo/svg/papeliz-logo-scroll-spark-traced-mark-on-blue.svg` and Windows' interface font.
+  The side picture shows the version as text, "Version 1.0.0 Preview 1", so it is redrawn when the
+  version changes.
+- `papeliz-end-user-license-agreement.txt` is the End User License Agreement the License page shows
+  (`bundle.licenseFile`).
+- The setup file, its window and the uninstaller use the app's icon, `icons/icon.ico`.
+
 ## Windows
 
 Papeliz opens a window per vault, like a code editor. A second launch, the gear's New Window or
@@ -64,5 +84,6 @@ app/desktop/
 ├─ src/                     the shell: the windows, plugins, links opening in the system browser
 ├─ capabilities/            what the page may ask of the shell
 ├─ icons/                   made from branding/logo/svg/papeliz-logo-scroll-spark-traced-app-tile.svg
+├─ installer/               the installer's template, pictures and End User License Agreement
 └─ msix/                    the Microsoft Store package's manifest and logos
 ```
