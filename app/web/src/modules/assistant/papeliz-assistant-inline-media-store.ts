@@ -254,7 +254,7 @@ export const usePapelizInlineMediaStore = create<PapelizInlineMediaState>()((set
       setInlineMediaState({
         inlineMediaStage: 'working',
         inlineMediaProblem: null,
-        inlineMediaProgressText: `${pictureDescriptionConnection.providerConnection.providerModelName} is looking at the picture…`,
+        inlineMediaProgressText: `Describing the picture with ${pictureDescriptionConnection.providerConnection.providerModelName}…`,
       })
       try {
         const vaultNoteRelativePath = selectActiveVaultMarkdownNoteRelativePath(usePapelizWorkspaceStore.getState()) ?? ''
@@ -308,7 +308,7 @@ export const usePapelizInlineMediaStore = create<PapelizInlineMediaState>()((set
         return
       }
       const inlineMediaAbortController = startInlineMediaAbortController()
-      setInlineMediaState({ inlineMediaStage: 'working', inlineMediaProblem: null, inlineMediaProgressText: `Changing the picture with ${imageEditingModel.providerModelName}…` })
+      setInlineMediaState({ inlineMediaStage: 'working', inlineMediaProblem: null, inlineMediaProgressText: `Editing the picture with ${imageEditingModel.providerModelName}…` })
       try {
         const vaultNoteRelativePath = selectActiveVaultMarkdownNoteRelativePath(usePapelizWorkspaceStore.getState())
         if (vaultNoteRelativePath === null) throw new PapelizAssistantProviderError('Open the note again, then try once more.', null)

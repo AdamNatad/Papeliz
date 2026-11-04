@@ -203,14 +203,15 @@ export function PapelizAssistantInlineMediaCardBody() {
         </div>
       )}
 
-      {isPictureAction && inlineSourcePictureUrl !== null && inlineMediaStage !== 'review' && (
-        <div className="border-t border-papeliz-line px-4 py-3">
-          <img src={inlineSourcePictureUrl} alt={inlinePictureLink?.pictureAltText ?? ''} className="max-h-40 max-w-[min(100%,16rem)] rounded-xl border border-papeliz-line object-contain" />
-        </div>
-      )}
+      {/* What is happening comes first, right under the request, with the old picture below it. */}
       {(inlineMediaStage === 'working' || inlineMediaStage === 'review' || inlineMediaStage === 'failed') && (
         <div className="flex flex-col gap-2.5 border-t border-papeliz-line px-4 py-3 text-[15px] leading-relaxed" aria-live="polite">
-          {inlineMediaStage === 'working' && <p className="text-sm text-papeliz-ink-muted">{inlineMediaProgressText ?? 'Working…'}</p>}
+          {inlineMediaStage === 'working' && (
+            <p className="flex items-center gap-2 text-sm text-papeliz-ink-muted">
+              <span className="papeliz-saving-dot size-1.5 flex-none rounded-full bg-papeliz-blue" aria-hidden="true" />
+              {inlineMediaProgressText ?? 'Working…'}
+            </p>
+          )}
           {inlineMediaStage === 'failed' && (
             <p role="alert" className="papeliz-selectable-text text-sm text-papeliz-diff-removed-ink">
               {inlineMediaProblem}
@@ -247,6 +248,11 @@ export function PapelizAssistantInlineMediaCardBody() {
             </div>
           )}
           {inlineMediaStage === 'review' && <PapelizTextDiffView textDiffParts={insertedTextDiffParts} />}
+        </div>
+      )}
+      {isPictureAction && inlineSourcePictureUrl !== null && inlineMediaStage !== 'review' && (
+        <div className="border-t border-papeliz-line px-4 py-3">
+          <img src={inlineSourcePictureUrl} alt={inlinePictureLink?.pictureAltText ?? ''} className="max-h-40 max-w-[min(100%,16rem)] rounded-xl border border-papeliz-line object-contain" />
         </div>
       )}
 

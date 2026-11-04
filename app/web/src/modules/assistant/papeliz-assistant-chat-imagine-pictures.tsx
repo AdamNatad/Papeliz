@@ -31,7 +31,8 @@ export function PapelizAssistantChatImaginePictures({ chatImagineRunId, imagineP
       {chatImagineRun === undefined ? (
         <p className="text-[12.5px] text-papeliz-ink-subtle">These pictures were made earlier; the Imagine tab keeps the ones made since the page opened.</p>
       ) : chatImagineRun.chatImagineRunStage === 'making' ? (
-        <p className="text-[13px] text-papeliz-ink-muted" aria-live="polite">
+        <p className="flex items-center gap-2 text-[13px] text-papeliz-ink-muted" aria-live="polite">
+          <span className="papeliz-saving-dot size-1.5 flex-none rounded-full bg-papeliz-blue" aria-hidden="true" />
           Making the picture{chatImagineRun.imageModelLabel === null ? '' : ` with ${chatImagineRun.imageModelLabel}`}…
         </p>
       ) : chatImagineRun.chatImagineRunStage === 'failed' ? (

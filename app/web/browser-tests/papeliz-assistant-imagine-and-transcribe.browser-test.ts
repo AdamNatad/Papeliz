@@ -1088,3 +1088,61 @@ test('Describe Picture writes a picture’s alt text with Meta’s vision, and E
   await expect(inlineCard.getByRole('button', { name: 'Edit Picture' })).toBeVisible()
   expect(refusedOutsideRequestUrls).toEqual([])
 })
+
+test('while Edit Picture and Describe Picture wait for the provider, the card says so with a pulsing dot above the old picture', async ({ page }) => {
+  const { refusedOutsideRequestUrls } = await playTestMetaProvider(page)
+  // The provider holds its answer to the picture's edit and to its description until the test lets it go.
+  let releaseHeldProviderReply: () => void = () => {}
+  let heldProviderReply = new Promise<void>((resolveHeldReply) => (releaseHeldProviderReply = resolveHeldReply))
+  await page.route(`${testProviderBaseUrl}/**`, async (route: Route) => {
+    const providerRequestPath = new URL(route.request().url()).pathname.replace('/v1/', '')
+    const isPictureRequest = providerRequestPath === 'images/edits' || (providerRequestPath === 'chat/completions' && (route.request().postData() ?? '').includes('alt text'))
+    if (isPictureRequest && route.request().method() === 'POST') await heldProviderReply
+    return route.fallback()
+  })
+  await openSampleVaultWithMetaProvider(page)
+  await page.getByRole('button', { name: 'MD Code', exact: true }).click()
+  let inlineCard = await openInlineCardOnLine(page, 'Welcome to the sample vault.')
+  await inlineCard.getByRole('button', { name: 'Imagine', exact: true }).click()
+  await inlineCard.getByRole('textbox', { name: 'Picture to make' }).fill('square')
+  await inlineCard.getByRole('button', { name: 'Imagine', exact: true }).click()
+  await inlineCard.getByRole('button', { name: /^Accept/ }).click()
+  await expect(page.locator('.cm-content').first()).toContainText('![square](Attachments/imagine-')
+
+  // Edit Picture: the line names Draw's model and sits right under the request, above the old picture.
+  inlineCard = await openInlineCardOnLine(page, '![square](Attachments/imagine-')
+  await inlineCard.getByRole('button', { name: 'Edit Picture' }).click()
+  await inlineCard.getByRole('textbox', { name: 'Change to make in the picture' }).fill('make it light mode')
+  await inlineCard.getByRole('button', { name: 'Edit Picture' }).click()
+  const editWaitingLine = inlineCard.getByText('Editing the picture with muse-image-1.0…', { exact: true })
+  await expect(editWaitingLine).toBeVisible()
+  await expect(editWaitingLine.locator('.papeliz-saving-dot')).toBeVisible()
+  const oldPicture = inlineCard.getByRole('img', { name: 'square' })
+  await expect(oldPicture).toBeVisible()
+  const [editWaitingLineBox, oldPictureBox] = await readElementBoxesInOneFrame(page, [editWaitingLine, oldPicture])
+  expect(editWaitingLineBox!.y + editWaitingLineBox!.height).toBeLessThanOrEqual(oldPictureBox!.y)
+  expect(await editWaitingLine.locator('.papeliz-saving-dot').evaluate((dotElement) => getComputedStyle(dotElement).animationName)).toBe('papeliz-saving-pulse')
+  // With reduced motion the dot stands still and the words stay.
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  expect(await editWaitingLine.locator('.papeliz-saving-dot').evaluate((dotElement) => getComputedStyle(dotElement).animationDuration)).toBe('0s')
+  await expect(editWaitingLine).toBeVisible()
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  await expect(inlineCard.getByRole('button', { name: /^Accept/ })).toBeDisabled()
+  releaseHeldProviderReply()
+  await expect(inlineCard.getByRole('switch', { name: 'Remove Metadata' })).toBeVisible()
+  await expect(editWaitingLine).toHaveCount(0)
+  await inlineCard.getByRole('button', { name: /^Accept/ }).click()
+  await expect(inlineCard).toBeHidden()
+
+  // Describe Picture: the same line, naming the chat's model, until the alt text arrives.
+  heldProviderReply = new Promise<void>((resolveHeldReply) => (releaseHeldProviderReply = resolveHeldReply))
+  inlineCard = await openInlineCardOnLine(page, '![square](Attachments/imagine-')
+  await inlineCard.getByRole('button', { name: 'Describe Picture' }).click()
+  const describeWaitingLine = inlineCard.getByText(`Describing the picture with ${metaChatModelName}…`, { exact: true })
+  await expect(describeWaitingLine).toBeVisible()
+  await expect(describeWaitingLine.locator('.papeliz-saving-dot')).toBeVisible()
+  releaseHeldProviderReply()
+  await expect(inlineCard.locator('.papeliz-text-diff')).toContainText(`![${testPictureAltText}](Attachments/imagine-`)
+  await expect(describeWaitingLine).toHaveCount(0)
+  expect(refusedOutsideRequestUrls).toEqual([])
+})
