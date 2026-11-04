@@ -33,16 +33,14 @@
 
 ## Demo video (3 minutes)
 
-<!-- PENDING: the YouTube link is a placeholder. Replace https://www.youtube.com/watch?v=PLACEHOLDER (two places
-     below) with the video's link once it is up, and drop "(link coming soon)". -->
 <p align="center">
-  <a href="https://www.youtube.com/watch?v=PLACEHOLDER">
-    <img src="docs/images/papeliz-demo-video-thumbnail.png" alt="Watch the Papeliz demo video: an AI Assistant on Meta's Model API, with Muse Spark, Muse Voice Transcribe and Muse Image." width="100%" />
+  <a href="https://youtu.be/I-rF_Y-SpHY">
+    <img src="docs/images/papeliz-demo-video-thumbnail.png" alt="Watch the Papeliz demo video: The AI Markdown Editor, free and open source, beside the workspace with a plan open in MD View." width="100%" />
   </a>
 </p>
 
 <p align="center">
-  <a href="https://www.youtube.com/watch?v=PLACEHOLDER"><strong>▶ Watch the demo on YouTube</strong></a> (link coming soon)
+  <a href="https://youtu.be/I-rF_Y-SpHY"><strong>▶ Watch the demo on YouTube</strong></a>
 </p>
 
 | Time | Part |
