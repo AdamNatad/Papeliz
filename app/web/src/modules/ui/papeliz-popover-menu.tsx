@@ -2,6 +2,7 @@ import { Check, type LucideIcon } from 'lucide-react'
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { joinPapelizClassNames } from './papeliz-class-names'
+import { givePapelizFocusBackWithTitleHeldBack } from './papeliz-focus-back-with-title-held-back'
 import { subscribeToPapelizWindowWidthChange } from './papeliz-window-width-change'
 
 export interface PapelizPopoverMenuItem {
@@ -189,9 +190,10 @@ export function PapelizPopoverMenu({ menuLabel, menuPosition, menuItems, onMenuC
       document.removeEventListener('pointerdown', closeOnOutsidePointer, true)
       stopWatchingWindowWidth()
       window.removeEventListener('blur', closeOnWindowChange)
-      // Give focus back unless something else (a rename field, say) has already taken it.
+      // Give focus back unless something else (a rename field, say) has already taken it, with no
+      // tooltip on what it goes back to.
       if (focusedBeforeMenu?.isConnected && (document.activeElement === null || document.activeElement === document.body)) {
-        focusedBeforeMenu.focus()
+        givePapelizFocusBackWithTitleHeldBack(focusedBeforeMenu, () => focusedBeforeMenu.focus())
       }
     }
   }, [focusedBeforeMenu])
@@ -236,8 +238,9 @@ export function PapelizPopoverMenu({ menuLabel, menuPosition, menuItems, onMenuC
           }}
           onMenuItemButtonClick={() =>
             pressPapelizPopoverMenuItem(menuItem, () => {
-              // Focus goes back first, so a dialog the item opens returns it there when it closes.
-              if (focusedBeforeMenu?.isConnected) focusedBeforeMenu.focus({ preventScroll: true })
+              // Focus goes back first, so a dialog the item opens returns it there when it closes. An item
+              // chosen with Enter gives focus back from a key, so the title is held back here too.
+              if (focusedBeforeMenu?.isConnected) givePapelizFocusBackWithTitleHeldBack(focusedBeforeMenu, () => focusedBeforeMenu.focus({ preventScroll: true }))
               onMenuClose()
             })
           }

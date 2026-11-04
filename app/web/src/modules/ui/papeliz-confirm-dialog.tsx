@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { PapelizPillButton } from './papeliz-buttons'
+import { givePapelizFocusBackWithTitleHeldBack } from './papeliz-focus-back-with-title-held-back'
 
 interface PapelizConfirmDialogProps {
   confirmDialogTitle: string
@@ -13,32 +14,6 @@ interface PapelizConfirmDialogProps {
   confirmDialogSecondaryAction?: { secondaryActionLabel: string; isSecondaryActionDisabled?: boolean; onSecondaryActionSelect: () => void }
   onConfirm: () => void
   onCancel: () => void
-}
-
-// Edge shows the title of an element focused from a key as a tooltip that stays until focus moves on,
-// and the dialog puts focus back on what had it when it closes, from Esc as often as not. So that
-// element's title is taken off while focus goes back, and comes back once focus leaves it or the
-// pointer comes over it.
-function giveFocusBackWithTitleHeldBack(focusReturnElement: HTMLElement, giveFocusBack: () => void) {
-  const heldBackTitleText = focusReturnElement.getAttribute('title')
-  if (heldBackTitleText === null) {
-    giveFocusBack()
-    return
-  }
-  focusReturnElement.removeAttribute('title')
-  const putTitleBack = () => {
-    focusReturnElement.removeEventListener('blur', putTitleBack)
-    focusReturnElement.removeEventListener('pointerenter', putTitleBack)
-    // Unless its own code has set a new one meanwhile.
-    if (!focusReturnElement.hasAttribute('title')) focusReturnElement.setAttribute('title', heldBackTitleText)
-  }
-  giveFocusBack()
-  if (document.activeElement !== focusReturnElement) {
-    putTitleBack()
-    return
-  }
-  focusReturnElement.addEventListener('blur', putTitleBack)
-  focusReturnElement.addEventListener('pointerenter', putTitleBack)
 }
 
 // A modal question with one action and Cancel, on the browser's own <dialog> (focus stays inside,
@@ -72,7 +47,7 @@ export function PapelizConfirmDialog({
           focusedBeforeDialog.focus()
         }
       }
-      if (focusedBeforeDialog?.isConnected) giveFocusBackWithTitleHeldBack(focusedBeforeDialog, giveFocusBack)
+      if (focusedBeforeDialog?.isConnected) givePapelizFocusBackWithTitleHeldBack(focusedBeforeDialog, giveFocusBack)
       else giveFocusBack()
     }
   }, [focusedBeforeDialog])
