@@ -24,6 +24,7 @@ export const papelizHelpReferenceArticles: readonly PapelizHelpArticle[] = [
           ['Ctrl+S', 'Save every open note now'],
           ['Ctrl+Shift+F', 'Turn focus mode on or off'],
           ['Esc', 'Leave focus mode, or close the file list or Assistant drawer in a narrow window'],
+          ['Ctrl+Shift+N', 'Open another window on the start page, in Papeliz for Windows'],
         ]),
       ]),
       helpSection('Writing', [

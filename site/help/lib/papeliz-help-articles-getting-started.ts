@@ -174,6 +174,18 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
           'If a browser vault has changes since its last backup, the question says so and offers **Download Backup** beside **Close Vault**. The sample vault’s changes are lost when it closes.',
         ),
       ]),
+      helpSection('Several windows in Papeliz for Windows', [
+        helpParagraph(
+          'Papeliz for Windows is one app with several windows, one vault in each. To open another window on the start page, choose **New Window** in the gear, press `Ctrl+Shift+N`, or start Papeliz again from the Start menu or the taskbar.',
+        ),
+        helpParagraph(
+          'A vault opens in one window only. If you open a vault that’s already open in another window, from **Recent Vaults**, **Open Vault** or **New Vault**’s **Open It**, that window comes forward instead, so two windows never change the same vault. The sample vault opens in any window, a separate copy in each.',
+        ),
+        helpParagraph(
+          'Each window keeps its own vault, tabs and title, so the taskbar and `Alt+Tab` name the vault in each one. Closing a window saves its notes and closes only that window; closing the last one quits Papeliz. The next time Papeliz starts, it opens one window on the start page.',
+        ),
+        helpParagraph('On the web, open another vault in another browser tab.'),
+      ]),
     ],
     relatedArticleSlugs: ['keep-a-vault-in-your-browser', 'browser-support', 'file-explorer', 'where-your-notes-live'],
   },
@@ -410,6 +422,7 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
           '**Settings**: the tabs **Vault**, the open vault’s name with **Rename** (a folder vault keeps its name inside the vault, and the folder on your computer keeps its own) and its **Encryption** (see [[end-to-end-vaults]]), and **Key Bindings**, the shortcuts you can change. See [[keyboard-shortcuts]]. In a vault kept in your browser, a third tab, **Reminder**, holds the backup reminder and **Download Backup**. See [[keep-a-vault-in-your-browser]].',
           '**Accessibility**: the theme, how tabs show, how your notes’ text looks (font, size and width), and the **Lock All Notes** and **Focus Mode** switches. See [[text-settings-and-theme]], [[switch-views-and-lock]] and [[focus-mode|focus mode]].',
           '**AI Provider**: your **Saved Providers**, with **Add Provider** under them. Open a provider’s gear for its key, models and **Advanced**, or pick the models Transcribe and Draw use in **Models for Transcribe and Draw**. See [[bring-your-own-key]].',
+          '**New Window**, in Papeliz for Windows: another Papeliz window, on the start page. `Ctrl+Shift+N` does the same. See [[open-a-folder]].',
           '**Lock Now**, in an End-to-end vault: saves every note and locks the vault.',
           '**Close Vault**, at the bottom: back to the start page. See [[open-a-folder]].',
         ]),
@@ -447,7 +460,9 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
         ),
       ]),
       helpSection('On the start page', [
-        helpParagraph('The start page has a gear too, with **Account**, **Sync** and **Accessibility**. With no vault open, Accessibility holds only the theme.'),
+        helpParagraph(
+          'The start page has a gear too, with **Account**, **Sync** and **Accessibility**, and **New Window** in Papeliz for Windows. With no vault open, Accessibility holds only the theme.',
+        ),
         helpParagraph('The start page also has **Templates** and **Synced Vaults**. See [[open-a-folder]] and [[sync-your-vaults]].'),
       ]),
     ],
