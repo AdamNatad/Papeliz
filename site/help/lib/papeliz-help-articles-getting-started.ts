@@ -404,7 +404,7 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
           '**Sync**: keep your vaults the same on all your devices, with the tabs **Plans** and **Settings**. Every account comes with Free. See [[sync-your-vaults]].',
           '**Settings**: the tabs **Vault**, the open vault’s name (a vault kept in your browser renames here; a folder vault takes its folder’s name) and its **Encryption** (see [[end-to-end-vaults]]), and **Key Bindings**, the shortcuts you can change. See [[keyboard-shortcuts]]. In a vault kept in your browser, a third tab, **Reminder**, holds the backup reminder and **Download Backup**. See [[keep-a-vault-in-your-browser]].',
           '**Accessibility**: the theme, how tabs show, how your notes’ text looks (font, size and width), and the **Lock All Notes** and **Focus Mode** switches. See [[text-settings-and-theme]], [[switch-views-and-lock]] and [[focus-mode|focus mode]].',
-          '**AI Provider**: your saved providers. Add one, open one’s gear for its key, models and **Advanced**, or pick **Models for Each Task**. See [[bring-your-own-key]].',
+          '**AI Provider**: your **Saved Providers**, with **Add Provider** under them. Open a provider’s gear for its key, models and **Advanced**, or pick the models Transcribe and Draw use in **Models for Transcribe and Draw**. See [[bring-your-own-key]].',
           '**Lock Now**, in an End-to-end vault: saves every note and locks the vault.',
           '**Close Vault**, at the bottom: back to the start page. See [[open-a-folder]].',
         ]),

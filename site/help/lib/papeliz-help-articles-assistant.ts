@@ -41,20 +41,21 @@ export const papelizHelpAssistantArticles: readonly PapelizHelpArticle[] = [
           'Under **Models** in a provider’s settings, switch on the models you want: they show on the model chip in the assistant. For every preset except Custom, models come from the list the provider returns for your key, so a mistyped name can’t be added. Custom also takes a typed name with **Add Model**.',
         ),
       ]),
-      helpSection('Models for Each Task', [
+      helpSection('Models for Transcribe and Draw', [
         helpParagraph(
-          'Once you’ve added a provider, **Models for Each Task**, under **Saved Providers**, shows the model each job uses and its provider. Choose a row to pick another:',
+          'Once you’ve added a provider, **Models for Transcribe and Draw**, under **Add Provider**, shows the model each of these tasks uses and its provider. Choose a row to pick another: **Automatic**, a model under its provider’s name, or **Other Model**, which takes a model name you type.',
         ),
         helpDetailList([
-          ['Chat', 'The assistant’s model chip. A pick here or on the chip changes both.'],
-          ['Transcribe', 'Turns speech into text. **Automatic** uses the first provider that can, the recommended provider first. See [[choose-a-provider]].'],
-          ['Draw', 'Makes and changes pictures, **Automatic** too. Draw’s model chip in Imagine is the same setting.'],
-          ['Describe Picture', 'Writes a picture’s alt text. **Same as Chat** uses the chat’s model; the other choices are models that can see pictures.'],
+          ['Transcribe', 'Turns speech into text. See [[choose-a-provider]].'],
+          ['Draw', 'Makes and changes pictures. Draw’s model chip in Imagine is the same setting.'],
         ]),
         helpParagraph(
-          'When none of your providers can do a task, its row says so, with **Add Provider** and the providers that can. **Other Model** takes a model name you type.',
+          '**Automatic** shows as a green **A** after the task’s name: it uses the first of your providers that can do the task, the recommended provider first. Hover over the **A** to read this. The line under the name says which model it uses now.',
         ),
-        helpParagraph('Hover over the microphone in the assistant to see which model transcribes.'),
+        helpParagraph('When none of your providers can do a task, its row says so and is **Add Provider**. Hover over it to see the providers that can.'),
+        helpParagraph(
+          'Chat has no row: its model is the model chip in the chat box, and **Describe Picture** always uses it too. See [[chat-with-the-assistant]]. Hover over the microphone in the assistant to see which model transcribes.',
+        ),
       ]),
       helpSection('Model price', [
         helpParagraph(
@@ -166,7 +167,7 @@ export const papelizHelpAssistantArticles: readonly PapelizHelpArticle[] = [
       ]),
       helpSection('Pick the model', [
         helpParagraph(
-          'The model chip beside **Effort** lists every model you switched on, by provider, with **AI Provider** at the end to add more. The one you pick answers your next message and your inline edits, with its own provider’s key, and stays picked until you choose another. **Models for Each Task**, in the same menu, picks the models for speech and pictures. See [[bring-your-own-key]].',
+          'The model chip beside **Effort** lists every model you switched on, by provider. The one you pick answers your next message, your inline edits and **Describe Picture**, with its own provider’s key, and stays picked until you choose another. At the end of its menu, **AI Provider** opens the page where you add more, and **Models for Transcribe and Draw** opens it at the models for speech and pictures. See [[bring-your-own-key]].',
         ),
       ]),
       helpSection('What the assistant sees', [
@@ -309,10 +310,10 @@ export const papelizHelpAssistantArticles: readonly PapelizHelpArticle[] = [
       ]),
       helpSection('Which providers', [
         helpParagraph(
-          'Each action uses a provider you added, with your own key. The recommended provider makes pictures, changes them and turns speech into text; its models are in [[choose-a-provider]]. Transcribe’s write-up uses the chat’s model, and so does Describe Picture unless you pick another.',
+          'Each action uses a provider you added, with your own key. The recommended provider makes pictures, changes them and turns speech into text; its models are in [[choose-a-provider]]. Transcribe’s write-up and **Describe Picture** use the chat’s model.',
         ),
         helpParagraph(
-          'OpenAI, Google Gemini, OpenRouter and Together make pictures too, and they and Groq turn speech into text. **Edit Picture** works with the recommended provider. **Models for Each Task**, on the gear’s **AI Provider** page, picks the model for each, and Imagine, the chat box and Edit with Assistant all use those. See [[bring-your-own-key]].',
+          'OpenAI, Google Gemini, OpenRouter and Together make pictures too, and they and Groq turn speech into text. **Edit Picture** works with the recommended provider. **Models for Transcribe and Draw**, on the gear’s **AI Provider** page, picks the model for each, and Imagine, the chat box and Edit with Assistant all use those. See [[bring-your-own-key]].',
         ),
       ]),
       helpSection('Remove Metadata', [
