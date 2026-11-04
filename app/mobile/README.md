@@ -63,13 +63,23 @@ else (`capabilities/papeliz-mobile-main-window.json`). The page's side of it is
 `papeliz-mobile-platform/papeliz-mobile-platform-tauri.ts`, for the web app's
 `virtual:papeliz-mobile-platform`.
 
+## Exports and backups
+
+Export and Download Backup save through Android's own save screen (Create Document), with the file's
+name and type filled in, and write the file where the person picks. The web view's own save dialog
+closes at once on Android and its downloads go nowhere, so in the phone app the web app hands the built
+file to Papeliz's save command instead (`src/papeliz_mobile_export_file_save.rs`, through
+`tauri-plugin-android-fs`). The page reaches that one command, none of the plugin's own. The iPhone has
+no save screen yet.
+
 ## Layout
 
 ```text
 app/mobile/
 ├─ tauri.conf.json              the app: name, identifier (com.papeliz.mobile), version
 ├─ Cargo.toml, build.rs         the Rust crate (papeliz-mobile)
-├─ src/                         the shell: the web view, its permissions, links opening in the browser
+├─ src/                         the shell: the web view, its permissions, links opening in the browser,
+│                               the save screen for exports and backups
 ├─ capabilities/                what the page may ask of the shell
 ├─ papeliz-mobile-platform/     the web app's mobile side, built into the app only
 ├─ papeliz-mobile-layout/       the phone layout: the top bar, the bottom bar, More and Settings

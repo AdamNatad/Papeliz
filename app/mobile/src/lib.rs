@@ -2,6 +2,7 @@
 // WebView, iOS's WKWebView). The page reaches only the commands its capability file allows
 // (capabilities/papeliz-mobile-main-window.json).
 
+mod papeliz_mobile_export_file_save;
 mod papeliz_mobile_webview_permission_requests;
 
 use papeliz_mobile_webview_permission_requests::PapelizMobileShownPage;
@@ -24,6 +25,10 @@ pub fn run_papeliz_mobile_app() {
         // the capability file scopes it to.
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init())
+        // Android's own save screen for exports and backups. The page reaches none of the plugin's
+        // commands, only Papeliz's own save command below.
+        .plugin(tauri_plugin_android_fs::init())
+        .invoke_handler(tauri::generate_handler![papeliz_mobile_export_file_save::save_papeliz_mobile_export_file])
         .setup(|app| {
             create_papeliz_mobile_main_window(app.handle())?;
             Ok(())

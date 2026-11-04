@@ -1,6 +1,9 @@
 import { isPapelizDesktopApp } from 'virtual:papeliz-desktop-platform-availability'
+import { loadPapelizMobilePlatform } from 'virtual:papeliz-mobile-platform'
+import { isPapelizMobileApp } from 'virtual:papeliz-mobile-platform-availability'
 import type { PapelizDesktopPlatform } from '../desktop/papeliz-desktop-platform-contract'
 import { usePapelizDesktopPlatformStore } from '../desktop/papeliz-desktop-platform-store'
+import type { PapelizMobilePlatform } from '../mobile/papeliz-mobile-platform-contract'
 import { describePapelizFailureCode } from '../vault/papeliz-failure-code-words'
 import { describePapelizVaultError } from '../vault/papeliz-vault-adapter'
 
@@ -56,13 +59,14 @@ export type PapelizExportFileSaveOutcome = 'saved-to-chosen-file' | 'downloaded'
 
 // The sentence for a failed export. An export reads the vault and writes one new file, so the vault
 // folder's sentences ("this folder", "Recent Vaults") would point the wrong way; these name the export.
-// In the desktop app the refusal is Windows', for the folder picked in its save dialog.
+// In the desktop app the refusal is Windows', for the folder picked in its save dialog, and in the
+// phone app the phone's, for the place picked in its save screen.
 export function describePapelizExportErrorSentence(exportError: unknown): string {
   const exportFailureCode = describePapelizVaultError(exportError)
   if (exportFailureCode === 'No Permission') {
-    return isPapelizDesktopApp
-      ? 'Windows didn’t let Papeliz save there. Pick another folder, then try again.'
-      : 'The browser didn’t let Papeliz finish the export. Try again.'
+    if (isPapelizDesktopApp) return 'Windows didn’t let Papeliz save there. Pick another folder, then try again.'
+    if (isPapelizMobileApp) return 'The phone didn’t let Papeliz save there. Pick another place, then try again.'
+    return 'The browser didn’t let Papeliz finish the export. Try again.'
   }
   if (exportFailureCode === 'File Not Found') return 'A note was moved or deleted while it was exported. Try again.'
   return describePapelizFailureCode(exportFailureCode)
@@ -130,6 +134,23 @@ async function savePapelizExportFileWithDesktopDialog(
   return 'saved-to-chosen-file'
 }
 
+// Papeliz for Android saves through the phone's own save screen (Create Document), which writes the file
+// where the person picks, with no time limit after the click. The web view's own save dialog closes at
+// once there and nothing downloads, so a file the phone can't write fails the export.
+async function savePapelizExportFileWithMobileSaveScreen(
+  papelizMobilePlatform: PapelizMobilePlatform,
+  exportFileName: string,
+  exportFileKind: PapelizExportFileKind,
+  exportFileBlob: Blob,
+): Promise<PapelizExportFileSaveOutcome> {
+  const mobileSaveFileOutcome = await papelizMobilePlatform.saveFileWithMobileSaveScreen({
+    suggestedMobileFileName: exportFileName,
+    mobileFileMediaType: exportFileKind.exportFileMediaType,
+    mobileFileBlob: exportFileBlob,
+  })
+  return mobileSaveFileOutcome === 'saved-to-chosen-file' ? 'saved-to-chosen-file' : 'save-dialog-closed'
+}
+
 // Builds the export, then saves it: the save dialog opens only once the file is ready, so stopping
 // or failing while it is built creates no file. When the chosen file can't be written, the same file
 // downloads instead, so the export still lands.
@@ -144,6 +165,20 @@ export async function buildThenSavePapelizExportFile<PapelizBuiltExport extends 
     return {
       builtExport,
       exportFileSaveOutcome: await savePapelizExportFileWithDesktopDialog(papelizDesktopPlatform, exportFileName, exportFileKind, builtExport.exportFileBlob),
+    }
+  }
+  if (isPapelizMobileApp) {
+    const papelizMobilePlatformLoadResult = await loadPapelizMobilePlatform()
+    if (papelizMobilePlatformLoadResult.papelizMobilePlatformAvailability === 'in-the-mobile-app') {
+      return {
+        builtExport,
+        exportFileSaveOutcome: await savePapelizExportFileWithMobileSaveScreen(
+          papelizMobilePlatformLoadResult.papelizMobilePlatform,
+          exportFileName,
+          exportFileKind,
+          builtExport.exportFileBlob,
+        ),
+      }
     }
   }
   const exportFileDestination = await choosePapelizExportFileDestination(exportFileName, exportFileKind)

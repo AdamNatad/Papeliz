@@ -7,8 +7,11 @@
 //   fs plugin. The capability file (app/mobile/capabilities/papeliz-mobile-main-window.json) lets the
 //   page reach that folder and nothing else. Its file calls keep the desktop contract's shape
 //   (PapelizDesktopFileSystem), the one native folder contract both apps share;
-// - links opening in the phone's browser.
+// - links opening in the phone's browser;
+// - Android's own save screen for exports and backups, through Papeliz's save command
+//   (src/papeliz_mobile_export_file_save.rs).
 import { getVersion } from '@tauri-apps/api/app'
+import { invoke } from '@tauri-apps/api/core'
 import { appDataDir, sep } from '@tauri-apps/api/path'
 import { copyFile, exists, mkdir, readDir, readFile, readTextFile, remove, rename, stat, writeFile, writeTextFile } from '@tauri-apps/plugin-fs'
 import { openUrl } from '@tauri-apps/plugin-opener'
@@ -19,7 +22,11 @@ import type {
   PapelizDesktopFileSystemFailureKind,
 } from '../../web/src/modules/desktop/papeliz-desktop-platform-contract'
 import { papelizDesktopSavingFileSuffix } from '../../web/src/modules/desktop/papeliz-desktop-platform-contract'
-import type { PapelizMobilePlatformLoadResult } from '../../web/src/modules/mobile/papeliz-mobile-platform-contract'
+import type {
+  PapelizMobilePlatformLoadResult,
+  PapelizMobileSaveFileOutcome,
+  PapelizMobileSaveFileRequest,
+} from '../../web/src/modules/mobile/papeliz-mobile-platform-contract'
 
 export { PapelizMobileWorkspaceLayout } from '../papeliz-mobile-layout/papeliz-mobile-workspace-layout'
 
@@ -152,7 +159,34 @@ const papelizTauriMobileAppStorageFileSystem: PapelizDesktopFileSystem = {
   joinDesktopPath: joinMobilePath,
 }
 
-export async function loadPapelizMobilePlatform(): Promise<PapelizMobilePlatformLoadResult> {
+// The file's bytes as base64 text, the form the save command takes them in.
+function readMobileFileBlobAsBase64Text(mobileFileBlob: Blob): Promise<string> {
+  return new Promise((resolveBase64Text, rejectBase64Text) => {
+    const mobileFileReader = new FileReader()
+    mobileFileReader.onload = () => {
+      const mobileFileDataUrl = String(mobileFileReader.result)
+      const base64TextStart = mobileFileDataUrl.indexOf(',') + 1
+      resolveBase64Text(base64TextStart === 0 ? '' : mobileFileDataUrl.slice(base64TextStart))
+    }
+    mobileFileReader.onerror = () => rejectBase64Text(mobileFileReader.error)
+    mobileFileReader.readAsDataURL(mobileFileBlob)
+  })
+}
+
+const saveFileWithMobileSaveScreen = withPapelizMobileFileSystemFailures(
+  async (mobileSaveFileRequest: PapelizMobileSaveFileRequest): Promise<PapelizMobileSaveFileOutcome> => {
+    const isMobileFileSaved = await invoke<boolean>('save_papeliz_mobile_export_file', {
+      mobileExportFileSaveRequest: {
+        suggestedMobileFileName: mobileSaveFileRequest.suggestedMobileFileName,
+        mobileFileMediaType: mobileSaveFileRequest.mobileFileMediaType,
+        mobileFileBase64Text: await readMobileFileBlobAsBase64Text(mobileSaveFileRequest.mobileFileBlob),
+      },
+    })
+    return isMobileFileSaved ? 'saved-to-chosen-file' : 'save-screen-closed'
+  },
+)
+
+async function loadPapelizMobilePlatformFromTheApp(): Promise<PapelizMobilePlatformLoadResult> {
   const mobileAppStorageFolderPath = joinMobilePath(await appDataDir(), papelizMobileAppStorageFolderName)
   await papelizTauriMobileAppStorageFileSystem.makeDesktopFolder(mobileAppStorageFolderPath)
   return {
@@ -166,6 +200,18 @@ export async function loadPapelizMobilePlatform(): Promise<PapelizMobilePlatform
         if (externalLinkProtocol !== 'https:' && externalLinkProtocol !== 'http:') return
         await openUrl(externalLinkUrl)
       },
+      saveFileWithMobileSaveScreen,
     },
   }
+}
+
+// Loaded once and shared by every caller; a load that failed is tried again the next time.
+let papelizMobilePlatformLoad: Promise<PapelizMobilePlatformLoadResult> | null = null
+
+export function loadPapelizMobilePlatform(): Promise<PapelizMobilePlatformLoadResult> {
+  papelizMobilePlatformLoad ??= loadPapelizMobilePlatformFromTheApp().catch((mobilePlatformLoadError: unknown) => {
+    papelizMobilePlatformLoad = null
+    throw mobilePlatformLoadError
+  })
+  return papelizMobilePlatformLoad
 }

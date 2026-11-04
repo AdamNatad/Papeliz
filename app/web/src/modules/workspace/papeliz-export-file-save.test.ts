@@ -1,8 +1,24 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { PapelizDesktopPlatform, PapelizDesktopSaveFileRequest } from '../desktop/papeliz-desktop-platform-contract'
 import { usePapelizDesktopPlatformStore } from '../desktop/papeliz-desktop-platform-store'
+import type { PapelizMobilePlatform, PapelizMobileSaveFileRequest } from '../mobile/papeliz-mobile-platform-contract'
 import { PapelizVaultOperationError } from '../vault/papeliz-vault-adapter'
 import { buildThenSavePapelizExportFile, describePapelizExportErrorSentence, type PapelizExportFileKind } from './papeliz-export-file-save'
+
+// The phone app's seam, as the web build has it unless a test turns the phone app on.
+const testMobileSeam = vi.hoisted(() => ({ isPapelizMobileApp: false, papelizMobilePlatform: null as PapelizMobilePlatform | null }))
+vi.mock('virtual:papeliz-mobile-platform-availability', () => ({
+  get isPapelizMobileApp() {
+    return testMobileSeam.isPapelizMobileApp
+  },
+}))
+vi.mock('virtual:papeliz-mobile-platform', () => ({
+  PapelizMobileWorkspaceLayout: null,
+  loadPapelizMobilePlatform: async () =>
+    testMobileSeam.papelizMobilePlatform === null
+      ? { papelizMobilePlatformAvailability: 'not-in-this-build' }
+      : { papelizMobilePlatformAvailability: 'in-the-mobile-app', papelizMobilePlatform: testMobileSeam.papelizMobilePlatform },
+}))
 
 const testExportFileKind: PapelizExportFileKind = { exportFileDescription: 'PDF document', exportFileMediaType: 'application/pdf', exportFileExtension: '.pdf' }
 
@@ -198,5 +214,59 @@ describe('an export in Papeliz for Windows', () => {
     )
     setTestDesktopSaveDialog('C:\\Locked\\Notes.pdf',Object.assign(new Error('Access is denied. (os error 5)'), { desktopFileSystemFailureKind: 'no-permission' }))
     await expect(buildThenSavePapelizExportFile('Notes.pdf', testExportFileKind, async () => ({ exportFileBlob: new Blob(['%PDF']) }))).rejects.toThrow('Access is denied')
+  })
+})
+
+describe('an export in Papeliz for Android', () => {
+  afterEach(() => {
+    testMobileSeam.isPapelizMobileApp = false
+    testMobileSeam.papelizMobilePlatform = null
+  })
+
+  // `saveScreenAnswer` is what the person does in the phone's save screen; `mobileWriteFailure` makes
+  // writing the picked file fail.
+  function setTestMobileSaveScreen(saveScreenAnswer: 'pick-place' | 'close-screen', mobileWriteFailure: Error | null = null) {
+    const mobileSaveSteps: string[] = []
+    testMobileSeam.isPapelizMobileApp = true
+    testMobileSeam.papelizMobilePlatform = {
+      saveFileWithMobileSaveScreen: async (mobileSaveFileRequest: PapelizMobileSaveFileRequest) => {
+        mobileSaveSteps.push(`save screen ${mobileSaveFileRequest.suggestedMobileFileName} ${mobileSaveFileRequest.mobileFileMediaType}`)
+        if (saveScreenAnswer === 'close-screen') return 'save-screen-closed'
+        if (mobileWriteFailure !== null) throw mobileWriteFailure
+        mobileSaveSteps.push(`write ${await mobileSaveFileRequest.mobileFileBlob.text()}`)
+        return 'saved-to-chosen-file'
+      },
+    } as unknown as PapelizMobilePlatform
+    return mobileSaveSteps
+  }
+
+  it('saves through the phone’s save screen once the file is built, never through the web view’s dialog', async () => {
+    const { exportSaveSteps } = stubExportSavePage({ saveDialogAnswer: 'close-dialog' })
+    const mobileSaveSteps = setTestMobileSaveScreen('pick-place')
+    const { exportFileSaveOutcome } = await buildThenSavePapelizExportFile('Notes.pdf', testExportFileKind, async () => {
+      mobileSaveSteps.push('built')
+      return { exportFileBlob: new Blob(['%PDF']) }
+    })
+    expect(exportFileSaveOutcome).toBe('saved-to-chosen-file')
+    expect(mobileSaveSteps).toEqual(['built', 'save screen Notes.pdf application/pdf', 'write %PDF'])
+    expect(exportSaveSteps).toEqual([])
+  })
+
+  it('saves and downloads nothing when the save screen is closed, and fails the export when the phone can’t write the file', async () => {
+    const { exportSaveSteps } = stubExportSavePage({ saveDialogAnswer: 'choose-file' })
+    setTestMobileSaveScreen('close-screen')
+    expect((await buildThenSavePapelizExportFile('Notes.pdf', testExportFileKind, async () => ({ exportFileBlob: new Blob(['%PDF']) }))).exportFileSaveOutcome).toBe(
+      'save-dialog-closed',
+    )
+    setTestMobileSaveScreen('pick-place', Object.assign(new Error('Permission denied (os error 13)'), { desktopFileSystemFailureKind: 'no-permission' }))
+    await expect(buildThenSavePapelizExportFile('Notes.pdf', testExportFileKind, async () => ({ exportFileBlob: new Blob(['%PDF']) }))).rejects.toThrow('Permission denied')
+    expect(exportSaveSteps).toEqual([])
+  })
+
+  it('names the phone, and the place picked, when the phone refuses the save', () => {
+    testMobileSeam.isPapelizMobileApp = true
+    expect(describePapelizExportErrorSentence(Object.assign(new Error('Permission denied (os error 13)'), { desktopFileSystemFailureKind: 'no-permission' }))).toBe(
+      'The phone didn’t let Papeliz save there. Pick another place, then try again.',
+    )
   })
 })

@@ -7,6 +7,7 @@ import { PapelizAssistantProposalPreview } from '../../web/src/modules/assistant
 import type { PapelizMobileWorkspaceLayoutProps } from '../../web/src/modules/mobile/papeliz-mobile-platform-contract'
 import { PapelizMark } from '../../web/src/modules/ui/papeliz-mark'
 import { getVaultNoteTitle } from '../../web/src/modules/vault/papeliz-vault-relative-paths'
+import { PapelizBrowserVaultBackupStatus } from '../../web/src/modules/workspace/papeliz-browser-vault-backup-status'
 import { PapelizFileExplorer } from '../../web/src/modules/workspace/papeliz-file-explorer'
 import { PapelizFileListThisNoteSection } from '../../web/src/modules/workspace/papeliz-file-list-this-note-section'
 import { PapelizNoteArea } from '../../web/src/modules/workspace/papeliz-note-area'
@@ -78,6 +79,9 @@ export function PapelizMobileWorkspaceLayout({ noteEditorSessionCache, children 
   const setNoteViewMode = usePapelizWorkspaceStore((workspaceState) => workspaceState.setNoteViewMode)
   const setVaultCloseConfirmationShown = usePapelizWorkspaceStore((workspaceState) => workspaceState.setVaultCloseConfirmationShown)
   const isAssistantProposalPreviewShown = usePapelizWorkspaceStore((workspaceState) => workspaceState.assistantProposalPreview !== null)
+  const openBrowserVaultId = usePapelizWorkspaceStore((workspaceState) =>
+    workspaceState.openVault?.papelizVaultAdapter.papelizVaultKind === 'browser-vault-in-opfs' ? workspaceState.openVault.papelizVaultId : null,
+  )
 
   useEffect(keepPapelizMobilePageUnzoomed, [])
   // Back from Files, the Assistant or Settings goes to Note; Back on Note leaves the app. An open dialog
@@ -155,6 +159,14 @@ export function PapelizMobileWorkspaceLayout({ noteEditorSessionCache, children 
           </div>
         )}
         {chosenMobilePlace === 'settings' && <PapelizMobileSettingsPlace />}
+        {/* The web's status bar isn't drawn on the phone, but its backup state for a Browser Storage
+            vault still runs, unseen: it reads the vault's last backup for Settings, Reminder (which
+            shows the same), and shows the backup reminder when one is due. */}
+        {openBrowserVaultId !== null && (
+          <div className="is-hidden">
+            <PapelizBrowserVaultBackupStatus papelizVaultId={openBrowserVaultId} />
+          </div>
+        )}
       </main>
 
       <nav className="papeliz-mobile-bottom-bar" aria-label="Places">
