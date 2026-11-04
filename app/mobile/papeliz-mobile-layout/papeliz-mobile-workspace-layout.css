@@ -78,19 +78,15 @@
   color: rgb(255 255 255 / 0.88);
 }
 
-.papeliz-mobile-top-bar-button[aria-pressed='true'] {
-  background: rgb(255 255 255 / 0.2);
-  color: #fff;
-}
-
 .papeliz-mobile-top-bar-button svg {
   width: 20px;
   height: 20px;
 }
 
-/* More's square: the web bar's frosted square (papeliz-topbar-frosted-square-button.tsx), a light white tint with a
-   thin white edge, drawn 36px inside the 44px button that takes the tap. While its menu is open it turns solid white
-   with a blue icon, and it sinks a little while pressed, as the web's does. */
+/* Each top-bar button's square (More on Note; New Conversation, Sessions and Usage on the Assistant): the web bar's
+   frosted square (papeliz-topbar-frosted-square-button.tsx), a light white tint with a thin white edge, drawn 36px
+   inside the 44px button that takes the tap. While its menu is open, or its view is shown (Sessions, Usage), it turns
+   solid white with a blue icon, and it sinks a little while pressed, as the web's does. */
 .papeliz-mobile-top-bar-frosted-square {
   display: grid;
   place-items: center;
@@ -112,7 +108,8 @@
   transform: scale(0.94);
 }
 
-.papeliz-mobile-top-bar-button[aria-expanded='true'] .papeliz-mobile-top-bar-frosted-square {
+.papeliz-mobile-top-bar-button[aria-expanded='true'] .papeliz-mobile-top-bar-frosted-square,
+.papeliz-mobile-top-bar-button[aria-pressed='true'] .papeliz-mobile-top-bar-frosted-square {
   border-color: #fff;
   background: #fff;
   color: var(--color-papeliz-gradient-start);

@@ -50,9 +50,9 @@ function keepPapelizMobilePageUnzoomed(): void {
   viewportMetaElement?.setAttribute('content', 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover')
 }
 
-// On the Assistant the panel's own head moves up into the top bar: New Conversation, Sessions and Usage.
-// The bottom bar does what its Close did. Sessions and Usage open in place of the page and, pressed
-// again or with Back, go back to the conversation, as in the panel.
+// On the Assistant the panel's own head moves up into the top bar: New Conversation, Sessions and Usage,
+// each in the frosted square More has. The bottom bar does what its Close did. Sessions and Usage open in
+// place of the page and, pressed again or with Back, go back to the conversation, as in the panel.
 function PapelizMobileAssistantTopBarButtons() {
   const assistantPanelTab = usePapelizAssistantPanelUiStore((panelUiState) => panelUiState.assistantPanelTab)
   const setAssistantPanelTab = usePapelizAssistantPanelUiStore((panelUiState) => panelUiState.setAssistantPanelTab)
@@ -71,13 +71,19 @@ function PapelizMobileAssistantTopBarButtons() {
           setAssistantPanelTab('chat')
         }}
       >
-        <SquarePen aria-hidden="true" />
+        <span className="papeliz-mobile-top-bar-frosted-square">
+          <SquarePen aria-hidden="true" />
+        </span>
       </button>
       <button type="button" className="papeliz-mobile-top-bar-button" aria-label="Sessions" aria-pressed={assistantPanelTab === 'sessions'} onClick={() => toggleAssistantPanelView('sessions')}>
-        <History aria-hidden="true" />
+        <span className="papeliz-mobile-top-bar-frosted-square">
+          <History aria-hidden="true" />
+        </span>
       </button>
       <button type="button" className="papeliz-mobile-top-bar-button" aria-label="Usage" aria-pressed={assistantPanelTab === 'usage'} onClick={() => toggleAssistantPanelView('usage')}>
-        <ChartNoAxesColumn aria-hidden="true" />
+        <span className="papeliz-mobile-top-bar-frosted-square">
+          <ChartNoAxesColumn aria-hidden="true" />
+        </span>
       </button>
     </>
   )
