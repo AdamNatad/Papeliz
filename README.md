@@ -92,8 +92,8 @@ every change before an agent acts on it. Papeliz gives them:
 
 Papeliz also serves students and writers building a knowledge base, and people who would rather speak than type.
 
-<!-- PENDING APPROVAL: the theme line below is a placeholder until the theme is confirmed. -->
-**Theme:** _to be confirmed._
+**Theme: Build for Your World.** Papeliz is an everyday tool for the plans and notes people build with AI agents,
+kept private and in plain files.
 
 ## Built on Meta's models
 
