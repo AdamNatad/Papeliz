@@ -84,8 +84,9 @@ import { applyPapelizVaultNoteTextEdits } from './papeliz-vault-note-text-edits'
 // note also keeps the tokens the conversation used.
 //
 // Plan writes a plan (papeliz-assistant-plan-document.ts) that the user edits on its card, then Build
-// carries it out one step at a time: each step runs as Write with that step's words, and the next
-// starts once the step's proposals are answered (at once, with Bypass permission on). Build first
+// carries it out one step at a time: the Assistant moves to Write, each step runs there with that
+// step's words, and the next starts once the step's proposals are answered (at once, with Bypass
+// permission on). Build first
 // saves the plan as a checklist note in `Plans/`, and ticks each step there as it finishes. Stop ends
 // the step that is running; Continue starts it again. A step that fails waits for Retry Step or Skip
 // Step. A plain question asked in Plan gets a short answer and no plan.
@@ -352,6 +353,13 @@ function buildAssistantPlanStepMessageText(planDocument: PapelizAssistantPlanDoc
     '',
     `Do only step ${planStepNumber} now. End with one short line saying what you proposed.`,
   ].join('\n')
+}
+
+// A plan's steps run as Write, so the Assistant moves to Write as its build starts or goes on. It
+// stays there once the plan is built; going back to Plan is the user's choice.
+function moveAssistantModeToWriteForPlanBuild(): void {
+  const runOptionsState = usePapelizAssistantRunOptionsStore.getState()
+  if (runOptionsState.assistantMode !== 'write') runOptionsState.setAssistantMode('write')
 }
 
 // Why a step's run, which proposed nothing, didn't manage its step: its reply says it couldn't, or a
@@ -1594,6 +1602,7 @@ export const usePapelizAssistantConversationStore = create<PapelizAssistantConve
           return
         }
       }
+      moveAssistantModeToWriteForPlanBuild()
       // Continue starts a stopped or failed step again; a step still waiting for review goes on waiting.
       updateAssistantPlanDocument(planChatEntryId, (planDocument) => ({
         ...planDocument,
@@ -1629,6 +1638,7 @@ export const usePapelizAssistantConversationStore = create<PapelizAssistantConve
     retryAssistantPlanStep: (planChatEntryId, planStepId) => {
       const planStep = findAssistantPlanEntry(planChatEntryId)?.assistantPlanDocument.planSteps.find((candidateStep) => candidateStep.planStepId === planStepId)
       if (planStep === undefined || (planStep.planStepStatus !== 'failed' && planStep.planStepStatus !== 'stopped')) return
+      moveAssistantModeToWriteForPlanBuild()
       updateAssistantPlanDocument(planChatEntryId, (planDocument) => ({
         ...updatePapelizAssistantPlanStep(planDocument, planStepId, { planStepStatus: 'to-do', planStepProblem: null }),
         planBuildPhase: 'building',
@@ -1639,6 +1649,7 @@ export const usePapelizAssistantConversationStore = create<PapelizAssistantConve
     skipAssistantPlanStep: (planChatEntryId, planStepId) => {
       const planStep = findAssistantPlanEntry(planChatEntryId)?.assistantPlanDocument.planSteps.find((candidateStep) => candidateStep.planStepId === planStepId)
       if (planStep === undefined || (planStep.planStepStatus !== 'failed' && planStep.planStepStatus !== 'stopped')) return
+      moveAssistantModeToWriteForPlanBuild()
       updateAssistantPlanDocument(planChatEntryId, (planDocument) => ({ ...planDocument, planBuildPhase: 'building' }))
       if (settleAssistantPlanStep(planChatEntryId, planStepId, 'skipped')) continueAssistantPlanBuildWhenFree(planChatEntryId)
     },

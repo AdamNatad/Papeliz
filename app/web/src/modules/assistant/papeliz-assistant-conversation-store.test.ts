@@ -555,6 +555,8 @@ describe('Plan mode', () => {
     changeAssistantPlanDocument(planEntry.chatEntryId, (planDocument) => togglePapelizAssistantPlanStepTicked(planDocument, linkGardenStep!.planStepId))
 
     await usePapelizAssistantConversationStore.getState().buildAssistantPlan(planEntry.chatEntryId)
+    // The Assistant moves to Write as the build starts, where its steps run.
+    expect(usePapelizAssistantRunOptionsStore.getState().assistantMode).toBe('write')
     await waitUntil(() => readPlanEntry().assistantPlanDocument.planSteps[0]?.planStepStatus === 'needs-review')
     // Build saved the plan in Plans/ first, tied to its chat.
     const chatSessionVaultNoteRelativePath = usePapelizAssistantConversationStore.getState().chatSessionVaultNoteRelativePath
@@ -595,6 +597,7 @@ describe('Plan mode', () => {
     usePapelizAssistantConversationStore.getState().rejectAssistantProposal(secondStepProposalId!)
     await waitUntil(() => readPlanEntry().assistantPlanDocument.planBuildPhase === 'done')
     expect(readPlanEntry().assistantPlanDocument.planSteps.map((planStep) => planStep.planStepStatus)).toEqual(['done', 'skipped', 'ticked'])
+    expect(usePapelizAssistantRunOptionsStore.getState().assistantMode).toBe('write')
     expect(providerRequestBodies.filter((providerRequestBody) => providerRequestBody.messages.at(-1)?.content?.startsWith('Build step 3'))).toHaveLength(0)
     expect(await vaultAdapter.readVaultNoteText('Inbox.md')).toBe('Buy seeds.')
     const finalPlanNoteText = await waitUntilVaultNoteText(vaultAdapter, 'Plans/Tidy the garden.md', (planNoteText) => !planNoteText.includes('- [ ] Name'))

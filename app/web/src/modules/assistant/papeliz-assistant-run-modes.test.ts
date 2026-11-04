@@ -312,19 +312,23 @@ describe('Plan mode’s questions, answers and build', () => {
     expect(usePapelizAssistantConversationStore.getState().isAssistantRunning).toBe(false)
     expect(providerRequestBodies).toHaveLength(2)
 
-    // Continue starts the stopped step again; this time it can't be done.
+    // Continue starts the stopped step again, back in Write; this time it can't be done.
     isFirstStepHeld = false
+    usePapelizAssistantRunOptionsStore.setState({ assistantMode: 'plan' })
     await usePapelizAssistantConversationStore.getState().buildAssistantPlan(planChatEntryId)
+    expect(usePapelizAssistantRunOptionsStore.getState().assistantMode).toBe('write')
     await waitUntil(() => readTestPlanEntry().assistantPlanDocument.planSteps[0]?.planStepStatus === 'failed')
     expect(readTestPlanEntry().assistantPlanDocument.planSteps[0]?.planStepProblem).toBe('Couldn’t find any beds in [[Garden]] to name.')
     expect(readTestPlanEntry().assistantPlanDocument.planBuildPhase).toBe('building')
     expect(providerRequestBodies).toHaveLength(3)
 
-    // Retry Step: a step that needed no change is done, and the next one runs.
+    // Retry Step goes on in Write: a step that needed no change is done, and the next one runs.
     isFirstStepFailing = false
+    usePapelizAssistantRunOptionsStore.setState({ assistantMode: 'ask' })
     usePapelizAssistantConversationStore.getState().retryAssistantPlanStep(planChatEntryId, readTestPlanEntry().assistantPlanDocument.planSteps[0]!.planStepId)
     await waitUntil(() => readTestPlanEntry().assistantPlanDocument.planSteps[1]?.planStepStatus === 'failed')
     expect(readTestPlanEntry().assistantPlanDocument.planSteps[0]?.planStepStatus).toBe('done')
+    expect(usePapelizAssistantRunOptionsStore.getState().assistantMode).toBe('write')
 
     // Skip Step leaves it unticked, and the plan is built.
     usePapelizAssistantConversationStore.getState().skipAssistantPlanStep(planChatEntryId, readTestPlanEntry().assistantPlanDocument.planSteps[1]!.planStepId)

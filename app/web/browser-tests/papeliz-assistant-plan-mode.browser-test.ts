@@ -3,9 +3,10 @@ import { expect, test, type Page, type Route } from '@playwright/test'
 // Plan mode in a real browser, against a provider the test plays: in the sample vault, ask for a plan,
 // change it on its card opened to full height (a step's words, its order, a step ticked as done), Build
 // it, review the first step's change, Stop the second step while it runs, Continue it, and see the plan
-// built, its note in Plans/ ticked. On the way: Plan's hint, the box's words following the plan, the dot
-// on Notes while a build waits, and Focus mode's mode chip. Every provider call is answered here, and any
-// other request off this computer is refused, so no real key or outside network is used.
+// built, its note in Plans/ ticked. On the way: Plan's hint, the box's words following the plan, the
+// move to Write as the build starts, the dot on Notes while a build waits, and Focus mode's mode chip.
+// Every provider call is answered here, and any other request off this computer is refused, so no real
+// key or outside network is used.
 
 const testProviderBaseUrl = 'https://papeliz-test-provider.invalid/v1'
 const testProviderApiKey = 'papeliz-test-key-not-a-real-key'
@@ -26,6 +27,24 @@ const tidyStartNotePlanText = [
   '- [ ] Add a line about [[Plan Ideas]].',
   '- [ ] Link the sample notes from [[Start here]].',
 ].join('\n')
+
+const nameTheAppPlanText = ['# Name the app', '', 'Goal: The start note names the app.', '', '- [ ] Name the app in [[Start here]].', '- [ ] Read [[Start here]] through.'].join('\n')
+
+const planModeHintText = 'Asks what it needs, then writes steps you can edit. Nothing changes until you press Build.'
+const writeModeHintText = 'Edits, adds and deletes notes. You review each change.'
+
+const nameTheAppToolCall = {
+  id: 'call_name_the_app',
+  type: 'function' as const,
+  function: {
+    name: 'proposeVaultNoteEdit',
+    arguments: JSON.stringify({
+      vaultNoteRelativePath: 'Start here.md',
+      edits: [{ findText: startHereOriginalSentence, replaceWithText: startHereEditedSentence }],
+      reason: 'Names the app in the first sentence.',
+    }),
+  },
+}
 
 const testProviderCorsHeaders = {
   'access-control-allow-origin': '*',
@@ -120,25 +139,7 @@ test('Plan writes a plan that is changed on its card, then Build reviews each st
   const { testProviderChatRequests, heldProviderRoutes, refusedOutsideRequestUrls } = await playPlanTestProvider(page, (testProviderChatRequest) => {
     if (testProviderChatRequest.providerRequestMessages.at(-1)?.role === 'tool') return { content: 'I proposed naming the app.' }
     const lastMessageText = readLastProviderMessageText(testProviderChatRequest)
-    if (lastMessageText.startsWith('Build step 1 of 3')) {
-      return {
-        content: null,
-        tool_calls: [
-          {
-            id: 'call_name_the_app',
-            type: 'function',
-            function: {
-              name: 'proposeVaultNoteEdit',
-              arguments: JSON.stringify({
-                vaultNoteRelativePath: 'Start here.md',
-                edits: [{ findText: startHereOriginalSentence, replaceWithText: startHereEditedSentence }],
-                reason: 'Names the app in the first sentence.',
-              }),
-            },
-          },
-        ],
-      }
-    }
+    if (lastMessageText.startsWith('Build step 1 of 3')) return { content: null, tool_calls: [nameTheAppToolCall] }
     if (lastMessageText.startsWith('Build step 2 of 3')) {
       if (isSecondStepHeld) return 'hold'
       return { content: 'The other sample notes already link to it, so nothing needed changing.' }
@@ -152,7 +153,7 @@ test('Plan writes a plan that is changed on its card, then Build reviews each st
   await setUpTestProvider(page)
 
   await page.getByRole('radio', { name: 'Plan' }).click()
-  const planModeHint = page.getByText('Asks what it needs, then writes steps you can edit. Nothing changes until you press Build.')
+  const planModeHint = page.getByText(planModeHintText)
   await expect(planModeHint).toBeVisible()
   await expect(page.getByText('Plans are saved in the Plans folder when you build them.')).toBeVisible()
   const assistantComposer = page.getByRole('textbox', { name: 'Message the assistant' })
@@ -191,8 +192,10 @@ test('Plan writes a plan that is changed on its card, then Build reviews each st
   await planCard.getByRole('button', { name: 'Back to the Conversation' }).click()
   await expect(page.getByRole('radio', { name: 'Plan' })).toBeVisible()
 
-  // Build saves the plan in Plans/, then step 1 proposes its change and waits for review.
+  // Build saves the plan in Plans/ and moves the Assistant to Write, then step 1 proposes its change
+  // and waits for review.
   await planCard.getByRole('button', { name: 'Build', exact: true }).click()
+  await expect(page.getByRole('radio', { name: 'Write', exact: true })).toBeChecked()
   await expect(planCard.getByText('Step 1 of 3 · waiting for you')).toBeVisible()
   await expect(planCard.getByText('Saved in Plans')).toBeVisible()
   await expect(planCard.getByText('Needs review')).toBeVisible()
@@ -201,7 +204,7 @@ test('Plan writes a plan that is changed on its card, then Build reviews each st
   expect(readLastProviderMessageText(firstStepRequest!)).toContain('- [ ] Link [[Start here]] from the other sample notes.\n- [x] Add a line about [[Plan Ideas]].')
   expect(firstStepRequest?.providerRequestToolNames).toContain('proposeVaultNoteEdit')
   expect(firstStepRequest?.providerRequestToolNames).not.toContain('askUserQuestion')
-  await expect(assistantComposer).toHaveAttribute('placeholder', 'Steer the build, or queue a message')
+  await expect(page.getByText(writeModeHintText)).toBeVisible()
   // On Imagine, a dot on the Notes tab says the build waits.
   await page.getByRole('tab', { name: 'Imagine' }).click()
   await expect(page.getByRole('tab', { name: 'Notes (a plan is waiting for you)' })).toBeVisible()
@@ -222,7 +225,7 @@ test('Plan writes a plan that is changed on its card, then Build reviews each st
   isSecondStepHeld = false
   await planCard.getByRole('button', { name: 'Continue', exact: true }).click()
   await expect(planCard.getByText('Done · 3 of 3')).toBeVisible()
-  await expect(assistantComposer).toHaveAttribute('placeholder', 'Describe what to plan')
+  await expect(page.getByRole('radio', { name: 'Write', exact: true })).toBeChecked()
   expect(testProviderChatRequests.filter((testProviderChatRequest) => readLastProviderMessageText(testProviderChatRequest).startsWith('Build step 2 of 3'))).toHaveLength(2)
   expect(testProviderChatRequests.filter((testProviderChatRequest) => readLastProviderMessageText(testProviderChatRequest).startsWith('Build step 3'))).toHaveLength(0)
 
@@ -235,13 +238,63 @@ test('Plan writes a plan that is changed on its card, then Build reviews each st
   await expect(noteEditorContent.getByRole('checkbox', { checked: true })).toHaveCount(3)
   await expect(noteEditorContent.getByRole('checkbox', { checked: false })).toHaveCount(0)
 
-  // Focus mode's box has no switch: a quiet chip shows the mode and changes it.
+  // Focus mode's box has no switch: a quiet chip shows the mode (Write, since the build) and changes it.
   await noteEditorContent.click()
   await page.keyboard.press('Control+Shift+F')
-  const focusModeChip = page.getByRole('button', { name: 'Mode: Plan' })
+  const focusModeChip = page.getByRole('button', { name: 'Mode: Write' })
   await expect(focusModeChip).toBeVisible()
   await focusModeChip.click()
   await page.getByRole('menu', { name: 'Mode' }).getByRole('menuitemradio', { name: 'Ask' }).click()
   await expect(page.getByRole('button', { name: 'Mode: Ask' })).toBeVisible()
+  expect(refusedOutsideRequestUrls).toEqual([])
+})
+
+test('Build on a plan card moves the Assistant from Plan to Write, the steps run there, and it stays on Write once built', async ({ page }) => {
+  const { testProviderChatRequests, refusedOutsideRequestUrls } = await playPlanTestProvider(page, (testProviderChatRequest) => {
+    if (testProviderChatRequest.providerRequestMessages.at(-1)?.role === 'tool') return { content: 'I proposed naming the app.' }
+    const lastMessageText = readLastProviderMessageText(testProviderChatRequest)
+    if (lastMessageText.startsWith('Build step 1 of 2')) return { content: null, tool_calls: [nameTheAppToolCall] }
+    if (lastMessageText.startsWith('Build step 2 of 2')) return { content: 'It reads well, so nothing needed changing.' }
+    return { content: nameTheAppPlanText }
+  })
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Try Sample' }).first().click()
+  const noteEditorContent = page.locator('.cm-content').first()
+  await expect(noteEditorContent).toContainText(startHereOriginalSentence)
+  await setUpTestProvider(page)
+
+  const planModeChoice = page.getByRole('radio', { name: 'Plan', exact: true })
+  const writeModeChoice = page.getByRole('radio', { name: 'Write', exact: true })
+  await planModeChoice.click()
+  const assistantComposer = page.getByRole('textbox', { name: 'Message the assistant' })
+  await assistantComposer.fill('Plan naming the app in the start note.')
+  await assistantComposer.press('Enter')
+  const planCard = page.getByRole('group', { name: 'Plan: Name the app' })
+  await expect(planCard.getByRole('button', { name: 'Build', exact: true })).toBeVisible()
+  await expect(planModeChoice).toBeChecked()
+
+  // Build moves the Assistant to Write as the build starts; the card stays in the conversation.
+  await planCard.getByRole('button', { name: 'Build', exact: true }).click()
+  await expect(writeModeChoice).toBeChecked()
+  await expect(planModeChoice).not.toBeChecked()
+  await expect(page.getByText(writeModeHintText)).toBeVisible()
+  await expect(planCard.getByText('Step 1 of 2 · waiting for you')).toBeVisible()
+  const firstStepRequest = testProviderChatRequests.find((testProviderChatRequest) => readLastProviderMessageText(testProviderChatRequest).startsWith('Build step 1 of 2'))
+  expect(firstStepRequest?.providerRequestToolNames).toContain('proposeVaultNoteEdit')
+
+  // The steps run there: step 1's change is accepted, step 2 needs none, and the plan is built with
+  // both steps marked done on its card.
+  await planCard.getByRole('button', { name: 'Accept', exact: true }).click()
+  await expect(noteEditorContent).toContainText(startHereEditedSentence)
+  await expect(planCard.getByText('Done · 2 of 2')).toBeVisible()
+  await expect(planCard.getByRole('checkbox', { name: 'Step 1 Done' })).toBeChecked()
+  await expect(planCard.getByRole('checkbox', { name: 'Step 2 Done' })).toBeChecked()
+
+  // Built, the Assistant stays on Write until the user picks Plan again.
+  await expect(writeModeChoice).toBeChecked()
+  await planModeChoice.click()
+  await expect(planModeChoice).toBeChecked()
+  await expect(page.getByText(planModeHintText)).toBeVisible()
+  await expect(planCard.getByText('Done · 2 of 2')).toBeVisible()
   expect(refusedOutsideRequestUrls).toEqual([])
 })
