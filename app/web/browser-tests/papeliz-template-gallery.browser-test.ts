@@ -40,6 +40,14 @@ const picturedJournalTemplateFiles = {
   ].join('\n'),
 }
 
+// The same template with a hook in its agent settings and a script, so it contains scripts.
+const scriptedGardenRepositoryName = { templateRepositoryOwner: 'garden-notes', templateRepositoryName: 'Scripted-Garden' }
+const scriptedGardenTemplateFiles = {
+  ...gardenJournalTemplateFiles,
+  '.claude/settings.json': JSON.stringify({ hooks: { PostToolUse: [{ matcher: 'Edit', hooks: [{ type: 'command', command: 'bash scripts/plant.sh --check' }] }] } }, null, 2),
+  'scripts/plant.sh': '#!/usr/bin/env bash\n# Plants the seeds listed in Crops/Seeds.md.\nset -euo pipefail\necho "planting"\n',
+}
+
 const fakeTemplateRepositories: PapelizFakeTemplateRepository[] = [
   { ...gardenJournalRepositoryName, templateFilesByCommitSha: { [gardenJournalTemplateCommitSha]: gardenJournalTemplateFiles }, newestTemplateCommitSha: gardenJournalTemplateCommitSha },
   {
@@ -48,6 +56,7 @@ const fakeTemplateRepositories: PapelizFakeTemplateRepository[] = [
     newestTemplateCommitSha: gardenJournalTemplateCommitSha,
   },
   { ...picturedJournalRepositoryName, templateFilesByCommitSha: { [gardenJournalTemplateCommitSha]: picturedJournalTemplateFiles }, newestTemplateCommitSha: gardenJournalTemplateCommitSha },
+  { ...scriptedGardenRepositoryName, templateFilesByCommitSha: { [gardenJournalTemplateCommitSha]: scriptedGardenTemplateFiles }, newestTemplateCommitSha: gardenJournalTemplateCommitSha },
 ]
 
 // A one-pixel PNG with no metadata, for the pictures GitHub's hosts answer with.
@@ -92,14 +101,18 @@ async function buildGardenJournalTemplateGalleryRow(
   }
 }
 
-// GitHub, jsDelivr and raw files answer from the made-up repositories. GitHub's picture hosts answer
-// with a picture for garden-notes and for attached pictures, and with nothing for anyone else. The
-// Templates server and any other site answer nothing, and each request to them is counted.
-async function stubTemplateNetwork(page: Page): Promise<{ templatesServerRequestUrls: string[]; otherSiteRequestUrls: string[]; gitHubPictureRequestUrls: string[] }> {
+// GitHub, jsDelivr and raw files answer from the made-up repositories, and each request to them is
+// counted. GitHub's picture hosts answer with a picture for garden-notes and for attached pictures, and
+// with nothing for anyone else. The Templates server and any other site answer nothing, and each
+// request to them is counted.
+async function stubTemplateNetwork(
+  page: Page,
+): Promise<{ templatesServerRequestUrls: string[]; otherSiteRequestUrls: string[]; gitHubPictureRequestUrls: string[]; templateFileRequestUrls: string[] }> {
   const fakeTemplateNetwork = createPapelizFakeTemplateNetwork(fakeTemplateRepositories)
   const templatesServerRequestUrls: string[] = []
   const otherSiteRequestUrls: string[] = []
   const gitHubPictureRequestUrls: string[] = []
+  const templateFileRequestUrls: string[] = []
   await page.route(/^https:\/\/(avatars\.githubusercontent\.com|github\.com\/user-attachments)\//, async (stubbedRoute) => {
     const gitHubPictureRequestUrl = stubbedRoute.request().url()
     gitHubPictureRequestUrls.push(gitHubPictureRequestUrl)
@@ -111,6 +124,7 @@ async function stubTemplateNetwork(page: Page): Promise<{ templatesServerRequest
     await stubbedRoute.fulfill({ status: 404, body: '' })
   })
   await page.route(/^https:\/\/(data\.jsdelivr\.com|cdn\.jsdelivr\.net|raw\.githubusercontent\.com|api\.github\.com)\//, async (stubbedRoute) => {
+    templateFileRequestUrls.push(stubbedRoute.request().url())
     const fakeTemplateResponse = await fakeTemplateNetwork.templateGalleryFetch(stubbedRoute.request().url())
     await stubbedRoute.fulfill({
       status: fakeTemplateResponse.status,
@@ -122,7 +136,7 @@ async function stubTemplateNetwork(page: Page): Promise<{ templatesServerRequest
     templatesServerRequestUrls.push(stubbedRoute.request().url())
     await stubbedRoute.fulfill({ status: 404, body: '' })
   })
-  return { templatesServerRequestUrls, otherSiteRequestUrls, gitHubPictureRequestUrls }
+  return { templatesServerRequestUrls, otherSiteRequestUrls, gitHubPictureRequestUrls, templateFileRequestUrls }
 }
 
 // The gallery reads its list once it has drawn, which can land after a seed and put the built-in list
@@ -162,15 +176,18 @@ test('Templates opens on the built-in P1-Workflow, with everything the Templates
   await expect(page.getByText('Top 100 is Coming Soon')).toBeVisible()
   await page.getByRole('button', { name: 'See Featured' }).click()
 
-  // Its page: Recheck, the votes and Report stay in place, greyed, beside Coming Soon.
+  // Its page: Recheck, the votes and Report stay in place, greyed. Recheck says Coming Soon itself, the
+  // votes in their name, and Report beside it.
   await p1WorkflowRowButton.click()
   await expect(page.getByRole('heading', { name: 'P1-Workflow', exact: true })).toBeVisible()
   await expect(page.getByText(/^Checked .+ · commit 64bf461$/)).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Recheck' })).toHaveAttribute('aria-disabled', 'true')
+  const recheckButton = page.getByRole('button', { name: 'Recheck · Coming Soon' })
+  await expect(recheckButton).toHaveAttribute('aria-disabled', 'true')
+  await expect(recheckButton).toHaveAttribute('title', 'Recheck needs the Templates server, which opens later.')
   await expect(page.getByRole('group', { name: 'Votes for P1-Workflow: Coming Soon' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Report' })).toHaveAttribute('aria-disabled', 'true')
-  await expect(page.getByText('Coming Soon', { exact: true })).toHaveCount(2)
-  await page.getByRole('button', { name: 'Recheck' }).click({ force: true })
+  await expect(page.getByText('Coming Soon', { exact: true })).toHaveCount(1)
+  await recheckButton.click({ force: true })
   await expect(page.getByText('Rechecking…')).toHaveCount(0)
   expect(templatesServerRequestUrls).toEqual([])
 })
@@ -373,5 +390,63 @@ test('Import from Template brings a template into a new folder of the open vault
     papelizImportedTemplateFoldersFileVersion: 1,
     importedTemplateFolders: [{ importedTemplateFolderRelativePath: 'Garden Journal', papelizTemplateGalleryId: 'garden-notes/Garden-Journal', templateSourceCommitSha: gardenJournalTemplateCommitSha }],
   })
+  expect(templatesServerRequestUrls).toEqual([])
+})
+
+test('A template that contains scripts says so, and its files and scripts open in the code viewer, read as they were checked', async ({ page }) => {
+  const { templatesServerRequestUrls, templateFileRequestUrls } = await stubTemplateNetwork(page)
+  await page.goto('/')
+  await openTemplates(page)
+  await seedTemplateGalleryRows(page, [await buildGardenJournalTemplateGalleryRow(scriptedGardenRepositoryName, scriptedGardenTemplateFiles, { isTemplateRunningCommands: true })])
+  const scriptedGardenRowButton = page.getByRole('button', { name: /^Garden Journal/ })
+  await expect(scriptedGardenRowButton).toContainText('Contains Scripts')
+  const codeViewer = page.getByRole('dialog', { name: 'scripts/plant.sh' })
+
+  // Preview: View Code opens the chosen file's text, as Preview read it, numbered; Esc closes only the
+  // viewer.
+  await scriptedGardenRowButton.click()
+  await page.getByRole('button', { name: 'Preview', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Preview · Garden Journal' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Recheck · Coming Soon' })).toHaveAttribute('aria-disabled', 'true')
+  await expect(page.getByText('Coming Soon', { exact: true })).toHaveCount(0)
+  const previewFileTree = page.getByRole('navigation', { name: 'Files' })
+  await previewFileTree.getByRole('button', { name: 'scripts' }).click()
+  await previewFileTree.getByRole('button', { name: 'plant.sh' }).click()
+  const viewPlantScriptButton = page.getByRole('button', { name: 'View Code, scripts/plant.sh' })
+  await viewPlantScriptButton.click()
+  await expect(codeViewer).toBeVisible()
+  await expect(codeViewer.getByRole('region', { name: 'scripts/plant.sh, read-only' })).toContainText('set -euo pipefail')
+  // Four lines, numbered beside them.
+  await expect(codeViewer.locator('pre[aria-hidden="true"]')).toHaveText('1 2 3 4')
+  const templateFileRequestCountBeforeViewer = templateFileRequestUrls.length
+  await page.keyboard.press('Escape')
+  await expect(codeViewer).toHaveCount(0)
+  await expect(viewPlantScriptButton).toBeFocused()
+  await expect(page.getByRole('heading', { name: 'Preview · Garden Journal' })).toBeVisible()
+  expect(templateFileRequestUrls.length).toBe(templateFileRequestCountBeforeViewer)
+
+  // Use Template: the scripts it contains, each with View Code on the file Use Template read for its
+  // checks, with no request of its own.
+  await page.getByRole('button', { name: 'Use Template' }).click()
+  await expect(page.getByRole('heading', { name: 'This template contains scripts' })).toBeVisible()
+  const scriptList = page.getByRole('list', { name: 'Scripts' })
+  await expect(scriptList).toContainText('bash scripts/plant.sh --check')
+  const templateFileRequestCountAfterChecks = templateFileRequestUrls.length
+  await scriptList.getByRole('button', { name: 'View Code, scripts/plant.sh' }).click()
+  await expect(codeViewer.getByRole('region', { name: 'scripts/plant.sh, read-only' })).toContainText('echo "planting"')
+  await page.keyboard.press('Escape')
+  await expect(codeViewer).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: 'This template contains scripts' })).toBeVisible()
+  await scriptList.getByRole('button', { name: 'View Code, .claude/settings.json' }).click()
+  const settingsCodeViewer = page.getByRole('dialog', { name: '.claude/settings.json' })
+  await expect(settingsCodeViewer.getByRole('region', { name: '.claude/settings.json, read-only' })).toContainText('"command": "bash scripts/plant.sh --check"')
+  await settingsCodeViewer.getByRole('button', { name: 'Close' }).click()
+  await expect(settingsCodeViewer).toHaveCount(0)
+  expect(templateFileRequestUrls.length).toBe(templateFileRequestCountAfterChecks)
+
+  const continueButton = page.getByRole('button', { name: 'Continue' })
+  await expect(continueButton).toBeDisabled()
+  await page.getByRole('checkbox', { name: 'I’ve read these scripts.' }).check()
+  await expect(continueButton).toBeEnabled()
   expect(templatesServerRequestUrls).toEqual([])
 })

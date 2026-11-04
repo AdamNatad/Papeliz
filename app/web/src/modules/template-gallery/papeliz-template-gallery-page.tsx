@@ -51,7 +51,7 @@ export type PapelizTemplateGalleryScreen =
   | { templateGalleryScreenKind: 'template-page'; papelizTemplateGalleryId: string }
   | { templateGalleryScreenKind: 'preview'; papelizTemplateGalleryId: string }
   | { templateGalleryScreenKind: 'submit' }
-  // Use Template, for a template that runs commands: its commands, to read before going on.
+  // Use Template, for a template that contains scripts: its scripts and commands, to read before going on.
   | { templateGalleryScreenKind: 'commands'; papelizTemplateGalleryId: string }
   | { templateGalleryScreenKind: 'new-vault'; papelizTemplateGalleryId: string; suggestedNewVaultName: string; initialNewVaultPlace?: PapelizNewVaultPlace }
   | { templateGalleryScreenKind: 'making-vault'; papelizTemplateGalleryId: string; newVaultName: string; newVaultPlace: PapelizNewVaultPlace }
@@ -335,6 +335,7 @@ export function PapelizTemplateGalleryPage({
             templateGalleryPageHeadingId={templateGalleryPageHeadingId}
             templateGalleryRow={shownTemplateGalleryRow}
             templateUseState={isThisTemplateInUse ? templateUseState : { templateUseStage: 'idle' }}
+            readTemplateUseFileText={templateGalleryScreenModel.readTemplateUseFileText}
             onTemplateCommandsCancel={cancelUsingTemplate}
             onTemplateCommandsAccept={() => {
               templateGalleryScreenModel.acknowledgeTemplateRunCommands(true)

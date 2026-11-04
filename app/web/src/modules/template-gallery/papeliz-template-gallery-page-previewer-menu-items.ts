@@ -715,6 +715,7 @@ function createPreviewTemplateGalleryModelStore(previewerChoice: PapelizTemplate
     cancelTemplateUse: () => set({ templateUseState: { templateUseStage: 'idle' } }),
     listTemplateIncludedFiles: async () => papelizPreviewTemplateFileListEntries,
     readTemplateFileText: async (_templateGalleryRow, templateFileRelativePath) => papelizPreviewTemplateFileTexts[templateFileRelativePath] ?? '',
+    readTemplateUseFileText: (templateFileRelativePath) => papelizPreviewTemplateFileTexts[templateFileRelativePath] ?? null,
     buildTemplatePictureUrl: () => drawPreviewTemplateThumbnail('#1f6feb', '#ffffffcc'),
     buildTemplateAuthorPictureUrl: drawPreviewAuthorPicture,
   }))

@@ -7,14 +7,13 @@ import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { usePapelizFooterEqualButtonWidthRef } from '../ui/papeliz-footer-equal-button-width'
 import { getVaultEntryName, getVaultEntryParentFolderRelativePath } from '../vault/papeliz-vault-relative-paths'
 import { newVaultFormFooterActionButtonColorClassName, newVaultFormFooterButtonClassName, newVaultFormFooterCancelButtonColorClassName } from '../workspace/papeliz-new-vault-form'
+import { PapelizTemplateGalleryCodeViewer, PapelizTemplateGalleryViewCodeButton } from './papeliz-template-gallery-code-viewer'
 import type { PapelizTemplateFileListEntry, PapelizTemplateGalleryRow } from './papeliz-template-gallery-contract'
 import { PapelizTemplateGalleryNoteView } from './papeliz-template-gallery-note-view'
 import {
   buildTemplateGalleryFileTree,
   classifyTemplateGalleryFile,
-  isPapelizTemplateGalleryWorkerFeatureComingSoon,
   listTemplateGalleryFolderPathsTo,
-  PapelizTemplateGalleryComingSoonPill,
   PapelizTemplateGalleryFileTree,
   PapelizTemplateGalleryRecheckButton,
   PapelizTemplateGalleryRecheckLine,
@@ -63,7 +62,8 @@ interface PapelizTemplateGalleryPreviewPageProps {
 // Preview: the template's files, read-only, at the commit Papeliz checked, before anything is made. The
 // file tree on the left (above, on a phone) and the chosen file beside it, as the vault will open it:
 // a note in MD View (its pictures only from where a template's may come), JSON and other text in MD
-// Code, a picture as itself. It opens on the first note.
+// Code, a picture as itself. It opens on the first note. View Code, beside a text file's path, opens
+// its text as read here in the code viewer, line by line.
 // "Checked … · commit …" and Recheck sit under the title; Cancel and Use Template in the footer.
 // Nothing is saved until Use Template. Esc goes back.
 export function PapelizTemplateGalleryPreviewPage({
@@ -83,6 +83,8 @@ export function PapelizTemplateGalleryPreviewPage({
   const [templatePreviewFileReadsByPath, setTemplatePreviewFileReadsByPath] = useState<Readonly<Record<string, PapelizTemplatePreviewFileRead>>>({})
   // The read-only MD Code editors' states, one per text file opened here.
   const [templatePreviewEditorStatesByFileIndex] = useState(() => new Map<number, EditorState>())
+  // The file open in the code viewer, with the text already read for it here; null when it's closed.
+  const [codeViewerTemplateFile, setCodeViewerTemplateFile] = useState<{ templateFileRelativePath: string; templateFileText: string } | null>(null)
 
   useEffect(() => {
     if (isTemplateGalleryPageHeadingFocusedFirst) templatePreviewHeadingRef.current?.focus({ preventScroll: true })
@@ -191,15 +193,12 @@ export function PapelizTemplateGalleryPreviewPage({
           <h2 ref={templatePreviewHeadingRef} id={templateGalleryPageHeadingId} tabIndex={-1} className="min-w-0 truncate text-[18px] font-semibold tracking-[-0.01em] focus:outline-none">
             Preview · {templateGalleryRow.templateName}
           </h2>
-          <span className="flex flex-none items-center gap-2">
-            {isPapelizTemplateGalleryWorkerFeatureComingSoon && <PapelizTemplateGalleryComingSoonPill />}
-            <PapelizTemplateGalleryRecheckButton
-              templateGalleryRow={templateGalleryRow}
-              templateRecheckState={templateGalleryScreenModel.templateRecheckState}
-              onTemplateRecheck={() => void templateGalleryScreenModel.recheckTemplate(templateGalleryRow.papelizTemplateGalleryId)}
-              recheckButtonSize="page"
-            />
-          </span>
+          <PapelizTemplateGalleryRecheckButton
+            templateGalleryRow={templateGalleryRow}
+            templateRecheckState={templateGalleryScreenModel.templateRecheckState}
+            onTemplateRecheck={() => void templateGalleryScreenModel.recheckTemplate(templateGalleryRow.papelizTemplateGalleryId)}
+            recheckButtonSize="page"
+          />
         </div>
         <p className="mt-0.5 mb-1 text-[12.5px] text-papeliz-ink-muted">Read-only. Nothing is saved until Use Template.</p>
         <PapelizTemplateGalleryRecheckLine
@@ -229,7 +228,15 @@ export function PapelizTemplateGalleryPreviewPage({
           )}
         </nav>
         <section aria-label={`${chosenTemplateFilePath}, read-only`} className="min-h-[220px] min-w-0 overflow-y-auto rounded-xl border border-papeliz-line bg-papeliz-surface px-4 py-3 sm:min-h-0">
-          <p className="mb-2 truncate font-mono text-[11px] text-papeliz-ink-subtle">{chosenTemplateFilePath}</p>
+          <div className="mb-2 flex min-w-0 items-center gap-2">
+            <p className="min-w-0 flex-1 truncate font-mono text-[11px] text-papeliz-ink-subtle">{chosenTemplateFilePath}</p>
+            {chosenTemplateFileRead?.templatePreviewFileReadState === 'read' && (
+              <PapelizTemplateGalleryViewCodeButton
+                viewCodeTemplateFileRelativePath={chosenTemplateFilePath}
+                onViewCodePress={() => setCodeViewerTemplateFile({ templateFileRelativePath: chosenTemplateFilePath, templateFileText: chosenTemplateFileRead.templatePreviewFileText })}
+              />
+            )}
+          </div>
           <div className={joinPapelizClassNames(papelizTemplateGalleryNoteSizeClassName, chosenTemplateFileKind !== 'note' && '-mx-2')}>{chosenTemplateFileView}</div>
         </section>
       </div>
@@ -242,6 +249,13 @@ export function PapelizTemplateGalleryPreviewPage({
           Use Template
         </button>
       </div>
+      {codeViewerTemplateFile !== null && (
+        <PapelizTemplateGalleryCodeViewer
+          codeViewerTemplateFileRelativePath={codeViewerTemplateFile.templateFileRelativePath}
+          codeViewerTemplateFileText={codeViewerTemplateFile.templateFileText}
+          onCodeViewerClose={() => setCodeViewerTemplateFile(null)}
+        />
+      )}
     </div>
   )
 }

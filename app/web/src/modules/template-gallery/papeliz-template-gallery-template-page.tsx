@@ -152,10 +152,9 @@ export function PapelizTemplateGalleryTemplatePage({
             )}
           </p>
         </div>
-        {/* Recheck and the votes, together at the top right, after Coming Soon while they wait for the
-            Templates Worker. */}
+        {/* Recheck and the votes, together at the top right. While they wait for the Templates Worker,
+            Recheck says Coming Soon and the votes are greyed, their tooltip saying why. */}
         <div className="flex flex-none items-center gap-2">
-          {isPapelizTemplateGalleryWorkerFeatureComingSoon && <PapelizTemplateGalleryComingSoonPill />}
           <PapelizTemplateGalleryRecheckButton
             templateGalleryRow={templateGalleryRow}
             templateRecheckState={templateGalleryScreenModel.templateRecheckState}
@@ -177,7 +176,7 @@ export function PapelizTemplateGalleryTemplatePage({
         {templateGalleryRow.isTemplateRunningCommands && (
           <p className="flex items-start gap-2 rounded-xl bg-papeliz-warning px-3 py-2 text-[12px] leading-[1.45] text-papeliz-warning-ink">
             <SquareTerminal className="mt-px size-3.5 flex-none" aria-hidden="true" />
-            Its agent settings or scripts name commands. Papeliz never runs them, and Use Template shows each one before the vault is made.
+            This template contains scripts a coding agent may run. Papeliz never runs them, and Use Template shows each one before the vault is made.
           </p>
         )}
         <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_210px]">

@@ -145,7 +145,7 @@ export interface PapelizTemplateGalleryRow {
   templateThumbnailPictureUrl: string | null
   templateIncludedFileCount: number
   templateIncludedByteCount: number
-  // Agent settings that name a command, or script files: the "Runs commands" tag.
+  // Agent settings that name a command, or script files: the "Contains Scripts" tag.
   isTemplateRunningCommands: boolean
   isTemplateFeatured: boolean
   // When it was listed (New, for its first 14 days) and last checked; null when not known.
@@ -331,7 +331,7 @@ export type PapelizTemplateRecheckState =
 // Use Template, from New Vault's form.
 // - `preparing`: reading the template's files at its commit and checking them again on these bytes.
 // - `ready`: every check passed; the form can make the vault. When `templateRunCommands` isn't empty,
-//   the person ticks "I've read these commands" first (`isTemplateRunCommandsAcknowledged`). Those are
+//   the person ticks "I've read these scripts" first (`isTemplateRunCommandsAcknowledged`). Those are
 //   the commands of the chosen files, Recommended, All or the optional files ticked one by one
 //   (`chooseTemplateFilesChoice`, `chooseTemplateOptionalFiles`); the check report keeps every
 //   included file's.
@@ -431,6 +431,9 @@ export interface PapelizTemplateGalleryActions {
   buildTemplateAuthorPictureUrl: (templateRepositoryOwner: string, authorPictureSize: number) => string
   // Use Template pressed: reads and checks the template, ending `ready` or `failed`.
   prepareTemplateUse: (templateGalleryRow: PapelizTemplateGalleryRow) => Promise<void>
+  // While ready: an included file's text as Use Template read and checked it, for View Code beside the
+  // scripts it contains, with no new read; null for a file it didn't read, or before it's ready.
+  readTemplateUseFileText: (templateFileRelativePath: string) => string | null
   acknowledgeTemplateRunCommands: (isTemplateRunCommandsAcknowledged: boolean) => void
   // Recommended, All or chosen, while ready: only that choice's files are made or imported, and its
   // choice is recorded (chosen keeps the files ticked). A choice that brings commands not yet ticked

@@ -8,7 +8,7 @@ import type { PapelizLoadingStep } from '../ui/papeliz-loading-progress-count'
 import { PapelizLoadingReadout } from '../ui/papeliz-loading-readout'
 import { PapelizSolidCircleCheckIcon } from '../ui/papeliz-solid-circle-icons'
 import { newVaultFormFooterActionButtonColorClassName, newVaultFormFooterButtonClassName, newVaultFormFooterCancelButtonColorClassName, type PapelizNewVaultPlace } from '../workspace/papeliz-new-vault-form'
-import { describePapelizTemplateHiddenCharacter, splitPapelizTemplateTextAtHiddenCharacters } from './papeliz-template-gallery-checks'
+import { PapelizTemplateGalleryCodeViewer, PapelizTemplateGalleryMarkedText, PapelizTemplateGalleryViewCodeButton } from './papeliz-template-gallery-code-viewer'
 import { PapelizTemplateGalleryFilesChoice } from './papeliz-template-gallery-files-choice'
 import type { PapelizTemplateGalleryRow, PapelizTemplateRunCommand, PapelizTemplateUseState } from './papeliz-template-gallery-contract'
 import {
@@ -20,8 +20,9 @@ import {
   PapelizTemplateGalleryThumbnail,
 } from './papeliz-template-gallery-page-parts'
 
-// Use Template's own pages and lines: the commands a template names, to read before going on; how
-// reading and checking its files is going, at the top of New Vault's form; and the vault being made.
+// Use Template's own pages and lines: the scripts and commands a template contains, to read before
+// going on; how reading and checking its files is going, at the top of New Vault's form; and the vault
+// being made.
 
 // A template's files written, counted, then what opens once they are all written.
 function describeTemplateWritingSteps(areTemplateFilesWritten: boolean, templateWrittenFileCount: number, templateFileCount: number, openingStepLabel: string): PapelizLoadingStep[] {
@@ -137,28 +138,6 @@ function describeTemplateRunCommandSource(templateRunCommand: PapelizTemplateRun
   }
 }
 
-// A command's text with every hidden character shown as a small amber mark with its code ("U+202E")
-// in its place, so nothing in it is invisible or turned around.
-function PapelizTemplateRunCommandMarkedText({ templateRunCommandText }: { templateRunCommandText: string }) {
-  return (
-    <>
-      {splitPapelizTemplateTextAtHiddenCharacters(templateRunCommandText).map((templateTextPiece, templateTextPieceIndex) =>
-        templateTextPiece.isTemplateTextPieceHiddenCharacter ? (
-          <mark
-            key={templateTextPieceIndex}
-            title={`A hidden character, ${describePapelizTemplateHiddenCharacter(templateTextPiece.templateTextPieceText)}`}
-            className="mx-px rounded-[3px] bg-papeliz-warning px-[3px] font-sans text-[10px] font-bold text-papeliz-warning-ink"
-          >
-            {describePapelizTemplateHiddenCharacter(templateTextPiece.templateTextPieceText)}
-          </mark>
-        ) : (
-          <span key={templateTextPieceIndex}>{templateTextPiece.templateTextPieceText}</span>
-        ),
-      )}
-    </>
-  )
-}
-
 interface PapelizTemplateGalleryCommandsPageProps {
   templateGalleryPageHeadingId: string
   templateGalleryRow: PapelizTemplateGalleryRow
@@ -166,15 +145,28 @@ interface PapelizTemplateGalleryCommandsPageProps {
   onTemplateCommandsCancel: () => void
   // Read and ticked: New Vault's form comes next.
   onTemplateCommandsAccept: () => void
+  // A file's text as Use Template read it for the checks, for View Code; null for one it didn't read.
+  readTemplateUseFileText?: (templateFileRelativePath: string) => string | null
 }
 
-// "This template runs commands": every command its agent settings name and every script it brings,
-// with where each is, once its files are read and checked. Papeliz runs none of them. Continue stays
-// off until "I've read these commands" is ticked. Esc goes back.
-export function PapelizTemplateGalleryCommandsPage({ templateGalleryPageHeadingId, templateGalleryRow, templateUseState, onTemplateCommandsCancel, onTemplateCommandsAccept }: PapelizTemplateGalleryCommandsPageProps) {
+// "This template contains scripts": every command its agent settings name and every script it brings,
+// with where each is, once its files are read and checked. Papeliz runs none of them: they are hooks
+// and scripts a coding agent may run. View Code on each line opens the script, or the settings file
+// that names the command, in the code viewer, as read for the checks. Continue stays off until "I've
+// read these scripts" is ticked. Esc goes back.
+export function PapelizTemplateGalleryCommandsPage({
+  templateGalleryPageHeadingId,
+  templateGalleryRow,
+  templateUseState,
+  onTemplateCommandsCancel,
+  onTemplateCommandsAccept,
+  readTemplateUseFileText,
+}: PapelizTemplateGalleryCommandsPageProps) {
   const templateCommandsFooterRef = usePapelizFooterEqualButtonWidthRef(128)
   const templateCommandsTickId = useId()
   const [isTemplateCommandsReadTicked, setTemplateCommandsReadTicked] = useState(false)
+  // The file open in the code viewer; null when it's closed.
+  const [codeViewerTemplateFile, setCodeViewerTemplateFile] = useState<{ templateFileRelativePath: string; templateFileText: string } | null>(null)
   const readyTemplateUseState = templateUseState.templateUseStage === 'ready' ? templateUseState : null
 
   return (
@@ -189,7 +181,7 @@ export function PapelizTemplateGalleryCommandsPage({ templateGalleryPageHeadingI
       <div className="px-3 pt-[11px] pb-1">
         <div className="flex items-center gap-2">
           <h2 id={templateGalleryPageHeadingId} className="text-[18px] font-semibold tracking-[-0.01em]">
-            This template runs commands
+            This template contains scripts
           </h2>
         </div>
         <p className="mt-0.5 text-[12.5px] text-papeliz-ink-muted">
@@ -207,32 +199,43 @@ export function PapelizTemplateGalleryCommandsPage({ templateGalleryPageHeadingI
         {readyTemplateUseState !== null && (
           <>
             {readyTemplateUseState.templateRunCommands.length === 0 ? (
-              <p className="px-0.5 text-[12.5px] text-papeliz-ink-muted">Its files, checked just now, name no commands.</p>
+              <p className="px-0.5 text-[12.5px] text-papeliz-ink-muted">Its files, checked just now, contain no scripts.</p>
             ) : (
-              <ul aria-label="Commands" className="divide-y divide-papeliz-line rounded-xl border border-papeliz-line bg-papeliz-surface">
-                {readyTemplateUseState.templateRunCommands.map((templateRunCommand, templateRunCommandIndex) => (
-                  <li
-                    key={`${templateRunCommandIndex}\n${templateRunCommand.templateRunCommandSourceRelativePath}\n${templateRunCommand.templateRunCommandText}`}
-                    className="grid gap-x-3 gap-y-0.5 px-3 py-2 text-[12px] sm:grid-cols-[minmax(0,190px)_minmax(0,1fr)] sm:items-center"
-                  >
-                    <span className="truncate text-papeliz-ink-muted" dir="ltr" title={describeTemplateRunCommandSource(templateRunCommand)}>
-                      <PapelizTemplateRunCommandMarkedText templateRunCommandText={describeTemplateRunCommandSource(templateRunCommand)} />
-                    </span>
-                    <code dir="ltr" className="papeliz-selectable-text font-mono text-[11.5px] whitespace-pre-wrap [overflow-wrap:anywhere] [unicode-bidi:isolate] text-papeliz-ink">
-                      <PapelizTemplateRunCommandMarkedText
-                        templateRunCommandText={
-                          templateRunCommand.templateRunCommandKind === 'script-file' ? templateRunCommand.templateRunCommandSourceRelativePath : templateRunCommand.templateRunCommandText
-                        }
-                      />
-                    </code>
-                    {templateRunCommand.hasTemplateRunCommandHiddenCharacters && (
-                      <p className="flex items-start gap-1.5 text-[11.5px] leading-[1.4] font-medium text-papeliz-warning-ink sm:col-start-2">
-                        <TriangleAlert className="mt-px size-3.5 flex-none" aria-hidden="true" />
-                        It holds hidden characters, marked in it, that can make it read as something else.
-                      </p>
-                    )}
-                  </li>
-                ))}
+              <ul aria-label="Scripts" className="divide-y divide-papeliz-line rounded-xl border border-papeliz-line bg-papeliz-surface">
+                {readyTemplateUseState.templateRunCommands.map((templateRunCommand, templateRunCommandIndex) => {
+                  const templateRunCommandFileText = readTemplateUseFileText?.(templateRunCommand.templateRunCommandSourceRelativePath) ?? null
+                  return (
+                    <li
+                      key={`${templateRunCommandIndex}\n${templateRunCommand.templateRunCommandSourceRelativePath}\n${templateRunCommand.templateRunCommandText}`}
+                      className="grid gap-x-3 gap-y-1 px-3 py-2 text-[12px] sm:grid-cols-[minmax(0,190px)_minmax(0,1fr)_auto] sm:items-center"
+                    >
+                      <span className="truncate text-papeliz-ink-muted" dir="ltr" title={describeTemplateRunCommandSource(templateRunCommand)}>
+                        <PapelizTemplateGalleryMarkedText templateText={describeTemplateRunCommandSource(templateRunCommand)} />
+                      </span>
+                      <code dir="ltr" className="papeliz-selectable-text font-mono text-[11.5px] whitespace-pre-wrap [overflow-wrap:anywhere] [unicode-bidi:isolate] text-papeliz-ink">
+                        <PapelizTemplateGalleryMarkedText
+                          templateText={
+                            templateRunCommand.templateRunCommandKind === 'script-file' ? templateRunCommand.templateRunCommandSourceRelativePath : templateRunCommand.templateRunCommandText
+                          }
+                        />
+                      </code>
+                      {templateRunCommandFileText !== null && (
+                        <PapelizTemplateGalleryViewCodeButton
+                          viewCodeTemplateFileRelativePath={templateRunCommand.templateRunCommandSourceRelativePath}
+                          onViewCodePress={() =>
+                            setCodeViewerTemplateFile({ templateFileRelativePath: templateRunCommand.templateRunCommandSourceRelativePath, templateFileText: templateRunCommandFileText })
+                          }
+                        />
+                      )}
+                      {templateRunCommand.hasTemplateRunCommandHiddenCharacters && (
+                        <p className="flex items-start gap-1.5 text-[11.5px] leading-[1.4] font-medium text-papeliz-warning-ink sm:col-span-2 sm:col-start-2">
+                          <TriangleAlert className="mt-px size-3.5 flex-none" aria-hidden="true" />
+                          It holds hidden characters, marked in it, that can make it read as something else.
+                        </p>
+                      )}
+                    </li>
+                  )
+                })}
               </ul>
             )}
             <label htmlFor={templateCommandsTickId} className="flex cursor-pointer items-center gap-2 px-0.5 text-[12.5px] font-medium pointer-coarse:py-1.5">
@@ -243,7 +246,7 @@ export function PapelizTemplateGalleryCommandsPage({ templateGalleryPageHeadingI
                 onChange={(changeEvent) => setTemplateCommandsReadTicked(changeEvent.target.checked)}
                 className="size-4 flex-none cursor-pointer accent-papeliz-blue"
               />
-              I’ve read these commands.
+              I’ve read these scripts.
             </label>
           </>
         )}
@@ -262,6 +265,13 @@ export function PapelizTemplateGalleryCommandsPage({ templateGalleryPageHeadingI
           Continue
         </button>
       </div>
+      {codeViewerTemplateFile !== null && (
+        <PapelizTemplateGalleryCodeViewer
+          codeViewerTemplateFileRelativePath={codeViewerTemplateFile.templateFileRelativePath}
+          codeViewerTemplateFileText={codeViewerTemplateFile.templateFileText}
+          onCodeViewerClose={() => setCodeViewerTemplateFile(null)}
+        />
+      )}
     </div>
   )
 }

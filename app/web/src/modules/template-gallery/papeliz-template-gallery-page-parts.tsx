@@ -212,7 +212,8 @@ export function PapelizTemplateGalleryThumbnail({ templateGalleryRow, templateTh
 
 const papelizTemplateGalleryTagClassName = 'inline-flex h-[18px] flex-none items-center gap-1 rounded-full px-[7px] text-[10.5px] font-semibold whitespace-nowrap'
 
-// The tags beside a template's name: Featured (blue), New (green) and Runs commands (amber).
+// The tags beside a template's name: Featured (blue), New (green) and Contains Scripts (amber): hooks
+// and scripts a coding agent may run, which Papeliz never runs.
 export function PapelizTemplateGalleryRowTags({ templateGalleryRow, currentTime }: { templateGalleryRow: PapelizTemplateGalleryRow; currentTime: number }) {
   return (
     <>
@@ -223,7 +224,7 @@ export function PapelizTemplateGalleryRowTags({ templateGalleryRow, currentTime 
       {templateGalleryRow.isTemplateRunningCommands && (
         <span className={joinPapelizClassNames(papelizTemplateGalleryTagClassName, 'bg-papeliz-warning text-papeliz-warning-ink')}>
           <SquareTerminal className="size-3" aria-hidden="true" />
-          Runs commands
+          Contains Scripts
         </span>
       )}
     </>
@@ -324,8 +325,8 @@ function findThisTemplateRecheckState(templateRecheckState: PapelizTemplateReche
 }
 
 // Recheck: asks GitHub for a newer version, and checks it. At a template page's top right it is the
-// votes' height. While the Templates Worker is switched off it is greyed, Coming Soon: a template stays
-// on the commit the static list pins.
+// votes' height. While the Templates Worker is switched off it is one greyed control that says so,
+// "Recheck · Coming Soon": a template stays on the commit the static list pins.
 export function PapelizTemplateGalleryRecheckButton({
   templateGalleryRow,
   templateRecheckState,
@@ -343,14 +344,14 @@ export function PapelizTemplateGalleryRecheckButton({
       <button
         type="button"
         aria-disabled="true"
-        title="Recheck is Coming Soon"
+        title="Recheck needs the Templates server, which opens later."
         className={joinPapelizClassNames(
-          'inline-flex flex-none cursor-not-allowed items-center gap-1 rounded-full border border-papeliz-line font-semibold text-papeliz-ink-muted opacity-55 pointer-coarse:px-3',
+          'inline-flex flex-none cursor-not-allowed items-center gap-1 rounded-full border border-papeliz-line font-semibold whitespace-nowrap text-papeliz-ink-muted opacity-55 pointer-coarse:px-3',
           recheckButtonSize === 'line' ? 'h-6 px-2 text-[11.5px] pointer-coarse:h-9' : 'h-8 gap-1.5 px-3 text-[12.5px] pointer-coarse:h-10',
         )}
       >
         <RefreshCw className={recheckButtonSize === 'line' ? 'size-3' : 'size-3.5'} aria-hidden="true" />
-        Recheck
+        Recheck · Coming Soon
       </button>
     )
   }

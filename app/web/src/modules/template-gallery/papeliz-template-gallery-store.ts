@@ -605,6 +605,12 @@ export const usePapelizTemplateGalleryStore = create<PapelizTemplateGalleryState
       }
     },
 
+    readTemplateUseFileText: (templateFileRelativePath) => {
+      if (get().templateUseState.templateUseStage !== 'ready' || preparedTemplateUse === null) return null
+      const templateFileBytes = preparedTemplateUse.includedTemplateFileBytesByRelativePath.get(templateFileRelativePath)
+      return templateFileBytes === undefined ? null : new TextDecoder().decode(templateFileBytes)
+    },
+
     acknowledgeTemplateRunCommands: (isTemplateRunCommandsAcknowledged) => {
       const { templateUseState } = get()
       if (templateUseState.templateUseStage === 'ready') set({ templateUseState: { ...templateUseState, isTemplateRunCommandsAcknowledged } })

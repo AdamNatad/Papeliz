@@ -214,6 +214,7 @@ describe('template gallery store', () => {
     }
     const { fakeOriginPrivateFileSystemRoot, fakeRequestedUrls } = useFakeTemplateNetwork([gardenJournalRepository])
     const gardenJournalRow = await listGardenJournalRow()
+    expect(usePapelizTemplateGalleryStore.getState().readTemplateUseFileText('.claude/settings.json')).toBeNull()
     fakeRequestedUrls.length = 0
     await usePapelizTemplateGalleryStore.getState().prepareTemplateUse(gardenJournalRow)
     // Use Template asks GitHub nothing.
@@ -226,6 +227,13 @@ describe('template gallery store', () => {
       templateHiddenFileRelativePaths: ['.claude/settings.json', '.gitignore'],
       templateLeftOutPictureRelativePaths: [],
     })
+    // View Code's text: the file as read and checked, with no new request; none for a file left out.
+    const requestedUrlCountWhenReady = fakeRequestedUrls.length
+    expect(usePapelizTemplateGalleryStore.getState().readTemplateUseFileText('.claude/settings.json')).toBe(
+      JSON.stringify({ hooks: { Stop: [{ hooks: [{ type: 'command', command: 'npm test' }] }] } }),
+    )
+    expect(usePapelizTemplateGalleryStore.getState().readTemplateUseFileText('drafts/Unfinished.md')).toBeNull()
+    expect(fakeRequestedUrls).toHaveLength(requestedUrlCountWhenReady)
 
     const notAcknowledgedResult = await usePapelizTemplateGalleryStore.getState().makePapelizTemplateVault('My Garden', 'browser-vault-in-opfs')
     expect(notAcknowledgedResult).toEqual({
@@ -238,6 +246,7 @@ describe('template gallery store', () => {
     if (madeResult.openVaultOutcome !== 'opened') throw new Error(`The vault wasn’t made: ${JSON.stringify(madeResult)}`)
     expect(madeResult.templateFirstNotePath).toBe('Start here.md')
     expect(usePapelizTemplateGalleryStore.getState().templateUseState).toMatchObject({ templateUseStage: 'made', papelizVaultDisplayName: 'My Garden' })
+    expect(usePapelizTemplateGalleryStore.getState().readTemplateUseFileText('.claude/settings.json')).toBeNull()
     const madeVaultFolder = await getPapelizFakeBrowserVaultFolder(fakeOriginPrivateFileSystemRoot, madeResult.papelizOpenVault.papelizVaultId)
     const templateSourceFile = await (await (await madeVaultFolder.getDirectoryHandle('.papeliz')).getFileHandle('template-source.json')).getFile()
     expect(JSON.parse(await templateSourceFile.text())).toEqual({
