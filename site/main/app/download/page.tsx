@@ -13,7 +13,11 @@ export const metadata = createPapelizSitePageMetadata({
 
 const papelizSiteInstallSteps = [
   { papelizSiteInstallStepTitle: 'Choose your platform', papelizSiteInstallStepBody: 'Pick your device above, or use Papeliz on the web.' },
-  { papelizSiteInstallStepTitle: 'Install Papeliz', papelizSiteInstallStepBody: 'Install it the way your device usually installs apps.' },
+  {
+    papelizSiteInstallStepTitle: 'Install Papeliz',
+    papelizSiteInstallStepBody:
+      'Install it the way your device usually installs apps. The Windows installer isn’t code-signed yet, so if Windows shows “Windows protected your PC”, choose More info, then Run anyway.',
+  },
   {
     papelizSiteInstallStepTitle: 'Open your notes',
     papelizSiteInstallStepBody: 'Open a folder of Markdown notes, start a new vault or a template, and write. Every feature of the app is free.',

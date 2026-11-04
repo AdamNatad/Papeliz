@@ -13,6 +13,10 @@ export type PapelizSiteDownloadTarget = {
   PapelizSiteDownloadTargetLogo: ComponentType<{ className?: string; 'aria-hidden'?: boolean | 'true' }>
 }
 
+// The GitHub release page of 1.0.0 Preview 1, with the Windows installer, the Android APK and their
+// checksums.
+const papelizSiteFirstPreviewReleaseUrl = 'https://github.com/AdamNatad/Papeliz/releases/tag/v1.0.0-preview.1'
+
 // Every app Papeliz offers, as the Download page lists them, each listed before its link exists. Fill
 // in each app's link as it is published. The page gives each one the anchor papeliz-download-<id>,
 // which the account page's download menu links to.
@@ -20,8 +24,8 @@ export const papelizSiteDownloadTargets: readonly PapelizSiteDownloadTarget[] = 
   {
     papelizSiteDownloadTargetId: 'windows',
     papelizSiteDownloadTargetLabel: 'Windows',
-    papelizSiteDownloadTargetDetail: 'Windows 10 and 11',
-    papelizSiteDownloadTargetUrl: null,
+    papelizSiteDownloadTargetDetail: 'Windows 10 and 11 · 1.0.0 Preview 1',
+    papelizSiteDownloadTargetUrl: papelizSiteFirstPreviewReleaseUrl,
     PapelizSiteDownloadTargetLogo: FaWindows,
   },
   {
@@ -48,8 +52,8 @@ export const papelizSiteDownloadTargets: readonly PapelizSiteDownloadTarget[] = 
   {
     papelizSiteDownloadTargetId: 'android',
     papelizSiteDownloadTargetLabel: 'Android',
-    papelizSiteDownloadTargetDetail: 'Google Play',
-    papelizSiteDownloadTargetUrl: null,
+    papelizSiteDownloadTargetDetail: 'APK · 1.0.0 Preview 1',
+    papelizSiteDownloadTargetUrl: papelizSiteFirstPreviewReleaseUrl,
     PapelizSiteDownloadTargetLogo: FaAndroid,
   },
   {

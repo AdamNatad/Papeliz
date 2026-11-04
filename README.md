@@ -251,8 +251,13 @@ How the pieces fit together: [docs/how-papeliz-is-built.md](docs/how-papeliz-is-
 
 ## Platforms and downloads
 
-<!-- PENDING APPROVAL: the platforms line below is a placeholder until the platforms are confirmed. -->
-**Platforms:** _to be confirmed._ The web app is live at [papeliz.com/app](https://papeliz.com/app/).
+- **Web:** live at [papeliz.com/app](https://papeliz.com/app/), in any modern browser.
+- **Papeliz for Windows and Papeliz for Android, 1.0.0 Preview 1:** download the Windows installer or the Android APK
+  from the [release page](https://github.com/AdamNatad/Papeliz/releases/tag/v1.0.0-preview.1), with SHA-256
+  checksums.
+
+The Windows installer isn't code-signed yet, so Windows may show "Windows protected your PC". Choose **More info**,
+then **Run anyway**.
 
 | Browser | Support |
 | --- | --- |
