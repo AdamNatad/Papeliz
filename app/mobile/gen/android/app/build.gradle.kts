@@ -14,6 +14,40 @@ val tauriProperties = Properties().apply {
     }
 }
 
+// The release key's file, alias and passwords: app/mobile/papeliz-mobile-android-release-signing.properties
+// (Git-ignored, from the template beside it), or the file PAPELIZ_MOBILE_ANDROID_RELEASE_SIGNING_PROPERTIES_FILE
+// names, so a build from a clean copy of the repository can use the one kept here. Without either, the
+// release build stays unsigned. The passwords are never printed.
+val papelizAndroidReleaseSigningPropertiesFile: File =
+    System.getenv("PAPELIZ_MOBILE_ANDROID_RELEASE_SIGNING_PROPERTIES_FILE")?.trim()?.takeIf { it.isNotEmpty() }?.let { file(it) }
+        ?: rootProject.file("../../papeliz-mobile-android-release-signing.properties")
+val papelizAndroidReleaseSigningProperties: Properties? =
+    if (papelizAndroidReleaseSigningPropertiesFile.exists()) {
+        Properties().apply { papelizAndroidReleaseSigningPropertiesFile.inputStream().use { load(it) } }
+    } else {
+        null
+    }
+
+fun readPapelizAndroidReleaseSigningProperty(signingPropertyName: String): String {
+    val signingPropertyValue = papelizAndroidReleaseSigningProperties?.getProperty(signingPropertyName)?.trim().orEmpty()
+    if (signingPropertyValue.isEmpty()) {
+        throw GradleException("$signingPropertyName is empty in $papelizAndroidReleaseSigningPropertiesFile")
+    }
+    return signingPropertyValue
+}
+
+// A keystore path may start with ~/ for the home folder.
+fun readPapelizAndroidReleaseKeystoreFile(): File {
+    val releaseKeystoreFilePath = readPapelizAndroidReleaseSigningProperty("papelizAndroidReleaseKeystoreFile")
+    val releaseKeystoreFile =
+        if (releaseKeystoreFilePath.startsWith("~/")) File(System.getProperty("user.home"), releaseKeystoreFilePath.substring(2))
+        else file(releaseKeystoreFilePath)
+    if (!releaseKeystoreFile.isFile) {
+        throw GradleException("No keystore at $releaseKeystoreFile (papelizAndroidReleaseKeystoreFile in $papelizAndroidReleaseSigningPropertiesFile)")
+    }
+    return releaseKeystoreFile
+}
+
 android {
     compileSdk = 37
     namespace = "com.papeliz.mobile"
@@ -24,6 +58,16 @@ android {
         targetSdk = 37
         versionCode = tauriProperties.getProperty("tauri.android.versionCode", "1").toInt()
         versionName = tauriProperties.getProperty("tauri.android.versionName", "1.0")
+    }
+    signingConfigs {
+        if (papelizAndroidReleaseSigningProperties != null) {
+            create("papelizRelease") {
+                storeFile = readPapelizAndroidReleaseKeystoreFile()
+                storePassword = readPapelizAndroidReleaseSigningProperty("papelizAndroidReleaseKeystorePassword")
+                keyAlias = readPapelizAndroidReleaseSigningProperty("papelizAndroidReleaseKeyAlias")
+                keyPassword = readPapelizAndroidReleaseSigningProperty("papelizAndroidReleaseKeyPassword")
+            }
+        }
     }
     buildTypes {
         getByName("debug") {
@@ -39,6 +83,9 @@ android {
             }
         }
         getByName("release") {
+            if (papelizAndroidReleaseSigningProperties != null) {
+                signingConfig = signingConfigs.getByName("papelizRelease")
+            }
             optimization {
                enable = true
             }

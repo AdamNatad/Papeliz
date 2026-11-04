@@ -1,6 +1,6 @@
 [package]
 name = "papeliz-mobile"
-version = "0.1.0"
+version = "1.0.0-preview.1"
 description = "Papeliz for Android and iOS: the Papeliz web app in a Tauri shell"
 authors = ["Natad Corporation"]
 license = "MIT"

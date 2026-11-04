@@ -6,3 +6,5 @@
 # (build_tools/mobile/papeliz-mobile-tauri-command.mjs)
 /papeliz-mobile-webapp-build/
 /papeliz-mobile-tauri-generated.conf.json
+# The release key's file, alias and passwords (from papeliz-mobile-android-release-signing.template.properties)
+/papeliz-mobile-android-release-signing.properties

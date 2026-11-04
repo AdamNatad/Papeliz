@@ -9,13 +9,15 @@
 // webapp's own dist/, so a mobile build never touches what the web deploy uses. Both `dev` and `build`
 // hand the webapp the mobile app's side of its mobile seam (PAPELIZ_WEBAPP_MOBILE_PLATFORM_ENTRY): the
 // phone layout and App Storage, from the same copy of the repository as the webapp. Then Tauri builds the
-// release APK, which Android leaves unsigned; until Papeliz has its own upload key, a copy is signed
-// with this computer's Android debug key so it installs on a phone for testing
+// release APK (and, with --aab, the app bundle). Gradle signs them with Papeliz's release key when
+// app/mobile/papeliz-mobile-android-release-signing.properties is there (or the file
+// PAPELIZ_MOBILE_ANDROID_RELEASE_SIGNING_PROPERTIES_FILE names); without one, the APK is left unsigned
+// and a copy is signed with this computer's Android debug key so it installs on a phone for testing
 // (app-universal-release-debug-signed.apk, beside the unsigned one).
 //
 // Usage: node build_tools/mobile/papeliz-mobile-tauri-command.mjs android <dev|build> [--webapp-from <repository copy>] [Tauri CLI options]
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -29,6 +31,17 @@ const mobileGeneratedTauriConfigFile = path.join(mobileAppDirectory, 'papeliz-mo
 const mobileAndroidApkFolder = path.join(mobileAppDirectory, 'gen', 'android', 'app', 'build', 'outputs', 'apk', 'universal', 'release')
 const mobileAndroidUnsignedApkFile = path.join(mobileAndroidApkFolder, 'app-universal-release-unsigned.apk')
 const mobileAndroidDebugSignedApkFile = path.join(mobileAndroidApkFolder, 'app-universal-release-debug-signed.apk')
+const mobileAndroidReleaseSignedApkFile = path.join(mobileAndroidApkFolder, 'app-universal-release.apk')
+const mobileAndroidReleaseAppBundleFile = path.join(mobileAppDirectory, 'gen', 'android', 'app', 'build', 'outputs', 'bundle', 'universalRelease', 'app-universal-release.aab')
+
+// The same file Gradle reads (gen/android/app/build.gradle.kts). A path in the variable is made absolute
+// here, so Gradle, which runs in another folder, finds the same file.
+const releaseSigningPropertiesFileFromEnvironment = process.env.PAPELIZ_MOBILE_ANDROID_RELEASE_SIGNING_PROPERTIES_FILE?.trim()
+if (releaseSigningPropertiesFileFromEnvironment) {
+  process.env.PAPELIZ_MOBILE_ANDROID_RELEASE_SIGNING_PROPERTIES_FILE = path.resolve(releaseSigningPropertiesFileFromEnvironment)
+}
+const mobileAndroidReleaseSigningPropertiesFile =
+  process.env.PAPELIZ_MOBILE_ANDROID_RELEASE_SIGNING_PROPERTIES_FILE || path.join(mobileAppDirectory, 'papeliz-mobile-android-release-signing.properties')
 
 function quoteWindowsCommandLineArgument(commandArgument) {
   return /[\s"]/.test(commandArgument) ? `"${commandArgument.replaceAll('"', '\\"')}"` : commandArgument
@@ -167,6 +180,16 @@ function signAndroidApkWithDebugKey(androidSdkDirectory) {
   console.log(`Debug-signed APK for testing on a phone: ${path.relative(repositoryRootDirectory, mobileAndroidDebugSignedApkFile)}`)
 }
 
+// Only what this build wrote: an APK or bundle from an earlier build may still be in the folder.
+function reportAndroidReleaseSignedOutputs(mobileBuildStartTimeMs) {
+  const releaseSignedOutputFiles = [mobileAndroidReleaseSignedApkFile, mobileAndroidReleaseAppBundleFile].filter(
+    (releaseSignedOutputFile) => existsSync(releaseSignedOutputFile) && statSync(releaseSignedOutputFile).mtimeMs >= mobileBuildStartTimeMs,
+  )
+  for (const releaseSignedOutputFile of releaseSignedOutputFiles) {
+    console.log(`Signed with the release key: ${path.relative(repositoryRootDirectory, releaseSignedOutputFile)}`)
+  }
+}
+
 const papelizMobileCommandUsage =
   'Usage: node build_tools/mobile/papeliz-mobile-tauri-command.mjs android <dev|build> [--webapp-from <repository copy>] [Tauri CLI options]'
 const [mobilePlatformName, tauriCommandName, ...mobileCommandOptions] = process.argv.slice(2)
@@ -218,6 +241,7 @@ if (tauriCommandName === 'build') {
   ])
 }
 
+const mobileBuildStartTimeMs = Date.now()
 runPapelizMobileStep('pnpm', [
   '--filter',
   '@papeliz/mobile',
@@ -231,5 +255,10 @@ runPapelizMobileStep('pnpm', [
 ])
 
 // A `--debug` build is already signed by Gradle and leaves the release APK as it was, so only a release
-// build is signed here; signing then would hand out the last release build's APK as if it were new.
-if (tauriCommandName === 'build' && !tauriCommandOptions.includes('--debug')) signAndroidApkWithDebugKey(androidSdkDirectory)
+// build is signed here; signing then would hand out the last release build's APK as if it were new. With
+// the release key, Gradle has signed the release build itself, and an unsigned APK left from an earlier
+// build must not be signed in its place.
+if (tauriCommandName === 'build' && !tauriCommandOptions.includes('--debug')) {
+  if (existsSync(mobileAndroidReleaseSigningPropertiesFile)) reportAndroidReleaseSignedOutputs(mobileBuildStartTimeMs)
+  else signAndroidApkWithDebugKey(androidSdkDirectory)
+}

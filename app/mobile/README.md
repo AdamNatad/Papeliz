@@ -21,14 +21,25 @@ view: Android's WebView (Chrome's engine) and iOS's WKWebView.
 | --- | --- | --- |
 | Run on a phone or emulator | `build_tools\mobile\windows\start.bat` | `pnpm mobile:android:dev` |
 | Build the APK | `build_tools\mobile\windows\build.bat` | `pnpm mobile:android:build` |
+| Build the APK and the app bundle | | `pnpm mobile:android:build:release` |
 
 - `mobile:android:dev` starts the webapp's Vite server on port 14208 and opens the app on the phone
   or emulator that `adb devices` lists.
 - `mobile:android:build` builds the webapp into `app/mobile/papeliz-mobile-webapp-build/`, then the
-  release APK, `gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk`.
-  Android installs only signed apps, so a copy is signed with this computer's Android debug key,
-  `app-universal-release-debug-signed.apk` beside it, for testing on a phone. Store releases are
-  signed with Papeliz's own upload key instead.
+  release APK. `mobile:android:build:release` builds the app bundle (`.aab`) as well.
+- **With the release key,** Gradle signs both:
+  `gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk` and
+  `gen/android/app/build/outputs/bundle/universalRelease/app-universal-release.aab`. The key's file,
+  alias and passwords come from `papeliz-mobile-android-release-signing.properties` in this folder,
+  a Git-ignored copy of `papeliz-mobile-android-release-signing.template.properties` that you fill in.
+  The keystore itself stays outside the repository. A build from another copy of the repository finds
+  the file through `PAPELIZ_MOBILE_ANDROID_RELEASE_SIGNING_PROPERTIES_FILE`, set to its full path.
+- **Without it,** the release APK is left unsigned (`app-universal-release-unsigned.apk`). Android
+  installs only signed apps, so a copy is signed with this computer's Android debug key,
+  `app-universal-release-debug-signed.apk` beside it, for testing on a phone.
+- The version is `tauri.conf.json`'s `version` (Android's version name), and its
+  `bundle.android.versionCode`, the whole number Android and Google Play compare. It goes up by one
+  with every release.
 - `pnpm mobile:android:build --webapp-from <repository copy>` builds the webapp from another copy of
   the repository instead, such as a clean `git archive` of a commit, so the APK wraps a known version
   of `app/web`.
