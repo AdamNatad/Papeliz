@@ -1,7 +1,10 @@
-import { lazy, Suspense, useEffect } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { loadPapelizDesktopPlatformOnce } from './modules/desktop/papeliz-desktop-platform-store'
 import { usePapelizDesktopAppUpdateStore } from './modules/desktop/papeliz-desktop-app-update-store'
 import { sendPapelizDesktopExternalLinksToSystemBrowser } from './modules/desktop/papeliz-desktop-external-links'
+import { usePapelizLoadingStartedAtMilliseconds } from './modules/ui/papeliz-loading-clock'
+import { PapelizLoadingOpeningScreen } from './modules/ui/papeliz-loading-opening-screen'
+import type { PapelizLoadingStep } from './modules/ui/papeliz-loading-progress-count'
 import { PapelizWelcomeScreen } from './modules/workspace/papeliz-welcome-screen'
 import { hasUnsavedPapelizVaultNotes, usePapelizWorkspaceStore } from './modules/workspace/papeliz-workspace-store'
 
@@ -10,6 +13,71 @@ import { hasUnsavedPapelizVaultNotes, usePapelizWorkspaceStore } from './modules
 const PapelizWorkspace = lazy(() =>
   import('./modules/workspace/papeliz-workspace').then((workspaceModule) => ({ default: workspaceModule.PapelizWorkspace })),
 )
+
+type PapelizWebappOpeningScreenStage = 'shown' | 'leaving' | 'gone'
+
+// How long the opening screen takes to fade (papeliz-webapp.css, .papeliz-loading-opening-screen).
+const papelizWebappOpeningScreenFadeMilliseconds = 180
+
+interface PapelizWebappStartProps {
+  isPapelizThemePreferenceRead: boolean
+  papelizWebappStartedAtMilliseconds: number
+}
+
+// The app's start: the opening screen and its steps until the saved theme is read and the start page
+// has drawn under it; then it fades away over the start page.
+export function PapelizWebappStart({ isPapelizThemePreferenceRead, papelizWebappStartedAtMilliseconds }: PapelizWebappStartProps) {
+  const [openingScreenStage, setOpeningScreenStage] = useState<PapelizWebappOpeningScreenStage>('shown')
+
+  useEffect(() => {
+    if (!isPapelizThemePreferenceRead) return
+    // The start page has drawn: the last step shows done for a frame, then the screen fades.
+    let openingScreenFadeTimeout = 0
+    const openingScreenLeaveFrame = window.requestAnimationFrame(() => {
+      setOpeningScreenStage('leaving')
+      openingScreenFadeTimeout = window.setTimeout(() => setOpeningScreenStage('gone'), papelizWebappOpeningScreenFadeMilliseconds)
+    })
+    return () => {
+      window.cancelAnimationFrame(openingScreenLeaveFrame)
+      window.clearTimeout(openingScreenFadeTimeout)
+    }
+  }, [isPapelizThemePreferenceRead])
+
+  const papelizWebappStartSteps: PapelizLoadingStep[] = [
+    { loadingStepLabel: 'Loading Papeliz', loadingStepState: 'done' },
+    { loadingStepLabel: 'Reading your theme', loadingStepState: isPapelizThemePreferenceRead ? 'done' : 'running' },
+    {
+      loadingStepLabel: 'Opening the start page',
+      loadingStepState: openingScreenStage !== 'shown' ? 'done' : isPapelizThemePreferenceRead ? 'running' : 'waiting',
+    },
+  ]
+
+  return (
+    <>
+      {isPapelizThemePreferenceRead && <PapelizWebapp />}
+      {openingScreenStage !== 'gone' && (
+        <PapelizLoadingOpeningScreen
+          loadingWords="Starting Papeliz"
+          loadingSteps={papelizWebappStartSteps}
+          loadingStartedAtMilliseconds={papelizWebappStartedAtMilliseconds}
+          isOpeningScreenLeaving={openingScreenStage === 'leaving'}
+        />
+      )}
+    </>
+  )
+}
+
+// Opening a vault while the workspace's code loads.
+function PapelizWorkspaceOpeningScreen({ vaultDisplayName }: { vaultDisplayName: string }) {
+  const workspaceOpeningStartedAtMilliseconds = usePapelizLoadingStartedAtMilliseconds()
+  return (
+    <PapelizLoadingOpeningScreen
+      loadingWords={`Opening ${vaultDisplayName}`}
+      loadingSteps={[{ loadingStepLabel: 'Loading MD Code and MD View', loadingStepState: 'running' }]}
+      loadingStartedAtMilliseconds={workspaceOpeningStartedAtMilliseconds}
+    />
+  )
+}
 
 // The whole app: the start page until a vault is open, then the workspace.
 export function PapelizWebapp() {
@@ -83,7 +151,7 @@ export function PapelizWebapp() {
 
   if (openVault === null) return <PapelizWelcomeScreen />
   return (
-    <Suspense fallback={<p className="grid h-dvh place-items-center text-papeliz-ink-subtle">Opening {openVault.papelizVaultDisplayName}…</p>}>
+    <Suspense fallback={<PapelizWorkspaceOpeningScreen vaultDisplayName={openVault.papelizVaultDisplayName} />}>
       <PapelizWorkspace key={openVault.papelizVaultId} />
     </Suspense>
   )

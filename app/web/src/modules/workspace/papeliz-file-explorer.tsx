@@ -30,6 +30,7 @@ import { splitVaultSearchSnippetAtMatchedWords } from '../search/papeliz-vault-s
 import { PapelizIconButton } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { PapelizConfirmDialog } from '../ui/papeliz-confirm-dialog'
+import { PapelizLoadingCoverCard } from '../ui/papeliz-loading-cover-card'
 import { PapelizPopoverMenu, type PapelizPopoverMenuItem, type PapelizPopoverMenuPosition } from '../ui/papeliz-popover-menu'
 import type { PapelizVaultEntryKind, PapelizVaultTreeEntry } from '../vault/papeliz-vault-adapter'
 import {
@@ -627,7 +628,7 @@ export function PapelizFileExplorer({ fileListFootSection }: PapelizFileExplorer
         }}
       >
         <span aria-hidden="true" ref={activeNoteHighlightRef} className="papeliz-file-explorer-active-note-highlight" />
-        {vaultTreeLoadState === 'loading' && <p className="px-2.5 py-2 text-[13px] text-papeliz-ink-subtle">Reading the folder…</p>}
+        {vaultTreeLoadState === 'loading' && <PapelizLoadingCoverCard loadingWords="Reading the folder" loadingCoverPlacement="in-place" />}
         {vaultTreeLoadState === 'load-failed' && <p className="px-2.5 py-2 text-[13px] text-papeliz-diff-removed-ink">The notes could not be listed.</p>}
         {vaultTreeLoadState === 'loaded' && vaultTreeEntries.length === 0 && (
           <div className="px-2.5 py-2 text-[13px] text-papeliz-ink-subtle">

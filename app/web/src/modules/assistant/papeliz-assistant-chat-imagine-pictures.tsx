@@ -1,4 +1,5 @@
 import { ImagePlus } from 'lucide-react'
+import { PapelizLoadingWorkWait } from '../ui/papeliz-loading-work-header'
 import { usePapelizChatImagineStore } from './papeliz-assistant-chat-imagine-store'
 import { usePapelizImagineStore } from './papeliz-assistant-imagine-store'
 import { PapelizImaginePictureCard, readPapelizImaginePictureColumnsClassName } from './papeliz-assistant-imagine-picture-card'
@@ -31,10 +32,11 @@ export function PapelizAssistantChatImaginePictures({ chatImagineRunId, imagineP
       {chatImagineRun === undefined ? (
         <p className="text-[12.5px] text-papeliz-ink-subtle">These pictures were made earlier; the Imagine tab keeps the ones made since the page opened.</p>
       ) : chatImagineRun.chatImagineRunStage === 'making' ? (
-        <p className="flex items-center gap-2 text-[13px] text-papeliz-ink-muted" aria-live="polite">
-          <span className="papeliz-saving-dot size-1.5 flex-none rounded-full bg-papeliz-blue" aria-hidden="true" />
-          Making the picture{chatImagineRun.imageModelLabel === null ? '' : ` with ${chatImagineRun.imageModelLabel}`}…
-        </p>
+        <PapelizLoadingWorkWait
+          loadingWords={`Making the picture${chatImagineRun.imageModelLabel === null ? '' : ` with ${chatImagineRun.imageModelLabel}`}…`}
+          LoadingMarkIcon={ImagePlus}
+          picturePlaceholderShape="square"
+        />
       ) : chatImagineRun.chatImagineRunStage === 'failed' ? (
         <PapelizAssistantMediaProblemLine>{chatImagineRun.chatImagineRunProblem}</PapelizAssistantMediaProblemLine>
       ) : (

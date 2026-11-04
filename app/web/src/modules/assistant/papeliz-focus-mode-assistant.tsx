@@ -1,6 +1,7 @@
 import { X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { PapelizIconButton } from '../ui/papeliz-buttons'
+import { PapelizAssistantReplyLoadingSteps } from './papeliz-assistant-chat-view'
 import { isPapelizAssistantPlanChatEntry, usePapelizAssistantConversationStore } from './papeliz-assistant-conversation-store'
 import { PapelizAssistantComposer } from './papeliz-assistant-composer'
 import { PapelizAssistantMessageMarkdown } from './papeliz-assistant-message-markdown'
@@ -47,7 +48,7 @@ export function PapelizFocusModeAssistant() {
             <X className="size-4" aria-hidden="true" />
           </PapelizIconButton>
           <div ref={answerScrollAreaRef} className="flex max-h-[42vh] flex-col gap-3 overflow-y-auto px-5 py-4 pr-12">
-            {latestAnswerEntries.length === 0 && isAssistantRunning && <p className="text-sm text-papeliz-ink-subtle">Thinking…</p>}
+            {latestAnswerEntries.length === 0 && isAssistantRunning && <PapelizAssistantReplyLoadingSteps isReplyWriting={false} />}
             {latestAnswerEntries.map((chatEntry) => {
               if (isPapelizAssistantPlanChatEntry(chatEntry) && !chatEntry.isChatEntryStreaming) {
                 return <PapelizAssistantPlanCard key={chatEntry.chatEntryId} planEntry={chatEntry} planCardPlacement="focus" />

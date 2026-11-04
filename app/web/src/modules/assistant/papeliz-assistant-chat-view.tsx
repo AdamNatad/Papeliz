@@ -3,6 +3,8 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { isPapelizDesktopApp } from 'virtual:papeliz-desktop-platform-availability'
 import { PapelizPillButton } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
+import { PapelizLoadingClock, usePapelizLoadingStartedAtMilliseconds } from '../ui/papeliz-loading-clock'
+import { PapelizLoadingStepList } from '../ui/papeliz-loading-step-list'
 import { getVaultNoteTitle } from '../vault/papeliz-vault-relative-paths'
 import { usePapelizKeyBindingShortcutLabel } from '../workspace/papeliz-key-bindings-store'
 import { selectActiveVaultMarkdownNoteRelativePath, usePapelizWorkspaceStore } from '../workspace/papeliz-workspace-store'
@@ -48,9 +50,24 @@ function findPlanModeFinalAnswerEntryIds(chatEntries: readonly PapelizAssistantC
   return planModeFinalAnswerEntryIds
 }
 
-// The pulsing dot while the assistant writes or thinks; it holds still with reduced motion.
-function PapelizAssistantWritingDot() {
-  return <span className="papeliz-saving-dot size-1.5 flex-none rounded-full bg-papeliz-blue motion-reduce:animate-none" aria-label="Writing" />
+// While a reply is on its way: what it is doing, ticked off (waiting for the reply, then writing it),
+// and how long it has taken so far. The composer's Stop ends it.
+export function PapelizAssistantReplyLoadingSteps({ isReplyWriting }: { isReplyWriting: boolean }) {
+  const replyStartedAtMilliseconds = usePapelizLoadingStartedAtMilliseconds()
+  return (
+    <div className="papeliz-assistant-reply-loading-steps" role="status" aria-label={isReplyWriting ? 'Writing the answer' : 'Waiting for the reply'}>
+      <PapelizLoadingStepList
+        loadingStepListFrame="bare"
+        loadingSteps={[
+          { loadingStepLabel: 'Waiting for the reply', loadingStepState: isReplyWriting ? 'done' : 'running' },
+          { loadingStepLabel: 'Writing the answer', loadingStepState: isReplyWriting ? 'running' : 'waiting' },
+        ]}
+      />
+      <p className="papeliz-assistant-reply-loading-clock-line">
+        Working <PapelizLoadingClock loadingStartedAtMilliseconds={replyStartedAtMilliseconds} />
+      </p>
+    </div>
+  )
 }
 
 type PapelizAssistantToolActivityChatEntry = Extract<PapelizAssistantChatEntry, { chatEntryKind: 'tool-activity' }>
@@ -165,16 +182,9 @@ function PapelizAssistantChatEntryView({ chatEntry, isPlanModeFinalAnswer }: { c
                 </span>
               )}
               <PapelizAssistantReplyProviderModelLabel replyProviderModel={chatEntry} />
-              {chatEntry.isChatEntryStreaming && chatEntry.chatEntryText.length > 0 && <PapelizAssistantWritingDot />}
             </div>
-            {chatEntry.chatEntryText.length === 0 ? (
-              <p className="flex items-center gap-2 text-sm text-papeliz-ink-subtle">
-                <PapelizAssistantWritingDot />
-                Thinking…
-              </p>
-            ) : (
-              <PapelizAssistantMessageMarkdown assistantMessageText={chatEntry.chatEntryText} />
-            )}
+            {chatEntry.isChatEntryStreaming && <PapelizAssistantReplyLoadingSteps isReplyWriting={chatEntry.chatEntryText.length > 0} />}
+            {chatEntry.chatEntryText.length > 0 && <PapelizAssistantMessageMarkdown assistantMessageText={chatEntry.chatEntryText} />}
           </div>
           {isPlanModeFinalAnswer && <PapelizAssistantPlanModeAnswerChips />}
         </div>

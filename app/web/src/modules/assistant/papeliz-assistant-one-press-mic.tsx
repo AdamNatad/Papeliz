@@ -1,8 +1,12 @@
-import { Check, CircleAlert, LoaderCircle, Mic, X } from 'lucide-react'
+import { Check, CircleAlert, Mic, X } from 'lucide-react'
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from 'react'
 import { useStore } from 'zustand'
 import { PapelizIconButton } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
+import { PapelizLoadingBar } from '../ui/papeliz-loading-bar'
+import { PapelizLoadingClock, usePapelizLoadingStartedAtMilliseconds } from '../ui/papeliz-loading-clock'
+import { readPapelizLoadingPartFromWords } from '../ui/papeliz-loading-progress-count'
+import { PapelizLoadingRing } from '../ui/papeliz-loading-ring'
 import { formatPapelizAudioDuration, papelizMicrophoneFirstAskSentence } from './papeliz-assistant-audio-recording'
 import { usePapelizAssistantMediaModelInUse } from './papeliz-assistant-media-parts'
 import { createPapelizOnePressMicController, type PapelizOnePressMicFixStep, type PapelizOnePressMicStore } from './papeliz-assistant-one-press-mic-controller'
@@ -148,6 +152,33 @@ function PapelizOnePressMicTimer({ recordingStartedAtMilliseconds }: { recording
   return <span>{formatPapelizAudioDuration(recordedSeconds)}</span>
 }
 
+interface PapelizOnePressMicTranscribingLineProps {
+  transcribingWords: string
+  transcribingProgressText: string | null
+}
+
+// What transcribing is doing and a clock, over a thin bar that fills part by part when a long
+// recording is sent in parts, and slides until a part is done.
+function PapelizOnePressMicTranscribingLine({ transcribingWords, transcribingProgressText }: PapelizOnePressMicTranscribingLineProps) {
+  const transcribingStartedAtMilliseconds = usePapelizLoadingStartedAtMilliseconds()
+  const transcribingPart = readPapelizLoadingPartFromWords(transcribingProgressText ?? '')
+  const transcribedPartsPercent =
+    transcribingPart === null || transcribingPart.runningPartNumber === 1
+      ? null
+      : Math.floor(((transcribingPart.runningPartNumber - 1) / transcribingPart.loadingPartCount) * 100)
+  return (
+    <span className="flex min-w-0 flex-1 flex-col gap-1 px-1.5">
+      <span className="flex min-w-0 items-baseline gap-2">
+        <span className="min-w-0 flex-1 truncate text-[12.5px] text-papeliz-ink-muted" aria-live="polite">
+          {transcribingWords}
+        </span>
+        <PapelizLoadingClock loadingStartedAtMilliseconds={transcribingStartedAtMilliseconds} />
+      </span>
+      <PapelizLoadingBar loadingBarPercent={transcribedPartsPercent} loadingBarLabel="Transcribing" />
+    </span>
+  )
+}
+
 interface PapelizOnePressMicRecorderRowProps {
   onePressMicStore: PapelizOnePressMicStore
   // Whatever follows the mic at rest (Send, Run), drawn the same, so ✓ lands on the mic's own spot.
@@ -199,11 +230,12 @@ export function PapelizOnePressMicRecorderRow({ onePressMicStore, trailingContro
         </>
       ) : (
         <>
-          <span className="min-w-0 flex-1 truncate px-1.5 text-[12.5px] text-papeliz-ink-muted" aria-live="polite">
-            {describePapelizOnePressMicTranscribingWords(transcribingProgressText, transcriptionModelInUse?.providerModelName ?? null)}
-          </span>
+          <PapelizOnePressMicTranscribingLine
+            transcribingWords={describePapelizOnePressMicTranscribingWords(transcribingProgressText, transcriptionModelInUse?.providerModelName ?? null)}
+            transcribingProgressText={transcribingProgressText}
+          />
           <span className={joinPapelizClassNames(papelizOnePressMicRoundClassName, 'text-papeliz-blue')} aria-hidden="true">
-            <LoaderCircle className="size-4 animate-spin motion-reduce:animate-none" />
+            <PapelizLoadingRing />
           </span>
         </>
       )}

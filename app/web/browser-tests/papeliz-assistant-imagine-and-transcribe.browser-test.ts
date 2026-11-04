@@ -1089,7 +1089,7 @@ test('Describe Picture writes a picture’s alt text with Meta’s vision, and E
   expect(refusedOutsideRequestUrls).toEqual([])
 })
 
-test('while Edit Picture and Describe Picture wait for the provider, the card says so with a pulsing dot above the old picture', async ({ page }) => {
+test('while Edit Picture and Describe Picture wait for the provider, the card says so with a rocking mark and a clock above the old picture', async ({ page }) => {
   const { refusedOutsideRequestUrls } = await playTestMetaProvider(page)
   // The provider holds its answer to the picture's edit and to its description until the test lets it go.
   let releaseHeldProviderReply: () => void = () => {}
@@ -1116,15 +1116,26 @@ test('while Edit Picture and Describe Picture wait for the provider, the card sa
   await inlineCard.getByRole('button', { name: 'Edit Picture' }).click()
   const editWaitingLine = inlineCard.getByText('Editing the picture with muse-image-1.0…', { exact: true })
   await expect(editWaitingLine).toBeVisible()
-  await expect(editWaitingLine.locator('.papeliz-saving-dot')).toBeVisible()
+  const editWaitingHeader = inlineCard.locator('.papeliz-loading-work-header').filter({ hasText: 'Editing the picture with muse-image-1.0…' })
+  await expect(editWaitingHeader.locator('.papeliz-loading-work-mark')).toBeVisible()
+  await expect(editWaitingHeader.getByRole('timer', { name: 'Time so far' })).toHaveText(/^\d+:\d{2}$/)
   const oldPicture = inlineCard.getByRole('img', { name: 'square' })
   await expect(oldPicture).toBeVisible()
   const [editWaitingLineBox, oldPictureBox] = await readElementBoxesInOneFrame(page, [editWaitingLine, oldPicture])
   expect(editWaitingLineBox!.y + editWaitingLineBox!.height).toBeLessThanOrEqual(oldPictureBox!.y)
-  expect(await editWaitingLine.locator('.papeliz-saving-dot').evaluate((dotElement) => getComputedStyle(dotElement).animationName)).toBe('papeliz-saving-pulse')
-  // With reduced motion the dot stands still and the words stay.
+  expect(await editWaitingHeader.locator('.papeliz-loading-work-mark').evaluate((markElement) => getComputedStyle(markElement).animationName)).toBe('papeliz-loading-rock')
+  // The old picture stays in view, dimmed under the sweeping sheen.
+  const oldPictureSheen = inlineCard.locator('.papeliz-loading-picture-under-sheen .papeliz-loading-sheen-over')
+  expect(await oldPictureSheen.evaluate((sheenElement) => getComputedStyle(sheenElement).animationName)).toBe('papeliz-loading-sheen-sweep')
+  // Reject stops the wait while it runs.
+  await expect(inlineCard.getByRole('button', { name: /^Reject/ })).toBeEnabled()
+  // With reduced motion the mark stands still, the words stay, and the sheen breathes instead of sweeping.
   await page.emulateMedia({ reducedMotion: 'reduce' })
-  expect(await editWaitingLine.locator('.papeliz-saving-dot').evaluate((dotElement) => getComputedStyle(dotElement).animationDuration)).toBe('0s')
+  expect(await editWaitingHeader.locator('.papeliz-loading-work-mark').evaluate((markElement) => getComputedStyle(markElement).animationName)).toBe('none')
+  expect(await oldPictureSheen.evaluate((sheenElement) => [getComputedStyle(sheenElement).animationName, getComputedStyle(sheenElement).animationDuration])).toEqual([
+    'papeliz-loading-breathe',
+    '1.4s',
+  ])
   await expect(editWaitingLine).toBeVisible()
   await page.emulateMedia({ reducedMotion: 'no-preference' })
   await expect(inlineCard.getByRole('button', { name: /^Accept/ })).toBeDisabled()
@@ -1140,7 +1151,9 @@ test('while Edit Picture and Describe Picture wait for the provider, the card sa
   await inlineCard.getByRole('button', { name: 'Describe Picture' }).click()
   const describeWaitingLine = inlineCard.getByText(`Describing the picture with ${metaChatModelName}…`, { exact: true })
   await expect(describeWaitingLine).toBeVisible()
-  await expect(describeWaitingLine.locator('.papeliz-saving-dot')).toBeVisible()
+  await expect(inlineCard.locator('.papeliz-loading-work-header').filter({ hasText: `Describing the picture with ${metaChatModelName}…` }).locator('.papeliz-loading-work-mark')).toBeVisible()
+  // Two swept lines stand where the alt text will go.
+  await expect(inlineCard.locator('.papeliz-loading-picture-text-lines')).toBeVisible()
   releaseHeldProviderReply()
   await expect(inlineCard.locator('.papeliz-text-diff')).toContainText(`![${testPictureAltText}](Attachments/imagine-`)
   await expect(describeWaitingLine).toHaveCount(0)

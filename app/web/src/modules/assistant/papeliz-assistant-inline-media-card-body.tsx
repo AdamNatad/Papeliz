@@ -1,6 +1,8 @@
 import { ArrowUp, Check, FileAudio, ImagePlus, Lock, Mic, Paintbrush, RotateCw, ScanEye, Square } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { PapelizPillButton } from '../ui/papeliz-buttons'
+import { PapelizLoadingPictureUnderSheen } from '../ui/papeliz-loading-picture-placeholder'
+import { PapelizLoadingWorkWait } from '../ui/papeliz-loading-work-header'
 import { formatPapelizAudioDuration, isPapelizAudioRecordingAvailable, papelizMicrophoneFirstAskSentence } from './papeliz-assistant-audio-recording'
 import { usePapelizImagineStore } from './papeliz-assistant-imagine-store'
 import { usePapelizInlineEditStore } from './papeliz-assistant-inline-edit-store'
@@ -207,10 +209,13 @@ export function PapelizAssistantInlineMediaCardBody() {
       {(inlineMediaStage === 'working' || inlineMediaStage === 'review' || inlineMediaStage === 'failed') && (
         <div className="flex flex-col gap-2.5 border-t border-papeliz-line px-4 py-3 text-[15px] leading-relaxed" aria-live="polite">
           {inlineMediaStage === 'working' && (
-            <p className="flex items-center gap-2 text-sm text-papeliz-ink-muted">
-              <span className="papeliz-saving-dot size-1.5 flex-none rounded-full bg-papeliz-blue" aria-hidden="true" />
-              {inlineMediaProgressText ?? 'Working…'}
-            </p>
+            <PapelizLoadingWorkWait
+              loadingWords={inlineMediaProgressText ?? 'Working…'}
+              LoadingMarkIcon={
+                inlineMediaAction === 'describe-picture' ? ScanEye : inlineMediaAction === 'edit-picture' ? Paintbrush : isImagine ? ImagePlus : FileAudio
+              }
+              picturePlaceholderShape={inlineMediaAction === 'describe-picture' ? 'text-lines' : isImagine ? 'square' : null}
+            />
           )}
           {inlineMediaStage === 'failed' && (
             <p role="alert" className="papeliz-selectable-text text-sm text-papeliz-diff-removed-ink">
@@ -252,7 +257,13 @@ export function PapelizAssistantInlineMediaCardBody() {
       )}
       {isPictureAction && inlineSourcePictureUrl !== null && inlineMediaStage !== 'review' && (
         <div className="border-t border-papeliz-line px-4 py-3">
-          <img src={inlineSourcePictureUrl} alt={inlinePictureLink?.pictureAltText ?? ''} className="max-h-40 max-w-[min(100%,16rem)] rounded-xl border border-papeliz-line object-contain" />
+          {inlineMediaStage === 'working' && inlineMediaAction === 'edit-picture' ? (
+            <PapelizLoadingPictureUnderSheen>
+              <img src={inlineSourcePictureUrl} alt={inlinePictureLink?.pictureAltText ?? ''} className="max-h-40 max-w-[min(100%,16rem)] rounded-xl border border-papeliz-line object-contain" />
+            </PapelizLoadingPictureUnderSheen>
+          ) : (
+            <img src={inlineSourcePictureUrl} alt={inlinePictureLink?.pictureAltText ?? ''} className="max-h-40 max-w-[min(100%,16rem)] rounded-xl border border-papeliz-line object-contain" />
+          )}
         </div>
       )}
 

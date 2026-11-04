@@ -19,6 +19,7 @@ import { PapelizIconButton, PapelizPillButton, papelizOutlineButtonColorClassNam
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
 import { PapelizConfirmDialog } from '../ui/papeliz-confirm-dialog'
 import { PapelizHoverTooltip, PapelizTooltipBubble, PapelizTooltipLine } from '../ui/papeliz-hover-tooltip'
+import { PapelizLoadingCoverCard } from '../ui/papeliz-loading-cover-card'
 import { PapelizMark } from '../ui/papeliz-mark'
 import { PapelizPopoverMenu, type PapelizPopoverMenuPosition } from '../ui/papeliz-popover-menu'
 import {
@@ -1141,7 +1142,7 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
       {/* The card is centered by its auto margins, which, unlike centering the row, never push its top
           out of reach when it's taller than the window. */}
       <main className="flex min-h-0 flex-1 overflow-y-auto p-3 sm:p-4">
-        <div className="papeliz-welcome-enter m-auto flex w-[750px] max-w-[calc(100vw-24px)] overflow-hidden rounded-[14px] border border-papeliz-line bg-papeliz-surface shadow-papeliz-card max-md:flex-col md:h-[520px] md:max-h-[calc(100dvh-80px)] sm:max-w-[calc(100vw-48px)]">
+        <div className="papeliz-welcome-enter relative m-auto flex w-[750px] max-w-[calc(100vw-24px)] overflow-hidden rounded-[14px] border border-papeliz-line bg-papeliz-surface shadow-papeliz-card max-md:flex-col md:h-[520px] md:max-h-[calc(100dvh-80px)] sm:max-w-[calc(100vw-48px)]">
           <section aria-label="Start" className="flex flex-none flex-col bg-papeliz-topbar p-3 text-white md:w-[190px] md:overflow-y-auto md:[scrollbar-width:none]">
             {/* On a short window the panel scrolls (wheel, touch or Tab), so its foot (Synced Vaults and the
                 licence) stays reachable; a scrollbar would narrow the actions until their lines wrap. */}
@@ -1817,6 +1818,8 @@ function PapelizWelcomeScreenContent({ startScreenEyePreview }: { startScreenEye
               />
             )}
           </section>
+          {/* Opening a vault covers the card with what is happening, except while the folder window is open. */}
+          {isOpeningVault && !isVaultFolderWindowOpen && <PapelizLoadingCoverCard loadingWords="Opening the vault" loadingCoverPlacement="over-pane" />}
         </div>
       </main>
 

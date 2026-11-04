@@ -2389,3 +2389,642 @@ label:has(> input[type='search']:focus-visible) {
   height: 32px;
   border: 0;
 }
+
+/* Loading and progress (modules/ui/papeliz-loading-*.tsx). A thin bar that fills to a real count or
+   slides while there is none; under it, one pill with the percentage and what is happening, with More
+   info open under it; a covering card for a busy pane; a rocking mark, a clock and a swept
+   placeholder for generated work; stepping dots after waiting words; one small ring for busy
+   buttons. Every colour comes from the theme's own list above. */
+:root {
+  --papeliz-loading-track: color-mix(in srgb, var(--color-papeliz-blue) 16%, transparent);
+  --papeliz-loading-track-card: color-mix(in srgb, var(--color-papeliz-blue) 12%, transparent);
+  --papeliz-loading-edge: color-mix(in srgb, var(--color-papeliz-blue) 22%, transparent);
+  --papeliz-loading-edge-soft: color-mix(in srgb, var(--color-papeliz-blue) 14%, transparent);
+  --papeliz-loading-glow: 0 0 12px color-mix(in srgb, var(--color-papeliz-blue) 45%, transparent);
+  --papeliz-loading-cover-ground: color-mix(in srgb, var(--color-papeliz-surface) 90%, transparent);
+  --papeliz-loading-pill-hover: color-mix(in srgb, var(--color-papeliz-blue) 5%, var(--color-papeliz-surface));
+  --papeliz-loading-pill-press: color-mix(in srgb, var(--color-papeliz-blue) 10%, var(--color-papeliz-surface));
+  --papeliz-loading-sheen-edge: color-mix(in srgb, var(--color-papeliz-blue-line) 40%, var(--color-papeliz-blue-soft));
+  --papeliz-loading-sheen-middle: var(--color-papeliz-blue-soft);
+  --papeliz-loading-sheen-light: color-mix(in srgb, var(--color-papeliz-blue-soft) 30%, var(--color-papeliz-surface));
+}
+
+:root[data-papeliz-theme='dark'] {
+  --papeliz-loading-sheen-edge: var(--color-papeliz-blue-soft);
+  --papeliz-loading-sheen-middle: color-mix(in srgb, var(--color-papeliz-blue-line) 35%, var(--color-papeliz-blue-soft));
+  --papeliz-loading-sheen-light: color-mix(in srgb, var(--color-papeliz-blue-line) 70%, var(--color-papeliz-blue-soft));
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-papeliz-theme='light']) {
+    --papeliz-loading-sheen-edge: var(--color-papeliz-blue-soft);
+    --papeliz-loading-sheen-middle: color-mix(in srgb, var(--color-papeliz-blue-line) 35%, var(--color-papeliz-blue-soft));
+    --papeliz-loading-sheen-light: color-mix(in srgb, var(--color-papeliz-blue-line) 70%, var(--color-papeliz-blue-soft));
+  }
+}
+
+/* The bar: a 3 px tinted track; the fill eases to the percentage in 260 ms; with no count, a pill
+   half the track's width slides across it every 650 ms. */
+.papeliz-loading-bar {
+  position: relative;
+  height: 3px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: var(--papeliz-loading-track);
+}
+
+.papeliz-loading-bar-card {
+  height: 6px;
+  background: var(--papeliz-loading-track-card);
+}
+
+.papeliz-loading-bar-fill,
+.papeliz-loading-bar-slide {
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  border-radius: inherit;
+  background: var(--color-papeliz-blue);
+}
+
+.papeliz-loading-bar-card > span {
+  box-shadow: var(--papeliz-loading-glow);
+}
+
+.papeliz-loading-bar-fill {
+  transition: width 260ms ease-out;
+}
+
+.papeliz-loading-bar-slide {
+  width: 50%;
+  animation: papeliz-loading-slide 650ms linear infinite;
+  will-change: transform;
+}
+
+@keyframes papeliz-loading-slide {
+  from {
+    transform: translate3d(-110%, 0, 0);
+  }
+  to {
+    transform: translate3d(230%, 0, 0);
+  }
+}
+
+@keyframes papeliz-loading-breathe {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes papeliz-loading-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* The dots: none, one, two, three, in a slot of their own width. */
+.papeliz-loading-dots {
+  display: inline-block;
+  width: 1.35em;
+  text-align: left;
+}
+
+.papeliz-loading-dots::after {
+  content: '...';
+  animation: papeliz-loading-dots-step 1.1s steps(1, end) infinite;
+}
+
+@keyframes papeliz-loading-dots-step {
+  0%,
+  20% {
+    content: '';
+  }
+  40% {
+    content: '.';
+  }
+  60% {
+    content: '..';
+  }
+  80%,
+  100% {
+    content: '...';
+  }
+}
+
+/* The small ring for busy buttons and lines. */
+.papeliz-loading-ring {
+  display: inline-block;
+  flex: none;
+  box-sizing: border-box;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  border: 2px solid var(--papeliz-loading-edge);
+  border-top-color: var(--color-papeliz-blue);
+  animation: papeliz-loading-turn 900ms linear infinite;
+}
+
+.papeliz-loading-ring-on-blue {
+  border-color: rgb(255 255 255 / 0.35);
+  border-top-color: #fff;
+}
+
+/* The readout: the bar, and under it the pill; More info unfolds downward in 180 ms and folds back
+   in 200 ms. */
+.papeliz-loading-readout {
+  width: 100%;
+  text-align: center;
+  color: var(--color-papeliz-ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.papeliz-loading-readout-hang {
+  margin-top: 8px;
+}
+
+.papeliz-loading-readout-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 24px;
+  max-width: 100%;
+  padding: 3px 7px 3px 11px;
+  border-radius: 12px;
+  border: 1px solid var(--papeliz-loading-edge);
+  background: var(--color-papeliz-surface);
+  color: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    scale 180ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.papeliz-loading-readout-pill:hover {
+  background: var(--papeliz-loading-pill-hover);
+}
+
+.papeliz-loading-readout-pill:active {
+  background: var(--papeliz-loading-pill-press);
+  scale: 0.985;
+}
+
+.papeliz-loading-readout-pill:focus-visible {
+  outline: 2px solid var(--color-papeliz-blue);
+  outline-offset: 2px;
+}
+
+.papeliz-loading-readout-pill[data-papeliz-loading-readout-failed] {
+  border-color: color-mix(in srgb, var(--color-papeliz-error-notice-line) 45%, transparent);
+  background: var(--color-papeliz-error-notice-ground);
+  color: var(--color-papeliz-error-notice-ink);
+}
+
+.papeliz-loading-readout-pill-words {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.papeliz-loading-readout-chevron {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  transition: rotate 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.papeliz-loading-readout-pill[aria-expanded='true'] .papeliz-loading-readout-chevron {
+  rotate: 180deg;
+  transition: rotate 180ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.papeliz-loading-more-info {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    grid-template-rows 200ms cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 140ms linear 60ms,
+    visibility 0s linear 200ms;
+}
+
+.papeliz-loading-more-info[data-papeliz-loading-more-info-open='true'] {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  visibility: visible;
+  transition:
+    grid-template-rows 180ms cubic-bezier(0.2, 0, 0, 1),
+    opacity 120ms linear,
+    visibility 0s;
+}
+
+.papeliz-loading-more-info-clip {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.papeliz-loading-step-panel {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--papeliz-loading-edge);
+  border-radius: 10px;
+  background: var(--color-papeliz-surface);
+  text-align: left;
+  color: var(--color-papeliz-ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.papeliz-loading-step-panel-bare {
+  margin-top: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
+.papeliz-loading-steps {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.papeliz-loading-step,
+.papeliz-loading-step-total {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  font-size: 11.5px;
+  line-height: 1.3;
+}
+
+.papeliz-loading-step-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.papeliz-loading-step-count,
+.papeliz-loading-step-total > span:last-child {
+  white-space: nowrap;
+}
+
+.papeliz-loading-step[data-papeliz-loading-step-state='waiting'] {
+  opacity: 0.55;
+}
+
+.papeliz-loading-step[data-papeliz-loading-step-state='failed'] {
+  color: var(--color-papeliz-error-notice-ink);
+}
+
+.papeliz-loading-step-total {
+  margin-top: 7px;
+  padding-top: 6px;
+  border-top: 1px solid var(--papeliz-loading-edge-soft);
+  font-weight: 600;
+}
+
+/* A step's mark: a faint ring still to come, a turning arc while it runs, a filled dot once done. */
+.papeliz-loading-step-mark {
+  box-sizing: border-box;
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid var(--color-papeliz-line-strong);
+  border-radius: 50%;
+}
+
+.papeliz-loading-step[data-papeliz-loading-step-state='running'] .papeliz-loading-step-mark {
+  border-color: var(--papeliz-loading-edge);
+  border-top-color: var(--color-papeliz-blue);
+  animation: papeliz-loading-turn 900ms linear infinite;
+}
+
+.papeliz-loading-step[data-papeliz-loading-step-state='done'] .papeliz-loading-step-mark {
+  border-color: var(--color-papeliz-blue);
+  background: var(--color-papeliz-blue);
+  box-shadow: inset 0 0 0 1.5px var(--color-papeliz-surface);
+}
+
+.papeliz-loading-step[data-papeliz-loading-step-state='failed'] .papeliz-loading-step-mark {
+  border-color: var(--color-papeliz-error-notice-line);
+  background: var(--color-papeliz-error-notice-line);
+  box-shadow: inset 0 0 0 1.5px var(--color-papeliz-surface);
+}
+
+/* The covering card: the busy pane fades under a near-white ground in 140 ms, and a small card says
+   what is happening; its bar comes only after 300 ms. */
+.papeliz-loading-cover-over-pane {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 14px;
+  background: var(--papeliz-loading-cover-ground);
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+  animation: papeliz-loading-arrive 140ms ease-out both;
+}
+
+.papeliz-loading-cover-in-place {
+  display: flex;
+  justify-content: center;
+  padding: 24px 12px;
+  animation: papeliz-loading-arrive 140ms ease-out both;
+}
+
+.papeliz-loading-cover-card {
+  width: min(15.5rem, 100%);
+  padding: 12px;
+  border-radius: 15px;
+  border: 1px solid var(--papeliz-loading-edge);
+  background: var(--color-papeliz-surface);
+  box-shadow: var(--shadow-papeliz-pop);
+  overflow: hidden;
+}
+
+.papeliz-loading-cover-card-words {
+  display: block;
+  overflow: hidden;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--color-papeliz-ink);
+}
+
+.papeliz-loading-cover-card-bar {
+  margin-top: 12px;
+  animation: papeliz-loading-arrive 160ms ease-out 300ms both;
+}
+
+@keyframes papeliz-loading-arrive {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* The opening screen: the tile, the name, and the readout, over the whole window until the app has
+   drawn; then it fades in 180 ms over what is under it. */
+.papeliz-loading-opening-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: var(--color-papeliz-surface);
+  transition: opacity 180ms ease;
+}
+
+.papeliz-loading-opening-screen-leaving {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.papeliz-loading-opening-screen-group {
+  display: flex;
+  width: min(260px, 100%);
+  flex-direction: column;
+  align-items: center;
+}
+
+.papeliz-loading-opening-screen-tile {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 8px;
+  border-radius: 11px;
+  background: var(--color-papeliz-gradient-start);
+}
+
+.papeliz-loading-opening-screen-name {
+  margin: 0 0 10px;
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  color: var(--color-papeliz-ink);
+}
+
+.papeliz-loading-opening-screen .papeliz-loading-readout .papeliz-loading-bar {
+  width: min(220px, 100%);
+  margin-inline: auto;
+}
+
+/* Generated work: a round blue mark that rocks every 1.8 s with a sparkle pulsing beside it, the
+   words, a clock, and a placeholder swept by a soft sheen. */
+.papeliz-loading-work-header {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--color-papeliz-ink-muted);
+}
+
+.papeliz-loading-work-mark {
+  position: relative;
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--color-papeliz-gradient-start);
+  color: #fff;
+  animation: papeliz-loading-rock 1.8s ease-in-out infinite;
+}
+
+.papeliz-loading-work-spark {
+  position: absolute;
+  top: -3px;
+  right: -4px;
+  width: 11px;
+  height: 11px;
+  color: var(--color-papeliz-violet);
+  animation: papeliz-loading-spark 1.35s ease-in-out infinite;
+}
+
+.papeliz-loading-work-spark path {
+  fill: currentColor;
+  stroke: var(--color-papeliz-surface);
+  stroke-width: 1.4;
+}
+
+.papeliz-loading-work-words {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.papeliz-loading-clock {
+  flex: none;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--color-papeliz-ink-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
+.papeliz-loading-work-header .papeliz-loading-clock {
+  margin-left: auto;
+}
+
+.papeliz-loading-picture-frame {
+  display: flex;
+  width: min(100%, 10rem);
+  padding: 8px;
+  border-radius: 12px;
+  background: var(--color-papeliz-blue-soft);
+  box-shadow: inset 0 0 0 1px var(--color-papeliz-blue-line);
+}
+
+.papeliz-loading-picture-text-lines {
+  display: grid;
+  gap: 6px;
+}
+
+.papeliz-loading-picture-text-lines > .papeliz-loading-sheen {
+  height: 10px;
+}
+
+.papeliz-loading-picture-text-lines > .papeliz-loading-sheen:last-child {
+  width: 62%;
+}
+
+.papeliz-loading-sheen {
+  display: block;
+  border-radius: 7px;
+  box-shadow: inset 0 0 0 1px var(--color-papeliz-blue-line);
+  background-image: linear-gradient(
+    105deg,
+    var(--papeliz-loading-sheen-edge) 0%,
+    var(--papeliz-loading-sheen-middle) 38%,
+    var(--papeliz-loading-sheen-light) 50%,
+    var(--papeliz-loading-sheen-middle) 62%,
+    var(--papeliz-loading-sheen-edge) 100%
+  );
+  background-size: 220% 100%;
+  animation: papeliz-loading-sheen-sweep 1.8s linear infinite;
+}
+
+.papeliz-loading-sheen-square {
+  width: 100%;
+  aspect-ratio: 1;
+}
+
+/* The Assistant's reply on its way: its steps, and "Working 0:04" under them. */
+.papeliz-assistant-reply-loading-steps {
+  max-width: 17rem;
+  margin: 2px 0 8px;
+  color: var(--color-papeliz-ink-muted);
+}
+
+.papeliz-assistant-reply-loading-clock-line {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  margin-top: 6px;
+  padding-top: 5px;
+  border-top: 1px solid var(--color-papeliz-line);
+  font-size: 11.5px;
+  color: var(--color-papeliz-ink-subtle);
+}
+
+/* A picture being changed stays in view, dimmed, with the sheen sweeping over it. */
+.papeliz-loading-picture-under-sheen {
+  position: relative;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.papeliz-loading-picture-under-sheen > :not(.papeliz-loading-sheen) {
+  opacity: 0.55;
+}
+
+.papeliz-loading-sheen-over {
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+  box-shadow: none;
+  opacity: 0.6;
+}
+
+@keyframes papeliz-loading-rock {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) rotate(-2deg);
+  }
+  50% {
+    transform: translate3d(1px, -1px, 0) rotate(3deg);
+  }
+}
+
+@keyframes papeliz-loading-spark {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(0.82) rotate(-8deg);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.08) rotate(8deg);
+  }
+}
+
+@keyframes papeliz-loading-sheen-sweep {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -120% 0;
+  }
+}
+
+/* Reduced motion keeps one calm sign of work and stops the rest. The reduced-motion rule above sets
+   every animation to 0 s, so these are stronger: the sliding pill holds still in the middle and
+   breathes, as do the ring and the placeholders; the dots stand at three; marks, arcs and sweeps
+   stop. */
+@media (prefers-reduced-motion: reduce) {
+  .papeliz-loading-bar-slide {
+    left: 25%;
+    transform: none;
+    animation: papeliz-loading-breathe 1.4s ease-in-out infinite !important;
+  }
+
+  .papeliz-loading-ring,
+  .papeliz-loading-sheen {
+    animation: papeliz-loading-breathe 1.4s ease-in-out infinite !important;
+  }
+
+  .papeliz-loading-sheen {
+    background-position: 50% 0;
+  }
+
+  .papeliz-loading-dots::after {
+    content: '...';
+    animation: none;
+  }
+
+  .papeliz-loading-work-mark,
+  .papeliz-loading-work-spark,
+  .papeliz-loading-step[data-papeliz-loading-step-state='running'] .papeliz-loading-step-mark {
+    animation: none;
+  }
+}

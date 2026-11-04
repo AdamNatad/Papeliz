@@ -19,6 +19,7 @@ import {
   type PapelizNoteViewMode,
 } from '../note-editor/papeliz-note-editor'
 import { PapelizPillButton } from '../ui/papeliz-buttons'
+import { PapelizLoadingCoverCard } from '../ui/papeliz-loading-cover-card'
 import { describePapelizFailureCodeMessage } from '../vault/papeliz-failure-code-words'
 import {
   getVaultEntryName,
@@ -384,11 +385,7 @@ export function PapelizNoteArea({ noteEditorSessionCache }: PapelizNoteAreaProps
         )}
       </nav>
 
-      {activeLoadedVaultNote.noteLoadState === 'loading' && (
-        <p className="mx-auto text-papeliz-ink-subtle" style={{ maxWidth: 'var(--papeliz-note-column-width)' }}>
-          Opening the {openedThingWord}…
-        </p>
-      )}
+      {activeLoadedVaultNote.noteLoadState === 'loading' && <PapelizLoadingCoverCard loadingWords={`Opening the ${openedThingWord}`} loadingCoverPlacement="in-place" />}
 
       {activeLoadedVaultNote.noteLoadState === 'load-failed' && (
         <div role="alert" className="mx-auto max-w-[720px] rounded-2xl bg-papeliz-diff-removed px-5 py-4 text-papeliz-diff-removed-ink">

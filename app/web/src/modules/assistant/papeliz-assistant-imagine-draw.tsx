@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type RefObject } from 'react'
 import { isPapelizDesktopApp } from 'virtual:papeliz-desktop-platform-availability'
 import { PapelizPillButton } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
+import { PapelizLoadingWorkWait } from '../ui/papeliz-loading-work-header'
 import type { PapelizPopoverMenuItem } from '../ui/papeliz-popover-menu'
 import {
   PapelizImagineBox,
@@ -88,10 +89,11 @@ function PapelizImagineDrawThreadEntryView({ imagineThreadEntry, isDrawThreadEnt
         </div>
       </div>
       {imagineThreadEntry.imagineThreadEntryKind === 'prompt' && imagineThreadEntry.imaginePromptStage === 'making' ? (
-        <p className="flex items-center gap-2 text-[13px] text-papeliz-ink-muted" aria-live="polite">
-          <span className="papeliz-saving-dot size-1.5 flex-none rounded-full bg-papeliz-blue" aria-hidden="true" />
-          {describePapelizImagineMakingLine(imagineThreadEntry.requestedPictureCount, imagineThreadEntry.imageModelLabel)}
-        </p>
+        <PapelizLoadingWorkWait
+          loadingWords={describePapelizImagineMakingLine(imagineThreadEntry.requestedPictureCount, imagineThreadEntry.imageModelLabel)}
+          LoadingMarkIcon={Paintbrush}
+          picturePlaceholderShape="square"
+        />
       ) : imagineThreadEntry.imagineThreadEntryKind === 'prompt' && imagineThreadEntry.imaginePromptStage === 'stopped' ? (
         <p className="text-[13px] text-papeliz-ink-subtle">Stopped. Nothing was made.</p>
       ) : entryProblem !== null ? (

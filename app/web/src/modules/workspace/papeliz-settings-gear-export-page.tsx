@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, Download, FilePen, FileText, Folder, Globe, LayoutTemplate, LoaderCircle, Printer, Search, Settings, X } from 'lucide-react'
+import { ChevronDown, ChevronRight, Download, FilePen, FileText, Folder, Globe, LayoutTemplate, Printer, Search, Settings, X } from 'lucide-react'
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { isPapelizDesktopApp } from 'virtual:papeliz-desktop-platform-availability'
 import {
@@ -22,6 +22,10 @@ import {
 import { findPapelizTemplateExportDetailsProblem, listPapelizTemplateExportTags } from '../template-gallery/papeliz-template-export-details'
 import { PapelizPillButton } from '../ui/papeliz-buttons'
 import { joinPapelizClassNames } from '../ui/papeliz-class-names'
+import { usePapelizLoadingStartedAtMilliseconds } from '../ui/papeliz-loading-clock'
+import { PapelizLoadingWords } from '../ui/papeliz-loading-dots'
+import { PapelizLoadingReadout } from '../ui/papeliz-loading-readout'
+import { PapelizLoadingRing } from '../ui/papeliz-loading-ring'
 import { PapelizSlidingChoiceGroup } from '../ui/papeliz-sliding-choice-group'
 import { PapelizVaultOperationError } from '../vault/papeliz-vault-adapter'
 import { getVaultEntryParentFolderRelativePath } from '../vault/papeliz-vault-relative-paths'
@@ -248,6 +252,29 @@ function readStoredTemplateExportSettings(storedTemplateExportSettings: unknown,
 
 // A failed export's line: "The export stopped.", then why as a sentence of its own, capitalized and
 // ending in one full stop (the PDF export's own reasons start lowercase and have none).
+interface PapelizSettingsGearExportProgressReadoutProps {
+  exportedNoteCount: number
+  exportNoteCount: number
+}
+
+// Under the Export button while it runs: the bar fills note by note, with the readout and its step
+// under it. One note alone can't be counted, so the bar slides.
+function PapelizSettingsGearExportProgressReadout({ exportedNoteCount, exportNoteCount }: PapelizSettingsGearExportProgressReadoutProps) {
+  const exportStartedAtMilliseconds = usePapelizLoadingStartedAtMilliseconds()
+  return (
+    <PapelizLoadingReadout
+      className="mt-2.5"
+      loadingWords="Exporting"
+      loadingStartedAtMilliseconds={exportStartedAtMilliseconds}
+      loadingSteps={[
+        exportNoteCount > 1
+          ? { loadingStepLabel: 'Exporting', loadingStepState: 'running', loadingStepDoneUnitCount: exportedNoteCount, loadingStepUnitCount: exportNoteCount, loadingStepUnitWord: 'notes' }
+          : { loadingStepLabel: 'Exporting the note', loadingStepState: 'running' },
+      ]}
+    />
+  )
+}
+
 function describeExportFailureLine(exportFailureMessage: string): string {
   const exportFailureSentence = exportFailureMessage.charAt(0).toUpperCase() + exportFailureMessage.slice(1)
   return `The export stopped. ${exportFailureSentence}${/[.!?…]$/.test(exportFailureSentence) ? '' : '.'}`
@@ -1039,12 +1066,14 @@ export function PapelizSettingsGearExportPage() {
           onClick={() => void exportTickedNotes()}
           className={`w-full pointer-coarse:h-10 ${isExportRunning ? 'px-8 disabled:opacity-100' : ''}`}
         >
-          {isExportRunning ? <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" /> : <Download className="size-3.5" aria-hidden="true" />}
-          {exportRunState.exportRunKind === 'running'
-            ? exportRunState.exportNoteCount > 1
-              ? `Exporting ${exportRunState.exportedNoteCount} of ${exportRunState.exportNoteCount}…`
-              : 'Exporting…'
-            : 'Export'}
+          {isExportRunning ? <PapelizLoadingRing loadingRingTone="on-blue" /> : <Download className="size-3.5" aria-hidden="true" />}
+          {exportRunState.exportRunKind === 'running' ? (
+            <PapelizLoadingWords
+              loadingWords={exportRunState.exportNoteCount > 1 ? `Exporting ${exportRunState.exportedNoteCount} of ${exportRunState.exportNoteCount}…` : 'Exporting…'}
+            />
+          ) : (
+            'Export'
+          )}
         </PapelizPillButton>
         {isExportRunning && (
           <button
@@ -1058,6 +1087,9 @@ export function PapelizSettingsGearExportPage() {
           </button>
         )}
       </div>
+      {exportRunState.exportRunKind === 'running' && (
+        <PapelizSettingsGearExportProgressReadout exportedNoteCount={exportRunState.exportedNoteCount} exportNoteCount={exportRunState.exportNoteCount} />
+      )}
       {isExportRunning && computerFontsQuestion !== null && (
         <div className="mt-2 rounded-xl border border-papeliz-line bg-papeliz-surface p-2.5 text-[12px] leading-[1.45] text-papeliz-ink-muted">
           <p>
