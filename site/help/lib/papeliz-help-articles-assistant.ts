@@ -160,7 +160,7 @@ export const papelizHelpAssistantArticles: readonly PapelizHelpArticle[] = [
           'The plan comes as a card with steps. Click any words to change them, tick a step that’s already done so Build skips it, drag a step by its handle (or `Alt+Up` and `Alt+Down`) to move it, and choose **Add Step** for another. **Save as Note** keeps the plan without building it.',
         ),
         helpParagraph(
-          '**Build** saves the plan as a checklist note in the `Plans` folder, then builds it one step at a time. Each step’s changes come as diffs under it, and the next step starts once you accept or reject them; with **Bypass Permission** on, it runs straight through. The note ticks each step as it’s done. See [[proposed-edits]].',
+          '**Build** moves the assistant to **Write**, saves the plan as a checklist note in the `Plans` folder, then builds it one step at a time. It stays in Write once the plan is built. Each step’s changes come as diffs under it, and the next step starts once you accept or reject them; with **Bypass Permission** on, it runs straight through. The note ticks each step as it’s done. See [[proposed-edits]].',
         ),
         helpParagraph('**Stop** ends the running step, and **Continue** starts it again. A step that fails says why, with **Retry Step** and **Skip Step**.'),
         helpParagraph('A plain question asked in Plan gets a short answer and no plan, with **Switch to Ask**.'),

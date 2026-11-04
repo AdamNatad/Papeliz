@@ -26,7 +26,7 @@ const papelizSiteFeatureCards = [
   {
     icon: PenLine,
     title: 'An assistant that edits',
-    body: 'Select text and ask for Shorter, Rewrite or Fix grammar. Every change arrives as a diff you accept or reject.',
+    body: 'Built on Muse Spark through the Meta Model API. Select text and ask for Shorter, Rewrite or Fix Grammar. Every change arrives as a diff you accept or reject.',
   },
   {
     icon: KeyRound,
@@ -54,9 +54,11 @@ const papelizSiteMoreCards = [
 ]
 
 const papelizSiteAssistantSteps = [
-  'Ask about a note, a selection or your whole vault, and get answers that cite your notes as links. Plan and Write take on bigger jobs.',
-  'Rewrite a paragraph in place: the change shows as a diff before anything is saved.',
-  'Let it suggest links and tags across your notes, then review each change.',
+  'Ask about a note, a selection or your whole vault, and get answers from Muse Spark that cite your notes as links. Plan and Write take on bigger jobs.',
+  'Rewrite a paragraph in place with Muse Spark: the change shows as a diff before anything is saved.',
+  'Let Muse Spark suggest links and tags across your notes, then review each change.',
+  'Speak instead of typing: Muse Voice Transcribe turns speech into text, through the Meta Model API.',
+  'Imagine a picture with Muse Image, change it with Edit Picture, and let Muse Spark’s vision describe it.',
   'Switch to focus mode for just your note and a floating prompt box.',
 ]
 

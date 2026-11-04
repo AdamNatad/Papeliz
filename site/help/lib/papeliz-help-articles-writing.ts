@@ -281,6 +281,9 @@ tags: [garden, plans]
         helpParagraph(
           'Drag the edge of the file list or the Assistant panel to resize it, and Papeliz remembers the width. In a narrow window both open as drawers over the note, and `Esc` closes them.',
         ),
+        helpParagraph(
+          'In a narrow window the top bar makes room. The vault’s name goes first, then the words on the **MD Code** and **MD View** switch. Narrower still, **Export** and the gear fold into **More**, the square menu at the right, and at the narrowest the **AI Assistant** button joins them. The word Papeliz always shows.',
+        ),
       ]),
     ],
     relatedArticleSlugs: ['settings-gear', 'switch-views-and-lock', 'keyboard-shortcuts'],

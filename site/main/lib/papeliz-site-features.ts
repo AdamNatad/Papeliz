@@ -124,27 +124,27 @@ export const papelizSiteFeatureGroups: PapelizSiteFeatureGroup[] = [
     papelizSiteFeatureGroupAnchor: 'assistant',
     papelizSiteFeatureGroupIcon: Sparkles,
     papelizSiteFeatureGroupTitle: 'An assistant that edits',
-    papelizSiteFeatureGroupSummary: 'Docked beside your note. It reads, searches and proposes changes; you decide what is saved.',
+    papelizSiteFeatureGroupSummary: 'Docked beside your note and built on the Meta Model API. It reads, searches and proposes changes; you decide what is saved.',
     papelizSiteFeatureGroupPoints: [
       {
         papelizSiteFeaturePointTitle: 'Ask, Plan and Write',
-        papelizSiteFeaturePointBody: 'Ask answers from your notes and never changes them. Plan turns an idea into steps. Write edits, adds and deletes notes, and you review each change.',
+        papelizSiteFeaturePointBody: 'On Muse Spark through the Meta Model API by default. Ask answers from your notes and never changes them. Plan turns an idea into steps. Write edits, adds and deletes notes, and you review each change.',
       },
       {
         papelizSiteFeaturePointTitle: 'Plan, then Build',
-        papelizSiteFeaturePointBody: 'Plan asks what it needs, then writes steps you can edit. Build saves the plan as a note and carries it out step by step, each step’s changes for you to review.',
+        papelizSiteFeaturePointBody: 'Plan asks what it needs, then writes steps you can edit. Build moves the assistant to Write, saves the plan as a note and carries it out step by step, each step’s changes for you to review.',
       },
       { papelizSiteFeaturePointTitle: 'Answers that cite your notes', papelizSiteFeaturePointBody: 'Ask about a note, a selection or the whole vault. Answers link to the notes they draw on.' },
       {
         papelizSiteFeaturePointTitle: 'Edits as diffs',
         papelizSiteFeaturePointBody: 'Every change the assistant proposes shows as a diff, link and tag suggestions across many notes too. Accept writes the file; Reject drops it.',
       },
-      { papelizSiteFeaturePointTitle: 'Inline edits', papelizSiteFeaturePointBody: 'Select text for Shorter, Rewrite, Fix Grammar or Translate, right where you are writing.' },
+      { papelizSiteFeaturePointTitle: 'Inline edits', papelizSiteFeaturePointBody: 'Select text for Shorter, Rewrite, Fix Grammar or Translate, right where you are writing, on Muse Spark.' },
       {
         papelizSiteFeaturePointTitle: 'Pictures and speech',
-        papelizSiteFeaturePointBody: 'With your provider’s image and speech models, Imagine makes a picture and Transcribe turns speech into text, in the chat or in your note, and Describe Picture and Edit Picture work on a note’s pictures. Remove Metadata cleans a picture before it’s saved.',
+        papelizSiteFeaturePointBody: 'By default through the Meta Model API, Imagine draws a picture with Muse Image and Transcribe turns speech into text with Muse Voice Transcribe, in the chat or in your note. Edit Picture changes a note’s picture with Muse Image, and Describe Picture writes its alt text with Muse Spark’s vision. Remove Metadata cleans a picture before it’s saved.',
       },
-      { papelizSiteFeaturePointTitle: 'Files and pictures', papelizSiteFeaturePointBody: 'Add files and pictures to a message. A picture from another site in an answer loads only when you press Show.' },
+      { papelizSiteFeaturePointTitle: 'Files and pictures', papelizSiteFeaturePointBody: 'Add files and pictures to a message, read by Muse Spark. A picture from another site in an answer loads only when you press Show.' },
       { papelizSiteFeaturePointTitle: 'Sessions and Usage', papelizSiteFeaturePointBody: 'Every chat is saved in the vault as a note. Usage shows the tokens and cost of each model.' },
     ],
   },
@@ -156,7 +156,7 @@ export const papelizSiteFeatureGroups: PapelizSiteFeatureGroup[] = [
     papelizSiteFeatureGroupPoints: [
       {
         papelizSiteFeaturePointTitle: 'Any OpenAI-compatible provider',
-        papelizSiteFeaturePointBody: 'Add a preset, such as Claude or OpenAI, or any compatible base URL, hosted or running on your own machine.',
+        papelizSiteFeaturePointBody: 'The Meta Model API is the first preset. Add others, such as Claude or OpenAI, or any compatible base URL, hosted or running on your own machine.',
       },
       {
         papelizSiteFeaturePointTitle: 'Several at once',

@@ -67,7 +67,7 @@ const papelizSiteHackathonName = 'Meta Global AI Developer Hackathon 2026'
 // The Adam Natad page is the author's profile, so it names the author's other apps.
 const papelizSiteBannedTextAllowedByPage = { 'adam-natad/index.html': [/panulat/i] }
 const papelizSiteProviderNamePatterns = [/\bMeta\b/, /\bMuse\b/]
-const papelizSiteProviderNameAllowedPages = ['index.html', 'providers/index.html']
+const papelizSiteProviderNameAllowedPages = ['index.html', 'providers/index.html', 'features/index.html', 'changelog/index.html']
 const papelizSiteRetiredViewNamePatterns = [/\bMD Editor\b/i, /\bMD Viewer\b/i]
 
 const papelizSiteExportProblems = []

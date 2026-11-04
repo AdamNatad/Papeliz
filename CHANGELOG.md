@@ -3,6 +3,27 @@
 What changed in Papeliz, newest first, in plain words. These entries record what has been built,
 from the plan to the launch. The website's Changelog page shows the same list.
 
+## 2026-11-05 — 1.0.0 Preview 1
+
+- Assistant and Plan mode: Plan asks questions only when they matter, and its plan is a card you edit. Build saves
+  it as a checklist note and builds it step by step, each step’s changes as diffs, with the assistant moved to
+  Write.
+- Assistant: Imagine sits beside Notes, with Ask, Draw and Gallery, and a ring beside the model chip shows how much
+  of the model’s context is used.
+- Meta’s models: the Meta Model API is the first preset. Muse Spark runs Ask, Plan, Write and the inline edits, and
+  its vision writes Describe Picture’s alt text. Muse Voice Transcribe runs the mic and Transcribe, with speaker
+  labels, and Muse Image draws and edits pictures.
+- Meta’s models: Transcribe and Draw each pick their own model, with the Meta Model API’s first.
+- Vaults: New Vault asks Standard or End-to-end. An End-to-end vault is encrypted on your device behind a passphrase
+  only you know, with Lock Now and Remember on This Device.
+- Vaults: a folder vault keeps its own name, renamed in Settings › Vault. A vault opens in MD View, and a picture
+  resizes by dragging.
+- Papeliz for Windows opens several windows, one vault in each, with New Window or Ctrl+Shift+N.
+- Papeliz for Android brings the app to phones, with its own bottom bar, and saves exports through the phone’s own
+  save screen.
+- Templates: a template with scripts is marked Contains Scripts. Use Template lists each script with View Code, and
+  Papeliz never runs them. Preview’s View Code shows any text file, line by line.
+
 ## 2026-11-03 — Pictures and video in MD View, and pictures and speech in the assistant
 
 - MD View shows pictures from your vault and the web, inside links too, while you edit and on a
