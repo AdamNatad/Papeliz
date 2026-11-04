@@ -114,7 +114,7 @@ export const papelizSiteFeatureGroups: PapelizSiteFeatureGroup[] = [
       },
       {
         papelizSiteFeaturePointTitle: 'Checked first',
-        papelizSiteFeaturePointBody: 'Papeliz checks a template before it makes the vault, strips its pictures’ hidden details, and lists every command its settings name. Nothing runs.',
+        papelizSiteFeaturePointBody: 'Papeliz checks a template before it makes the vault, strips its pictures’ hidden details, and lists every script it contains, with View Code to read each one. Nothing runs.',
       },
       { papelizSiteFeaturePointTitle: 'Always a known version', papelizSiteFeaturePointBody: 'Papeliz reads the version it checked. Recheck, to look for a newer one, is coming soon.' },
       { papelizSiteFeaturePointTitle: 'Share your own', papelizSiteFeaturePointBody: 'Make one with Export as Template, put it in a public GitHub repository, and check it with Submit Template.' },

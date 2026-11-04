@@ -25,7 +25,7 @@ export function PapelizSiteTemplateCategoryBadge({ papelizSiteTemplateRow }: { p
   )
 }
 
-// Featured, New and Runs commands, the marks a template's row and page carry in the app too.
+// Featured, New and Contains Scripts, the marks a template's row and page carry in the app too.
 export function PapelizSiteTemplateStatusBadges({
   papelizSiteTemplateRow,
   templateGallerySnapshotBuiltAt,
@@ -47,7 +47,7 @@ export function PapelizSiteTemplateStatusBadges({
       {papelizSiteTemplateRow.isTemplateRunningCommands && (
         <span className={`${papelizSiteTemplateBadgeClassName} bg-papeliz-diff-removed text-papeliz-diff-removed-ink`}>
           <Terminal className="size-3" aria-hidden="true" />
-          Runs commands
+          Contains Scripts
         </span>
       )}
     </>

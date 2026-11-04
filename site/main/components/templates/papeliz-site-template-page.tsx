@@ -31,7 +31,7 @@ function PapelizSiteTemplateDetail({ papelizSiteTemplateDetailLabel, children }:
 const papelizSiteTemplateTextLinkClassName = 'font-medium text-papeliz-blue hover:underline'
 
 // One template's page (/templates/<owner>/<repository>/): what it is, who shares it, its Category and tags, its license, whether it
-// runs commands, and the commit Papeliz checked, with Open in Papeliz and View on GitHub. Every word
+// contains scripts, and the commit Papeliz checked, with Open in Papeliz and View on GitHub. Every word
 // of its name, description and tags is the author's, shown as text. While the Templates Worker is
 // switched off, the Votes line says Coming Soon instead of counts nobody could have given.
 export function PapelizSiteTemplatePage({
@@ -102,8 +102,9 @@ export function PapelizSiteTemplatePage({
 
       {papelizSiteTemplateRow.isTemplateRunningCommands && (
         <p className="mt-8 rounded-2xl border border-papeliz-line bg-papeliz-surface-soft px-5 py-4 text-[15px] leading-relaxed text-papeliz-ink-muted">
-          <b className="font-semibold text-papeliz-ink">Runs commands.</b> This template brings agent settings or scripts that name commands
-          for tools on your computer. Papeliz never runs them; before it makes the vault, it lists every one for you to read.
+          <b className="font-semibold text-papeliz-ink">Contains Scripts.</b> This template brings scripts, or agent settings that name commands,
+          that a coding agent may run on your computer. Papeliz never runs them. Before it makes the vault, it lists every one, and View
+          Code shows each one’s file for you to read.
         </p>
       )}
 

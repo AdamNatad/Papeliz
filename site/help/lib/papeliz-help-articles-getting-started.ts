@@ -124,10 +124,10 @@ export const papelizHelpGettingStartedArticles: readonly PapelizHelpArticle[] = 
           'A template is a whole starter vault that someone shares from a public GitHub repository. On the start page, choose **Templates**, just above **Synced Vaults**.',
         ),
         helpNumberedSteps([
-          'Pick a template in **Featured**. Its row shows the author, the license and how many files it has, and **Preview** shows every file, read-only.',
+          'Pick a template in **Featured**. Its row shows the author, the license and how many files it has. **Preview** shows every file, read-only, and **View Code** beside a file’s path shows its text, line by line.',
           'Choose the template to open its page, with its first note and **What’s inside**, then choose **Use Template**.',
           'If the template marks some files as optional, its folder tree shows with a switch above it: **Recommended** brings the files the author recommends, **All** brings every file, and ticking or clearing a file yourself moves the switch to **Choose**. Each choice shows how many files it brings. Required files are always ticked.',
-          'If the template’s agent settings or scripts name commands, Papeliz lists each one. Papeliz never runs them. Tick **I’ve read these commands**, then choose **Continue**.',
+          'If the template is marked **Contains Scripts**, **This template contains scripts** lists each script it brings and each command its agent settings name. Papeliz never runs them, but a coding agent you open the vault with may. **View Code** beside one opens its file to read, line by line. Tick **I’ve read these scripts**, then choose **Continue**.',
           'New Vault opens with the template at its top. Name the vault, choose **Folder Storage** or **Browser Storage**, then **Create Vault**. The vault opens on the template’s first note, as a Standard vault.',
         ]),
         helpParagraph(
