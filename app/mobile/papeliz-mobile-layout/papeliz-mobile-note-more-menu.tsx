@@ -49,7 +49,9 @@ export function PapelizMobileNoteMoreMenu({ vaultNoteRelativePath, onRenameInFil
         aria-expanded={isMoreMenuOpen}
         onClick={() => setMoreMenuOpen(!isMoreMenuOpen)}
       >
-        <SquareMenu aria-hidden="true" />
+        <span className="papeliz-mobile-top-bar-frosted-square">
+          <SquareMenu aria-hidden="true" />
+        </span>
       </button>
 
       {/* Drawn inside the blue top bar, so what opens from it takes the page's own ink, not the bar's white. */}
