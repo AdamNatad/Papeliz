@@ -21,7 +21,9 @@
 | Built | 27 Oct – 4 Nov 2026 (US Eastern), from scratch |
 | Meta models | Muse Spark 1.3 · Muse Voice Transcribe 1.0 · Muse Image 1.0 |
 | Bonus prizes | [Best Agentic Use-Case](#the-agent-loop) · [Best Creative Build](#features) · [Most Viral on X](https://x.com/AdamNatad/status/2118121029365383634) |
-| Try it | **Web:** [papeliz.com/app](https://papeliz.com/app/) → Try Sample → your Meta Model API key in Settings › AI Provider. **Desktop:** [Papeliz for Windows 1.0.0 Preview 1](https://github.com/AdamNatad/Papeliz/releases/download/v1.0.0-preview.1/Papeliz-1.0.0-preview.1-windows-x64-setup.exe), install, then the same steps. No account. |
+| Try it (Desktop) | [Papeliz for Windows 1.0.0 Preview 1](https://github.com/AdamNatad/Papeliz/releases/download/v1.0.0-preview.1/Papeliz-1.0.0-preview.1-windows-x64-setup.exe): install, then paste your Meta Model API key in Settings › AI Provider. |
+| Try it (Mobile) | [Papeliz for Android 1.0.0 Preview 1](https://github.com/AdamNatad/Papeliz/releases/download/v1.0.0-preview.1/Papeliz-1.0.0-preview.1-android.apk): install the APK, then paste your Meta Model API key in Settings › AI Provider. |
+| Try it (WebApp) | [papeliz.com/app](https://papeliz.com/app/) → Try Sample → your Meta Model API key in Settings › AI Provider. No account. |
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-0064D4.svg" alt="License: MIT" /></a>
