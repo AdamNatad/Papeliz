@@ -351,6 +351,16 @@ xychart-beta
 | `muse-voice-transcribe-1.0` | $0.18 per hour of audio, billed by the second |
 | `muse-image-1.0` | $0.01 per generated image |
 
+```mermaid
+xychart-beta
+  title "muse-spark-1.3, Meta's list price per 1M tokens (USD)"
+  x-axis ["Cached input", "Input", "Output"]
+  y-axis "USD per 1M tokens" 0 --> 5
+  bar [0.15, 1.25, 4.25]
+```
+
+<sub>From [dev.meta.ai/docs/pricing-rate-limits](https://dev.meta.ai/docs/pricing-rate-limits), read on 2026-11-05.</sub>
+
 At those prices, transcribing the demo's 19-second spoken plan costs about $0.001 (19 s × $0.18 per hour), and
 drawing one picture costs $0.01. Meta's page doesn't list picture edits separately. In Papeliz, the Usage tab adds up
 the assistant's tokens and what they cost at these prices, in total and for each model.
