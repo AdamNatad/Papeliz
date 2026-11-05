@@ -342,6 +342,19 @@ xychart-beta
 
 <sub>Single runs from the demo video's recordings, the same times as the table above.</sub>
 
+**Cost.** Meta's list prices, from [Pricing and rate limits](https://dev.meta.ai/docs/pricing-rate-limits), read on
+2026-11-05:
+
+| Model | Meta's list price |
+| --- | --- |
+| `muse-spark-1.3` | $1.25 per 1M input tokens, $0.15 per 1M cached input tokens, $4.25 per 1M output tokens |
+| `muse-voice-transcribe-1.0` | $0.18 per hour of audio, billed by the second |
+| `muse-image-1.0` | $0.01 per generated image |
+
+At those prices, transcribing the demo's 19-second spoken plan costs about $0.001 (19 s × $0.18 per hour), and
+drawing one picture costs $0.01. Meta's page doesn't list picture edits separately. In Papeliz, the Usage tab adds up
+the assistant's tokens and what they cost at these prices, in total and for each model.
+
 How they were measured:
 
 - **A single call** (Ask's three calls, Transcribe, the clean note, Draw, Edit Picture): the Time column of the
@@ -696,20 +709,6 @@ Hosted on [Cloudflare Workers](https://workers.cloudflare.com) static assets.
 ---
 
 <p align="center">Made with ❤️ by <a href="https://papeliz.com/adam-natad/">Adam Natad</a>.</p>
-
-<p align="center">
-  <a href="https://papeliz.com">Website</a> ·
-  <a href="https://papeliz.com/app/">Web App</a> ·
-  <a href="https://papeliz.com/download/">Download</a> ·
-  <a href="https://papeliz.com/help/">Help</a> ·
-  <a href="https://papeliz.com/templates/">Templates</a> ·
-  <a href="https://papeliz.com/changelog/">Changelog</a> ·
-  <a href="https://papeliz.com/community/">Community</a> ·
-  <a href="https://papeliz.com/providers/">AI Providers</a> ·
-  <a href="https://papeliz.com/privacy/">Privacy Policy</a> ·
-  <a href="https://papeliz.com/terms/">Terms of Service</a> ·
-  <a href="https://papeliz.com/license/">License Overview</a>
-</p>
 
 <p align="center">Copyright © 2026 <a href="https://natad.ai/">Natad Corporation</a>.</p>
 
