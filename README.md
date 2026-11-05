@@ -332,6 +332,16 @@ them as examples, not averages.
 | Edit Picture | Muse Image 1.0 | 10.44 s |
 | Describe Picture | Muse Spark 1.3 (vision) | 12.3 s |
 
+```mermaid
+xychart-beta
+  title "Measured times on the Meta Model API, in seconds"
+  x-axis ["Ask, first words", "Plan, questions", "Plan, steps", "Build, first step", "Transcribe", "Clean note", "Draw", "Edit Picture", "Describe Picture"]
+  y-axis "Seconds" 0 --> 30
+  bar [4.9, 29.6, 11.8, 27.7, 4.44, 10.74, 8.53, 10.44, 12.3]
+```
+
+<sub>Single runs from the demo video's recordings, the same times as the table above.</sub>
+
 How they were measured:
 
 - **A single call** (Ask's three calls, Transcribe, the clean note, Draw, Edit Picture): the Time column of the
@@ -341,6 +351,9 @@ How they were measured:
   note ready): the recording's own clock, from the click to the moment the recorder saw the result. It looks every
   0.5 s, so these are good to about 0.5 s.
 - **Ask's first words:** the first frame of the recording, at 30 frames a second, where the words show.
+
+**One key, every modality.** Through the Meta Model API, one key covers chat, vision, speech to text, picture
+generation and picture editing: everything Papeliz uses.
 
 **Tests:** 1,219 unit tests pass, with 1 skipped, and 90 browser tests pass on the two Edge projects, with 2
 skipped. How to run them is under [Tests](#tests).
