@@ -19,7 +19,7 @@
 > - **Built:** 27 Oct – 4 Nov 2026 (US Eastern), from scratch.
 > - **Meta models:** Muse Spark 1.3, Muse Voice Transcribe 1.0 and Muse Image 1.0, through the Meta Model API.
 > - **Bonus prizes entered:** Best Agentic Use-Case ([the Plan → Build agent loop](#the-agent-loop)), Best Creative
->   Build ([Imagine with Muse Image](#features)) and Most Viral on X.
+>   Build ([Imagine with Muse Image](#features)) and [Most Viral on X](https://x.com/AdamNatad/status/2118121029365383634).
 > - **For judges:** no account, no `.env` and no install. Open [papeliz.com/app](https://papeliz.com/app/), choose
 >   **Try Sample**, and paste a Meta Model API key in **Settings › AI Provider**.
 
@@ -326,11 +326,11 @@ Where the calls live:
 
 ## Benchmarks
 
-Real times from the takes recorded for the demo video, on 2026-11-04 and 2026-11-05: one run of each, through the
-Meta Model API, over a home connection. They change with the network and with how much a request carries, so read
+The measured latency of each Meta model call, in seconds, from the takes recorded for the demo video on 2026-11-04
+and 2026-11-05: one run of each, through the Meta Model API, over a home connection. They change with the network and with how much a request carries, so read
 them as examples, not averages.
 
-| What you do | Meta model | Time |
+| What you do | Meta model | Latency |
 | --- | --- | --- |
 | Ask a question across the vault | Muse Spark 1.3 | First words 4.9 s after Send. The answer, after three calls of 5.45 s, 2.73 s and 6.55 s, is done by 16.9 s |
 | Plan asks its questions | Muse Spark 1.3 | 29.6 s |
@@ -345,13 +345,13 @@ them as examples, not averages.
 
 ```mermaid
 xychart-beta
-  title "Measured times on the Meta Model API, in seconds"
+  title "Measured latency on the Meta Model API, in seconds"
   x-axis ["Ask, first words", "Plan, questions", "Plan, steps", "Build, first step", "Transcribe", "Clean note", "Draw", "Edit Picture", "Describe Picture"]
   y-axis "Seconds" 0 --> 30
   bar [4.9, 29.6, 11.8, 27.7, 4.44, 10.74, 8.53, 10.44, 12.3]
 ```
 
-<sub>Single runs from the demo video's recordings, the same times as the table above.</sub>
+<sub>Single runs from the demo video's recordings, the same latencies as the table above.</sub>
 
 **Cost.** Meta's list prices, from [Pricing and rate limits](https://dev.meta.ai/docs/pricing-rate-limits), read on
 2026-11-05:
