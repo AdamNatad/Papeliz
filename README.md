@@ -45,6 +45,7 @@
 - [Help and documentation](#help-and-documentation)
 - [Plans and Pricing](#plans-and-pricing)
 - [Community and Workflows](#community-and-workflows)
+  - [Use a Workflow Template](#use-a-workflow-template)
 - [Run it locally](#run-it-locally)
 - [Code layout](#code-layout)
 - [Configuration](#configuration)
@@ -388,11 +389,10 @@ How the code fits together: [docs/how-papeliz-is-built.md](docs/how-papeliz-is-b
 - Workflow Templates: browse, Preview, Use Template and Import from Template, with no account.
 - The AI Assistant uses your own key with the provider you pick, and Papeliz charges nothing for it.
 
-**Papeliz Sync is coming, and optional. It isn't open yet.** It will keep your vaults the same on the web, desktop
-and mobile, with End-to-end encryption for the vaults you choose. Once it's open, your phone becomes a window on your
-agent's work: the vault your coding agents write to on your computer, there to read and review on your phone. It
-needs a Papeliz account, and its Free plan comes with one. Its plans, as [papeliz.com/pricing](https://papeliz.com/pricing/) and
-[papeliz.com/sync](https://papeliz.com/sync/) list them:
+**Papeliz Sync** keeps your vaults the same on the web, desktop and mobile, with End-to-end encryption for the vaults
+you choose. Your phone becomes a window on your agent's work: the vault your coding agents write to on your computer,
+there to read and review on your phone. Sync needs a Papeliz account, and its Free plan comes with one. Its plans, as
+[papeliz.com/pricing](https://papeliz.com/pricing/) and [papeliz.com/sync](https://papeliz.com/sync/) list them:
 
 | Plan | Price | Storage | Synced vaults | Devices | Largest file | Version history |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -421,9 +421,43 @@ for coding and AI agents, or any notes you want others to start from.
 
 - **Contains Scripts:** a template with scripts or agent commands lists every one, with **View Code**, before
   anything is made. Papeliz never runs them.
-- **How to start from one:** [Help: start or open a vault](https://papeliz.com/help/open-a-folder/).
+- **How to start from one:** [Use a Workflow Template](#use-a-workflow-template), below, and
+  [Help: start or open a vault](https://papeliz.com/help/open-a-folder/).
 - **Today,** the gallery's list is built into Papeliz. **New**, **Top 100**, votes, **Report** and submitting are
   Coming Soon, with Papeliz's Templates server. **Submit Template** can already **Check** your own repository.
+
+### Use a Workflow Template
+
+1. **Open Templates.** On the start page, choose **Templates**, just above **Synced Vaults**.
+2. **Pick one,** such as **P1-Workflow** in **Featured**. Its row shows the author, the license and how many files it
+   has.
+3. **Preview** shows every file, read-only, and **View Code** beside a file's path shows its text, line by line.
+4. **Use Template.** If the template is marked **Contains Scripts**, **This template contains scripts** lists each
+   script and each command its agent settings name, with **View Code** beside each. Papeliz never runs them. Tick
+   **I've read these scripts**, then choose **Continue**.
+5. **Name the new vault,** choose **Folder Storage** or **Browser Storage**, then **Create Vault**. It opens on the
+   template's first note.
+
+**Into a vault you already have:** choose **Import** in the file list's header, then **Import from Template**.
+**Import into This Vault** puts the template in a new folder named after it, at the top of the vault, and changes
+nothing else.
+
+**Make your own:** in **Export**, choose **Export as Template** and set its name, description, tags, first note and
+license. Put the files from the `.zip` in a public GitHub repository, and share its link.
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/images/papeliz-readme-templates-gallery.jpg" alt="Templates on the start page: Featured, New and Top 100, the filters All, AI Agents, Coding and Project Workflow, and P1-Workflow's row, marked Contains Scripts, with Preview." width="100%" /><br /><sub><strong>Templates:</strong> pick one from the gallery.</sub></td>
+    <td width="50%"><img src="docs/images/papeliz-readme-template-preview.jpg" alt="Preview of P1-Workflow: its folder tree on the left and its README on the right, read-only, with View Code and Use Template." width="100%" /><br /><sub><strong>Preview:</strong> every file, read-only, before anything is made.</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/images/papeliz-readme-gallery-contains-scripts.jpg" alt="The dialog This template contains scripts: two scripts from P1-Workflow, each with View Code, and the box I've read these scripts ticked before Continue." width="100%" /><br /><sub><strong>Contains Scripts:</strong> read each script with View Code.</sub></td>
+    <td width="50%"><img src="docs/images/papeliz-readme-export-as-template.jpg" alt="Template Settings in Export as Template: the template's name, description, tags, first note and license, with Done." width="100%" /><br /><sub><strong>Export as Template:</strong> share your own vault.</sub></td>
+  </tr>
+</table>
+
+Step by step, in Help: [start or open a vault](https://papeliz.com/help/open-a-folder/) and
+[the Settings gear](https://papeliz.com/help/settings-gear/), which covers Export as Template.
 
 **Contributing to Papeliz.** Issues and pull requests are welcome on
 [GitHub](https://github.com/AdamNatad/Papeliz/issues): keep notes as plain Markdown, never add a server that sees
@@ -572,7 +606,7 @@ How the pieces fit together: [docs/how-papeliz-is-built.md](docs/how-papeliz-is-
 ## FAQ
 
 **Do I need an account?** No. The web app, Papeliz for Windows and Papeliz for Android need no account and no
-sign-up. Only Papeliz Sync, when it opens, needs a Papeliz account.
+sign-up. Only Papeliz Sync needs a Papeliz account.
 
 **Where are my notes kept?** On your device, never on a Papeliz server: in a folder of `.md` files you open, or in a
 vault kept in the browser, which you can download as a `.zip`. Saved chats are notes too, in the vault's hidden
@@ -585,7 +619,7 @@ you picked. Papeliz has no server in between.
 your own computer: see [Configuration](#configuration).
 
 **Is it free?** Yes. Every feature is free and open source under the MIT License, and Papeliz charges nothing for the
-AI Assistant. Papeliz Sync will be optional, with a Free plan: see [Plans and Pricing](#plans-and-pricing).
+AI Assistant. Papeliz Sync has a Free plan and paid plans: see [Plans and Pricing](#plans-and-pricing).
 
 **What was built during the hackathon?** All of it, from 27 October to 4 November 2026 (US Eastern Time, the event's
 own window): the web app and the AI
@@ -646,5 +680,24 @@ Hosted on [Cloudflare Workers](https://workers.cloudflare.com) static assets.
 
 ## License
 
-Made by [Adam Natad](https://papeliz.com/adam-natad/). [MIT](LICENSE) © 2026
-[Natad Corporation](https://natad.ai/).
+---
+
+<p align="center">Made with ❤️ by <a href="https://papeliz.com/adam-natad/">Adam Natad</a>.</p>
+
+<p align="center">
+  <a href="https://papeliz.com">Website</a> ·
+  <a href="https://papeliz.com/app/">Web App</a> ·
+  <a href="https://papeliz.com/download/">Download</a> ·
+  <a href="https://papeliz.com/help/">Help</a> ·
+  <a href="https://papeliz.com/templates/">Templates</a> ·
+  <a href="https://papeliz.com/changelog/">Changelog</a> ·
+  <a href="https://papeliz.com/community/">Community</a> ·
+  <a href="https://papeliz.com/providers/">AI Providers</a> ·
+  <a href="https://papeliz.com/privacy/">Privacy Policy</a> ·
+  <a href="https://papeliz.com/terms/">Terms of Service</a> ·
+  <a href="https://papeliz.com/license/">License Overview</a>
+</p>
+
+<p align="center">Copyright © 2026 <a href="https://natad.ai/">Natad Corporation</a>.</p>
+
+<p align="center"><a href="LICENSE">MIT License</a>.</p>
