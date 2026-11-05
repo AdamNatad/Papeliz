@@ -12,6 +12,17 @@
   for Coding and AI Agents.
 </p>
 
+> **Hackathon submission**
+>
+> - **Track:** Startups.
+> - **Problem statement:** Build for Your World.
+> - **Built:** 27 Oct – 4 Nov 2026 (US Eastern), from scratch.
+> - **Meta models:** Muse Spark 1.3, Muse Voice Transcribe 1.0 and Muse Image 1.0, through the Meta Model API.
+> - **Bonus prizes entered:** Best Agentic Use-Case ([the Plan → Build agent loop](#the-agent-loop)), Best Creative
+>   Build ([Imagine with Muse Image](#features)) and Most Viral on X.
+> - **For judges:** no account, no `.env` and no install. Open [papeliz.com/app](https://papeliz.com/app/), choose
+>   **Try Sample**, and paste a Meta Model API key in **Settings › AI Provider**.
+
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-0064D4.svg" alt="License: MIT" /></a>
   <a href="https://papeliz.com"><img src="https://img.shields.io/badge/website-papeliz.com-0064D4.svg" alt="Website: papeliz.com" /></a>
